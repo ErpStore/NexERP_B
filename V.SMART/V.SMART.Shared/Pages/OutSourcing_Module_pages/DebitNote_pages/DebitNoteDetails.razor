@@ -1,0 +1,413 @@
+﻿@page "/debitNote/details/{DbId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IDebitNote_Service
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.DebitNote_VM
+
+@inherits BaseUserRightsComponent
+@inject ICalculationService _calculationService
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ReportService reportService
+
+@inject IDebitNoteService _debitNoteService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+        <!-- Company Details Section -->
+        <MyCompanyDetails />
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        @if (DebitNoteVMs.Rejection.Value)
+        {
+            <div class="cancelWatermark">REJECTION</div>
+        }
+        else if (DebitNoteVMs.RateDifference.Value)
+        {
+            <div class="cancelWatermark">RATE DIFFERENCE</div>
+        }
+
+
+        <!-- Customer & Document Details Section -->
+        <div class="row g-3 mb-4">
+
+            <!-- Credit Note Type -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Customer Details:
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Credit Note Type</strong></td>
+                                    <td>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input border-3" type="radio"
+                                                   name="cnType"
+                                                   checked="@(DebitNoteVMs?.Purchase ?? false)" />
+                                            <label class="form-check-label fw-semibold" style="color:blue;">Purchase</label>
+                                        </div>
+
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input border-3" type="radio"
+                                                   name="cnType"
+                                                   checked="@(DebitNoteVMs?.SubContract ?? false)" />
+                                            <label class="form-check-label fw-semibold" style="color:orange;">SubContract</label>
+                                        </div>
+
+                                       
+                                    </td>
+                                </tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Vendor</strong></td><td>@(!string.IsNullOrEmpty(DebitNoteVMs?.VendorName) ? DebitNoteVMs.VendorName : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(DebitNoteVMs?.VendorAddress) ? DebitNoteVMs.VendorAddress : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(DebitNoteVMs?.VendorGstNo) ? DebitNoteVMs.VendorGstNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(DebitNoteVMs?.VendorContactNo) ? DebitNoteVMs.VendorContactNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(DebitNoteVMs?.KindofAttention) ? DebitNoteVMs.KindofAttention : "N/A")</td></tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Document Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Invoice No</strong></td>
+                                    <td>@(DebitNoteVMs != null ? $"{DebitNoteVMs.Prefix}{DebitNoteVMs.DebitNo}{DebitNoteVMs.Suffix}" : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Invoice Date</strong></td>
+                                    <td>@(DebitNoteVMs?.DebitDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Debit Note Reason</strong></td>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input border-3"
+                                               type="radio" name="rejType" checked="@DebitNoteVMs.Rejection" />
+                                        <label class="form-check-label fw-semibold">
+                                            Rejection
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input border-3" type="radio" name="rejType" checked="@DebitNoteVMs.RateDifference" />
+                                        <label class="form-check-label fw-semibold">
+                                            Rate Difference
+                                        </label>
+                                    </div>
+
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Currency</strong></td>
+                                    <td>@(!string.IsNullOrEmpty(DebitNoteVMs?.CurrName) ? DebitNoteVMs.CurrName : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Remark</strong></td>
+                                    <td>@DebitNoteVMs.MainRemark</td>
+                                </tr>
+
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                Invoice Items
+            </div>
+            <div class="table-responsive" style="overflow-x:auto;">
+                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th class="text-center">Sl No.</th>
+                            <th>Item Code</th>
+                            <th>Description</th>
+                            <th class="text-center">UOM</th>
+                            <th class="text-center">HSN</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Reject Qty</th>
+                            <th class="text-end">Unit Price</th>
+
+                            <th class="text-end">Basic Amount</th>
+
+                            <th style="width:110px;">Disc %</th>
+                            <th style="width:110px;">Disc Amt</th>
+
+                            <th style="width:120px;">Rework Qty</th>
+                            <th style="width:120px;">Cr/Dr Qty</th>
+                            <th style="width:120px;">Cr/Dr UnitPrice</th>
+
+                            <th style="width:130px;">Basic Amount</th>
+                            <th style="width:200px;">Remarks</th>
+
+                            <th style="width:110px;">Ref Invoice No.</th>
+                            <th style="width:110px;">Ref Invoice Date</th>
+
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (DebitNoteVMs?.DebitNoteSubVMs != null && DebitNoteVMs.DebitNoteSubVMs.Any())
+                        {
+                            @foreach (var item in DebitNoteVMs.DebitNoteSubVMs)
+                            {
+                                <tr>
+                                    <td class="text-center">@item.SlNo</td>
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td class="text-center">@item.MeasureUnit</td>
+                                    <td class="text-center">@item.HsnCode</td>
+                                    <td class="text-end">@FormatDecimal(item.Qty)</td>
+                                    <td class="text-end">@FormatDecimal(item.RejQty)</td>
+                                    <td class="text-end">@FormatDecimal(item.UnitPrice)</td>
+                                    <td class="text-end">@FormatDecimal(item.LineGross)</td>
+                                    <td class="text-end">@FormatDecimal(item.LineDiscountPercent)</td>
+                                    <td class="text-end">@FormatDecimal(item.LineDiscountAmount)</td>
+
+                                    <td class="text-end">@FormatDecimal(item.RewQty)</td>
+                                    <td class="text-end">@FormatDecimal(item.CrDrQty)</td>
+                                    <td class="text-end">@FormatDecimal(item.CrDrUnitPrice)</td>
+                                    <td class="text-end">@FormatDecimal(item.LineBasicAmount)</td>
+
+                                    <td>@item.Remarks</td>
+                                    @if (DebitNoteVMs.Purchase.Value)
+                                    {
+                                        <td>@item.RefPurcInvNo</td>
+                                        <td>@item.RefPurchInvDate?.ToString("dd/MM/yyyy")</td>
+                                    }
+                                    else
+                                    {
+                                        <td>@item.RefSubConInvNo</td>
+                                        <td>@item.RefSubConInvDate?.ToString("dd/MM/yyyy")</td>
+                                    }
+
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="13" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Due Date & Tax Totals Section -->
+        <div class="row g-3 mb-4">
+            <!-- Due Date & Terms and Conditions -->
+            <div class="col-12 col-lg-6 mb-3">
+            </div>
+
+            <!-- Tax Totals -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-success-subtle text-success-emphasis fw-semibold p-2 small">
+                        Totals & Taxes
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary">Total Gross Amount</td><td class="text-end">@FormatDecimal(DebitNoteVMs.TotalGrossAmount)</td></tr>
+                                <tr><td class="text-secondary">Total Discount</td><td class="text-end">@FormatDecimal(DebitNoteVMs.DiscountAmount)</td></tr>
+                                <tr><td class="text-secondary">Total Basic Amount</td><td class="text-end">@FormatDecimal(DebitNoteVMs.TotalBasicAmount)</td></tr>
+                                <tr><td class="text-secondary">Freight Charges</td><td class="text-end">@FormatDecimal(DebitNoteVMs.FreightCharges)</td></tr>
+                                <tr><td class="text-secondary">Packing Charges</td><td class="text-end">@FormatDecimal(DebitNoteVMs.PackingCharges)</td></tr>
+                                <tr><td class="text-secondary">Insurance Charges</td><td class="text-end">@FormatDecimal(DebitNoteVMs.InsuranceCharges)</td></tr>
+                                <tr><td class="text-secondary">Total Taxable</td><td class="text-end">@FormatDecimal(DebitNoteVMs.TotalTaxable)</td></tr>
+                                @if (VendorVMs.TaxValidate == false)
+                                {
+                                    @if (VendorVMs.BusiType == "Local")
+                                    {
+                                        <tr><td class="text-secondary">Total CGST</td><td class="text-end">@FormatDecimal(DebitNoteVMs.TotalCGSTAmount)</td></tr>
+                                        <tr><td class="text-secondary">Total SGST</td><td class="text-end">@FormatDecimal(DebitNoteVMs.TotalSGSTAmount)</td></tr>
+                                    }
+                                    else if (VendorVMs.BusiType == "InterState")
+                                    {
+                                        <tr><td class="text-secondary">Total IGST</td><td class="text-end">@FormatDecimal(DebitNoteVMs.TotalIGSTAmount)</td></tr>
+                                    }
+                                }
+                                <tr><td class="text-secondary">TCS</td><td class="text-end">@FormatDecimal(DebitNoteVMs.TCSAmount)</td></tr>
+                                <tr><td class="text-secondary">Other Charges</td><td class="text-end">@FormatDecimal(DebitNoteVMs.OtherCharges)</td></tr>
+                                <tr><td class="text-secondary">Round Off</td><td class="text-end">@FormatDecimal(DebitNoteVMs.RoundOff)</td></tr>
+                                <tr class="fw-bold fs-6 text-primary">
+                                    <td>Grand Total</td>
+                                    <td class="text-end">@FormatDecimal(DebitNoteVMs.GrandTotal)</td>
+                                </tr>
+
+                                @if (DebitNoteVMs.CurrId > 1)
+                                {
+                                    <tr>
+                                        <td colspan="2" class="text-end">
+                                            <small class="text-muted d-block">
+                                                Today's value: @DebitNoteVMs.TodayVal
+                                            </small>
+                                            <small class="fw-bold text-success d-block">
+                                                Converted Value in Rs: @((DebitNoteVMs.GrandTotal * DebitNoteVMs.TodayVal).ToString("0.00"))
+                                            </small>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <!-- Due Date & Terms and Conditions -->
+            <div class="col-md-12">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-warning-subtle text-warning-emphasis fw-semibold p-2 small">
+                        Total Amount in Words
+                    </div>
+                    <div class="card-body p-2 small">
+                        <p class="mb-0">
+                            @if (DebitNoteVMs.CurrId > 1 && DebitNoteVMs.TodayVal > 0)
+                            {
+                                <small class="fw-bold text-success d-block">
+                                    Converted Value in Rs:
+                                    @NumberToWordsHelper.ConvertNumberToWords(DebitNoteVMs.GrandTotal * DebitNoteVMs.TodayVal)
+                                </small>
+                            }
+                            else
+                            {
+                                <strong>@NumberToWordsHelper.ConvertNumberToWords(DebitNoteVMs.GrandTotal)</strong>
+                            }
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="@($"/debitNoteList?currentPage={currentPage}")" class="btn btn-secondary  rounded-3" disabled="@isProcessing">
+                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+            </a>
+            <a href="@($"/debitNote/update/{DbId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+            <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Credit Note";
+
+    [Parameter] public int? DbId { get; set; }
+
+    private bool isProcessing { get; set; } = true;
+    private DebitNoteVM DebitNoteVMs { get; set; } = new DebitNoteVM();
+    private VendorVM VendorVMs { get; set; } = new VendorVM();
+
+    private Companydetails company { get; set; } = new Companydetails();
+    private List<DebitNoteSubVM> refEnquiries = new();
+    private int Decimalplaces { get; set; } = 2;
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    string? pdfBase64;
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        company = await _debitNoteService.GetCompanyDetailsAsync();
+        await LoadDebitNoteAsync();
+        isProcessing = false;
+    }
+
+    private async Task LoadDebitNoteAsync()
+    {
+        try
+        {
+            if (DbId > 0)
+            {
+                var invoice = await _debitNoteService.GetDebitNoteByDbIdAsync (DbId.Value);
+                if (invoice != null)
+                {
+                    DebitNoteVMs = invoice;
+                }
+
+                Decimalplaces = await _debitNoteService.GetDecimalPlacesAsync();
+                VendorVMs = await _debitNoteService.GetVendorsByIdAsync(DebitNoteVMs.VendorCode.Value);
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"LoadDebitNoteAsync({DbId})");
+
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(DbId.Value, "DebitNote.frx", "DbId", false, ScreenName, "Sp_Print_DebitNote");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Debit Note ");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Debit Note");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

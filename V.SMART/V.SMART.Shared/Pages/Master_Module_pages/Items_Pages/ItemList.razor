@@ -1,0 +1,1107 @@
+﻿@page "/itemList"
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject IJSRuntime _js
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService currentUserService
+@inject NavigationManager _navigation
+@inject IItemService itemService
+
+@inject ExcelExportService ExcelExportService
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true" Screen="@ScreenName" Filters="SearchFilters" OnClose="CloseModal" OnSearch="ApplySearchFilters" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Items List"
+                        TitleIcon="bi bi-card-list"
+                        SearchedFields=@searchValues
+                        Breadcrumbs="@itemBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName=@ScreenName
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-12 col-md"></div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+
+                            <option value="10">10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                            <option value="500">500 per page</option>
+                            <option value="1000">1000 per page</option>
+                        </select>
+                    </div>
+
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-6 col-md-2 text-end">
+                            <a href="/item/create"
+                               class="btn btn-success btn-sm w-100 shadow-sm">
+                                <i class="bi bi-plus-square"></i>  Add New
+                            </a>
+                        </div>
+                    }
+
+                </div>
+
+                <!-- Grid -->
+                @if (ItemVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="ItemVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            // Basic Details
+                                            @* case "ItemCode":
+                                                <PropertyColumn Title="Item Code / Part No." Property="@(c => c.ItemCode)" Sortable="true" />
+                                                break; *@
+                                            case "ItemCode":
+                                                <TemplateColumn Title="Item Code / Part No." Context="c">
+                                                    <div class="d-flex align-items-center justify-content-between">
+
+                                                        <!-- Item Code -->
+                                                        <span>@c.ItemCode</span>
+
+                                                        <!-- Attachment Icon -->
+                                                        @if (c.ItemId > 0 && attachmentCounts.TryGetValue(c.ItemId, out var count) && count > 0)
+                                                        {
+                                                            <button class="btn btn-link p-0"
+                                                                    title="@($"This Item has {count} attachment(s). Click to view.")"
+                                                                    @onclick="() => OpenAttachmentButton(c.ItemId, count)">
+                                                                <i class="bi bi-paperclip fs-4"></i>
+                                                            </button>
+                                                        }
+
+                                                    </div>
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "ItemName":
+                                                <PropertyColumn Title="Item Name / Description" Property="@(c => c.ItemName)" Sortable="true" />
+                                                break;
+
+                                            case "Specification":
+                                                <PropertyColumn Title="Specification" Property="@(c => c.Specification)" />
+                                                break;
+
+                                            case "DrawingNo":
+                                                <PropertyColumn Title="Drawing No" Property="@(c => c.DrawingNo)" />
+                                                break;
+
+                                            case "Barcode":
+                                                <PropertyColumn Title="Barcode" Property="@(c => c.Barcode)" />
+                                                break;
+
+                                            case "QRCode":
+                                                <PropertyColumn Title="QR Code" Property="@(c => c.QRCode)" />
+                                                break;
+
+                                            case "BtOtorMfg":
+                                                <PropertyColumn Title="Item Type (BtoT / Mfg)" Property="@(c => c.BtOtorMfg)" />
+                                                break;
+
+                                            // Category
+                                            case "CategoryCode":
+                                                <PropertyColumn Title="Category Code" Property="@(c => c.CategoryCode)" Sortable="true" />
+                                                break;
+
+                                            case "CategoryName":
+                                                <PropertyColumn Title="Category Name" Property="@(c => c.CategoryName)" Sortable="true" />
+                                                break;
+
+                                            case "Hide":
+                                                <PropertyColumn Title="Hide" Property="@(c => c.Hide)" />
+                                                break;
+
+                                            // Units
+                                            case "MeasureUnit":
+                                                <PropertyColumn Title="Measure Unit" Property="@(c => c.MeasureUnit)" />
+                                                break;
+
+                                            case "PurchaseUnit":
+                                                <PropertyColumn Title="Purchase Unit" Property="@(c => c.PurchaseUnit)" />
+                                                break;
+
+                                            case "UnitConvert":
+                                                <PropertyColumn Title="Unit Convert" Property="@(c => c.UnitConvert)" />
+                                                break;
+
+                                            // Inventory
+                                            case "RackNo":
+                                                <PropertyColumn Title="Rack No" Property="@(c => c.RackNo)" />
+                                                break;
+
+                                            case "ROL":
+                                                <PropertyColumn Title="ROL" Property="@(c => c.ROL)" />
+                                                break;
+
+                                            case "MOL":
+                                                <PropertyColumn Title="MOL" Property="@(c => c.MOL)" />
+                                                break;
+
+                                            case "LeadTime":
+                                                <PropertyColumn Title="Lead Time" Property="@(c => c.LeadTime)" />
+                                                break;
+
+                                            case "PartWeight":
+                                                <PropertyColumn Title="Part Weight" Property="@(c => c.PartWeight)" />
+                                                break;
+
+                                            case "BinLocation":
+                                                <PropertyColumn Title="Bin Location" Property="@(c => c.BinLocation)" />
+                                                break;
+
+                                            case "ConsiderAsRm":
+                                                <PropertyColumn Title="Consider As RM" Property="@(c => c.ConsiderAsRm)" />
+                                                break;
+
+                                            // Physical Properties
+                                            case "Make":
+                                                <PropertyColumn Title="Make" Property="@(c => c.Make)" />
+                                                break;
+
+                                            case "RawMaterialName":
+                                                <PropertyColumn Title="Raw Material Name" Property="@(c => c.RawMaterialName)" />
+                                                break;
+
+                                            case "Shape":
+                                                <PropertyColumn Title="Shape" Property="@(c => c.Shape)" />
+                                                break;
+
+                                            case "Density":
+                                                <PropertyColumn Title="Density" Property="@(c => c.Density)" />
+                                                break;
+
+                                            case "Length":
+                                                <PropertyColumn Title="Length" Property="@(c => c.Length)" />
+                                                break;
+
+                                            case "Width":
+                                                <PropertyColumn Title="Width" Property="@(c => c.Width)" />
+                                                break;
+
+                                            case "Height":
+                                                <PropertyColumn Title="Height" Property="@(c => c.Height)" />
+                                                break;
+
+                                            case "Thickness":
+                                                <PropertyColumn Title="Thickness" Property="@(c => c.Thickness)" />
+                                                break;
+
+                                            case "WallThickness":
+                                                <PropertyColumn Title="Wall Thickness" Property="@(c => c.WallThickness)" />
+                                                break;
+
+                                            case "OuterDia":
+                                                <PropertyColumn Title="Outer Dia" Property="@(c => c.OuterDia)" />
+                                                break;
+
+                                            case "InnerDia":
+                                                <PropertyColumn Title="Inner Dia" Property="@(c => c.InnerDia)" />
+                                                break;
+
+                                            case "Weight":
+                                                <PropertyColumn Title="Weight" Property="@(c => c.Weight)" />
+                                                break;
+
+                                            case "BatchNo":
+                                                <PropertyColumn Title="Batch No" Property="@(c => c.BatchNo)" />
+                                                break;
+
+                                            case "AssignedCustomerName":
+                                                <PropertyColumn Title="Assigned Customer Name" Property="@(c => c.AssignedCustomerName)" />
+                                                break;
+
+                                            // Rates
+                                            case "Rate":
+                                                <PropertyColumn Title="Rate" Property="@(c => c.Rate)" />
+                                                break;
+
+                                            case "AltRate":
+                                                <PropertyColumn Title="Alternate Rate" Property="@(c => c.AltRate)" />
+                                                break;
+
+                                            // Tax Codes
+                                            case "HSNCode":
+                                                <PropertyColumn Title="HSN Code" Property="@(c => c.HSNCode)" />
+                                                break;
+
+                                            case "SACCode":
+                                                <PropertyColumn Title="SAC Code" Property="@(c => c.SACCode)" />
+                                                break;
+
+                                            case "CGST":
+                                                <PropertyColumn Title="CGST %" Property="@(c => c.CGST)" />
+                                                break;
+
+                                            case "SGST":
+                                                <PropertyColumn Title="SGST %" Property="@(c => c.SGST)" />
+                                                break;
+
+                                            case "IGST":
+                                                <PropertyColumn Title="IGST %" Property="@(c => c.IGST)" />
+                                                break;
+
+                                            // Revision
+                                            case "Rev":
+                                                <PropertyColumn Title="Rev" Property="@(c => c.Rev)" />
+                                                break;
+                                            case "TotalArea":
+                                                <PropertyColumn Title="Total Area" Property="@(c => c.TotalArea)" />
+                                                break;
+                                            case "Remarks":
+                                                <PropertyColumn Title="Remarks" Property="@(c => c.Remarks)" />
+                                                break;
+                                               
+                                            // Audit Fields
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" Sortable="true" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date"
+                                                                Property="@(c => c.CreatedDate)"
+                                                                Format="dd/MM/yyyy"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date"
+                                                                Property="@(c => c.ModifiedDate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <PropertyColumn Title="Item Code / Part No." Property="@(c => c.ItemCode)" Sortable="true" />
+                                <PropertyColumn Title="Item Name / Description" Property="@(c => c.ItemName)" Sortable="true" />
+                                <PropertyColumn Title="Item Type (BtoT / Mfg)" Property="@(c => c.BtOtorMfg)" />
+                                <PropertyColumn Title="Category Code" Property="@(c => c.CategoryCode)" Sortable="true" />
+                                <PropertyColumn Title="Category Name" Property="@(c => c.CategoryName)" Sortable="true" />
+                                <PropertyColumn Title="Hide" Property="@(c => c.Hide)" />
+                                <PropertyColumn Title="Measure Unit" Property="@(c => c.MeasureUnit)" />
+                            }
+
+                            <!-- ACTIONS -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"item/update/{c.ItemId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => OpenDelete(c.ItemId)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5"
+                                        @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export Item's
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Category available.</p>
+                }
+
+            </div>
+        </div>
+
+    </div>
+}
+
+
+@code {
+    #region STATE VARIABLES
+
+    protected override string ScreenName => "Item";
+
+    private bool isProcessing = true;
+    private int DeleteItemId = 0;
+    private string UserName { get; set; } = "";
+
+    private List<ItemVM> ItemVMs = new();
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+
+    public string searchValues = "";
+
+    private int totalItems;
+    private int pageSize { get; set; } = 10;
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; } = new();
+
+    private Dictionary<int, int> attachmentCounts = new();
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    // Instant Search filter parameter
+    [SupplyParameterFromQuery] public string? Filter { get; set; }
+
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+    private ItemVM? AttachItemSelected = null;
+
+    // Breadcrumb
+    private List<PageHeader.BreadcrumbItem> itemBreadcrumbs = new()
+    {
+        new() { Text = "Master" },
+        new() { Text = "Inventory Master" },
+        new() { Text = "Item Master", IsLast = true }
+    };
+    #endregion
+
+    #region INITIALIZATION
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns();
+
+            UserName = await currentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+            //Sathish
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+            await LoadItems();
+            await LoadColumnPreferences();
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Item List OnInitializedAsync()");
+            await _js.ToastrError("Failed to initialize Category page.");
+        }
+    }
+    #endregion
+
+    #region COLUMNS
+    private async Task InitializeColumns()
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "Item Code / Part No.", Field = "ItemCode", IsVisible = true },
+                new() { Title = "Item Name / Description", Field = "ItemName", IsVisible = true },
+                new() { Title = "Specification", Field = "Specification", IsVisible = true },
+                new() { Title = "Drawing No", Field = "DrawingNo", IsVisible = false },
+                new() { Title = "Barcode", Field = "Barcode", IsVisible = false },
+                new() { Title = "QRCode", Field = "QRCode", IsVisible = false },
+
+                // Item Type
+                new() { Title = "Item Type (BtoT / Mfg)", Field = "BtOtorMfg", IsVisible = true },
+
+                // Category
+                new() { Title = "Category Code", Field = "CategoryCode", IsVisible = true },
+                new() { Title = "Category Name", Field = "CategoryName", IsVisible = true },
+                new() { Title = "Hide", Field = "Hide", IsVisible = false },
+
+                // Units
+                new() { Title = "Measure Unit", Field = "MeasureUnit", IsVisible = true },
+                new() { Title = "Purchase Unit", Field = "PurchaseUnit", IsVisible = false },
+                new() { Title = "Unit Convert", Field = "UnitConvert", IsVisible = false },
+
+                // Inventory Details
+                new() { Title = "Rack No", Field = "RackNo", IsVisible = false },
+                new() { Title = "ROL", Field = "ROL", IsVisible = false },
+                new() { Title = "MOL", Field = "MOL", IsVisible = false },
+                new() { Title = "Lead Time", Field = "LeadTime", IsVisible = false },
+                new() { Title = "Part Weight", Field = "PartWeight", IsVisible = true },
+                new() { Title = "Bin Location", Field = "BinLocation", IsVisible = false },
+                new() { Title = "Consider as RM", Field = "ConsiderAsRm", IsVisible = false },
+
+                // Physical Properties
+                new() { Title = "Make", Field = "Make", IsVisible = false },
+                new() { Title = "Raw Material Name", Field = "RawMaterialName", IsVisible = false },
+                new() { Title = "Shape", Field = "Shape", IsVisible = false },
+                new() { Title = "Density", Field = "Density", IsVisible = false },
+                new() { Title = "Length", Field = "Length", IsVisible = false },
+                new() { Title = "Width", Field = "Width", IsVisible = false },
+                new() { Title = "Height", Field = "Height", IsVisible = false },
+                new() { Title = "Thickness", Field = "Thickness", IsVisible = false },
+                new() { Title = "Wall Thickness", Field = "WallThickness", IsVisible = false },
+                new() { Title = "Outer Dia", Field = "OuterDia", IsVisible = false },
+                new() { Title = "Inner Dia", Field = "InnerDia", IsVisible = false },
+                new() { Title = "Weight", Field = "Weight", IsVisible = false },
+                new() { Title = "Batch No", Field = "BatchNo", IsVisible = false },
+
+                new() { Title = "Assigned Customer", Field = "AssignedCustomerName", IsVisible = false },
+                // Rates
+                new() { Title = "Rate", Field = "Rate", IsVisible = true },
+                new() { Title = "Alternate Rate", Field = "AltRate", IsVisible = false },
+
+                // Tax
+                new() { Title = "HSN Code", Field = "HSNCode", IsVisible = true },
+                new() { Title = "SAC Code", Field = "SACCode", IsVisible = true },
+                new() { Title = "CGST %", Field = "CGST", IsVisible = false },
+                new() { Title = "SGST %", Field = "SGST", IsVisible = false },
+                new() { Title = "IGST %", Field = "IGST", IsVisible = false },
+
+                // Revision
+                new() { Title = "Rev", Field = "Rev", IsVisible = false },
+                new() { Title = "Total Area", Field = "TotalArea", IsVisible = false },
+                new() { Title = "Remarks", Field = "Remarks", IsVisible = false },
+
+                // Audit Fields
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false },
+
+                new() { Title = "DrawingImage", Field = "DrawingImage", IsVisible = true }
+
+            };
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error initializing columns in ItemList");
+            await _js.ToastrError("Failed to initialize columns.");
+        }
+    }
+
+    private async Task LoadColumnPreferences()
+    {
+        try
+        {
+            var user = await currentUserService.GetUsernameAsync();
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, user);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for ItemList");
+            await _js.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private Task HandleColumnChange(List<GridColumn> updated)
+    {
+        Columns = updated;
+        return Task.CompletedTask;
+    }
+    #endregion
+
+    #region DATA LOADING
+
+    private async Task LoadItems()
+    {
+        try
+        {
+            var result = await itemService.SearchWithDynamicFilterAsync(pageNumber: currentPage, pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            ItemVMs = result.Items;
+            if (ItemVMs != null)
+            {
+                foreach (var item in ItemVMs)
+                {
+                    if (item.ItemId > 0)
+                    {
+                        attachmentCounts[item.ItemId] = await itemService.GetCorrespondenceAttachmentsCountAsync(item.ItemId, "Item");
+
+                        item.AssignedCustomerName = await itemService.GetAssignedCustomer(item.ItemId);
+
+                        item.DrawingImage = await itemService.GetDrawingPath(item.ItemId);
+                    }
+                }
+            }
+
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading categories in Itemlist");
+            await _js.ToastrError("Failed to load Items.");
+        }
+    }
+
+    private void GoToInstantSearch()
+    {
+        _navigation.NavigateTo($"/instantSearch?screen={ScreenName}");
+    }
+    #endregion
+
+    #region PAGINATION
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadItems();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in ItemsList");
+            await _js.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadItems();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in ItemsList");
+            await _js.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadItems();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in ItemsList");
+            await _js.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadItems();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in ItemsList");
+            await _js.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadItems();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in ItemsList");
+            await _js.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            searchValues = "";
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadItems();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing ItemsList page");
+            await _js.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region DELETE
+
+    private async Task OpenDelete(int id)
+    {
+        try
+        {
+            var (canDelete, message) = await itemService.CanDeleteItemAsync(id);
+
+            if (!canDelete)
+            {
+                await _js.ToastrWarning(message);
+                return;
+            }
+
+            DeleteItemId = id;
+
+            ModalTitle = "Are you sure you want to delete this Item?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error opening delete modal for ItemId: {id}");
+            await _js.ToastrError("Failed to open delete confirmation.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else if (confirmation == "Open Files" && AttachItemSelected != null)
+            {
+                await OpenModal("Attachments");
+            }
+            else if (confirmation == "Export")
+            {
+
+                await ExportToExcel(isConfirmed);
+            }
+            else
+                await _js.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool confirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+
+        if (!confirmed || DeleteItemId == 0)
+            return;
+        isProcessing = true;
+        try
+        {
+            await itemService.DeleteItemAsync(DeleteItemId);
+
+            await _js.ToastrSuccess("Category deleted successfully.");
+            await LoadItems();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error deleting Item");
+            await _js.ToastrError("Failed to delete category.");
+        }
+        finally
+        {
+            DeleteItemId = 0;
+            isProcessing = false;
+        }
+
+
+    }
+    #endregion
+
+    #region MODAL HANDLERS
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                "Attachments" => "Attached Drawing's",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+    #endregion
+
+    #region SEARCH FILTERS
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            foreach (var key in filters)
+            {
+                searchValues = searchValues + key.Key + " : " + key.Value + ", ";
+            }
+            
+
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadItems();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in ItemsList");
+            await _js.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+    #endregion
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await itemService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to Open this Attachments";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "Open Files";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OpenAttachmentButton");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task HandleExport()
+    {
+
+
+        // selectedStatus = selectedStatus == "" ? "All" : selectedStatus;
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+            // var exportData = await purchasePoService.GetPurchasePosPendingListAsync(selectedStatus);
+            List<Dictionary<string, object>> exportData = new();
+            exportData = GetExportData(ItemVMs.ToList());
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "ItemMaster", "Item Master Pending List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.DownloadExcelAsync(base64, "ItemMaster.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (ItemMaster)");
+            await _js.ToastrError("Error while exporting ItemMaster!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private List<Dictionary<string, object>> GetExportData<T>(List<T> data)
+    {
+        return data
+        .Select(row =>
+        {
+            var dict = new Dictionary<string, object>();
+
+            foreach (var col in Columns.Where(x => x.IsVisible))
+            {
+                var prop = typeof(T).GetProperty(col.Field);
+
+                if (prop != null)
+                {
+                    dict[col.Title] = prop.GetValue(row);
+                }
+            }
+            
+            return dict;
+        })
+        .ToList();
+    }
+}

@@ -1,0 +1,1017 @@
+﻿@page "/mfgDcList"
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesDCVM
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject IColumnPreferenceService _preferenceService
+@inject NavigationManager _navigation
+@inject IMfgDcService _mfgDcService
+
+
+<BsModal OnModalConfirmation="ConfirmDelete_Click"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true" 
+            Screen="@ScreenName" 
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Delivery-Challan List"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@PoBreadcrumbs" />
+
+            <div class="card-body p-4">
+                <div class="row g-2 g-md-3 mb-3">
+
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="MfgDcList"
+                                    UserId="@UserName"
+                                    MaxVisible="int.MaxValue"
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                     <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-lg-2">
+                        <select class="form-select form-select-sm shadow-sm" value="@pageSize"
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-lg-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                @bind="selectedStatus"
+                                title="Select status of records">
+                            <option value="">-- Select Status --</option>
+                            <option value="Completed">PO Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-2 ms-md-auto text-end">
+                            <button type="button" class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewDc">
+                                <i class="bi bi-plus-square me-1"></i> Add New Dc
+                            </button>
+                        </div>
+                    }
+
+                </div>
+
+                @if (filteredDc.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid Items="filteredDc.AsQueryable()"
+                                  
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            // 🔹 Keys & Main Info
+                                            case "DcId":
+                                                <PropertyColumn Title="DC ID" Property="@(c => c.DcId)" />
+                                                break;
+
+                                            case "Prefix":
+                                                <PropertyColumn Title="Prefix" Property="@(c => c.Prefix)" />
+                                                break;
+
+
+                                            case "DcNo":
+                                                <PropertyColumn Title="DC No" Property="@(c => $"{c.DcNo}{c.Suffix ?? string.Empty}")" Sortable="true" />
+                                                break;
+
+
+                                            case "Suffix":
+                                                <PropertyColumn Title="Suffix" Property="@(c => c.Suffix)" />
+                                                break;
+
+                                            case "DcDate":
+                                                <PropertyColumn Title="DC Date" Property="@(c => c.DcDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "IsWithoutPoDc":
+                                                <TemplateColumn Title="Without PO DC" Context="c">
+                                                    @if (c.IsWithoutPoDc)
+                                                    {
+                                                        <span class="badge bg-success">Yes</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger">No</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            // 🔹 Customer
+                                            case "CustId":
+                                                <PropertyColumn Title="Customer ID" Property="@(c => c.CustId)" />
+                                                break;
+
+                                            case "CustName":
+                                                <PropertyColumn Title="Customer Name" Property="@(c => c.CustName)" Sortable="true" />
+                                                break;
+
+                                            case "CustAddress":
+                                                <PropertyColumn Title="Customer Address" Property="@(c => c.CustAddress)" />
+                                                break;
+
+                                            case "CustGstNo":
+                                                <PropertyColumn Title="Customer GST No" Property="@(c => c.CustGstNo)" />
+                                                break;
+
+                                            case "ContactNo":
+                                                <PropertyColumn Title="Customer Contact No" Property="@(c => c.ContactNo)" />
+                                                break;
+
+                                            case "KindofAttention":
+                                                <PropertyColumn Title="Kind Attention" Property="@(c => c.KindofAttention)" />
+                                                break;
+
+                                            // 🔹 Shipping
+                                            case "IsSameAsShipping":
+                                                <TemplateColumn Title="Same As Shipping" Context="c">
+                                                    @if (c.IsSameAsShipping)
+                                                    {
+                                                        <span class="badge bg-success">Yes</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger">No</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "ShippingId":
+                                                <PropertyColumn Title="Shipping ID" Property="@(c => c.ShippingId)" />
+                                                break;
+
+                                            case "ShippingName":
+                                                <PropertyColumn Title="Shipping Name" Property="@(c => c.ShippingName)" />
+                                                break;
+
+                                            case "ShippingAddress":
+                                                <PropertyColumn Title="Shipping Address" Property="@(c => c.ShippingAddress)" />
+                                                break;
+
+                                            case "ShippingGstNo":
+                                                <PropertyColumn Title="Shipping GST" Property="@(c => c.ShippingGstNo)" />
+                                                break;
+
+                                            case "ShippingPhone":
+                                                <PropertyColumn Title="Shipping Phone" Property="@(c => c.ShippingPhone)" />
+                                                break;
+
+                                            // 🔹 Vendor (for Purchase Return)
+                                            case "IsPurchaseReturn":
+                                                <TemplateColumn Title="Purchase Return-DC" Context="c">
+                                                    @if (c.IsPurchaseReturn)
+                                                    {
+                                                        <span class="badge bg-success">Yes</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary">No</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "VendorCode":
+                                                <PropertyColumn Title="Vendor Code" Property="@(c => c.VendorCode)" />
+                                                break;
+
+                                            case "VendorName":
+                                                <PropertyColumn Title="Vendor Name" Property="@(c => c.VendorName)" />
+                                                break;
+
+                                            case "VendorAddress":
+                                                <PropertyColumn Title="Vendor Address" Property="@(c => c.VendorAddress)" />
+                                                break;
+
+                                            case "VendorGstNo":
+                                                <PropertyColumn Title="Vendor GST No" Property="@(c => c.VendorGstNo)" />
+                                                break;
+
+                                            case "VendorContactNo":
+                                                <PropertyColumn Title="Vendor Contact No" Property="@(c => c.VendorContactNo)" />
+                                                break;
+
+                                            // 🔹 GRN Reference
+                                            case "RefGRNId":
+                                                <PropertyColumn Title="GRN ID" Property="@(c => c.RefGRNId)" />
+                                                break;
+
+                                            case "RefGRNNo":
+                                                <PropertyColumn Title="GRN No" Property="@(c => c.RefGRNNo)" />
+                                                break;
+
+                                            // 🔹 Store
+                                            case "IssueStoreId":
+                                                <PropertyColumn Title="Issue Store ID" Property="@(c => c.IssueStoreId)" />
+                                                break;
+
+                                            case "StoreName":
+                                                <PropertyColumn Title="Store Name" Property="@(c => c.StoreName)" />
+                                                break;
+
+                                            // 🔹 Transport
+                                            case "ModeofTrasnport":
+                                                <PropertyColumn Title="Mode of Transport" Property="@(c => c.ModeofTrasnport)" />
+                                                break;
+
+                                            case "VehicleNo":
+                                                <PropertyColumn Title="Vehicle No" Property="@(c => c.VehicleNo)" />
+                                                break;
+
+                                            case "TransFrom":
+                                                <PropertyColumn Title="Transport From" Property="@(c => c.TransFrom)" />
+                                                break;
+
+                                            case "TransTo":
+                                                <PropertyColumn Title="Transport To" Property="@(c => c.TransTo)" />
+                                                break;
+
+                                            case "TransId":
+                                                <PropertyColumn Title="Transport ID" Property="@(c => c.TransId)" />
+                                                break;
+
+                                            case "TransDocNo":
+                                                <PropertyColumn Title="Transport Doc No" Property="@(c => c.TransDocNo)" />
+                                                break;
+
+                                            case "TransName":
+                                                <PropertyColumn Title="Transport Name" Property="@(c => c.TransName)" />
+                                                break;
+
+                                            // 🔹 E-Way Bill
+                                            case "SubSuppType":
+                                                <PropertyColumn Title="Sub Supply Type" Property="@(c => c.SubSuppType)" />
+                                                break;
+
+                                            case "EwayBillNo":
+                                                <PropertyColumn Title="E-Way Bill No" Property="@(c => c.EwayBillNo)" />
+                                                break;
+
+                                            case "EwayBillDate":
+                                                <PropertyColumn Title="E-Way Bill Date" Property="@(c => c.EwayBillDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            // 🔹 Flags
+                                            case "DcTally":
+                                                <TemplateColumn Title="DC Status" Context="c">
+                                                    @if (c.DcCancel)
+                                                    {
+                                                        <span class="badge bg-danger">Canceled</span>
+                                                    }
+                                                    else if(c.DcTally)
+                                                    {
+                                                        <span class="badge bg-success">Completed</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            // 🔹 Others
+                                            case "Towards":
+                                                <PropertyColumn Title="Towards" Property="@(c => c.Towards)" />
+                                                break;
+
+                                            case "DcRemark":
+                                                <PropertyColumn Title="DC Remark" Property="@(c => c.MainRemarks)" />
+                                                break;
+
+                                            // 🔹 Audit Info
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            else
+                            {
+                                <!-- Default minimal PO grid -->
+                                <PropertyColumn Title="Prefix" Property="@(c => c.Prefix)" />
+                                <PropertyColumn Title="DC No" Property="@(c => c.DcNo)" Sortable="true" />
+                                <PropertyColumn Title="Suffix" Property="@(c => c.Suffix)" />
+                                <PropertyColumn Title="DC Date" Property="@(c => c.DcDate)" Format="dd/MM/yyyy" />
+                                <TemplateColumn Title="Without PO DC" Context="c">
+                                    @if (c.IsWithoutPoDc)
+                                    {
+                                        <span class="badge bg-success">Yes</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">No</span>
+                                    }
+                                </TemplateColumn>
+                                <PropertyColumn Title="Customer Name" Property="@(c => c.CustName)" Sortable="true" />
+
+
+                                <TemplateColumn Title="DC Status" Context="c">
+                                    @if (c.DcCancel)
+                                    {
+                                        <span class="badge bg-danger">Canceled</span>
+                                    }
+                                    else if(c.DcTally)
+                                    {
+                                        <span class="badge bg-success">Completed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning">Pending</span>
+                                    }
+                                </TemplateColumn>
+
+                                <PropertyColumn Title="Remarks" Property="@(c => c.MainRemarks)" />
+                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                            }
+
+                            <!-- Actions -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"MfgDc/update/{c.DcId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Dc">
+                                           <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"MfgDc/details/{c.DcId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View Dc">
+                                           <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Dc"
+                                                @onclick="() => HandleDelete(c)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+                                 @* 
+                                <button class="btn btn-success btn-sm d-flex align-items-center"
+                                        @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export Dc's
+
+                                </button> *@
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Delivery Challan found.</p>
+                }
+            
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Manufacturing DC";
+
+    private bool isProcessing = true;
+    private string? searchText { get; set; } = string.Empty;
+    private string? UserName;
+    private int DeleteDcId = 0;
+    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    public List<GridColumn> Columns { get; set; } = new();
+    private IEnumerable<MfgDcVM> MfgDcVMs = new List<MfgDcVM>();
+    private string selectedStatus = string.Empty;
+    private int DecimalPlaces { get; set; } = 2;
+
+    private int screenCode{ get; set; }
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+     // Instant Search filter parameter
+    private int totalItems;
+   // private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    [Parameter,SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> PoBreadcrumbs { get; set; } = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Sales" },
+        new PageHeader.BreadcrumbItem { Text = "DC-Outgoing", IsLast = true }
+    };
+
+    private IEnumerable<MfgDcVM> filteredDc =>
+        MfgDcVMs?.Where(c =>
+            (string.IsNullOrWhiteSpace(searchText) ||
+                (!string.IsNullOrWhiteSpace(c.DcNo) && c.DcNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.CustName) && c.CustName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.CreatedBy) && c.CreatedBy.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.ModifiedBy) && c.ModifiedBy.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            )
+            &&
+            (string.IsNullOrWhiteSpace(selectedStatus) ||
+                (selectedStatus == "Cancelled" && c.DcCancel) ||
+                (selectedStatus == "Completed" && c.DcTally) ||
+                (selectedStatus == "Pending" && !c.DcCancel && !c.DcTally)
+            )
+        ) ?? Enumerable.Empty<MfgDcVM>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        isProcessing = true;
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+
+            await InitializeColumns(IsHidden);
+
+            DecimalPlaces = await _mfgDcService.GetDecimalPlacesAsync();
+            UserName = await _userService.GetUsernameAsync();
+
+            screenCode = await _mfgDcService.GetScreenCodeByScreenNameAsync(ScreenName);
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+            await LoadAllDcDetailsAsync();
+
+            var savedPreferences = await _preferenceService.LoadPreferencesAsync("MfgDcList", UserName);
+            if (savedPreferences?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = savedPreferences.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null) col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync");
+            await _js.ToastrError("Error initializing the DCList page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadAllDcDetailsAsync()
+    {
+        isProcessing = true;
+        try
+        {
+            MfgDcVMs = await _mfgDcService.GetAllDcDetailsAsync() ?? Enumerable.Empty<MfgDcVM>();
+
+             var result = await _mfgDcService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            MfgDcVMs = result.mfgInvVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "LoadAllDcDetailsAsync");
+            await _js.ToastrError("Failed to load DC data.");
+            MfgDcVMs = Enumerable.Empty<MfgDcVM>();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task InitializeColumns(bool hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // 🔹 Keys & Main Info
+                new() { Title = "DC ID", Field = "DcId", IsVisible = false },
+                new() { Title = "Prefix", Field = "Prefix", IsVisible = false },
+                new() { Title = "DC No", Field = "DcNo", IsVisible = true },
+                new() { Title = "Suffix", Field = "Suffix", IsVisible = false },
+                new() { Title = "DC Date", Field = "DcDate", IsVisible = true },
+                new() { Title = "Without PO DC", Field = "IsWithoutPoDc", IsVisible = false },
+
+                // 🔹 Customer
+                new() { Title = "Customer ID", Field = "CustId", IsVisible = false },
+                new() { Title = "Customer Name", Field = "CustName", IsVisible = true },
+                new() { Title = "Customer Address", Field = "CustAddress", IsVisible = false },
+                new() { Title = "Customer GST No", Field = "CustGstNo", IsVisible = false },
+                new() { Title = "Customer Contact No", Field = "ContactNo", IsVisible = false },
+                new() { Title = "Kind Attention", Field = "KindofAttention", IsVisible = false },
+
+                // 🔹 Shipping
+                new() { Title = "Same As Shipping", Field = "IsSameAsShipping", IsVisible = false },
+                new() { Title = "Shipping ID", Field = "ShippingId", IsVisible = false },
+                new() { Title = "Shipping Name", Field = "ShippingName", IsVisible = false },
+                new() { Title = "Shipping Address", Field = "ShippingAddress", IsVisible = false },
+                new() { Title = "Shipping GST", Field = "ShippingGstNo", IsVisible = false },
+                new() { Title = "Shipping Phone", Field = "ShippingPhone", IsVisible = false },
+
+                // 🔹 Vendor (for Purchase Return)
+                new() { Title = "Purchase Return-Dc", Field = "IsPurchaseReturn", IsVisible = false },
+
+                new() { Title = "Vendor Code", Field = "VendorCode", IsVisible = false },
+                new() { Title = "Vendor Name", Field = "VendorName", IsVisible = false },
+                new() { Title = "Vendor Address", Field = "VendorAddress", IsVisible = false },
+                new() { Title = "Vendor GST No", Field = "VendorGstNo", IsVisible = false },
+                new() { Title = "Vendor Contact No", Field = "VendorContactNo", IsVisible = false },
+
+                // 🔹 GRN Reference
+
+                new() { Title = "GRN ID", Field = "RefGRNId", IsVisible = false },
+                new() { Title = "GRN No", Field = "RefGRNNo", IsVisible = false },
+
+                // 🔹 Store
+                new() { Title = "Issue Store ID", Field = "IssueStoreId", IsVisible = false },
+                new() { Title = "Store Name", Field = "StoreName", IsVisible = true },
+
+                // 🔹 Transport
+                new() { Title = "Mode of Transport", Field = "ModeofTrasnport", IsVisible = false },
+                new() { Title = "Vehicle No", Field = "VehicleNo", IsVisible = false },
+                new() { Title = "Transport From", Field = "TransFrom", IsVisible = false },
+                new() { Title = "Transport To", Field = "TransTo", IsVisible = false },
+                new() { Title = "Transport Id", Field = "TransId", IsVisible = false },
+                new() { Title = "Transport Doc No", Field = "TransDocNo", IsVisible = false },
+                new() { Title = "Transport Name", Field = "TransName", IsVisible = false },
+
+                // 🔹 E-Way Bill
+                new() { Title = "Sub Supply Type", Field = "SubSuppType", IsVisible = false },
+                new() { Title = "E-Way Bill No", Field = "EwayBillNo", IsVisible = false },
+                new() { Title = "E-Way Bill Date", Field = "EwayBillDate", IsVisible = false },
+
+                // 🔹 Flags
+                new() { Title = "DC Status", Field = "DcTally", IsVisible = false },
+
+                // 🔹 Others
+                new() { Title = "Towards", Field = "Towards", IsVisible = false },
+                new() { Title = "DC Remark", Field = "DcRemark", IsVisible = false },
+
+                // 🔹 Audit Info
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = false },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = false },
+
+            };
+
+
+            if (!hidden)
+            {
+                Columns.AddRange(new[]
+                {
+                    // 🔹 Audit
+
+                    new GridColumn { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                    new GridColumn { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false },
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "InitializeColumns");
+            await _js.ToastrError("Failed to initialize grid columns.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated ?? new List<GridColumn>();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "HandleColumnChange");
+            await _js.ToastrError("Failed to update column preferences.");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllDcDetailsAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPageSizeChanged");
+            await _js.ToastrError("Failed to update page size.");
+        }
+    }
+
+    private void AddNewDc()
+    {
+        var returnUrl = Uri.EscapeDataString("MfgDc/create/{id}");
+        _navigation.NavigateTo($"/Customer/Select?ReturnUrl={returnUrl}");
+    }
+
+    private async Task HandleDelete(MfgDcVM dc)
+    {
+        try
+        {           
+            
+            if (dc.DcTally || dc.MfgDcSubVMs.Any(x=>x.BalQty!=x.Qty))
+            {
+                await _js.ToastrWarning("Deletion not allowed. some transaction already been processed for this Mfg Dc.");
+                return;
+
+            }
+            bool hasInvTransMade = await _mfgDcService.HasAnyItemOrDcCancelAsync(dc.DcId);
+            if (hasInvTransMade)
+            {
+                await _js.ToastrWarning("Cannot delete this dc. Dc or item already cancelled.");
+                return;
+            }
+
+            if(!string.IsNullOrEmpty(dc.EwayBillNo))
+            {
+                await _js.ToastrWarning("This Dc cannot be delete because Eway transactions are done.");
+                return;
+            }
+
+            ModalTitle = "Are you sure you want to delete this mfg dc?";
+            btnColor = "btn-danger";
+            btnText = "Yes, Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            DeleteDcId = dc.DcId;
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error initiating delete for DcId: {dc.DcId}");
+            await _js.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            var deleted = await _mfgDcService.DeleteMfgDcByDcIdAsync(DeleteDcId,screenCode);
+            if (deleted)
+            {
+                await _js.ToastrSuccess("Dc deleted successfully.");
+                await LoadAllDcDetailsAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _js.ToastrWarning("Dc could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error deleting DcId: {DeleteDcId}");
+            await _js.ToastrError("Failed to delete DC.");
+        }
+        finally
+        {
+            DeleteDcId = 0;
+        }
+    }
+
+    #region == PAGINATION ==
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllDcDetailsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await _logs.LogDeveloperError(ex, "Error navigating to first page in Manufacturing Dc List");
+            await _js.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllDcDetailsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error navigating to previous page in Manufacturing Dc List");
+            await _js.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllDcDetailsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error navigating to next page in Manufacturing Dc List");
+            await _js.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllDcDetailsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error navigating to last page in Manufacturing Dc List");
+            await _js.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+   
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllDcDetailsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error refreshing Manufacturing Invoice List");
+            await _js.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+
+    #region SEARCH FILTER
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllDcDetailsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error applying search filters in Manufacturing dc List");
+            await _js.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    #endregion
+}

@@ -1,0 +1,692 @@
+﻿@page "/Leads"
+@using V.SMART.Shared.BusinessLayer.BusinessService.MasterService
+@using V.SMART.Shared.Data.Master.Admin
+@using V.SMART.Shared.Data.Master.General
+@using V.SMART.Shared.Data.Master.General_Module
+@using V.SMART.Shared.Data.SalesAndLabour.Leads
+@using Microsoft.AspNetCore.Components.QuickGrid
+
+@inject IJSRuntime _js
+@inherits BaseUserRightsComponent
+@inject NavigationManager _navigation
+@inject CurrentUserService CurrentUserService
+@inject ILoggingService LoggingService
+@using V.SMART.Shared.ViewModels
+@using System.ComponentModel.Design
+@using System.Linq.Expressions
+@using System.Text.RegularExpressions
+@inject IColumnPreferenceService PreferenceService
+@inject ILeadService LeadService;
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         Title="@ModalTitle"
+         ButtonText="@ModalButtonText"
+         ButtonBootstrapStyle="@ModalButtonStyle">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Card Header -->
+            <PageHeader TitleText="@itemTitle"
+                        TitleIcon="@itemIcon"
+                        Breadcrumbs="@itemBreadcrumbs" />
+
+              <div class="card-body">
+                   <div class="row g-3 align-items-end mb-3">
+                       <div class="col-md-3 col-lg-2">
+                            <label class="form-label text-muted fw-semibold">
+                                <i class="bi bi-ui-checks-grid text-primary"></i> Select Columns
+                            </label>
+                            <ColumnMenu Columns="Columns" ScreenName="LeadsList" UserId="@UserName" MaxVisible="Columns.Count()" OnChanged="HandleColumnChange" />
+                        </div>
+
+                          <div class="col-md-5 col-lg-4">
+                            <label class="form-label text-muted fw-semibold">
+                                <i class="bi bi-search text-primary"></i> Search
+                            </label>
+                            <InputText class="form-control form-control-sm"
+                                       placeholder="Name, Email or Address"
+                                       @bind-Value="searchText"
+                                       @oninput="e => searchText = e.Value?.ToString()"/>
+                        </div>
+                  
+                        <div class="col-md-4 col-lg-2">
+                            <label class="form-label text-muted fw-semibold">
+                                <i class="bi bi-list-ol text-info"></i> Rows Per Page
+                            </label>
+                           <InputSelect class="form-select form-select-sm" @bind-Value="pageSize">
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                                <option value="75">75</option>
+                                <option value="100">100</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4 col-lg-2">
+                            <label class="form-label text-muted fw-semibold">
+                                <i class="bi bi-hourglass-split text-info"></i> Leads Status
+                            </label>
+                             <InputSelect class="form-select form-select-sm" @bind-Value="statusFilter">
+                                <option value="All">All</option>
+                                <option value="Complete">Converted</option>
+                                <option value="Pending">Not Converted</option>
+                            </InputSelect>
+                         </div>
+
+                        <div class="col-md-4 col-lg-2 ms-auto text-end">
+                                  @if (CanEdit)
+                                   {
+                                    <label class="form-label invisible d-block">Add</label>
+                                        <a class="btn btn-success btn-sm w-100 shadow-sm" href="Leads-details/create">
+                                            <i class="bi bi-plus-circle me-1"></i> Add New Leads
+                                        </a>
+                                   }
+                        </div>
+                        
+                         
+                    </div>
+                   
+                   @if (PagedStaff.Any())
+                   {
+                       <div class="table-responsive">
+                            <QuickGrid Items="PagedStaff.AsQueryable()" Class="table table-hover text-center table-bordered">
+                                @if (Columns.Count(c => c.IsVisible) >= 1)
+                                {
+                                    foreach (var col in Columns.Where(c => c.IsVisible))
+                                    {
+                                        <div>
+                                            @switch (col.Field)
+                                            {
+                                                case "LeadName" :
+                                                    <PropertyColumn Title="Company Name" Property="@(c => c.LeadName)"  />
+                                                    break;
+                                                case "ContactPerson" :
+                                                         <PropertyColumn Title="ContactPerson" Property="@(c => c.ContactPerson)" />
+                                                   break;
+                                                case "Designation" :
+                                                    <PropertyColumn Title="Designation" Property="@(c => c.Designation)"  />
+                                                    break;
+                                                case "PhoneNo" :
+                                                    <PropertyColumn Title="Phone Numbmer" Property="@(c => c.PhoneNo)" />
+                                                  break;
+
+                                                 case "LeadOwner":
+                                                      <PropertyColumn Title="Lead Owner" Property="@(c => c.LeadOwner)" />
+                                                  break;
+
+                                                 case "LeadSource":
+                                                      <PropertyColumn Title="Lead Source" Property="@(c => c.LeadSource)" />
+                                                   break;
+
+                                                case "LeadStatus":
+                                                    <PropertyColumn Title="Lead Status" Property="@(c => c.LeadStatus)" />
+                                                    break;
+                                                case "Address":
+                                                    <PropertyColumn Title="Address" Property="@(c => c.Address)" />
+                                                    break;
+                                                case "StateName":
+                                                    <PropertyColumn Title="StateName" Property="@(c => c.StateName)" />
+                                                    break;
+                                                case "Country":
+                                                    <PropertyColumn Title="Country" Property="@(c => c.Country)" />
+                                                    break;
+                                                case "City":
+                                                    <PropertyColumn Title="City" Property="@(c => c.City)" />
+                                                    break;
+                                                case "PinCode":
+                                                    <PropertyColumn Title="PinCode" Property="@(c => c.PinCode)" />
+                                                    break;
+                                                case "WebSite":
+                                                    <PropertyColumn Title="WebSite" Property="@(c => c.WebSite)" />
+                                                    break;
+                                                case "BusiType":
+                                                    <PropertyColumn Title="BusiType" Property="@(c => c.BusiType)" />
+                                                    break;
+                                                case "SupType":
+                                                    <PropertyColumn Title="SupType" Property="@(c => c.SupType)" />
+                                                    break;
+                                                case "GSTNo":
+                                                    <PropertyColumn Title="GST Number" Property="@(c => c.GSTNo)" />
+                                                    break;
+                                                case "PANNo":
+                                                    <PropertyColumn Title="PAN Number" Property="@(c => c.PANNo)" />
+                                                    break;
+                                                case "Remarks":
+                                                    <PropertyColumn Title="Remarks" Property="@(c => c.Remarks)" />
+                                                    break;
+                                                case "CreatedBy":
+                                                    <PropertyColumn Title="CreatedBy" Property="@(c => c.CreatedBy)" />
+                                                    break;
+                                                case "CreatedDate":
+                                                    <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" />
+                                                    break;
+                                                case "ModifiedBy":
+                                                    <PropertyColumn Title="ModifiedBy" Property="@(c => c.ModifiedBy)" />
+                                                    break;
+                                                case "ModifiedDate":
+                                                    <PropertyColumn Title="ModifiedDate" Property="@(c => c.ModifiedDate)" />
+                                                    break;
+                                          
+                                            }
+
+                                        </div>
+                                    }
+                                }
+                                else
+                                { 
+                              
+                                     <PropertyColumn Title="Company Name" Property="@(c => c.LeadName)" />
+                                     <PropertyColumn Title="ContactPerson" Property="@(c => c.ContactPerson)" />
+                                     <PropertyColumn Title="Phone Numbmer" Property="@(c => c.PhoneNo)" />
+                                     <PropertyColumn Title="Lead Status" Property="@(c => c.LeadStatus)" />
+                            
+                                }
+                                    <TemplateColumn Title="Actions" Context="c">
+                                        <div class="d-flex gap-2 justify-content-center">
+                                                @if (CanEdit)
+                                                {
+                                                    <a href="@($"Leads-details/update/{c.LeadId}")" class="btn btn-sm btn-outline-primary" title="Edit">
+                                                        <i class="bi bi-pencil-square"></i>
+                                                    </a>
+                                                }
+                                                @if (CanDelete)
+                                                {
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDelete(c.LeadId ,Delete)" title="Delete">
+                                                    <i class="bi bi-trash3"></i>
+                                            </button>
+                                                    @if (c.LeadTally == false || c.LeadTally == null)
+                                                    {
+                                                        <button class="btn btn-sm btn-outline-success"
+                                                                @onclick="() => HandleMasterConvert(c.LeadId, MasterConvert)"
+                                                                title="Convert to Master Customer">
+                                                            <i class="bi bi-person-plus"></i>
+                                                        </button>
+                                                    }
+                                                    else
+                                                    {
+                                                        <button class="btn btn-sm btn-outline-secondary" disabled title="Already Converted">
+                                                            <i class="bi bi-person-check"></i>
+                                                        </button>
+                                                    }
+
+                                                }
+                                        </div>
+                                    </TemplateColumn>
+                            </QuickGrid>
+                       </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
+                            <div class="text-muted small ms-2">
+                                 @($"{PagedStaff.Count()} record(s) on page {currentPage} of {totalPages} (Total: {TotalStaffCount} records)")
+                             </div>
+
+                            <nav class="me-2">
+                                <ul class="pagination mb-0 justify-content-end">
+                                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                        <a class="page-link" href="#" @onclick="() => ChangePage(currentPage - 1)" @onclick:preventDefault>«</a>
+                                    </li>
+
+                                    @for (int i = 1; i <= totalPages; i++)
+                                    {
+                                        <li class="page-item @(i == currentPage ? "active" : "")">
+                                            <a class="page-link" href="#" @onclick="() => ChangePage(i)" @onclick:preventDefault>@i</a>
+                                        </li>
+                                    }
+
+                                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                        <a class="page-link" href="#" @onclick="() => ChangePage(currentPage + 1)" @onclick:preventDefault>»</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+
+                    }
+                    else
+                    {
+                        <p class="text-center text-muted">No Leads found.</p>
+                    }
+              </div>
+           </div>
+        </div>
+     }
+ } 
+
+@code {
+
+    protected override string ScreenName => "Leads";
+    private bool isProcessing = true;
+    private int DeleteLeadID = 0;
+    private int expandedLeadId = 0;
+    private string? UserName;
+    private IEnumerable<Leads> leads = new List<Leads>();
+    private string searchText = "";
+    private int currentPage = 1;
+    private int _pageSize = 10;
+    private string selectedStatus = "All";
+    public List<GridColumn> Columns { get; set; }
+    private string? _searchText;
+    private string? StaffName;
+    private int totalPages => (int)Math.Ceiling((double)FilteredLeadsAll.Count() / pageSize);
+    private int TotalStaffCount,totalPage,PagedStaffs = 0;
+    private void ToggleExpandRow(int id) => expandedLeadId = (expandedLeadId == id) ? 0 : id;
+    private List<Customer> customers = new();
+
+    private Leads Leads { get; set; } = new Leads();
+    private List<ContactPerson> Contacts { get; set; } = new();
+
+    private string ModalTitle = "Are You Want To Sure";
+    private string ModalButtonText = "Confirm";
+    private string ModalButtonStyle = "btn-primary";
+
+    private const string Delete = "Delete";
+    private const string MasterConvert = "MasterConvert";
+    private string? DeleteType;
+    private string _statusFilter = "Pending";
+
+     private List<PageHeader.BreadcrumbItem> itemBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Sales" },
+        new PageHeader.BreadcrumbItem { Text = "Leads", IsLast = true }
+    };
+
+    private string itemIcon = "bi bi-file-text";
+    private string itemTitle = "Leads - List";
+
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new GridColumn {  Title = "Company Name", Field = "LeadName", IsVisible = false  },
+                new GridColumn { Title = "ContactPerson", Field = "ContactPerson", IsVisible = false  },
+                new() { Title = "Designation", Field = "Designation", IsVisible = false },
+                new() { Title = "LeadOwner", Field = "LeadOwner", IsVisible = false },
+                new() { Title = "LeadSource", Field = "LeadSource", IsVisible = false },
+                new() { Title = "LeadStatus", Field = "LeadStatus", IsVisible = false },
+                new() { Title = "Address", Field = "Address", IsVisible = false },
+                new() { Title = "StateName", Field = "StateName", IsVisible = false },
+                new() { Title = "Country", Field = "Country", IsVisible = false },
+                new() { Title = "City", Field = "City", IsVisible = false },
+                new() { Title = "PinCode", Field = "PinCode", IsVisible = false },
+                new() { Title = "WebSite", Field = "WebSite", IsVisible = false },
+                new() { Title = "BusiType", Field = "BusiType", IsVisible = false },
+                new() { Title = "SupType", Field = "SupType", IsVisible = false },
+                new() { Title = "GSTNo", Field = "GSTNo", IsVisible = false },
+                new() { Title = "PANNo", Field = "PANNo", IsVisible = false },
+                new() { Title = "Remarks", Field = "Remarks", IsVisible = false },
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = false },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = false },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false },
+
+            };
+
+            if (!Hidden)
+            {
+                Columns.AddRange(new[]
+                {
+
+                    new GridColumn { Title = "Email", Field = "Email", IsVisible = false },
+                    new GridColumn { Title = "PhoneNo", Field = "PhoneNo", IsVisible = false },
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the EmployeeList InitializeColumns() Method");
+        }
+    }
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the EmployeeList HandleColumnChange() Method");
+        }
+    }
+
+    private string statusFilter
+    {
+        get => _statusFilter;
+        set
+        {
+            if (_statusFilter != value)
+            {
+                _statusFilter = value;
+
+            }
+        }
+    }
+
+    private int pageSize
+    {
+        get => _pageSize;
+        set
+        {
+            if (_pageSize != value)
+            {
+                _pageSize = value;
+                currentPage = 1; 
+            }
+        }
+    }
+
+    private async Task LoadPagedLeads()
+    {
+        var allLeads = await LeadService.GetAllLeadsAsync();
+        TotalStaffCount = allLeads.Count();
+        totalPage = (int)Math.Ceiling(TotalStaffCount / (double)pageSize);
+
+    }
+
+    private IEnumerable<Leads> FilteredLeadsAll => leads.Where(s =>
+        (string.IsNullOrWhiteSpace(searchText) || s.LeadName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true ||
+         s.Email?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true || s.PhoneNo?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true) 
+          && (statusFilter == "All"
+        || (statusFilter == "Complete" && s.LeadTally == true)
+        || (statusFilter == "Pending" && s.LeadTally != true)));
+
+    private IEnumerable<Leads> PagedStaff => FilteredLeadsAll
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+
+    private void ChangePage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+        }
+    }
+
+    private string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "NA";
+        return string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(n => n[0])).ToUpper();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+            UserName = await _userService.GetUsernameAsync();
+            if (firstRender)
+            {
+                await LoadStaff();
+
+                var saved = await PreferenceService.LoadPreferencesAsync("LeadsList", UserName);
+                if (saved?.Any() == true)
+                {
+                    foreach (var col in Columns)
+                    {
+                        var match = saved.FirstOrDefault(s => s.Field == col.Field);
+                        if (match != null)
+                            col.IsVisible = match.IsVisible;
+                    }
+                }
+                isProcessing = false;
+                StateHasChanged();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error Occured while handling the Employee OnInitializedAsync() Methiod");
+
+        }
+
+    }
+
+    private async Task LoadStaff()
+    {
+        try
+        {
+            var Userid = await CurrentUserService.GetUserIdAsync();
+            if (Userid==1)
+            {
+                leads = (await LeadService.GetAllLeadsAsync())
+                  .OrderByDescending(s => s.LeadId)
+                  .ToList();
+
+            }
+            else
+            {
+                leads = await LeadService.GetAllLoadLeadsAsync();
+            }
+            TotalStaffCount = leads.Count();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An Error while occured while handling the Employee LoadStaff() Method");
+
+        }
+    }
+
+    private async Task OnFilterChanged(ChangeEventArgs e)
+    {
+        statusFilter = e.Value?.ToString() ?? "All";
+        await LoadStaff();
+    }
+
+    private async Task HandleDelete(int id,string Type)
+    {
+        try
+        {
+            var CurrentLead = await LeadService.GetLeadsAsync(id);
+
+            var Currentuser = (await LeadService.GetCustomersAsync())
+                .FirstOrDefault(u => u.CustName == Leads?.LeadName);
+
+            if (Currentuser != null) 
+            {
+                await _js.ToastrError("Already Customer Created. Don't Delete.");
+                return; 
+            }
+
+            DeleteLeadID = id;
+            DeleteType = Type;
+            ModalTitle = "Are you sure you want to Delete?";
+            ModalButtonText = "Delete";
+            ModalButtonStyle = "btn-danger";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An Error while occured while handling the Employee HandleDelete() Method");
+
+        }
+    }
+
+    private async Task HandleMasterConvert(int id, string Type)
+    {
+        try
+        {
+            Leads = await LeadService.GetLeadsAsync(id);
+
+            var currentUser = (await LeadService.GetCustomersAsync())
+                .FirstOrDefault(u => u.CustName == Leads?.LeadName);
+
+            if (currentUser != null)
+            {
+                await _js.ToastrError("Already Customer Created");
+                return;
+            }
+
+            var errors = new List<string>();
+
+            // Basic checks
+            if (string.IsNullOrWhiteSpace(Leads.LeadName))
+                errors.Add("Company Name");
+            if (string.IsNullOrWhiteSpace(Leads.Address))
+                errors.Add("Address");
+            if (string.IsNullOrWhiteSpace(Leads.SupType))
+                errors.Add("Supply Type");
+            if (string.IsNullOrWhiteSpace(Leads.PinCode))
+                errors.Add("Pincode");
+            if (string.IsNullOrWhiteSpace(Leads.City))
+                errors.Add("Location");
+
+            // Duplicate customer check
+            var existingCustomer = await LeadService.GetCustomerByNameAsync(Leads.LeadName);
+            if (existingCustomer != null)
+            {
+                errors.Add("Customer name already exists.");
+                isProcessing = false;
+            }
+
+            string busiType = Leads.BusiType?.ToString()?.Trim();
+
+            // GST / PAN / Currency validation
+            var gstPanCurrencyErrors = new List<string>();
+
+            if (busiType == "Imports" || busiType == "Exports")
+            {
+                if (!string.Equals(Leads.GSTNo, "URP", StringComparison.OrdinalIgnoreCase))
+                    gstPanCurrencyErrors.Add("GST No must be 'URP' for Imports/Exports");
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(Leads.GSTNo))
+                    gstPanCurrencyErrors.Add("GST No");
+                else if (Leads.GSTNo.Length != 15)
+                    gstPanCurrencyErrors.Add("GST No must be 15 characters");
+                else if (!Regex.IsMatch(Leads.GSTNo, @"^(URP|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})$"))
+                    gstPanCurrencyErrors.Add("Invalid GST No format");
+
+                if (string.IsNullOrWhiteSpace(Leads.PANNo))
+                    gstPanCurrencyErrors.Add("PAN No");
+                else if (!Regex.IsMatch(Leads.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
+                    gstPanCurrencyErrors.Add("Invalid PAN No format");
+            }
+
+            if (Leads.CurrId == null)
+                gstPanCurrencyErrors.Add("Currency");
+
+            if (gstPanCurrencyErrors.Any())
+            {
+                errors.Add("To convert Lead into Customer, the following are required: " +
+                           string.Join(", ", gstPanCurrencyErrors));
+            }
+
+            // Validate State
+            var states = await LeadService.GetAllStatesAsync();
+            var matchedState = states.FirstOrDefault(s => s.StateCode == Leads.StateId);
+            if (Leads.StateId == 0 || matchedState == null)
+            {
+                errors.Add("Valid State");
+                isProcessing = false;
+            }
+            else
+            {
+                Leads.StateName = matchedState.StateName;
+            }
+
+            // Show all errors in one Toastr
+            if (errors.Count > 0)
+            {
+                await _js.ToastrError("Please provide: " + string.Join(", ", errors));
+                isProcessing = false;
+                return;
+            }
+
+            // If valid → show confirmation modal
+            DeleteType = Type;
+            ModalTitle = "Are you sure you want to create Customer?";
+            ModalButtonText = "Create";
+            ModalButtonStyle = "btn-danger";
+
+            DeleteLeadID = id;
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in HandleMasterConvert()");
+        }
+    }
+
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            if (isConfirmed && !string.IsNullOrWhiteSpace(DeleteType))
+            {
+                switch (DeleteType)
+                {
+                    case "Delete":
+
+                        if (isConfirmed && DeleteLeadID > 0)
+                        {
+                            isProcessing = true;
+                            bool success = await LeadService.DeleteLeadsAsync(DeleteLeadID);
+
+                            if (success)
+                            {
+                                await _js.ToastrSuccess("Leads Deleted successfully.");
+                                await LoadStaff();
+                            }
+                            else
+                            {
+                                await _js.ToastrError("Leads Delete failed.");
+                            }
+                            isProcessing = false;
+                            DeleteLeadID = 0;
+                        }
+                        break;
+
+                    case "MasterConvert":
+
+                        await LeadService.CreateleadsAsync(Leads);
+                        var contacts =   (await LeadService.GetContactPersonsByLeadAsync(Leads.LeadId)).ToList();
+                        Contacts = contacts;
+                         Contacts = Contacts
+                           .Where(c =>
+                               !string.IsNullOrWhiteSpace(c.ContactPersonName) ||
+                               !string.IsNullOrWhiteSpace(c.Email) ||
+                               !string.IsNullOrWhiteSpace(c.PhoneNo))
+                           .ToList();
+                          await LeadService.CreateOrUpdateContactsAsync(Leads.LeadId, Leads.LeadName, Contacts);
+                          await LeadService.CreateCustomerAsync(Leads);
+                          await _js.ToastrSuccess("Customer Master Created successfully.");
+
+                        break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+             await LoggingService.LogDeveloperError(ex, "An Error while occured while handling the Employee confirmDelete_Click() Method");
+        }
+    }
+}

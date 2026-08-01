@@ -1,0 +1,165 @@
+﻿@page "/screenManagement"
+@using V.SMART.Shared.Data.Master.MasterScreeenManagement
+@inherits BaseUserRightsComponent
+@inject CurrentUserService _userService
+@inject IUnitOfWork _unitOfWork
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+     <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Card Header -->
+            <PageHeader TitleText="Screen Management Settings"
+                        TitleIcon="bi bi-people-fill"
+                        Breadcrumbs="@screenMgmtBreadcrumbs" />
+
+
+            <div class="card-body">
+
+                <div class="form-floating mb-3">
+                    <input list="screenOptions"
+                           class="form-control"
+                           id="screenNameInput"
+                           placeholder="Search and Select Screen"
+                           @bind="selectedScreenName"
+                           @bind:event="oninput" />
+                    <label for="screenNameInput">Screen Name</label>
+
+                    <datalist id="screenOptions">
+                        @foreach (var screen in DistinctScreens)
+                        {
+                            <option value="@screen"></option>
+                        }
+                    </datalist>
+                </div>
+
+                @if (!string.IsNullOrEmpty(selectedScreenName))
+                {
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle text-center">
+                            <thead>
+                                <tr>
+                                    <th style="background-color: #1f7fb9; color: white;">Screen Name</th>
+                                    <th style="background-color: #1f7fb9; color: white;">Display</th>
+                                    <th style="background-color: #1f7fb9; color: white;">Topic</th>
+                                    <th style="background-color: #1f7fb9; color: white;">Description</th>
+                                    <th style="background-color: #1f7fb9; color: white;">Required</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var setting in FilteredScreenManagements)
+                                {
+                                    <tr>
+                                        <td class="text-start">@setting.ScreenName</td>
+                                        <td class="text-start">@setting.Display</td>
+                                        <td class="text-start">@setting.Topic</td>
+                                        <td class="text-start">@setting.Description</td>
+                                        <td>
+                                            <div class="form-check form-switch d-flex justify-content-center">
+                                                <input type="checkbox"
+                                                       class="form-check-input"
+                                                       @bind="setting.Required"
+                                                       disabled="@(!IsAdminWithEditRights)" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (IsAdminWithEditRights)
+                    {
+                        <div class="text-center mt-4">
+                            <button class="btn btn-success px-4 py-2" @onclick="SaveScreenSettings">
+                                <i class="bi bi-save me-2"></i> Save Settings
+                            </button>
+                        </div>
+                    }
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Screen Management";
+
+    private bool isProcessing = true;
+    private List<ScreenManagement> ScreenManagements = new();
+    private List<string> DistinctScreens = new();
+    private string? selectedScreenName;
+    private string? currentUserName;
+    private UserRole? currentUserRole;
+
+     private List<PageHeader.BreadcrumbItem> screenMgmtBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Settings" },
+        new PageHeader.BreadcrumbItem { Text = "Screen Management", IsLast = true }
+    };
+
+    private bool IsAdminWithEditRights =>
+        currentUserRole == UserRole.Administrator && (CanEdit || CanCreate);
+
+    private List<ScreenManagement> FilteredScreenManagements =>
+        string.IsNullOrEmpty(selectedScreenName)
+            ? new()
+            : ScreenManagements.Where(s => s.ScreenName == selectedScreenName).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+
+        currentUserName = await _userService.GetUsernameAsync();
+        currentUserRole = (await _unitOfWork.Users.FindAsync(u => u.UserName == currentUserName))
+                            .FirstOrDefault()?.Role;
+
+        if (!CanView && currentUserRole != UserRole.Administrator)
+        {
+            _navigation.NavigateTo("/access-denied");
+            return;
+        }
+
+        await LoadScreenManagements();
+        isProcessing = false;
+    }
+
+    private async Task LoadScreenManagements()
+    {
+        ScreenManagements = (await _unitOfWork.ScreenManagements.GetAllAsync()).ToList();
+        DistinctScreens = ScreenManagements
+            .Select(s => s.ScreenName)
+            .Distinct()
+            .OrderBy(s => s)
+            .ToList();
+    }
+
+    private async Task SaveScreenSettings()
+    {
+        if (!IsAdminWithEditRights)
+        {
+            await _js.ToastrError("You do not have permission to perform this action.");
+            return;
+        }
+
+        foreach (var setting in ScreenManagements)
+        {
+            await _unitOfWork.ScreenManagements.UpdateAsync(setting);
+        }
+
+        await _unitOfWork.SaveAsync();
+        await _js.ToastrSuccess("Screen settings saved successfully!");
+    }
+}

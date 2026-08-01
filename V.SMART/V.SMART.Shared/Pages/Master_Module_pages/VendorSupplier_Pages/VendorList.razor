@@ -1,0 +1,1024 @@
+﻿@page "/vendor"
+
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+
+@inject IVendorService vendorService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true" 
+            Screen="@ScreenName" 
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Vendors List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@VendorBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                 <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                 value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+
+                            <option value="">All</option>
+                            <option value="Active">Active</option>
+                            <option value="In Active">In Active</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                       <div class="col-6 col-md-2 ms-md-auto text-end">
+                            <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewVendor">
+                                <i class="bi bi-plus-square me-1"></i> Add New
+                            </button>
+                       </div>
+                    }
+
+                </div>
+
+                @if (VendorVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="VendorVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+
+                                        @switch (col.Field)
+                                        {
+                                            case "VendorCode":
+                                                <PropertyColumn Title="Vendor Code" Property="@(x => x.VendorCode)" />
+                                                break;
+
+                                            case "VendorName":
+                                                <PropertyColumn Title="Vendor Name" Property="@(x => x.VendorName)" Sortable="true" />
+                                                break;
+
+                                            case "VendorAddress":
+                                                <PropertyColumn Title="Vendor Address" Property="@(x => x.VendorAddress)" />
+                                                break;
+
+                                            case "GSTNo":
+                                                <PropertyColumn Title="GST No" Property="@(x => x.GSTNo)" />
+                                                break;
+
+                                            case "PANNo":
+                                                <PropertyColumn Title="PAN No" Property="@(x => x.PANNo)" />
+                                                break;
+
+                                            case "ContactNo":
+                                                <PropertyColumn Title="Contact No" Property="@(x => x.ContactNo)" />
+                                                break;
+
+                                            case "Email":
+                                                <PropertyColumn Title="Email" Property="@(x => x.Email)" />
+                                                break;
+
+                                            case "CustomerCode":
+                                                <PropertyColumn Title="Customer Code" Property="@(x => x.CustomerCode)" />
+                                                break;
+
+                                            case "StateCode":
+                                                <PropertyColumn Title="State Code" Property="@(x => x.StateCode)" />
+                                                break;
+
+                                            case "StateName":
+                                                <PropertyColumn Title="State Name" Property="@(x => x.StateName)" />
+                                                break;
+
+                                            case "PinCode":
+                                                <PropertyColumn Title="PIN Code" Property="@(x => x.PinCode)" />
+                                                break;
+
+                                            case "Location":
+                                                <PropertyColumn Title="Location" Property="@(x => x.Location)" />
+                                                break;
+
+                                            case "Country":
+                                                <PropertyColumn Title="Country" Property="@(x => x.Country)" />
+                                                break;
+
+                                            case "Distance":
+                                                <PropertyColumn Title="Distance (KM)" Property="@(x => x.Distance)" />
+                                                break;
+
+                                            case "BusiType":
+                                                <PropertyColumn Title="Business Type" Property="@(x => x.BusiType)" />
+                                                break;
+
+                                            case "Scope":
+                                                <PropertyColumn Title="Scope" Property="@(x => x.Scope)" />
+                                                break;
+
+                                            case "CompnyType":
+                                                <PropertyColumn Title="Company Type" Property="@(x => x.CompnyType)" />
+                                                break;
+
+                                            case "YearOfEstd":
+                                                <PropertyColumn Title="Year Of Establishment" Property="@(x => x.YearOfEstd)" />
+                                                break;
+
+                                            case "PreviousYearTurnover":
+                                                <PropertyColumn Title="Previous Year Turnover" Property="@(x => x.PreviousYearTurnover)" />
+                                                break;
+
+                                            case "NoofEmployee":
+                                                <PropertyColumn Title="No Of Employees" Property="@(x => x.NoofEmployee)" />
+                                                break;
+
+                                            case "OpenBal":
+                                                <PropertyColumn Title="Opening Balance" Property="@(x => x.OpenBal)" Format="N2" />
+                                                break;
+
+                                            case "OpenBalPndg":
+                                                <PropertyColumn Title="Pending Balance" Property="@(x => x.OpenBalPndg)" Format="N2" />
+                                                break;
+
+                                            case "OpenBalDate":
+                                                <PropertyColumn Title="Opening Balance Date" Property="@(x => x.OpenBalDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "TDS":
+                                                <PropertyColumn Title="TDS %" Property="@(x => x.TDS)" Format="N2" />
+                                                break;
+
+                                            case "TDSExmptdAmt":
+                                                <PropertyColumn Title="TDS Exempted Amount" Property="@(x => x.TDSExmptdAmt)" Format="N2" />
+                                                break;
+
+                                            case "TDSBillval":
+                                                <PropertyColumn Title="TDS Bill Value" Property="@(x => x.TDSBillval)" Format="N2" />
+                                                break;
+
+                                            case "TDSDeductper":
+                                                <PropertyColumn Title="TDS Deduct %" Property="@(x => x.TDSDeductper)" Format="N2" />
+                                                break;
+
+                                            case "TdsDeduct":
+                                                <TemplateColumn Title="TDS Deduct" Context="x">
+                                                    <span class="badge @(x.TdsDeduct ? "bg-success" : "bg-secondary")">
+                                                        @(x.TdsDeduct ? "Yes" : "No")
+                                                    </span>
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "Inactive":
+                                                <TemplateColumn Title="Status" Context="x">
+                                                    @if (!x.Inactive)
+                                                    {
+                                                        <span class="badge bg-success">Active</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger">Inactive</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "SSI":
+                                                <TemplateColumn Title="SSI" Context="x">
+                                                    <span class="badge @(x.SSI ? "bg-success" : "bg-secondary")">
+                                                        @(x.SSI ? "Yes" : "No")
+                                                    </span>
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "BankName":
+                                                <PropertyColumn Title="Bank Name" Property="@(x => x.BankName)" />
+                                                break;
+
+                                            case "BankAccountNo":
+                                                <PropertyColumn Title="Account No" Property="@(x => x.BankAccountNo)" />
+                                                break;
+
+                                            case "BankIFSCCode":
+                                                <PropertyColumn Title="IFSC Code" Property="@(x => x.BankIFSCCode)" />
+                                                break;
+
+                                            case "BankBranchName":
+                                                <PropertyColumn Title="Branch Name" Property="@(x => x.BankBranchName)" />
+                                                break;
+
+                                            case "Remarks":
+                                                <PropertyColumn Title="Remarks" Property="@(x => x.Remarks)" />
+                                                break;
+
+                                            case "TermsAndCondition":
+                                                <PropertyColumn Title="Terms & Conditions" Property="@(x => x.TermsAndCondition)" />
+                                                break;
+
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(x => x.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(x => x.CreatedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(x => x.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(x => x.ModifiedDate)" Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            <!-- ACTION COLUMN -->
+                            <TemplateColumn Title="Actions" Context="v">
+                                <div class="d-flex gap-2">
+
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"Vendor/update/{v.VendorCode}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Vendor">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Vendor"
+                                                @onclick="() => HandleDelete(v.VendorCode)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Vendor available.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "Vendor";
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private int DeleteVendorId = 0;
+    private string searchText = string.Empty;
+    private string selectedStatus = "";
+
+    private List<VendorVM> VendorVMs = new();
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    // === Paging & Search ===
+    private int totalItems;
+   // private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+    // === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    // Instant Search filter parameter
+    [Parameter,SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> VendorBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "General Master" },
+        new PageHeader.BreadcrumbItem { Text = "Vendor Master", IsLast = true }
+    };
+
+    #endregion
+
+    #region === initilization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+            //Sathish
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+            await LoadAllVendors();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Vendors OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+
+    #endregion
+
+    #region === Data Loading ===
+
+    private async Task LoadAllVendors()
+    {
+        try
+        {
+            var result = await vendorService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            VendorVMs = result.vendorVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading data in Vendor List");
+            await _JS.ToastrError("Failed to load Vendor List.");
+        }
+    }
+
+    private void AddNewVendor()
+    {
+        _navigation.NavigateTo("/vendor/create");
+    }
+
+    #endregion
+
+
+
+    #region ===  Columns ===
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // =========================
+                // KEYS
+                // =========================
+                new() { Title = "Vendor Code", Field = "VendorCode", IsVisible = false },
+
+                // =========================
+                // BASIC DETAILS
+                // =========================
+                new() { Title = "Vendor Name", Field = "VendorName", IsVisible = true },
+                new() { Title = "Vendor Address", Field = "VendorAddress", IsVisible = false },
+                new() { Title = "GST No", Field = "GSTNo", IsVisible = true },
+                new() { Title = "PAN No", Field = "PANNo", IsVisible = false },
+                new() { Title = "Contact No", Field = "ContactNo", IsVisible = true },
+                new() { Title = "Email", Field = "Email", IsVisible = false },
+                new() { Title = "Customer Code", Field = "CustomerCode", IsVisible = false },
+
+                // =========================
+                // LOCATION DETAILS
+                // =========================
+                new() { Title = "State Code", Field = "StateCode", IsVisible = false },
+                new() { Title = "State Name", Field = "StateName", IsVisible = true },
+                new() { Title = "PIN Code", Field = "PinCode", IsVisible = true },
+                new() { Title = "Location", Field = "Location", IsVisible = true },
+                new() { Title = "Country", Field = "Country", IsVisible = false },
+                new() { Title = "Distance", Field = "Distance", IsVisible = false },
+
+                // =========================
+                // BUSINESS DETAILS
+                // =========================
+                new() { Title = "Business Type", Field = "BusiType", IsVisible = true },
+                new() { Title = "Scope", Field = "Scope", IsVisible = false },
+                new() { Title = "Company Type", Field = "CompnyType", IsVisible = false },
+                new() { Title = "Year Of Establishment", Field = "YearOfEstd", IsVisible = false },
+                new() { Title = "Previous Year Turnover", Field = "PreviousYearTurnover", IsVisible = false },
+                new() { Title = "No Of Employees", Field = "NoofEmployee", IsVisible = false },
+
+                // =========================
+                // FINANCIAL DETAILS
+                // =========================
+                new() { Title = "Currency ID", Field = "CurrId", IsVisible = false },
+                new() { Title = "Currency Name", Field = "CurrencyName", IsVisible = false },
+                new() { Title = "Opening Balance", Field = "OpenBal", IsVisible = true },
+                new() { Title = "Pending Balance", Field = "OpenBalPndg", IsVisible = false },
+                new() { Title = "Opening Balance Date", Field = "OpenBalDate", IsVisible = false },
+
+                // =========================
+                // TDS DETAILS
+                // =========================
+                new() { Title = "TDS %", Field = "TDS", IsVisible = false },
+                new() { Title = "TDS Exempted Amount", Field = "TDSExmptdAmt", IsVisible = false },
+                new() { Title = "TDS Bill Value", Field = "TDSBillval", IsVisible = false },
+                new() { Title = "TDS Deduct %", Field = "TDSDeductper", IsVisible = false },
+                new() { Title = "TDS Deduct", Field = "TdsDeduct", IsVisible = false },
+
+                // =========================
+                // BANK DETAILS
+                // =========================
+                new() { Title = "Bank Name", Field = "BankName", IsVisible = false },
+                new() { Title = "Account No", Field = "BankAccountNo", IsVisible = false },
+                new() { Title = "IFSC Code", Field = "BankIFSCCode", IsVisible = false },
+                new() { Title = "Branch Name", Field = "BankBranchName", IsVisible = false },
+
+                // =========================
+                // QUALITY / SUPPLY
+                // =========================
+                new() { Title = "Product Manufactured", Field = "ProdMfg", IsVisible = false },
+                new() { Title = "Major Customers", Field = "MajorCust", IsVisible = false },
+                new() { Title = "Manufacturing Facility", Field = "MfgFacility", IsVisible = false },
+                new() { Title = "Inspection Facility", Field = "InspectionFacility", IsVisible = false },
+                new() { Title = "Quality System Followed", Field = "AnyQualSysFoll", IsVisible = false },
+                new() { Title = "Product Approval", Field = "AnyProdApprvl", IsVisible = false },
+
+                new() { Title = "Meet Quantity Req", Field = "CouldMeetQuantityReq", IsVisible = false },
+                new() { Title = "Maintaining Docs", Field = "ManintngDocs", IsVisible = false },
+                new() { Title = "FAI Maintained", Field = "FAIMaintained", IsVisible = false },
+                new() { Title = "FOD Maintained", Field = "FODMaintained", IsVisible = false },
+
+                // =========================
+                // PURCHASE FLAGS
+                // =========================
+                new() { Title = "Is Purchase Vendor", Field = "IsitPurch", IsVisible = false },
+                new() { Title = "Is SubContract Vendor", Field = "IsitSubCon", IsVisible = false },
+                new() { Title = "Rejection Retract", Field = "RejectionRetract", IsVisible = false },
+                new() { Title = "Allow Accept Rej Rework", Field = "IsAllowAccRejRew", IsVisible = false },
+
+                // =========================
+                // OTHER FLAGS
+                // =========================
+                new() { Title = "SSI", Field = "SSI", IsVisible = false },
+                new() { Title = "Tax Validate", Field = "TaxValidate", IsVisible = false },
+                new() { Title = "Inactive", Field = "Inactive", IsVisible = true },
+
+                // =========================
+                // OTHER DETAILS
+                // =========================
+                new() { Title = "Remarks", Field = "Remarks", IsVisible = false },
+                new() { Title = "Terms & Conditions", Field = "TermsAndCondition", IsVisible = false },
+
+                // =========================
+                // AUDIT
+                // =========================
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false }
+            };
+
+            if (!Hidden)
+            {
+                // Columns.AddRange(new[]
+                // {
+                //     new GridColumn { Title = "Extra Column 1", Field = "Extra1", IsVisible = false },
+                //     new GridColumn { Title = "Extra Column 2", Field = "Extra2", IsVisible = false },
+                // });
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for Vendor List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Vendor HandleColumnChange() Method");
+        }
+    }
+
+    #endregion
+
+
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllVendors();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in Vendors List");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllVendors();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in Vendor List");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllVendors();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Vendor List");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllVendors();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in Vendor List");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllVendors();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Vendor List");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllVendors();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Vendors List page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(int vendorId)
+    {
+        try
+        {
+            var (canDelete, message) = await vendorService.CanDeleteVendorAsync(vendorId);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteVendorId = vendorId;
+
+            ModalTitle = "Are you sure you want to delete this Vendor";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for VendorId: {vendorId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+           
+            var deleted = await vendorService.DeleteVendorByVendorIdAsync(DeleteVendorId);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Vendor deleted successfully.");
+                await LoadAllVendors();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Vendor could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting VendorId: {DeleteVendorId}");
+            await _JS.ToastrError("Failed to delete Vendor.");
+        }
+        finally
+        {
+            DeleteVendorId = 0;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region SEARCH FILTERS
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllVendors();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Vendor List");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    #endregion
+
+
+    #region Job order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SearchFilters = new();
+            selectedStatus = e.Value?.ToString() ?? "";
+
+           if (string.IsNullOrWhiteSpace(selectedStatus))
+                SearchFilters.Remove("Status");
+            else
+                SearchFilters["Status"] = selectedStatus;
+
+
+            currentPage = 1;
+            await LoadAllVendors();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error OnStatusChanged in Vendor List");
+            await _JS.ToastrError("Failed to Load Vendor List filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion 
+
+}

@@ -1,0 +1,520 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Report ScriptLanguage="CSharp" DoublePass="true" ReportInfo.Created="01/12/2026 17:47:30" ReportInfo.Modified="06/03/2026 16:07:41" ReportInfo.CreatorVersion="2026.1.0.0">
+  <ScriptText>using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Windows.Forms;
+using System.Drawing;
+using System.Data;
+using FastReport;
+using FastReport.Data;
+using FastReport.Dialog;
+using FastReport.Barcode;
+using FastReport.Table;
+using FastReport.Utils;
+
+namespace FastReport
+{
+         public class ReportScript
+         {
+                  
+
+                  public string RupeesToWords(decimal amount)
+                  {
+                           long rupees = (long)amount;
+                           int paise = (int)Math.Round((amount - rupees) * 100);
+
+                           string result = NumberToWords(rupees) + &quot; Rupees&quot;;
+
+                           if (paise &gt; 0)
+                                    result += &quot; and &quot; + NumberToWords(paise) + &quot; Paise&quot;;
+
+                           return result + &quot; Only&quot;;
+                  }
+
+                  public string NumberToWords(long number)
+                  {
+                           if (number == 0)
+                                    return &quot;Zero&quot;;
+
+                           string[] units = {
+                                    &quot;&quot;, &quot;One&quot;, &quot;Two&quot;, &quot;Three&quot;, &quot;Four&quot;, &quot;Five&quot;, &quot;Six&quot;, &quot;Seven&quot;,
+                                    &quot;Eight&quot;, &quot;Nine&quot;, &quot;Ten&quot;, &quot;Eleven&quot;, &quot;Twelve&quot;, &quot;Thirteen&quot;,
+                                    &quot;Fourteen&quot;, &quot;Fifteen&quot;, &quot;Sixteen&quot;, &quot;Seventeen&quot;, &quot;Eighteen&quot;, &quot;Nineteen&quot;
+                                    };
+
+                           string[] tens = {
+                                    &quot;&quot;, &quot;&quot;, &quot;Twenty&quot;, &quot;Thirty&quot;, &quot;Forty&quot;, &quot;Fifty&quot;,
+                                    &quot;Sixty&quot;, &quot;Seventy&quot;, &quot;Eighty&quot;, &quot;Ninety&quot;
+                                    };
+
+                           if (number &lt; 20)
+                                    return units[number];
+
+                           if (number &lt; 100)
+                                    return tens[number / 10] +
+                                             ((number % 10 &gt; 0) ? &quot; &quot; + units[number % 10] : &quot;&quot;);
+
+                           if (number &lt; 1000)
+                                    return units[number / 100] + &quot; Hundred &quot; + NumberToWords(number % 100);
+
+                           if (number &lt; 100000)
+                                    return NumberToWords(number / 1000) + &quot; Thousand &quot; + NumberToWords(number % 1000);
+
+                           if (number &lt; 10000000)
+                                    return NumberToWords(number / 100000) + &quot; Lakh &quot; + NumberToWords(number % 100000);
+
+                           return NumberToWords(number / 10000000) + &quot; Crore &quot; + NumberToWords(number % 10000000);
+                  }
+
+         }
+}
+</ScriptText>
+  <Dictionary>
+    <MsSqlDataConnection Name="Connection" ConnectionString="rijcmlq2jCPgMCWS43ol1bwV7cIFyRP+DzwUQuEZV/D6eh7ZVixMewZKw27dV03aPzA+kahTVoBtYJcC0XKvGJAchSPT+zBoOysCOC0bN6aMrlP0IjDb/Nle2uUPo6RWciVK+pXr1ay3ENQWd9ZV3rz20NHzDiUl8VnDC1qXhVzT/xjJRZ/yBLWcq9fhNM8BMhhy//m/SsKmvZXltWk2YHpZH/55KHgnkNwXWt2alzo/EeEZMA=">
+      <ProcedureDataSource Name="Sp_Print_CompanyDetails" DataType="System.Int32" Enabled="true" TableName="Sp_Print_CompanyDetails" SelectCommand="Sp_Print_CompanyDetails">
+        <Column Name="CompanyName" DataType="System.String"/>
+        <Column Name="RegisteredAddress" DataType="System.String"/>
+        <Column Name="BillingAddress" DataType="System.String"/>
+        <Column Name="ShippingAddress" DataType="System.String"/>
+        <Column Name="City" DataType="System.String"/>
+        <Column Name="StateName" DataType="System.String"/>
+        <Column Name="Country" DataType="System.String"/>
+        <Column Name="ZipCode" DataType="System.String"/>
+        <Column Name="PhoneNumber" DataType="System.String"/>
+        <Column Name="MobileNumber" DataType="System.String"/>
+        <Column Name="EmailId" DataType="System.String"/>
+        <Column Name="Website" DataType="System.String"/>
+        <Column Name="GSTIN" DataType="System.String"/>
+        <Column Name="PAN" DataType="System.String"/>
+        <Column Name="IECNumber" DataType="System.String"/>
+        <Column Name="IsEOURegistered" DataType="System.Boolean" BindableControl="CheckBox"/>
+        <Column Name="LUTNumber" DataType="System.String"/>
+        <Column Name="BankAuthorizedDealerCode" DataType="System.String"/>
+        <Column Name="EOURegistrationNo" DataType="System.String"/>
+        <Column Name="EOURegistrationDate" DataType="System.DateTime"/>
+        <Column Name="EOUStatus" DataType="System.String"/>
+        <Column Name="EOUValidityTill" DataType="System.DateTime"/>
+        <Column Name="FinancialYearType" DataType="System.String"/>
+        <Column Name="OpeningBalance" DataType="System.Decimal"/>
+        <Column Name="OpeningBalanceDate" DataType="System.DateTime"/>
+        <Column Name="LogoPath" DataType="System.String"/>
+        <Column Name="LogoUrl" DataType="System.String"/>
+        <Column Name="IsoLogoPath" DataType="System.String"/>
+        <Column Name="IsoLogoUrl" DataType="System.String"/>
+        <Column Name="CurrencyCode" DataType="System.Int32"/>
+        <Column Name="TimeZone" DataType="System.String"/>
+        <Column Name="CIN" DataType="System.String"/>
+        <Column Name="TIN" DataType="System.String"/>
+        <Column Name="BankName" DataType="System.String"/>
+        <Column Name="BankBranch" DataType="System.String"/>
+        <Column Name="BankAccountNumber" DataType="System.String"/>
+        <Column Name="BankAddress" DataType="System.String"/>
+        <Column Name="BankCity" DataType="System.String"/>
+        <Column Name="BankState" DataType="System.String"/>
+        <Column Name="AccountType" DataType="System.String"/>
+        <Column Name="IFSCCode" DataType="System.String"/>
+        <Column Name="MICRCode" DataType="System.String"/>
+        <Column Name="SWIFTCode" DataType="System.String"/>
+        <Column Name="UdyamNumber" DataType="System.String"/>
+        <Column Name="PFRegistrationNumber" DataType="System.String"/>
+        <Column Name="ESIRegistrationNumber" DataType="System.String"/>
+        <Column Name="ShopEstablishmentNumber" DataType="System.String"/>
+        <Column Name="ExciseRegistrationNumber" DataType="System.String"/>
+        <Column Name="SEZRegistrationNumber" DataType="System.String"/>
+        <Column Name="CustomsRegistrationNumber" DataType="System.String"/>
+        <Column Name="AlternateEmail" DataType="System.String"/>
+        <Column Name="ContactPersonName" DataType="System.String"/>
+        <Column Name="CustomFinancialYearType" DataType="System.String"/>
+        <Column Name="CustomBusinessType" DataType="System.String"/>
+        <Column Name="CustomIndustryType" DataType="System.String"/>
+        <Column Name="IsActive" DataType="System.Boolean" BindableControl="CheckBox"/>
+        <Column Name="DecimalPlaces" DataType="System.Int32"/>
+        <Column Name="CreatedBy" DataType="System.String"/>
+        <Column Name="CreatedDate" DataType="System.DateTime"/>
+        <Column Name="ModifiedBy" DataType="System.String"/>
+        <Column Name="ModifiedDate" DataType="System.DateTime"/>
+      </ProcedureDataSource>
+      <ProcedureDataSource Name="Sp_Print_MfgInv" DataType="System.Int32" Enabled="true" TableName="Sp_Print_MfgInv" SelectCommand="Sp_Print_MfgInv">
+        <Column Name="InvNo" DataType="System.String"/>
+        <Column Name="InvDate" DataType="System.String"/>
+        <Column Name="DcNo" DataType="System.String"/>
+        <Column Name="DcDate" DataType="System.String"/>
+        <Column Name="issuestore" DataType="System.String"/>
+        <Column Name="VehicleNo" DataType="System.String"/>
+        <Column Name="TransFrom" DataType="System.String"/>
+        <Column Name="TransTo" DataType="System.String"/>
+        <Column Name="MainRemark" DataType="System.String"/>
+        <Column Name="CustName" DataType="System.String"/>
+        <Column Name="CustAddr" DataType="System.String"/>
+        <Column Name="VendorCode" DataType="System.String"/>
+        <Column Name="StateId" DataType="System.Int32"/>
+        <Column Name="GSTNo" DataType="System.String"/>
+        <Column Name="PANNo" DataType="System.String"/>
+        <Column Name="ContactNo" DataType="System.String"/>
+        <Column Name="AltCustName" DataType="System.String"/>
+        <Column Name="ConsigneeAddress" DataType="System.String"/>
+        <Column Name="CongState" DataType="System.String"/>
+        <Column Name="CongGst" DataType="System.String"/>
+        <Column Name="CongPan" DataType="System.String"/>
+        <Column Name="CongContactNo" DataType="System.String"/>
+        <Column Name="SlNo" DataType="System.Int32"/>
+        <Column Name="ItemCode" DataType="System.String"/>
+        <Column Name="ItemName" DataType="System.String"/>
+        <Column Name="MeasureUnit" DataType="System.String"/>
+        <Column Name="HSNCode" DataType="System.String"/>
+        <Column Name="Qty" DataType="System.Decimal"/>
+        <Column Name="UnitPrice" DataType="System.Decimal"/>
+        <Column Name="LineDiscountPercent" DataType="System.Decimal"/>
+        <Column Name="LineBasicAmount" DataType="System.Decimal"/>
+        <Column Name="CurrName" DataType="System.String"/>
+        <Column Name="Symbol" DataType="System.String"/>
+        <Column Name="FreightCharges" DataType="System.Decimal"/>
+        <Column Name="OtherCharges" DataType="System.Decimal"/>
+        <Column Name="RoundOff" DataType="System.Decimal"/>
+        <Column Name="TotalGrossAmount" DataType="System.Decimal"/>
+        <Column Name="TotalBasicAmount" DataType="System.Decimal"/>
+        <Column Name="TotalTaxable" DataType="System.Decimal"/>
+        <Column Name="GrandTotal" DataType="System.Decimal"/>
+        <Column Name="CGstRate" DataType="System.Decimal"/>
+        <Column Name="TotalCGSTAmount" DataType="System.Decimal"/>
+        <Column Name="SGstRate" DataType="System.Decimal"/>
+        <Column Name="TotalSGSTAmount" DataType="System.Decimal"/>
+        <Column Name="IGstRate" DataType="System.Decimal"/>
+        <Column Name="TotalIGSTAmount" DataType="System.Decimal"/>
+        <Column Name="LcLd" DataType="System.String"/>
+        <Column Name="ACKNO" DataType="System.String"/>
+        <Column Name="ACKNODate" DataType="System.DateTime"/>
+        <Column Name="IRNNo" DataType="System.String"/>
+        <Column Name="SignedInvoiceQrCode" DataType="System.String"/>
+        <Column Name="EWayNo" DataType="System.String"/>
+        <Column Name="PONo" DataType="System.String"/>
+        <Column Name="PODate" DataType="System.String"/>
+        <Column Name="StateName" DataType="System.String"/>
+        <Column Name="ContactPerson" DataType="System.String"/>
+        <Column Name="TransMode" DataType="System.String"/>
+        <Column Name="InsuranceSymbol" DataType="System.String"/>
+        <Column Name="InsuranceAmount" DataType="System.String"/>
+        <Column Name="TcsSybol" DataType="System.String"/>
+        <Column Name="TcsAmount" DataType="System.String"/>
+        <Column Name="PackSymbol" DataType="System.String"/>
+        <Column Name="PackAmount" DataType="System.String"/>
+        <Column Name="DiscSymbol" DataType="System.String"/>
+        <Column Name="DiscountAmount" DataType="System.String"/>
+        <Column Name="StateName1" DataType="System.String"/>
+        <ProcedureParameter Name="@InvId" DataType="8" DefaultValue="267" Direction="Input"/>
+      </ProcedureDataSource>
+    </MsSqlDataConnection>
+    <Parameter Name="CopyName" DataType="System.String" AsString=""/>
+    <Total Name="Qty" Expression="[Sp_Print_MfgInv.Qty]" Evaluator="Data1"/>
+    <Total Name="Amount" Expression="[Sp_Print_MfgInv.LineBasicAmount]" Evaluator="Data1"/>
+  </Dictionary>
+  <ReportPage Name="Page1" Border.Lines="All" Watermark.Enabled="true" Watermark.Font="Arial, 60pt">
+    <ReportTitleBand Name="ReportTitle1" Width="718.2" Height="293.24">
+      <PictureObject Name="Logo" Left="13.21" Top="38.47" Width="143.1" Height="51.07" DataColumn="Sp_Print_CompanyDetails.LogoPath"/>
+      <PictureObject Name="IsoLogo" Left="575.18" Top="30.24" Width="136.11" Height="58.16" DataColumn="Sp_Print_CompanyDetails.IsoLogoPath"/>
+      <TextObject Name="txtCompName" Left="192.83" Top="28" Width="373.66" Height="20.78" Text="[Sp_Print_CompanyDetails.CompanyName]" HorzAlign="Center" VertAlign="Center" Font="Calibri, 18pt, style=Bold"/>
+      <TextObject Name="txtAdd" Left="198.17" Top="51.84" Width="372.82" Height="36.79" CanGrow="true" Text="[Sp_Print_CompanyDetails.RegisteredAddress]" HorzAlign="Center" Font="Calibri, 11pt"/>
+      <LineObject Name="Line12" Top="26.46" Width="716.31"/>
+      <TextObject Name="Text234" Left="607.44" Top="3.78" Width="102.1" Height="18.9" Text="[CopyName]" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text253" Left="2.95" Top="87.84" Width="281.1" Height="16.71" Text="UDYAM Reg No : UDYAM-KR-03-0182646" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text254" Left="483.53" Top="87.89" Width="208.36" Height="16.71" Text="Emai : snsindustry@gmail.com" Font="Calibri, 11pt"/>
+      <TableObject Name="Table3" Left="-0.02" Top="106.88" Width="717.95" Height="43.71">
+        <TableColumn Name="Column6" Width="360.45"/>
+        <TableColumn Name="Column7" Width="357.5"/>
+        <TableRow Name="Row20" Height="21.86">
+          <TableCell Name="Cell73" Border.Lines="Right, Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text255" Left="7.84" Top="1.93" Width="56.84" Height="20.79" Tag="GSTIN" Text="GSTIN : " Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt, style=Bold"/>
+            <TextObject Name="txtGstin" Left="63.49" Top="1.13" Width="225.55" Height="20.79" Tag="GSTIN" Text="[Sp_Print_CompanyDetails.GSTIN]" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell74" Border.Lines="Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text258" Left="3.9" Top="0.87" Width="257.5" Height="18.67" Text="PAN No : AAVPN4051D" Font="Calibri, 12pt, style=Bold"/>
+          </TableCell>
+        </TableRow>
+        <TableRow Name="Row21" Height="21.85">
+          <TableCell Name="Cell78" Border.Lines="Right, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text256" Left="5.93" Top="1.93" Width="160.18" Height="18.67" Text="State : KARNATAKA" Font="Calibri, 11pt"/>
+            <TextObject Name="Text257" Left="177.83" Top="2.95" Width="125.82" Height="18.67" Text="State Code : 29" Font="Calibri, 11pt"/>
+          </TableCell>
+          <TableCell Name="Cell79" Border.Lines="Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text259" Left="2.71" Top="2.93" Width="222.13" Height="18.67" Text="Vendor Code : 1000258890" Font="Calibri, 11pt"/>
+          </TableCell>
+        </TableRow>
+      </TableObject>
+      <TextObject Name="Text260" Left="256.38" Top="154.87" Width="200.48" Height="19.65" Text="INVOICE" HorzAlign="Center" VertAlign="Center" Font="Calibri, 18pt, style=Bold"/>
+      <TableObject Name="Table4" Left="0.01" Top="175.35" Width="716.43" Height="97.23">
+        <TableColumn Name="Column8" Width="144.89"/>
+        <TableColumn Name="Column9" Width="215.72"/>
+        <TableColumn Name="Column10" Width="134.21"/>
+        <TableColumn Name="Column11" Width="221.61"/>
+        <TableRow Name="Row22" Height="23.82">
+          <TableCell Name="Cell80" Border.Lines="Right, Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="txtInvNo" Left="144.03" Top="2.93" Width="208.06" Height="18.9" Text="[Sp_Print_MfgInv.InvNo]" Padding="0, 0, 0, 0" Font="Calibri, 12pt, style=Bold"/>
+            <TextObject Name="Text27" Left="6.45" Top="0.01" Width="91.72" Height="18.9" Text="Invoice No" Padding="0, 0, 0, 0" Font="Calibri, 12pt, style=Bold"/>
+            <TextObject Name="Text28" Left="5.42" Top="23.57" Width="92.61" Height="18.9" Text="Invoice Date" Padding="0, 0, 0, 0" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell81" Border.Lines="Top, Bottom" Font="Arial, 10pt"/>
+          <TableCell Name="Cell82" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text111" Left="7.85" Top="2.2" Width="122.44" Height="15.12" Text="Mode of Transport" Padding="0, 0, 0, 0" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell83" Border.Lines="Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="txtTMOT" Left="6.08" Top="2.27" Width="199.56" Height="17.01" Text="[Sp_Print_MfgInv.TransMode]" Padding="0, 0, 0, 0" Font="Calibri, 11pt"/>
+            <TextObject Name="txtVehclNo" Left="6.4" Top="21.8" Width="201.85" Height="18.9" Text="[Sp_Print_MfgInv.VehicleNo]" Padding="0, 0, 0, 0" Font="Calibri, 11pt"/>
+          </TableCell>
+        </TableRow>
+        <TableRow Name="Row23" Height="18.69">
+          <TableCell Name="Cell85" Border.Lines="Right, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text174" Left="142.62" Top="18.09" Width="194.47" Height="18.9" Text="[Sp_Print_MfgInv.PONo]" VertAlign="Center" Font="Calibri, 12pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell86" Border.Lines="Right, Bottom" Font="Arial, 10pt">
+            <TextObject Name="txtInvDate" Left="3.71" Top="0.89" Width="203.23" Height="18.9" Text="[Sp_Print_MfgInv.InvDate]" Padding="0, 0, 0, 0" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell87" Border.Lines="Left, Right, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text109" Left="9.16" Top="0.23" Width="92.44" Height="18.9" Text="Vehicle No" Padding="0, 0, 0, 0" Font="Calibri, 11pt, style=Bold"/>
+            <TextObject Name="Text105" Left="8.01" Top="17.6" Width="92.61" Height="18.9" Text="DC No" Padding="0, 0, 0, 0" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell88" Border.Lines="Bottom" Font="Arial, 10pt">
+            <TextObject Name="txtDCNo" Left="3.16" Top="17.63" Width="203.22" Height="18.9" Text="[Sp_Print_MfgInv.DcNo]" Padding="0, 0, 0, 0" Font="Calibri, 11pt"/>
+          </TableCell>
+        </TableRow>
+        <TableRow Name="Row24">
+          <TableCell Name="Cell90" Border.Lines="Right, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text171" Left="3.32" Top="1.25" Width="134.9" Height="18.9" Text="Po No." VertAlign="Center" Font="Calibri, 12pt, style=Bold"/>
+            <TextObject Name="Text172" Left="3.3" Top="19.07" Width="91.5" Height="18.9" Text="Po Date" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell91" Border.Lines="Right, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text173" Left="0.19" Top="17.1" Width="200.33" Height="18.9" Text="[Sp_Print_MfgInv.PODate]" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell92" Border.Lines="Right, Bottom" Font="Arial, 10pt"/>
+          <TableCell Name="Cell93" Border.Lines="Bottom" Font="Arial, 10pt"/>
+        </TableRow>
+        <TableRow Name="Row25">
+          <TableCell Name="Cell95" Border.Lines="Right, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text209" Left="5.69" Top="18.05" Width="92.24" Height="14" Text="E-Way Bill No" Padding="0, 0, 0, 0" WordWrap="false" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell96" Border.Lines="Right, Bottom" Font="Arial, 10pt"/>
+          <TableCell Name="Cell97" Border.Lines="Right, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text107" Left="8.55" Top="0.34" Width="91.72" Height="18.9" Text="DC Date" Padding="0, 0, 0, 0" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell98" Border.Lines="Bottom" Font="Arial, 10pt">
+            <TextObject Name="txtDCDate" Left="1.29" Top="1.08" Width="203.22" Height="18.9" Text="[Sp_Print_MfgInv.DcDate]" Padding="0, 0, 0, 0" Font="Calibri, 11pt"/>
+          </TableCell>
+        </TableRow>
+        <TableRow Name="Row26" Height="16.92">
+          <TableCell Name="Cell100" Border.Lines="Right" Font="Arial, 10pt"/>
+          <TableCell Name="Cell101" Border.Lines="Right" Font="Arial, 10pt">
+            <TextObject Name="Text210" Left="0.65" Top="0.06" Width="199.95" Height="14" Text="[Sp_Print_MfgInv.EWayNo]" Padding="0, 0, 0, 0" WordWrap="false" Font="Calibri, 11pt"/>
+          </TableCell>
+          <TableCell Name="Cell102" Border.Lines="Right" Font="Arial, 10pt"/>
+          <TableCell Name="Cell103" Font="Arial, 10pt"/>
+        </TableRow>
+      </TableObject>
+    </ReportTitleBand>
+    <PageHeaderBand Name="PageHeader1" Top="296.2" Width="718.2" Guides="0">
+      <ChildBand Name="Child1" Top="299.17" Width="718.2" Height="120.72" Border.Lines="Top, Bottom">
+        <TextObject Name="Text4" Left="0.79" Top="2.36" Width="355.71" Height="15.86" Text="Bill To Customer" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+        <TextObject Name="txtCustAdd" Left="62.66" Top="38.26" Width="292.67" Height="45.79" Text="[Sp_Print_MfgInv.CustAddr]" Padding="0, 0, 0, 0" Font="Calibri, 10pt"/>
+        <TextObject Name="Text5" Left="0.05" Top="18.09" Width="51.24" Height="20.79" Text="Name :" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+        <TextObject Name="Text177" Left="-1.5" Top="37.5" Width="67.34" Height="18.9" Text="Address :" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+        <TextObject Name="Text10" Left="0.34" Top="85" Width="46.49" Height="15.96" Text="GSTIN :" Padding="0, 0, 0, 0" Font="Calibri, 10pt, style=Bold"/>
+        <TextObject Name="Text9" Left="182.77" Top="82.61" Width="75.6" Height="15.96" Text="State Code :" Padding="0, 0, 0, 0" Font="Calibri, 10pt, style=Bold"/>
+        <TextObject Name="Text11" Left="1.12" Top="102.49" Width="46.49" Height="15.96" Text="PAN :" Padding="0, 0, 0, 0" Font="Calibri, 10pt, style=Bold"/>
+        <LineObject Name="Line27" Left="360.52" Top="17.82" Width="359.83"/>
+        <TextObject Name="Text14" Left="370.1" Top="2.47" Width="353.6" Height="17" Text="Ship To Customer:" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+        <LineObject Name="Line29" Left="0.86" Top="17.58" Width="361.8"/>
+        <LineObject Name="Line3" Left="360.88" Top="1.25" Height="119.47"/>
+        <TextObject Name="Text244" Left="56.16" Top="19.66" Width="299.73" Height="18.9" Text="[Sp_Print_MfgInv.CustName]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text245" Left="261.6" Top="82.55" Width="95.98" Height="15.96" Text="[Sp_Print_MfgInv.StateId]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text246" Left="52.16" Top="84.82" Width="124.65" Height="15.96" Text="[Sp_Print_MfgInv.GSTNo]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text247" Left="52.16" Top="101.45" Width="124.66" Height="15.96" Text="[Sp_Print_MfgInv.PANNo]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text178" Left="367.44" Top="20.58" Width="63.89" Height="18.9" Text="Name :" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+        <TextObject Name="Text179" Left="365.54" Top="36.77" Width="68.8" Height="18.9" Text="Address :" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+        <TextObject Name="Text214" Left="372.19" Top="81.14" Width="48" Height="18.9" Text="GSTIN :" Padding="0, 0, 0, 0" Font="Calibri, 10pt, style=Bold"/>
+        <TextObject Name="Text215" Left="373.83" Top="99.25" Width="48.74" Height="18.9" Text="PAN :" Padding="0, 0, 0, 0" Font="Calibri, 10pt, style=Bold"/>
+        <TextObject Name="Text218" Left="553.58" Top="80.95" Width="73.43" Height="18.9" Text="State Code :" Padding="0, 0, 0, 0" Font="Calibri, 10pt, style=Bold"/>
+        <TextObject Name="Text248" Left="422.01" Top="19.11" Width="290.65" Height="18.9" Text="[Sp_Print_MfgInv.CustName]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text249" Left="424.76" Top="35.23" Width="289.66" Height="45.34" Text="[Sp_Print_MfgInv.CustAddr]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text250" Left="424.71" Top="80.49" Width="124.6" Height="18.9" Text="[Sp_Print_MfgInv.GSTNo]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text251" Left="424.18" Top="98.9" Width="124.57" Height="18.9" Text="[Sp_Print_MfgInv.PANNo]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text252" Left="628.25" Top="82.04" Width="88.65" Height="18.9" Text="[Sp_Print_MfgInv.StateId]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text261" Left="550.76" Top="101.74" Width="83.47" Height="18.9" Text="State Name :" Padding="0, 0, 0, 0" Font="Calibri, 10pt, style=Bold"/>
+        <TextObject Name="Text262" Left="267.27" Top="103.88" Width="94.35" Height="15.73" Text="[Sp_Print_MfgInv.StateName]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text264" Left="630.17" Top="101.75" Width="92.39" Height="18.67" Text="[Sp_Print_MfgInv.StateName]" Font="Calibri, 10pt"/>
+        <TextObject Name="Text265" Left="181.81" Top="101.9" Width="83.47" Height="15.96" Text="State Name :" Padding="0, 0, 0, 0" Font="Calibri, 10pt, style=Bold"/>
+      </ChildBand>
+    </PageHeaderBand>
+    <ColumnHeaderBand Name="ColumnHeader1" Top="422.85" Width="718.2" Height="19.42" Guides="24.57">
+      <TextObject Name="Text38" Left="39.09" Top="0.01" Width="116.42" Height="18.34" Border.Lines="Right" Text="Article No." Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text44" Left="620.32" Top="-0.99" Width="97.2" Height="20.3" Border.Lines="Bottom" Text="Total Value" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text42" Left="422.14" Top="-0.99" Width="65.47" Height="20.3" Border.Lines="Right, Bottom" Text="Qty." Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text43" Left="533.92" Top="-0.99" Width="85.88" Height="20.3" Border.Lines="Right, Bottom" Text="Unit Price" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text39" Left="155.75" Top="-0.99" Width="206.33" Height="20.3" Border.Lines="Right, Bottom" Text="Description Of Goods" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text40" Left="362.69" Top="-0.99" Width="61.84" Height="20.3" Border.Lines="Right, Bottom" Text="HSN" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text41" Left="488.72" Top="-1.64" Width="43.81" Height="21.06" Border.Lines="Right, Bottom" Text="UOM" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text279" Left="-1.81" Top="0.41" Width="42.92" Height="18.34" Border.Lines="Right" Text="Sl.No." Padding="0, 0, 0, 0" HorzAlign="Right" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text280" Left="533.92" Top="-1.97" Width="85.88" Height="20.3" Border.Lines="Right" Text="Unit Price" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+    </ColumnHeaderBand>
+    <DataBand Name="Data1" Top="445.23" Width="718.2" Height="20.63" CanGrow="true" DataSource="Sp_Print_MfgInv" KeepTogether="true" KeepDetail="true">
+      <LineObject Name="Line6" Width="718.2"/>
+      <TextObject Name="Text268" Left="1.09" Top="-0.04" Width="39.47" Height="20.63" Border.Lines="Right, Bottom" Border.Width="0.25" CanGrow="true" GrowToBottom="true" CanBreak="false" Text="[Sp_Print_MfgInv.SlNo]" HorzAlign="Center" VertAlign="Center" Font="Calibri, 10pt"/>
+      <TextObject Name="Text269" Left="38.31" Top="-0.08" Width="117.87" Height="20.63" Border.Lines="Right, Bottom" Border.Width="0.25" CanGrow="true" GrowToBottom="true" CanBreak="false" Text="[Sp_Print_MfgInv.ItemCode]" VertAlign="Center" Font="Calibri, 10pt"/>
+      <TextObject Name="Text270" Left="156.21" Top="-1.07" Width="205.42" Height="21.61" Border.Lines="Right, Bottom" Border.Width="0.25" CanGrow="true" GrowToBottom="true" CanBreak="false" Text="[Sp_Print_MfgInv.ItemName]" VertAlign="Center" Font="Calibri, 10pt"/>
+      <TextObject Name="Text271" Left="362.53" Top="-1.09" Width="62.01" Height="21.61" Border.Lines="Right, Bottom" Border.Width="0.25" CanGrow="true" GrowToBottom="true" CanBreak="false" Text="[Sp_Print_MfgInv.HSNCode]" HorzAlign="Center" VertAlign="Center" Font="Calibri, 10pt"/>
+      <TextObject Name="Text272" Left="422.6" Top="-1.09" Width="64.95" Height="21.61" Border.Lines="Right, Bottom" Border.Width="0.25" CanGrow="true" GrowToBottom="true" CanBreak="false" Text="[Sp_Print_MfgInv.Qty]" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 10pt" Trimming="EllipsisCharacter"/>
+      <TextObject Name="Text273" Left="486.45" Top="-1.07" Width="46.33" Height="21.61" Border.Lines="Right, Bottom" Border.Width="0.25" CanGrow="true" GrowToBottom="true" CanBreak="false" Text="[Sp_Print_MfgInv.MeasureUnit]" HorzAlign="Center" VertAlign="Center" Font="Calibri, 10pt"/>
+      <TextObject Name="Text274" Left="533.37" Top="-0.98" Width="86.51" Height="21.61" Border.Lines="Right, Bottom" Border.Width="0.25" CanGrow="true" GrowToBottom="true" CanBreak="false" Text="[Sp_Print_MfgInv.UnitPrice]" Format="Currency" Format.UseLocale="false" Format.DecimalDigits="2" Format.DecimalSeparator="." Format.GroupSeparator="," Format.CurrencySymbol="₹" Format.PositivePattern="0" Format.NegativePattern="0" HorzAlign="Right" VertAlign="Center" Font="Calibri, 10pt" Trimming="EllipsisCharacter"/>
+      <TextObject Name="Text275" Left="620.8" Top="-1.05" Width="97.29" Height="21.61" Border.Lines="Bottom" Border.Width="0.25" CanGrow="true" GrowToBottom="true" CanBreak="false" Text="[Sp_Print_MfgInv.LineBasicAmount]" Format="Currency" Format.UseLocale="false" Format.DecimalDigits="2" Format.DecimalSeparator="." Format.GroupSeparator="," Format.CurrencySymbol="₹" Format.PositivePattern="0" Format.NegativePattern="0" HorzAlign="Right" VertAlign="Center" Font="Calibri, 10pt" Trimming="EllipsisCharacter"/>
+    </DataBand>
+    <ReportSummaryBand Name="ReportSummary1" Top="468.82" Width="718.2" Height="201.02" Border.Lines="Top" CanShrink="true" PrintOnBottom="true" KeepWithData="true">
+      <TableObject Name="Table1" Left="425.04" Top="23.05" Width="292.98" Height="177.97" Border.Lines="All">
+        <TableColumn Name="Column1" Width="117.18"/>
+        <TableColumn Name="Column2" Width="43.21"/>
+        <TableColumn Name="Column3" Width="132.59"/>
+        <TableRow Name="Row6">
+          <TableCell Name="Cell24" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text83" Left="3" Top="3.03" Width="117.18" Height="18.9" Anchor="Bottom, Left" Text="Freight Charges" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell25" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text58" Left="43.14" Top="1.81" Width="124.53" Height="18.9" Text="[Sp_Print_MfgInv.FreightCharges]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 12pt"/>
+            <TextObject Name="Text72" Left="2.11" Top="3.01" Width="41.58" Height="18.9" Text="[Sp_Print_MfgInv.Symbol]" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell26" Border.Lines="Top, Bottom" Font="Arial, 10pt"/>
+        </TableRow>
+        <TableRow Name="Row3">
+          <TableCell Name="Cell11" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text84" Left="3" Top="1.9" Width="117.18" Height="18.9" Text="P &amp; F Charges" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell12" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text59" Left="43.14" Top="2.79" Width="124.53" Height="18.9" Text="[Sp_Print_MfgInv.PackAmount]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 12pt"/>
+            <TextObject Name="Text73" Left="2.11" Top="3.01" Width="41.58" Height="18.9" Text="[Sp_Print_MfgInv.PackSymbol]" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell13" Border.Lines="Top, Bottom" Font="Arial, 10pt"/>
+        </TableRow>
+        <TableRow Name="Row5">
+          <TableCell Name="Cell21" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text86" Left="3" Top="1.9" Width="117.18" Height="18.9" Text="Total Taxable Amt" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell22" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text61" Left="43.14" Top="2.79" Width="124.53" Height="18.9" Text="[Sp_Print_MfgInv.TotalTaxable]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+            <TextObject Name="Text75" Left="2.11" Top="3.01" Width="41.58" Height="18.9" Text="[Sp_Print_MfgInv.Symbol]" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell23" Border.Lines="Top, Bottom" Font="Arial, 10pt"/>
+        </TableRow>
+        <TableRow Name="Row7">
+          <TableCell Name="Cell27" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text87" Left="3" Top="1.9" Width="117.18" Height="18.9" Text="CGST %" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell28" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text62" Left="43.14" Top="2.79" Width="124.53" Height="18.9" Text="[Sp_Print_MfgInv.TotalCGSTAmount]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 12pt"/>
+            <TextObject Name="Text76" Left="2.11" Top="3.01" Width="41.58" Height="18.9" Text="[Sp_Print_MfgInv.CGstRate]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell29" Border.Lines="Top, Bottom" Font="Arial, 10pt"/>
+        </TableRow>
+        <TableRow Name="Row8">
+          <TableCell Name="Cell30" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text88" Left="3" Top="1.9" Width="117.18" Height="18.9" Text="SGST %" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell31" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text63" Left="43.14" Top="2.79" Width="124.53" Height="18.9" Text="[Sp_Print_MfgInv.TotalSGSTAmount]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 12pt"/>
+            <TextObject Name="Text77" Left="2.11" Top="3.01" Width="41.58" Height="18.9" Text="[Sp_Print_MfgInv.SGstRate]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell32" Border.Lines="Top, Bottom" Font="Arial, 10pt"/>
+        </TableRow>
+        <TableRow Name="Row9">
+          <TableCell Name="Cell33" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text89" Left="3" Top="2.79" Width="117.18" Height="18.9" Text="IGST %" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell34" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text78" Left="2.11" Top="2.01" Width="41.58" Height="18.9" Text="[Sp_Print_MfgInv.IGstRate]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell35" Border.Lines="Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text64" Left="0.78" Top="2.79" Width="124.53" Height="18.9" Text="[Sp_Print_MfgInv.TotalIGSTAmount]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+        </TableRow>
+        <TableRow Name="Row10">
+          <TableCell Name="Cell36" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text90" Left="3" Top="2.79" Width="117.18" Height="18.9" Text="Other Charges" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell37" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text79" Left="2.11" Top="2.01" Width="41.58" Height="18.9" Text="[Sp_Print_MfgInv.Symbol]" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell45" Border.Lines="Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text68" Left="0.89" Top="2.79" Width="124.53" Height="18.9" Text="[Sp_Print_MfgInv.OtherCharges]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+        </TableRow>
+        <TableRow Name="Row12">
+          <TableCell Name="Cell42" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text91" Left="2.87" Top="2.79" Width="117.18" Height="18.9" Text="Round Off" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell43" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text116" Left="1.89" Top="2.01" Width="41.58" Height="18.9" Text="[Sp_Print_MfgInv.Symbol]" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+          <TableCell Name="Cell44" Border.Lines="Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text117" Left="0.78" Top="1.9" Width="124.53" Height="18.9" Text="[Sp_Print_MfgInv.RoundOff]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 12pt"/>
+          </TableCell>
+        </TableRow>
+        <TableRow Name="Row19" Height="26.77">
+          <TableCell Name="Cell70" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text92" Left="4.95" Top="5.36" Width="117.18" Height="16.94" Anchor="Bottom, Left" Text="Total Amount" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 12pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell71" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text70" Left="2" Top="6.01" Width="41.58" Height="16.94" Text="[Sp_Print_MfgInv.Symbol]" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 12pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell72" Border.Lines="All" Font="Arial, 10pt">
+            <TextObject Name="Text67" Left="1" Top="5.76" Width="124.53" Height="16.94" Text="[Sp_Print_MfgInv.GrandTotal]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 12pt, style=Bold"/>
+          </TableCell>
+        </TableRow>
+      </TableObject>
+      <TextObject Name="Text95" Left="-0.88" Top="27.54" Width="149.31" Height="15.12" Text="Grand Total in Words:" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text96" Left="151.98" Top="25.26" Width="273.08" Height="50.4" CanBreak="false" Text="[RupeesToWords([Sp_Print_MfgInv.GrandTotal])]&#13;&#10;&#13;&#10;" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 10pt"/>
+      <LineObject Name="Line31" Left="1.5" Top="78.57" Width="420.65"/>
+      <LineObject Name="Line33" Left="-1.77" Top="22.94" Width="425.28"/>
+      <TextObject Name="Text47" Left="348.76" Top="0.45" Width="75.67" Height="21.22" Border.Lines="Right" Text="Total Qty:" Padding="0, 0, 0, 0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text71" Left="562.99" Top="-0.56" Width="31.7" Height="21.27" Text="[Sp_Print_MfgInv.Symbol]" Padding="0, 0, 0, 0" HorzAlign="Right" VertAlign="Center" Font="Calibri, 11pt"/>
+      <TextObject Name="Text93" Left="495.56" Top="0.43" Width="68.05" Height="21.27" Border.Lines="Left, Right" Text="Sub Total" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="txtTotAmt" Left="593.99" Top="0.42" Width="121.84" Height="21.27" Text="[Amount]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="2" HorzAlign="Right" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TableObject Name="Table2" Left="1.09" Top="165.21" Width="423.26" Height="35.2">
+        <TableColumn Name="Column4" Width="151.59"/>
+        <TableColumn Name="Column5" Width="271.67"/>
+        <TableRow Name="Row13" MaxHeight="945" Height="18.08" AutoSize="true">
+          <TableCell Name="Cell46" Border.Lines="Left, Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text103" Left="2.34" Top="16.69" Width="137.97" Height="17.01" Text="Bank Account number :" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 10pt, style=Bold"/>
+          </TableCell>
+          <TableCell Name="Cell47" Border.Lines="Left, Top, Bottom" Font="Arial, 10pt">
+            <TextObject Name="Text242" Left="4.54" Top="17.45" Width="206.66" Height="15.88" Text="0850256008139" Font="Calibri, 10pt, style=Bold"/>
+            <TextObject Name="Text278" Left="120.16" Width="148.25" Height="18.67" Text="IFSC : CNRB0000850" HorzAlign="Justify" VertAlign="Center" Font="Calibri, 11pt"/>
+          </TableCell>
+        </TableRow>
+        <TableRow Name="Row17" MaxHeight="945" Height="17.12" AutoSize="true">
+          <TableCell Name="Cell66" Border.Lines="Left, Right, Top" Font="Arial, 10pt"/>
+          <TableCell Name="Cell67" Border.Lines="Left, Top" Font="Arial, 10pt"/>
+        </TableRow>
+      </TableObject>
+      <TextObject Name="Text235" Left="2.45" Top="80.82" Width="46.91" Height="18.9" Text="CGST :" Font="Calibri, 10pt, style=Bold"/>
+      <TextObject Name="Text236" Left="4" Top="102.15" Width="48.72" Height="18.9" Text="SGST  :" Font="Calibri, 10pt, style=Bold"/>
+      <TextObject Name="Text237" Left="4.52" Top="124.63" Width="46.76" Height="18.9" Text="IGST :" Font="Calibri, 10pt, style=Bold"/>
+      <LineObject Name="Line38" Left="1.97" Top="101.54" Width="421.63"/>
+      <LineObject Name="Line39" Left="0.99" Top="121.63" Width="422.61"/>
+      <TextObject Name="Text239" Left="49.95" Top="80.98" Width="372.56" Height="18.9" Text="[RupeesToWords([Sp_Print_MfgInv.TotalCGSTAmount])]" Font="Calibri, 10pt"/>
+      <TextObject Name="Text240" Left="53.88" Top="101.88" Width="365.64" Height="18.9" Text="[RupeesToWords([Sp_Print_MfgInv.TotalSGSTAmount])]" Font="Calibri, 10pt"/>
+      <TextObject Name="Text241" Left="54.86" Top="123.95" Width="365.96" Height="35.61" Text="[RupeesToWords([Sp_Print_MfgInv.TotalIGSTAmount])]" Font="Calibri, 10pt"/>
+      <TextObject Name="txtTotQty" Left="426.16" Top="-2.15" Width="68.1" Height="20.89" CanGrow="true" CanBreak="false" Text="[Qty]" Padding="0, 0, 0, 0" Format="Number" Format.UseLocale="true" Format.DecimalDigits="0" HorzAlign="Center" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text97" Left="3.84" Top="163.09" Width="140.69" Height="18.9" Text="Our Bank Details:" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+      <TextObject Name="Text266" Left="151.48" Top="164.17" Width="101.35" Height="18.67" Text="CANARA BANK" Font="Calibri, 11pt"/>
+      <ChildBand Name="Child3" Top="672.81" Width="718.2" Height="126.23" Border.Lines="Top" CanGrow="true" CanShrink="true" PrintOnBottom="true">
+        <TextObject Name="Text49" Left="430.59" Top="107.33" Width="298.6" Height="18.9" Text="Authorised Signatory" HorzAlign="Center" VertAlign="Center" Font="Calibri, 9pt, style=Bold"/>
+        <TextObject Name="txtFor" Left="517.53" Top="42.17" Width="159.56" Height="18.9" Text="[Sp_Print_CompanyDetails.CompanyName]" VertAlign="Center" Font="Calibri, 11pt, style=Bold"/>
+        <LineObject Name="Line8" Left="424.61" Height="125.38" Border.Width="0.25"/>
+        <TextObject Name="Text196" Left="489.96" Top="40.83" Width="30.24" Height="18.9" Text="For" HorzAlign="Right" Font="Calibri, 11pt, style=Bold"/>
+        <TextObject Name="Text238" Left="433.25" Top="1.96" Width="279.3" Height="34.02" Text="Certified that particulars given above are true &amp;&#13;&#10;                            correct" Padding="0, 0, 0, 0" VertAlign="Center" Font="Calibri, 10pt"/>
+        <LineObject Name="Line37" Left="425.8" Top="39.76" Width="290.73"/>
+        <TextObject Name="Text267" Left="0.96" Top="18.94" Width="420.62" Height="105.22" Text="1. Subject To Bangalore Jurisdiction.&#13;&#10;2. Goods once Sold will not be taken back or exchanged.&#13;&#10;3. Interest  @ 18% P.A will be  charged if payment is not  made within due date.&#13;&#10;4. we are not responsible  for any loss or damage during transit&#13;&#10;Certified that Particulars given are true and correct and the&#13;&#10;amount  indicated represents the price actually charged and that there is no&#13;&#10;flow additional consideration directly or indirectly from buyer&#13;&#10;" Font="Calibri, 9pt"/>
+        <TextObject Name="Text276" Left="1.94" Top="0.99" Width="245.69" Height="18.67" Text="Terms &amp; Conditions:" Font="Calibri, 11pt, style=Bold"/>
+      </ChildBand>
+    </ReportSummaryBand>
+    <PageFooterBand Name="PageFooter1" Top="802" Width="718.2" Height="17.69" Border.Lines="Top">
+      <TextObject Name="Text277" Left="619.16" Top="-0.98" Width="94.35" Height="18.67" Text="[PageNofM]" HorzAlign="Center" VertAlign="Center" Font="Calibri, 10pt, style=Bold"/>
+    </PageFooterBand>
+  </ReportPage>
+</Report>

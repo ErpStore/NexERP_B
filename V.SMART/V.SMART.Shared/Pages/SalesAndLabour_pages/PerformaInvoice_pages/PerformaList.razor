@@ -1,0 +1,1060 @@
+﻿@page "/PerformaInvList"
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.PerformaInvoiceVM
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+
+@inject IPerformaInvService performaInvService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true" 
+            Screen="@ScreenName" 
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Performa Invoice List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@PerformInvBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                 <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                       <div class="col-6 col-md-2 ms-md-auto text-end">
+                            <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewPInv">
+                                <i class="bi bi-plus-square me-1"></i> Add New
+                            </button>
+                       </div>
+                    }
+
+                </div>
+
+                @if (PerformaInvVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="PerformaInvVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap sticky-top">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            case "InvId":
+                                                <PropertyColumn Title="Invoice ID" Property="@(c => c.InvId)" Sortable="true" />
+                                                break;
+
+                                            case "InvNo":
+                                                <PropertyColumn Title="Invoice No" Property="@(c => c.InvNo)" Sortable="true" />
+                                                break;
+
+                                            case "Prefix":
+                                                <PropertyColumn Title="Prefix" Property="@(c => c.Prefix)" />
+                                                break;
+
+                                            case "Suffix":
+                                                <PropertyColumn Title="Suffix" Property="@(c => c.Suffix)" />
+                                                break;
+
+                                            case "InvDate":
+                                                <PropertyColumn Title="Invoice Date" Property="@(c => c.InvDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "CustId":
+                                                <PropertyColumn Title="Customer ID" Property="@(c => c.CustId)" Sortable="true" />
+                                                break;
+
+                                            case "CustName":
+                                                <PropertyColumn Title="Customer Name" Property="@(c => c.CustName)" Sortable="true" />
+                                                break;
+
+                                            case "CustGst":
+                                                <PropertyColumn Title="Customer GST No." Property="@(c => c.CustGst)" />
+                                                break;
+
+                                            case "CustAddress":
+                                                <PropertyColumn Title="Customer Address" Property="@(c => c.CustAddress)" />
+                                                break;
+
+                                            case "CustContactNo":
+                                                <PropertyColumn Title="Customer Contact No" Property="@(c => c.CustContactNo)" />
+                                                break;
+
+                                            case "KindOfAttention":
+                                                <PropertyColumn Title="Kind Attention" Property="@(c => c.KindOfAttention)" />
+                                                break;
+
+                                            case "IsSameAsShipping":
+                                                <TemplateColumn Title="Same As Shipping" Context="c">
+                                                    @if (c.IsSameAsShipping)
+                                                    {
+                                                        <span class="badge bg-success">Yes</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger">No</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "ShippingName":
+                                                <PropertyColumn Title="Shipping Name" Property="@(c => c.ShippingName)" />
+                                                break;
+
+                                            case "ShippingAddress":
+                                                <PropertyColumn Title="Shipping Address" Property="@(c => c.ShippingAddress)" />
+                                                break;
+
+                                            case "ShippingGstin":
+                                                <PropertyColumn Title="Shipping GST" Property="@(c => c.ShippingGstin)" />
+                                                break;
+
+                                            case "ShippingContactNo":
+                                                <PropertyColumn Title="Shipping Contact No" Property="@(c => c.ShippingContactNo)" />
+                                                break;
+
+                                            case "CurrName":
+                                                <PropertyColumn Title="Currency" Property="@(c => c.CurrName)" />
+                                                break;
+
+                                            case "TodayVal":
+                                                <PropertyColumn Title="Today Value" Property="@(c => c.TodayVal)" />
+                                                break;
+
+                                            case "NoOfItems":
+                                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+                                                break;
+
+                                            case "InvCancl":
+                                                <TemplateColumn Title="Invoice Status" Context="c">
+                                                    @if (c.InvCancl)
+                                                    {
+                                                        <span class="badge bg-danger">Cancelled</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-success">Active</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "CancelReason":
+                                                <PropertyColumn Title="Cancel Reason"
+                                                                Property="@(x => x.CancelReason)" />
+                                                break;
+
+                                            case "CancelDate":
+                                                <PropertyColumn Title="Cancel Date"
+                                                            Property="@(c => c.CancelDate)"
+                                                            Format="dd/MM/yyyy" />
+                                            break;
+
+                                            case "CancelBy":
+                                                <PropertyColumn Title="Cancel By"
+                                                                Property="@(x => x.CancelBy)" />
+                                                break;
+
+
+                                            case "MainRemark":
+                                                <PropertyColumn Title="Remarks" Property="@(c => c.MainRemark)" />
+                                                break;
+
+                                            case "PayTerms":
+                                                <PropertyColumn Title="Payment Terms" Property="@(c => c.PayTerms)" />
+                                                break;
+
+                                            case "DeliveryTerms":
+                                                <PropertyColumn Title="Delivery Terms" Property="@(c => c.DeliveryTerms)" />
+                                                break;
+
+                                            case "TotalGrossAmount":
+                                                <PropertyColumn Title="Total Gross Amount" Property="@(c => Math.Round(c.TotalGrossAmount, DecimalPlaces))" />
+                                                break;
+
+                                            case "DiscountPercent":
+                                                <PropertyColumn Title="Discount Percent" Property="@(c => Math.Round(c.DiscountPercent, DecimalPlaces))" />
+                                                break;
+
+                                            case "DiscountAmount":
+                                                <PropertyColumn Title="Discount Amount" Property="@(c => Math.Round(c.DiscountAmount, DecimalPlaces))" />
+                                                break;
+
+                                            case "TotalBasicAmount":
+                                                <PropertyColumn Title="Total Basic Amount" Property="@(c => Math.Round(c.TotalBasicAmount, DecimalPlaces))" />
+                                                break;
+
+                                            case "FreightCharges":
+                                                <PropertyColumn Title="Freight Charges" Property="@(c => Math.Round(c.FreightCharges, DecimalPlaces))" />
+                                                break;
+
+                                            case "PackingPercent":
+                                                <PropertyColumn Title="Packing Percent" Property="@(c => Math.Round(c.PackingPercent, DecimalPlaces))" />
+                                                break;
+
+                                            case "PackingCharges":
+                                                <PropertyColumn Title="Packing Charges" Property="@(c => Math.Round(c.PackingCharges, DecimalPlaces))" />
+                                                break;
+
+                                            case "InsurancePercent":
+                                                <PropertyColumn Title="Insurance Percent" Property="@(c => Math.Round(c.InsurancePercent, DecimalPlaces))" />
+                                                break;
+
+                                            case "InsuranceCharges":
+                                                <PropertyColumn Title="Insurance Charges" Property="@(c => Math.Round(c.InsuranceCharges, DecimalPlaces))" />
+                                                break;
+
+                                            case "TotalTaxable":
+                                                <PropertyColumn Title="Total Taxable" Property="@(c => Math.Round(c.TotalTaxable, DecimalPlaces))" />
+                                                break;
+
+                                            case "CGstRate":
+                                                <PropertyColumn Title="CGST Rate" Property="@(c => Math.Round(c.CGstRate, DecimalPlaces))" />
+                                                break;
+
+                                            case "SGstRate":
+                                                <PropertyColumn Title="SGST Rate" Property="@(c => Math.Round(c.SGstRate, DecimalPlaces))" />
+                                                break;
+
+                                            case "IGstRate":
+                                                <PropertyColumn Title="IGST Rate" Property="@(c => Math.Round(c.IGstRate, DecimalPlaces))" />
+                                                break;
+
+                                            case "TotalCGSTAmount":
+                                                <PropertyColumn Title="Total CGST Amount" Property="@(c => Math.Round(c.TotalCGSTAmount, DecimalPlaces))" />
+                                                break;
+
+                                            case "TotalSGSTAmount":
+                                                <PropertyColumn Title="Total SGST Amount" Property="@(c => Math.Round(c.TotalSGSTAmount, DecimalPlaces))" />
+                                                break;
+
+                                            case "TotalIGSTAmount":
+                                                <PropertyColumn Title="Total IGST Amount" Property="@(c => Math.Round(c.TotalIGSTAmount, DecimalPlaces))" />
+                                                break;
+
+                                            case "OtherCharges":
+                                                <PropertyColumn Title="Other Charges" Property="@(c => Math.Round(c.OtherCharges, DecimalPlaces))" />
+                                                break;
+
+                                            case "TCSPercent":
+                                                <PropertyColumn Title="TCS Percent" Property="@(c => Math.Round(c.TCSPercent, DecimalPlaces))" />
+                                                break;
+
+                                            case "TCSAmount":
+                                                <PropertyColumn Title="TCS Amount" Property="@(c => Math.Round(c.TCSAmount, DecimalPlaces))" />
+                                                break;
+
+                                            case "GrandTotal":
+                                                <PropertyColumn Title="Grand Total" Property="@(c => c.GrandTotal.ToString($"N{DecimalPlaces}"))" />
+                                                break;
+
+
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate.HasValue ? c.CreatedDate.Value.ToString("dd/MM/yyyy") : "")" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate.HasValue ? c.ModifiedDate.Value.ToString("dd/MM/yyyyy"): "")" />
+                                                break;
+
+                                        }
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <!-- Default minimal Invoice grid -->
+                                <PropertyColumn Title="Invoice No" Property="@(c => c.InvNo)" Sortable="true" />
+                                <PropertyColumn Title="Invoice Date" Property="@(c => c.InvDate)" Format="dd/MM/yyyy" />
+                                <PropertyColumn Title="Customer Name" Property="@(c => c.CustName)" Sortable="true" />
+                                <PropertyColumn Title="Customer GST No." Property="@(c => c.CustGst)" Sortable="true" />
+                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+
+                                <TemplateColumn Title="Invoice Status" Context="c">
+                                    @if (c.InvCancl)
+                                    {
+                                        <span class="badge bg-danger">Cancelled</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                </TemplateColumn>
+
+                                <PropertyColumn Title="Grand Total" Property="@(c => c.GrandTotal.ToString($"N{DecimalPlaces}"))" />
+                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                            }
+
+                            <!-- Actions -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"PerformaInv/update/{c.InvId}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Invoice">
+                                           <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"PerformaInv/details/{c.InvId}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View Invoice">
+                                           <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Invoice"
+                                                @onclick="() => HandleDelete(c.InvId)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+                              @* 
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5" @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export Pro-Invoice's
+
+                                </button> *@
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Item available.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "Performa Invoice";
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private int DeleteInvId = 0;
+    private string searchText = string.Empty;
+    private string selectedStatus = "";
+
+    private List<PerformaInvVM> PerformaInvVMs = new();
+
+    // === Paging & Search ===
+    private int totalItems;
+    private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+    // === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private int DecimalPlaces { get; set; } = 2;
+
+
+    // Instant Search filter parameter
+    [Parameter,SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> PerformInvBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Sales" },
+        new PageHeader.BreadcrumbItem { Text = "Performa-Invoice", IsLast = true }
+    };
+
+    #endregion
+
+    #region === initilization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            DecimalPlaces = await performaInvService.GetDecimalPlacesAsync();
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+
+            await LoadAllPerformaInvs();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Performa Invoice OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+
+    #endregion
+
+    #region === Data Loading ===
+
+    private async Task LoadAllPerformaInvs()
+    {
+        try
+        {
+            var result = await performaInvService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            PerformaInvVMs = result.performaInvVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading data in Performa Invoice List");
+            await _JS.ToastrError("Failed to load Performa Invoice List.");
+        }
+    }
+
+
+    private void AddNewPInv()
+    {
+        var returnUrl = Uri.EscapeDataString("PerformaInv/create/{id}");
+        _navigation.NavigateTo($"/Customer/Select?ReturnUrl={returnUrl}");
+    }
+
+    #endregion
+
+
+
+    #region ===  Columns ===
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // 🔹 Keys & Invoice Info
+                new() { Title = "Invoice ID", Field = "InvId", IsVisible = false },
+                new() { Title = "Prefix", Field = "Prefix", IsVisible = false },
+                new() { Title = "Invoice No", Field = "InvNo", IsVisible = true },
+                new() { Title = "Suffix", Field = "Suffix", IsVisible = true },
+                new() { Title = "Invoice Date", Field = "InvDate", IsVisible = true },
+
+                // 🔹 Customer
+                new() { Title = "Customer ID", Field = "CustId", IsVisible = false },
+                new() { Title = "Customer Name", Field = "CustName", IsVisible = true },
+                new() { Title = "Customer Address", Field = "CustAddress", IsVisible = false },
+                new() { Title = "Customer GST No", Field = "CustGst", IsVisible = false },
+                new() { Title = "Customer Contact No", Field = "CustContactNo", IsVisible = false },
+                new() { Title = "Kind Attention", Field = "KindOfAttention", IsVisible = false },
+
+                // 🔹 Shipping
+                new() { Title = "Same As Shipping", Field = "IsSameAsShipping", IsVisible = false },
+                new() { Title = "Shipping Name", Field = "ShippingName", IsVisible = false },
+                new() { Title = "Shipping Address", Field = "ShippingAddress", IsVisible = false },
+                new() { Title = "Shipping GST", Field = "ShippingGstin", IsVisible = false },
+                new() { Title = "Shipping Contact No", Field = "ShippingContactNo", IsVisible = false },
+
+                // 🔹 Currency & Summary
+                new() { Title = "Currency", Field = "CurrName", IsVisible = true },
+                new() { Title = "Today’s Value", Field = "TodayVal", IsVisible = false },
+                new() { Title = "No of Items", Field = "NoOfItems", IsVisible = false },
+                new() { Title = "Remarks", Field = "MainRemark", IsVisible = false },
+                new() { Title = "Payment Terms", Field = "PayTerms", IsVisible = false },
+                new() { Title = "Delivery Terms", Field = "DeliveryTerms", IsVisible = false },
+                new() { Title = "Invoice Cancelled", Field = "InvCancl", IsVisible = false },
+
+                new() { Title = "Cancel Reason", Field = "CancelReason", IsVisible = false },
+                new() { Title = "Cancel Date", Field = "CancelDate", IsVisible = false },
+                new() { Title = "Cancel By", Field = "CancelBy", IsVisible = false },
+
+            };
+
+            if (!Hidden)
+            {
+                Columns.AddRange(new[]
+                {
+                    // 🔹 Amounts & Charges
+                    new GridColumn { Title = "Total Gross Amount", Field = "TotalGrossAmount", IsVisible = false },
+                    new GridColumn { Title = "Discount Percent", Field = "DiscountPercent", IsVisible = false },
+                    new GridColumn { Title = "Discount Amount", Field = "DiscountAmount", IsVisible = false },
+                    new GridColumn { Title = "Total Basic Amount", Field = "TotalBasicAmount", IsVisible = false },
+                    new GridColumn { Title = "Freight Charges", Field = "FreightCharges", IsVisible = false },
+
+                    new GridColumn { Title = "Packing Percent", Field = "PackingPercent", IsVisible = false },
+                    new GridColumn { Title = "Packing Charges", Field = "PackingCharges", IsVisible = false },
+
+                    new GridColumn { Title = "Insurance Percent", Field = "InsurancePercent", IsVisible = false },
+                    new GridColumn { Title = "Insurance Charges", Field = "InsuranceCharges", IsVisible = false },
+
+                    new GridColumn { Title = "Total Taxable", Field = "TotalTaxable", IsVisible = false },
+
+                    // 🔹 GST / Taxes
+                    new GridColumn { Title = "CGST Rate", Field = "CGstRate", IsVisible = false },
+                    new GridColumn { Title = "SGST Rate", Field = "SGstRate", IsVisible = false },
+                    new GridColumn { Title = "IGST Rate", Field = "IGstRate", IsVisible = false },
+
+                    new GridColumn { Title = "Total CGST Amount", Field = "TotalCGSTAmount", IsVisible = false },
+                    new GridColumn { Title = "Total SGST Amount", Field = "TotalSGSTAmount", IsVisible = false },
+                    new GridColumn { Title = "Total IGST Amount", Field = "TotalIGSTAmount", IsVisible = false },
+
+                    new GridColumn { Title = "Other Charges", Field = "OtherCharges", IsVisible = false },
+                    new GridColumn { Title = "TCS Percent", Field = "TCSPercent", IsVisible = false },
+                    new GridColumn { Title = "TCS Amount", Field = "TCSAmount", IsVisible = false },
+
+                    new GridColumn { Title = "Round Off", Field = "RoundOff", IsVisible = false },
+                    new GridColumn { Title = "Grand Total", Field = "GrandTotal", IsVisible = true },
+
+                    // 🔹 Bank
+                    new GridColumn { Title = "Bank", Field = "BankName", IsVisible = false },
+
+                    // 🔹 Audit
+                    new GridColumn { Title = "Created By", Field = "CreatedBy", IsVisible = false },
+                    new GridColumn { Title = "Created Date", Field = "CreatedDate", IsVisible = false },
+                    new GridColumn { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                    new GridColumn { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false },
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for Performa Invoice List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Performa Invoice HandleColumnChange() Method");
+        }
+    }
+
+    #endregion
+
+
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllPerformaInvs();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in Performa Invoice List");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllPerformaInvs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in Performa Invoice List");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllPerformaInvs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Performa Invoice List");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllPerformaInvs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in Performa Invoice List");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllPerformaInvs();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Performa Invoice List");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllPerformaInvs();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Performa Invoice List page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(int invId)
+    {
+        try
+        {
+            var (canDelete, message) = await performaInvService.CanDeletePerfromaInvAsync(invId);
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteInvId = invId;
+
+            ModalTitle = "Are you sure you want to delete this Performa Invoice";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for InvId: {invId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+           
+            var deleted = await performaInvService.DeleteInvByInvIdAsync(DeleteInvId);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Sales Quoatation deleted successfully.");
+                await LoadAllPerformaInvs();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Quotation could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting PerformaInvId: {DeleteInvId}");
+            await _JS.ToastrError("Failed to delete Performa Invoice.");
+        }
+        finally
+        {
+            DeleteInvId = 0;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region SEARCH FILTERS
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllPerformaInvs();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Performa Invoice List");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    #endregion
+
+
+    #region Job order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SearchFilters = new();
+            selectedStatus = e.Value?.ToString() ?? "";
+
+           if (string.IsNullOrWhiteSpace(selectedStatus))
+                SearchFilters.Remove("Status");
+            else
+                SearchFilters["Status"] = selectedStatus;
+
+
+            currentPage = 1;
+            await LoadAllPerformaInvs();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error OnStatusChanged in Performa Invoice List");
+            await _JS.ToastrError("Failed to Load Performa Invoice List filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion 
+
+}

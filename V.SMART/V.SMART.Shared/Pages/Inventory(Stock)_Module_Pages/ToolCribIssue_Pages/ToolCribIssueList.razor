@@ -1,0 +1,814 @@
+﻿@page "/tcIssueList"
+
+@using V.SMART.Shared.ViewModels.InventoryViewModel.ToolCribViewModels
+@using V.SMART.Shared.ViewModels.PlanningViewModel.JobOrderViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ExcelExportService ExcelExportService
+@inject IToolCribIssueService toolCribIssueService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true"
+                       Screen="@ScreenName"
+                       Filters="SearchFilters"
+                       OnClose="CloseModal"
+                       OnSearch="HandleInstantSearch" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Tool-Crib Issue List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@tcIssueBreadcrumbs" />
+
+            <div class="card-body p-4">
+                <div class="row g-2 g-md-3 mb-3">
+
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns" ScreenName="TcIssueList" UserId="@UserName" MaxVisible=int.MaxValue OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm"
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+                            <option value="">All Items</option>
+                            <option value="Active">Active Items</option>
+                            <option value="Inactive">Inactive Items</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-6 col-md-2 ms-md-auto text-end">
+                            <a href="tci/create"
+                               class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                               title="Create New Item">
+                                <i class="bi-box-seam"></i> Add New
+                            </a>
+                        </div>
+                    }
+                </div>
+
+                @if (ToolCribIssueVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="ToolCribIssueVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            case "TCIssueId":
+                                                <PropertyColumn Title="TC Issue ID" Property="@(c => c.TCIssueId)" />
+                                                break;
+
+                                            case "TCIssueNo":
+                                                <PropertyColumn Title="TC Issue No" Property="@(c => c.TCIssueNo)" Sortable="true" />
+                                                break;
+
+                                            case "Suffix":
+                                                <PropertyColumn Title="Suffix" Property="@(c => c.Suffix)" />
+                                                break;
+
+                                            case "TCIssueDate":
+                                                <PropertyColumn Title="TC Issue Date" Property="@(c => c.TCIssueDate)" Format="dd/MM/yyyy" Sortable="true" />
+                                                break;
+                                           
+                                            case "IssuedToWhom":
+                                                <PropertyColumn Title="Issued To Whom" Property="@(c => c.IssuedToWhom)" Sortable="true" />
+                                                break;
+
+                                            case "CategoryName":
+                                                <PropertyColumn Title="Category Name" Property="@(c => c.CategoryName)" Sortable="true" />
+                                                break;
+
+                                            case "StoreName":
+                                                <PropertyColumn Title="Store Name" Property="@(c => c.StoreName)" />
+                                                break;
+
+                                           case "IsReturn":
+                                                <TemplateColumn Title="Returnable" Context="c">
+                                                    @if (c.IsReturn)
+                                                    {
+                                                        <span class="text-success fw-semibold">Yes</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-danger fw-semibold">No</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "Description":
+                                                <PropertyColumn Title="Description" Property="@(c => c.Description)" />
+                                                break;
+
+                                            case "NoOfItems":
+                                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+                                                break;
+
+                                            case "TCIssueTally":
+                                                <TemplateColumn Title="Status" Context="c">
+                                                    @if (c.TCIssueTally == true)
+                                                    {
+                                                        <span class="badge text-bg-success bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-check-circle me-1"></i> Complete
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge text-bg-warning bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                        </span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "MainRemarks":
+                                                <PropertyColumn Title="Main Remarks" Property="@(c => c.MainRemarks)" />
+                                                break;
+
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <PropertyColumn Title="TC Issue No" Property="@(c => c.TCIssueNo)" Sortable="true" />
+                                <PropertyColumn Title="TC Issue Date" Property="@(c => c.TCIssueDate)" Format="dd/MM/yyyy" />
+                                <PropertyColumn Title="Issued To Whom" Property="@(c => c.IssuedToWhom)" />
+                                <PropertyColumn Title="Category Name" Property="@(c => c.CategoryName)" />
+                                <PropertyColumn Title="Returnable" Property="@(c => c.IsReturn)" />
+                                <PropertyColumn Title="Description" Property="@(c => c.Description)" />
+                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+                                <PropertyColumn Title="Main Remarks" Property="@(c => c.MainRemarks)" />
+                            }
+
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex justify-content-end gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"tci/update/{c.TCIssueId}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Tool Crib Issue">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"toolcribissueDetails/{c.TCIssueId}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View TCR">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Issue"
+                                                @onclick="() => HandleDelete(c.TCIssueId)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </QuickGrid>
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5"
+                                        @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export Issue's
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                    
+
+                }
+                else
+                {
+                    <p class="text-center">No Item available.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "Tool-Crib Issue";
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private int DeleteTCIssueId = 0;
+    private string searchText = string.Empty;
+    private string selectedStatus = "";
+
+    [Parameter]
+    public int ItemsPerPage { get; set; } = 10;
+
+    private int screenCode{ get; set; }
+
+    private List<ToolCribIssueVM> ToolCribIssueVMs = new();
+
+    // Instant Search filter parameter
+    [Parameter, SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    #endregion
+
+    #region === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    #endregion
+
+    #region === Paging & Search ===
+
+    private int totalItems;
+    private int currentPage = 1;
+    private int pageSize;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public void Search()
+    {
+        isModalVisible = true;
+        ActiveModal = "InstantSearch";
+    }
+
+    #endregion
+
+    #region === Breadcrumbs & Columns ===
+
+    private List<PageHeader.BreadcrumbItem> tcIssueBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "Tool-Crib Issue", IsLast = true }
+    };
+
+    public List<GridColumn> Columns { get; set; }
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "TC Issue ID", Field = "TCIssueId", IsVisible = false },
+                new() { Title = "TC Issue No", Field = "TCIssueNo", IsVisible = true },
+                new() { Title = "Suffix", Field = "Suffix", IsVisible = false },
+                new() { Title = "TC Issue Date", Field = "TCIssueDate", IsVisible = true },
+                new() { Title = "Status", Field = "TCIssueTally", IsVisible = false },
+                new() { Title = "Issued To Whom", Field = "IssuedToWhom", IsVisible = true },
+                new() { Title = "Category Name", Field = "CategoryName", IsVisible = true },
+                new() { Title = "Store Name", Field = "StoreName", IsVisible = false },
+                new() { Title = "Returnable", Field = "IsReturn", IsVisible = true },
+                new() { Title = "Description", Field = "Description", IsVisible = true },
+                new() { Title = "No. of Items", Field = "NoOfItems", IsVisible = true },
+                new() { Title = "Main Remarks", Field = "MainRemarks", IsVisible = true },
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = false },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = false },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false },
+
+            };
+
+            if (!Hidden)
+            {
+                
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    #endregion
+
+    #region === Lifecycle ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            pageSize = ItemsPerPage;
+            await InitializeColumns(IsHidden);
+
+            screenCode = await toolCribIssueService.GetScreenCodeByScreenNameAsync(ScreenName);
+            UserName = await CurrentUserService.GetUsernameAsync();
+            await LoadAllToolCribIssues();
+
+            var saved = await PreferenceService.LoadPreferencesAsync("TcIssueList", UserName);
+            if (saved?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+
+    #endregion
+
+    #region === Paging Controls ===
+
+    private async Task FirstPage()
+    {
+        if (currentPage != 1)
+        {
+            currentPage = 1;
+            await LoadAllToolCribIssues();
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadAllToolCribIssues();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            await LoadAllToolCribIssues();
+        }
+    }
+
+    private async Task LastPage()
+    {
+        if (currentPage != totalPages)
+        {
+            currentPage = totalPages;
+            await LoadAllToolCribIssues();
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value is not null)
+            {
+                pageSize = int.Parse(e.Value.ToString());
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ItemList OnPageSizeChanged() Event");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ItemList HandleColumnChange() Method");
+        }
+    }
+
+    #endregion
+
+    #region === Data Loading ===
+
+    private async Task LoadAllToolCribIssues()
+    {
+        try
+        {
+            isProcessing = true;
+           var result = await toolCribIssueService.SearchWithDynamicFilterAsync(
+               pageNumber: currentPage,
+               pageSize: pageSize,
+               filters: SearchFilters
+           );
+            ToolCribIssueVMs = result.issueVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading ToolCrib Issues");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Status Filter ===
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            selectedStatus = e.Value?.ToString() ?? "";
+
+            if (SearchFilters.ContainsKey("Inactive"))
+                SearchFilters["Inactive"] = selectedStatus switch
+                {
+                    "Inactive" => "true",
+                    "Active" => "false",
+                    _ => null
+                };
+            else
+                SearchFilters.Add("Inactive", selectedStatus == "Inactive" ? "true" :
+                                                 selectedStatus == "Active" ? "false" : null);
+
+            await HandleInstantSearch(SearchFilters);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnStatusChanged()");
+        }
+    }
+
+    #endregion
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(int tcIssueId)
+    {
+        try
+        {
+
+            bool hasTCReturnTransMade = await toolCribIssueService.HasAnyTCReturnTransactionMadeAsync(tcIssueId);
+            if (hasTCReturnTransMade)
+            {
+                await _JS.ToastrWarning("Cannot delete this ToolCrib as a Tool-Crib Return transaction exists.");
+                return;
+            }
+
+            ModalTitle = "Are you sure you want to delete this Job Order?";
+            btnColor = "btn-danger";
+            btnText = "Yes, Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            DeleteTCIssueId = tcIssueId;
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for TcIssueId: {tcIssueId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else if (confirmation == "Export")
+            {
+
+                await ExportToExcel(isConfirmed);
+            }
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            var deleted = await toolCribIssueService.DeleteToolCribIssueByTCIssueIdAsync(DeleteTCIssueId, screenCode);
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Tool Crib Issue deleted successfully.");
+                await LoadAllToolCribIssues();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Tool Crib Issue could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting TcIssueId: {DeleteTCIssueId}");
+            await _JS.ToastrError("Failed to delete SCN.");
+        }
+        finally
+        {
+            DeleteTCIssueId = 0;
+        }
+    }
+
+    #endregion
+
+    #region === Modal Management ===
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region ===== Instant Search =======
+
+    private async Task HandleInstantSearch(Dictionary<string, object> filters)
+    {
+        try
+        {
+  
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllToolCribIssues();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error in ItemList.HandleInstantSearch");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllToolCribIssues();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Purchase GRN List page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion 
+
+    private async Task HandleExport()
+    {
+        selectedStatus = selectedStatus == "" ? "All" : selectedStatus;
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+
+            var exportData = await toolCribIssueService.GetToolCribIssueStatusListAsync(selectedStatus);
+
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "ToolCribIssue", "ToolCribIssue Status List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.DownloadExcelAsync(base64, "ToolCribIssueExport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (ToolCribIssue)");
+            await _JS.ToastrError("Error while exporting ToolCribIssue!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+}

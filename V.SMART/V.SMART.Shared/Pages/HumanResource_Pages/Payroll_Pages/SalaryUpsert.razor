@@ -1,0 +1,2279 @@
+﻿@page "/salary/create"
+@page "/salary/update/{RowId:int}"
+
+@using AutoMapper
+@using MudBlazor
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService.IEmployeeLoanService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService.IPayrollService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IHRMasterservice
+@using V.SMART.Shared.Data.HumanResource.Salary
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.SalaryViewModel
+@using V.SMART.Shared.ViewModels.Settings
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject ISalaryService salaryService
+@inject ILoggingService LoggingService
+@inject IStaffLoanService staffLoanService
+@inject IMapper Mapper
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ILoggingService _logs
+@inject ReportService _reportService
+@inject ISalaryHeadPrintSettingService salaryHeadPrintSettingService
+@inject IHRMasterService hrMasterService
+@inject IBiometricExcelSettingService biometricExcelSettingService
+@inject ILeaveTypeService leaveTypeService
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+
+    .note-table {
+        max-height: 260px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+    }
+
+</style>
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-3 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@(CurrentSalary.RowId > 0 ? "Update Salary" : "Create Salary")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@SalFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+
+                <EditForm Model="CurrentSalary" OnValidSubmit="UpsertSalary">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-2 align-items-stretch">
+
+                        <!-- CARD 1 -->
+                        <div class="col-lg-4 col-md-12 mb-2">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header" style="background-color:#AA336A; color:white;">
+                                    <span class="fw-bold small">Basic Information</span>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-semibold">Year</label>
+                                            <select class="form-select" @bind="CurrentSalary.SalYear"
+                                                    @bind:after="UpdateWorkingDays">
+                                                <option value="0">-- Select Year --</option>
+                                                @for (int year = 2023; year <= 2026; year++)
+                                                {
+                                                    <option value="@year">@year</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-semibold">Month</label>
+                                            <select class="form-select" @bind="CurrentSalary.SalMonth"
+                                                    @bind:after="UpdateWorkingDays"
+                                                    disabled="@(CurrentSalary.SalYear == 0)">
+                                                <option value="0">-- Select Month --</option>
+                                                @for (int month = 1; month <= 12; month++)
+                                                {
+                                                    <option value="@month">
+                                                        @System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)
+                                                    </option>
+                                                }
+                                            </select>
+                                        </div>
+                                       
+                                    </div> 
+                                    <div class="mt-2">
+                                        <label class="form-label text-primary small fw-bold">Select Employee Type</label>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="EmployeeType"
+                                                           value="On Role"
+                                                           checked="@(SelectedEmployeeType == "On Role")"
+                                                           @onchange="OnEmployeeTypeChanged" />
+                                                    <label class="form-check-label">OnRole</label>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="EmployeeType"
+                                                           value="Trainee"
+                                                           checked="@(SelectedEmployeeType == "Trainee")"
+                                                           @onchange="OnEmployeeTypeChanged" />
+                                                    <label class="form-check-label">Trainee</label>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="EmployeeType"
+                                                           value="Out Sourced"
+                                                           checked="@(SelectedEmployeeType == "Out Sourced")"
+                                                           @onchange="OnEmployeeTypeChanged" />
+                                                    <label class="form-check-label">Out Sourced</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-semibold">@GetLabel("Department")</label>
+                                            <input type="text"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.Dept"
+                                                   readonly />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-semibold text-primary">
+                                                @GetLabel("Salary Issued On")
+                                            </label>
+                                            <input type="date"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.SalDate" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CARD 2 -->
+                        <div class="col-lg-4 col-md-6 mb-2">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header" style="background-color:#808080; color:white;">
+                                    <span class="fw-bold small">Mark Holidays</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="mb-2">
+                                        <label class="form-label fw-semibold">@GetLabel("Employees")</label>
+
+                                        <select class="form-select"
+                                                size="10"
+                                                @onchange="OnStaffChanged">
+
+                                            @foreach (var emp in FilteredStaff)
+                                            {
+                                                <option value="@emp.StaffID">
+                                                    @emp.StaffName
+                                                    @if (!emp.OtCount)
+                                                    {
+                                                        <text> (OT Disabled)</text>
+                                                    }
+                                                </option>
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
+
+
+                            </div>
+                        </div>
+
+                        <!-- CARD 3 -->
+                        <div class="col-lg-4 col-md-6 mb-2">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header" style="background-color:#008080; color:white;">
+                                    <span class="fw-bold small">Shortcut Details</span>
+                                
+                                   @*  <div class="form-check mb-0">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               id="editAttendance"
+                                               @bind="EnableAttendanceEdit" />
+
+                                        <label class="form-check-label text-white small ms-1"
+                                               for="editAttendance">
+                                            Edit Attendance
+                                        </label>
+                                    </div> *@
+
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               id="editAttendance"
+                                               @bind="CurrentSalary.EnableAttendanceEdit" />
+
+                                        <label class="form-check-label text-white small ms-1"
+                                               for="editAttendance">
+                                            Edit Attendance
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <table class="table table-sm table-bordered mb-0 small">
+                                        <tbody>
+                                            <tr><td class="text-center fw-bold">DA</td><td>Dearness Allowance</td><td class="text-center fw-bold">MR</td><td>Medical Reimbursement</td></tr>
+                                            <tr><td class="text-center fw-bold">HRA</td><td>House Rent Allowance</td><td class="text-center fw-bold">EL</td><td>Earned Leave</td></tr>
+                                            <tr><td class="text-center fw-bold">TA</td><td>Travel Allowance</td><td class="text-center fw-bold">OT</td><td>Overtime</td></tr>
+                                            <tr><td class="text-center fw-bold">LTA</td><td>Leave Travel Allowance</td><td class="text-center fw-bold">PF</td><td>Provident Fund</td></tr>
+                                            <tr><td class="text-center fw-bold">ESI</td><td>Employees' State Insurance</td><td class="text-center fw-bold">PT</td><td>Professional Tax</td></tr>
+                                            <tr><td class="text-center fw-bold">TDS</td><td>Tax Deducted at Source</td><td class="text-center fw-bold">EA</td><td>Education Allowance</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CARD 4 -->
+                        <div class="card-body p-2">
+                            <div class="table-responsive">
+                                <div class="d-flex gap-2 flex-nowrap">
+
+                                    <div style="min-width:140px;">
+                                        <label class="small fw-semibold">@GetLabel("Working Days")</label>
+                                        
+                                        @* <input class="form-control form-control-sm"
+                                               @bind="CurrentSalary.WorkingDays"
+                                               readonly /> *@
+                                        <input class="form-control form-control-sm"
+                                               value="@CurrentSalary.WorkingDays"
+                                               readonly />
+                                    </div>
+
+
+                                    <div style="min-width:140px;">
+                                        <label class="small fw-semibold">@GetLabel("Payable Days")</label>
+                                        @* <input class="form-control form-control-sm"
+                                               @bind="CurrentSalary.PayableDays"
+                                               readonly="@(!EnableAttendanceEdit)" /> *@
+                                        <input class="form-control form-control-sm"
+                                               @bind="CurrentSalary.PayableDays"
+                                               @bind:event="oninput"
+                                               @bind:after="RecalculateEarnings"
+                                               readonly="@(!CurrentSalary.EnableAttendanceEdit)" />
+
+                                    </div>
+
+                                    <div style="min-width:140px;">
+                                        <label class="small fw-semibold">@GetLabel("Present Days")</label>
+                                        <input class="form-control form-control-sm"
+                                               @bind="CurrentSalary.PresentDays"
+                                               @bind:event="oninput"
+                                               @bind:after="RecalculateEarnings"
+                                               readonly="@(!CurrentSalary.EnableAttendanceEdit)" />
+                                    </div>
+
+
+
+                                    <div style="min-width:140px;">
+                                        <label class="small fw-semibold">@GetLabel("Absent Days")</label>
+                                        <input class="form-control form-control-sm"
+                                               @bind="CurrentSalary.AbsentDays"
+                                               @bind:event="oninput"
+                                               @bind:after="RecalculateEarnings"
+                                               readonly="@(!CurrentSalary.EnableAttendanceEdit)" />
+                                    </div>
+
+                                    <div style="min-width:140px;">
+                                        <label class="small fw-semibold">@GetLabel("Leave Days")</label>
+                                        <input class="form-control form-control-sm"
+                                               @bind="CurrentSalary.LeaveDays"
+                                               @bind:event="oninput"
+                                               @bind:after="RecalculateEarnings"
+                                               readonly="@(!CurrentSalary.EnableAttendanceEdit)" />
+                                    </div>
+
+                                    <div style="min-width:140px;">
+                                        <label class="small fw-semibold">@GetLabel("Holidays")</label>
+                                        <input class="form-control form-control-sm"
+                                               @bind="CurrentSalary.Holidays"
+                                               @bind:event="oninput"
+                                               @bind:after="RecalculateEarnings"
+                                               readonly="@(!CurrentSalary.EnableAttendanceEdit)" />
+                                    </div>
+
+                                    <div style="min-width:120px;">
+                                        <label class="small fw-semibold">
+                                            @GetLabel("OT")
+
+                                            @if (!CurrentSalary.OtCount && FilteredStaff.Any())
+                                            {
+                                                <span class="badge bg-secondary ms-1">Disabled</span>
+                                            }
+                                        </label>
+
+                                       @*  <input class="form-control form-control-sm"
+                                               value="@(CurrentSalary.OtCount? CurrentSalary.OT: 0)"
+                                               readonly="@(!EnableAttendanceEdit)" /> *@
+
+                                        <input class="form-control form-control-sm"
+                                               @bind="CurrentSalary.OT"
+                                               @bind:event="oninput"
+                                               @bind:after="RecalculateEarnings"
+                                               readonly="@(!CurrentSalary.EnableAttendanceEdit || !CurrentSalary.OtCount)" />
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                        
+
+                        <div class="col-lg-4 col-md-6 mb-2">
+                            <div class="card shadow-sm h-100">
+
+                                <div class="card-header" style="background-color:#9A629D; color:white;">
+                                    <span class="fw-bold small">Basic Summary</span>
+                                </div>
+
+                                <div class="card-body p-2" @oninput="RecalculateEarnings">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            @* <label>Basic</label> *@
+                                            <label>@GetLabel("Basic")</label>
+                                            
+                                            <input type="number"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.Basic"
+                                                   @bind:event="oninput" />
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("DA")</label>
+                                            <input type="number"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.DA"
+                                                   @bind:event="oninput" />
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Miscellaneous")</label>
+                                            <input type="number"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.Miscellaneous"
+                                                   @bind:event="oninput" />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Others")</label>
+                                            <input type="number"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.Others"
+                                                   @bind:event="oninput" />
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-6 mb-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       @bind="CurrentSalary.IsAttBonus" />
+                                                <label class="form-check-label">
+                                                   @GetLabel("Attendance Bonus")
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Att Bonus Amt")</label>
+                                            <input type="number"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.AttBonus"
+                                                   @bind:event="oninput" />
+                                        </div>
+                                    </div>
+
+                                    
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!-- CARD 5 -->
+                        <div class="col-12 col-md-6 col-lg-4 mb-2">
+                            <div class="card shadow-sm h-100">
+
+                                <div class="card-header" style="background-color:#C50D56; color:white;">
+                                    <span class="fw-bold small">Earnings</span>
+                                </div>
+                                <div class="card-body p-2 p-md-3" @oninput="RecalculateEarnings">
+                                    <!----HRA---->
+                                        <div class="mb-3">
+
+                                        <div class="d-flex flex-wrap align align-items-center gap-2">
+                                            <!-- Radio Buttons -->
+                                                <div class="form-check me-2">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="HRAType"
+                                                           checked="@(CurrentSalary.IsHRAPerDay)"
+                                                           @onchange="(e) => OnHRAPerDayToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Day</label>
+                                                </div>
+
+                                                <div class="form-check me-3">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="HRAType"
+                                                           checked="@(CurrentSalary.IsHRAPerMonth)"
+                                                           @onchange="(e) => OnHRAPerMonthToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Month</label>
+                                                </div>
+                                              
+
+                                                <!-- Amount Box -->
+                                                <input type="number"
+                                                       class="form-control form-control-sm me-2"
+                                                       style="width:90px;"
+                                                       @bind="CurrentSalary.HRA"
+                                                       @bind:event="oninput" 
+                                                       />
+
+                                                <!-- Label at End -->
+                                                <label>@GetLabel("HRA")</label>
+                                            </div>
+                                        </div>
+                                 
+
+                                    <!----TA---->
+                                 
+                                        <div class="mb-3">
+
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                                <!-- Radio Buttons -->
+                                                <div class="form-check me-2">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="TAType"
+                                                           checked="@(CurrentSalary.IsTAPerDay)"
+                                                           @onchange="(e) => OnTAPerDayToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Day</label>
+                                                </div>
+
+                                                <div class="form-check me-3">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="TAType"
+                                                           checked="@(CurrentSalary.IsTAPerMonth)"
+                                                           @onchange="(e) => OnTAPerMonthToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Month</label>
+                                                </div>
+                                               
+
+                                                <!-- Amount Box -->
+                                                <input type="number"
+                                                       class="form-control form-control-sm me-2"
+                                                       style="width:90px;"
+                                                       @bind="CurrentSalary.TA"
+                                                       @bind:event="oninput"/>
+
+                                                <!-- Label at End -->
+                                                <label>@GetLabel("TA")</label>
+                                            </div>
+                                        </div>
+                                    @* </div> *@
+
+                                    <!----Special Allowance---->
+                                        <div class="mb-3">
+
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                                <!-- Radio Buttons -->
+                                                <div class="form-check me-2">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="SpecialAllowType"
+                                                           checked="@(CurrentSalary.IsSplAllowPerDay)"
+                                                           @onchange="(e) => OnSplAllowPerDayToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Day</label>
+                                                </div>
+
+                                                <div class="form-check me-3">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="SpecialAllowType"
+                                                           checked="@(CurrentSalary.IsSplAllowPerMonth)"
+                                                           @onchange="(e) => OnSplAllowPerMonthToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Month</label>
+                                                </div>
+                                               
+
+                                                <!-- Amount Box -->
+                                                <input type="number"
+                                                       class="form-control form-control-sm me-2"
+                                                       style="width:90px;"
+                                                       @bind="CurrentSalary.SplAllow"
+                                                       @bind:event="oninput" 
+                                                      />
+
+                                                <!-- Label at End -->
+                                                <label>@GetLabel("Spl Allowance")</label>
+                                            </div>
+                                        </div>
+
+                                    <!----LTA---->
+                                        <div class="mb-3">
+
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                                <!-- Radio Buttons -->
+                                                <div class="form-check me-2">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="LTAType"
+                                                           checked="@(CurrentSalary.IsLTAPerDay)"
+                                                           @onchange="(e) => OnLTAPerDayToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Day</label>
+                                                </div>
+
+                                                <div class="form-check me-3">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="LTAType"
+                                                           checked="@(CurrentSalary.IsLTAPerMonth)"
+                                                           @onchange="(e) => OnLTAPerMonthToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Month</label>
+                                                </div>
+                                               
+
+                                                <!-- Amount Box -->
+                                                <input type="number"
+                                                       class="form-control form-control-sm me-2"
+                                                       style="width:90px;"
+                                                       @bind="CurrentSalary.LTA"
+                                                       @bind:event="oninput" 
+                                                      />
+
+                                                <!-- Label at End -->
+                                                <label>@GetLabel("LTA")</label>
+                                            </div>
+                                        </div>
+                         
+                                    <!----MR---->
+                                        <div class="mb-3">
+
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                                <!-- Radio Buttons -->
+                                                <div class="form-check me-2">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="MRType"
+                                                           checked="@(CurrentSalary.IsMRPerDay)"
+                                                           @onchange="(e) => OnMRPerDayToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Day</label>
+                                                </div>
+
+                                                <div class="form-check me-3">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="MRType"
+                                                           checked="@(CurrentSalary.IsMRPerMonth)"
+                                                           @onchange="(e) => OnMRPerMonthToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Month</label>
+                                                </div>
+                                               
+
+                                                <!-- Amount Box -->
+                                                <input type="number"
+                                                       class="form-control form-control-sm me-2"
+                                                       style="width:90px;"
+                                                       @bind="CurrentSalary.MR"
+                                                       @bind:event="oninput" 
+                                                       />
+
+                                                <!-- Label at End -->
+                                                <label>@GetLabel("MR")</label>
+                                            </div>
+                                        </div>
+                                    
+
+                                    <!----EA---->
+                                        <div class="mb-3">
+
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                                <!-- Radio Buttons -->
+                                                <div class="form-check me-2">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="EAType"
+                                                           checked="@(CurrentSalary.IsEAPerDay)"
+                                                           @onchange="(e) => OnEAPerDayToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Day</label>
+                                                </div>
+
+                                                <div class="form-check me-3">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="EAType"
+                                                           checked="@(CurrentSalary.IsEAPerMonth)"
+                                                           @onchange="(e) => OnEAPerMonthToggle(e)" />
+                                                    <label class="form-check-label small">Fixed/Month</label>
+                                                </div>
+                                               
+
+                                                <!-- Amount Box -->
+                                                <input type="number"
+                                                       class="form-control form-control-sm me-2"
+                                                       style="width:90px;"
+                                                       @bind="CurrentSalary.EA"
+                                                       @bind:event="oninput" 
+                                                       />
+
+                                                <!-- Label at End -->
+                                                <label>@GetLabel("EA")</label>
+                                            </div>
+                                        </div>
+                                   
+                                    
+                                    <!----OT---->
+                                    @if (CurrentSalary.OtCount && FilteredStaff.Any())
+                                    {
+                                        <div class="mb-3">
+
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                                <!-- Radio Buttons -->
+                                                <div class="form-check me-2">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="OTType"
+                                                           checked="@CurrentSalary.IsOTunderBasic"
+                                                           @onchange="OnOTUnderBasicToggle" />
+                                                    <label class="form-check-label small">OT Times</label>
+                                                </div>
+
+                                                <div class="form-check me-3">
+                                                    <input class="form-check-input"
+                                                           type="radio"
+                                                           name="OTType"
+                                                           checked="@CurrentSalary.IsOTPerHour"
+                                                           @onchange="OnOTPerHourToggle" />
+                                                    <label class="form-check-label small">Fixed/Hour</label>
+                                                </div>
+
+                                                <!-- Amount Box -->
+                                                <input type="number"
+                                                       class="form-control form-control-sm me-2"
+                                                       style="width:90px;"
+                                                       @bind="CurrentSalary.OT_times_now"
+                                                       @bind:event="oninput" />
+
+                                                <label>@GetLabel("OT")</label>
+
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @if (FilteredStaff.Any() && !CurrentSalary.OtCount)
+                                        {
+                                            <!-- OT Disabled Badge -->
+                                            <span class="badge bg-secondary">
+                                                OT Disabled
+                                            </span>
+
+                                        }
+                                     
+                                    }
+
+                                    <div class="mb-3">
+                                        <label>@GetLabel("Total Gross")</label>
+                                        <input class="form-control bg-warning-subtle fw-bold"
+                                               value="@TotalGross" readonly />
+                                    </div>
+                                </div>
+                            </div>
+                        </div> 
+
+
+                        <!-- CARD 6 -->
+                        <div class="col-lg-4 col-md-6 mb-2">
+                            <div class="card shadow-sm h-100">
+
+                                <div class="card-header" style="background-color:#041943; color:white;">
+                                    <span class="fw-bold small">Deductions</span>
+                                </div>
+                                <div class="card-body p-2" @oninput="RecalculateEarnings">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                             <label>@GetLabel("TDS")</label>
+                                             <input type="number"
+                                                 class="form-control"
+                                                   @bind="CurrentSalary.TDS"
+                                                 @bind:event="oninput"/>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Insurance")</label>
+                                            <input type="number"
+                                                class="form-control"
+                                                   @bind="CurrentSalary.Insurance"
+                                                @bind:event="oninput"/>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Fines")</label>
+                                            <input type="number"
+                                                class="form-control"
+                                                   @bind="CurrentSalary.Fines"
+                                                @bind:event="oninput"/>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Damage Loss")</label>
+                                            <input type="number"
+                                                class="form-control"
+                                                   @bind="CurrentSalary.DamageLoss"
+                                                @bind:event="oninput"/>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Salary Advance")</label>
+                                            <input type="number"
+                                                class="form-control"
+                                                   @bind="CurrentSalary.SalAdvance"
+                                                   @bind:event="oninput" />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Society")</label>
+                                            <input type="number"
+                                                class="form-control"
+                                                   @bind="CurrentSalary.Society"
+                                                   @bind:event="oninput"/>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <!-- Loan Deduction (EMI) to save -->
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Loan Deduction")</label>
+                                            <input type="number"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.LoanAmtDed"
+                                                   @bind:event="oninput" />
+                                        </div>
+
+                                        <!-- Total Loan Balance (Display only) -->
+                                        <div class="col-md-6 mb-3">
+                                            <label>@GetLabel("Loan Balance Amount in Rs.")</label>
+                                           
+                                            <input type="number"
+                                                   class="form-control"
+                                                   @bind="CurrentSalary.LoanAmtDed"
+                                                   readonly />
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-4">
+                                            <div class="form-check">
+                                               
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@CurrentSalary.IsPF"
+                                                       @onchange="OnPFChanged" />
+                                                <label class="form-check-label">
+                                                    @GetLabel("PF")
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-4">
+                                            <div class="form-check">
+                                               
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@CurrentSalary.IsESI"
+                                                       @onchange="OnESIChanged" />
+                                                <label class="form-check-label">
+                                                    @GetLabel("ESI")
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                       
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label>@GetLabel("Total Deduction")</label>
+                                        <input class="form-control bg-warning-subtle fw-bold"
+                                               value="@TotalDeductions" readonly />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!---================Gross Details==============--->
+                    <div class="card mb-3 shadow-sm">
+                        <div class="card-header fw-bold text-white"
+                             style="background-color:#9CB263">
+                        Gross Summary
+                        </div>
+
+                        <div class="row mt-4 g-3">
+
+                            <!-- ========= EARNINGS TABLE ========= -->
+                            <div class="col-md-6 mt-2">
+                                <div class="card shadow-sm h-100">
+                                    <div class="card-header bg-light fw-bold">
+                                        Earnings Summary
+                                    </div>
+
+                                    <div class="card-body p-2">
+                                        <table class="table table-bordered table-sm mb-0">
+                                            <thead class="table-danger">
+                                                <tr>
+                                                    <th>Particular</th>
+                                                    <th class="text-end">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>@GetLabel("Basic")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedBasic</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("DA")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedDA</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("HRA")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedHRA</td>
+                                                  
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("TA")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedTA</td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td>@GetLabel("LTA")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedLTA</td>
+                                                   
+                                                </tr>
+
+                                                @if (CurrentSalary.IsAttBonus && CurrentSalary.PayableDays >= CurrentSalary.WorkingDays)
+                                                {
+                                                    <tr>
+                                                        <td>@GetLabel("Attendance Bonus")</td>
+                                                        <td class="text-end">@CurrentSalary.AttBonus</td>
+                                                    </tr>
+                                                }
+                                                
+                                                <tr>
+                                                    <td>@GetLabel("Special Allowance")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedSplAllow</td>
+                                                  
+                                                </tr>
+                                               
+                                                <tr>
+                                                    <td>@GetLabel("OT")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedOT</td>
+                                                   
+                                                </tr>
+
+                                                <tr>
+                                                    <td>@GetLabel("EA")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedEA</td>
+                                                    
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("MR")</td>
+                                                    <td class="text-end">@CurrentSalary.EarnedMR</td>
+                                                   
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("Miscellaneous")</td>
+                                                    <td class="text-end">@CurrentSalary.Miscellaneous</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("Others")</td>
+                                                    <td class="text-end">@CurrentSalary.Others</td>
+                                                </tr>
+
+
+                                                <tr class="fw-bold table-light">
+                                                    <td>@GetLabel("Total Earnings")</td>
+                                                    <td class="text-end">@TotalEarnings</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <!-- ========= DEDUCTIONS TABLE ========= -->
+                            <div class="col-md-6">
+                                <div class="card shadow-sm h-100">
+                                    <div class="card-header bg-light fw-bold">
+                                        Deductions Summary
+                                    </div>
+
+                                    <div class="card-body p-2">
+                                        <table class="table table-bordered table-sm mb-0">
+                                            <thead class="table-secondary">
+                                                <tr>
+                                                    <th>Particular</th>
+                                                    <th class="text-end">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>@GetLabel("ESI")</td>
+                                                    <td class="text-end">
+                                                        @(CurrentSalary.IsESI? CurrentSalary.EarnedESI: 0)
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td>@GetLabel("PF")</td>
+                                                    <td class="text-end">
+                                                        @(CurrentSalary.IsPF? CurrentSalary.EarnedPF: 0)
+                                                    </td>
+                                                </tr>
+
+                                                @* <tr>
+                                                    <td>@GetLabel("PT")</td>
+                                                    <td class="text-end">
+                                                        @(CurrentSalary.IsPT? CurrentSalary.PT: 0)
+                                                    </td>
+                                                </tr> *@
+                                                <tr>
+                                                    <td>@GetLabel("TDS")</td>
+                                                    <td class="text-end">@CurrentSalary.TDS</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("Society")</td>
+                                                    <td class="text-end">@CurrentSalary.Society</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("Insurance")</td>
+                                                    <td class="text-end">@CurrentSalary.Insurance</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("Salary Advance")</td>
+                                                    <td class="text-end">@CurrentSalary.SalAdvance</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("Fines")</td>
+                                                    <td class="text-end">@CurrentSalary.Fines</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@GetLabel("Damage Loss")</td>
+                                                    <td class="text-end">@CurrentSalary.DamageLoss</td>
+                                                </tr>
+                                               
+                                                <tr>
+                                                    <td>@GetLabel("Loan Amount")</td>
+                                                    <td class="text-end">@CurrentSalary.LoanAmtDed</td>
+                                                </tr>
+
+
+                                                
+                                                <tr class="fw-bold table-light">
+                                                    <td>@GetLabel("Total Deductions")</td>
+                                                    <td class="text-end">@TotalDeductions</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ================= SUMMARY ================= -->
+                    <div class="card mb-3 shadow-sm">
+                        <div class="card-header fw-bold text-white"
+                             style="background-color:#7CA293">
+                            Salary Summary
+                        </div>
+
+                        <div class="card-body">
+                            <div class="row g-3">
+
+                                <!--Actual Gross-->
+                                <div class="col-md-3">
+                                    <label class="fw-semibold">@GetLabel("Actual Gross")</label>
+                                    <input class="form-control fw-bold text-success"
+                                           @bind="CurrentSalary.TotalEarnings"/>
+                                </div>
+
+                                <!-- Net Pay -->
+                                <div class="col-md-3">
+                                    <label class="fw-semibold">@GetLabel("Net Pay")</label>
+                                    <input class="form-control fw-bold text-success"
+                                           value="@NetSalary" readonly />
+                                </div>
+
+                                <!-- Paid Amount -->
+                                <div class="col-md-3">
+                                    <label>@GetLabel("Paid Amount")</label>
+                                    <input class="form-control"
+                                           @bind="CurrentSalary.NetPay" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- ACTION BUTTONS -->
+                    <div class="text-end mt-3">
+                        <button type="submit" class="btn btn-primary px-4 rounded-3">
+                            <i class="bi bi-save me-1"></i>
+                            @(CurrentSalary.RowId > 0 ? "Update Salary" : "Create Salary")
+                        </button>
+
+                        <a href="/salaryList" class="btn btn-secondary ms-2 px-4 rounded-3">
+                            Back
+                        </a>
+                    </div>
+
+                </EditForm>
+
+            </div>
+        </div>
+    </div>
+
+}
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Salary";
+
+    [Parameter] public int? RowId { get; set; }
+    public int StaffId { get; set; }
+    private string SelectedEmployeeType;
+    private List<Staff> AllStaff = new();
+    private List<Staff> FilteredStaff = new();
+    private int? SelectedStaffId;
+
+    private List<SalaryHeadPrintSetting> SalaryHeadSettings = new();
+    private BiometricExcelSetting biometricExcelSetting { get; set; } = new();
+    private bool EnableAttendanceEdit = false;
+    private decimal TotalLoanBalance = 0;
+
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    private bool isProcessing = true;
+    private Salary SalaryEmp { get; set; } = new();
+
+    private HRMasterSettingVM HRMasterSettings { get; set; } = new();
+    private HRMasterSettingVM HrMasterSetting = new();
+
+    private SalaryVM CurrentSalary { get; set; } = new SalaryVM();
+    private decimal AttendanceBonusAmount =>
+      (CurrentSalary.PresentDays >= CurrentSalary.WorkingDays && SalaryEmp.IsAttBonus)
+          ? CurrentSalary.AttBonus
+          : 0;
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private string OAbuttonText = "Save";
+
+    private List<PageHeader.BreadcrumbItem> SalFormBreadcrumbs = new()
+    {
+        new() { Text = "Human Resource" },
+        new() { Text = "Salary", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    private decimal TotalGross =>
+        CurrentSalary.Basic +
+      CurrentSalary.DA +
+      CurrentSalary.Miscellaneous +
+      CurrentSalary.Others +
+      CurrentSalary.AttBonus +
+      CurrentSalary.HRA +
+      CurrentSalary.TA +
+      CurrentSalary.SplAllow +
+      CurrentSalary.LTA +
+      CurrentSalary.MR +
+      CurrentSalary.EA;
+
+    private decimal TotalEarnings =>
+        CurrentSalary.EarnedBasic +
+        CurrentSalary.EarnedDA +
+        CurrentSalary.EarnedHRA +
+        CurrentSalary.EarnedTA +
+        CurrentSalary.EarnedSplAllow +
+        CurrentSalary.EarnedLTA +
+        CurrentSalary.EarnedMR +
+        CurrentSalary.EarnedOT +
+        CurrentSalary.EarnedEA +
+        CurrentSalary.Miscellaneous +
+        CurrentSalary.Others +
+        CurrentSalary.EarnedAttBonus;
+
+    private decimal TotalDeductions =>
+        CurrentSalary.EarnedPF +
+        CurrentSalary.EarnedESI +
+        CurrentSalary.PT +
+        CurrentSalary.TDS +
+        CurrentSalary.Fines +
+        CurrentSalary.DamageLoss +
+        CurrentSalary.Insurance +
+        CurrentSalary.SalAdvance +
+        CurrentSalary.Society +
+        CurrentSalary.LoanAmtDed;
+    // AttendanceBonusAmount
+    private decimal NetSalary =>
+        TotalEarnings - TotalDeductions;
+
+    #endregion
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            biometricExcelSetting = await biometricExcelSettingService.GetBiometricExcelSetAsync();
+
+            SalaryHeadSettings = await salaryHeadPrintSettingService.GetAllSalaryPrintHeadSettingsAsync();
+            var hr = await hrMasterService.GetHRMSettingAsync();
+            HrMasterSetting = new HRMasterSettingVM
+                {
+                    Id = hr.Id,
+                    EmpPF = hr.EmpPF,
+                    PFSealing = hr.PFSealing,
+                    EmpESI = hr.EmpESI,
+                    ESISealing = hr.ESISealing,
+
+                    PFBasic = hr.PFBasic,
+                    PFDA = hr.PFDA,
+                    PFHRA = hr.PFHRA,
+                    PFConveyance = hr.PFConveyance,
+                    PFOTAmount = hr.PFOTAmount,
+                    PFSplAllow = hr.PFSplAllow,
+                    PFMedicalAllow = hr.PFMedicalAllow,
+                    PFLTA = hr.PFLTA,
+                    PFEA = hr.PFEA,
+                    PFMiscEarning = hr.PFMiscEarning,
+                    PFOtherAllow = hr.PFOtherAllow,
+                    PFAttendBonus = hr.PFAttendBonus,
+
+                    ESIBasic = hr.ESIBasic,
+                    ESIDA = hr.ESIDA,
+                    ESIHRA = hr.ESIHRA,
+                    ESIConveyance = hr.ESIConveyance,
+                    ESIOTAmt = hr.ESIOTAmt,
+                    ESISplAllow = hr.ESISplAllow,
+                    ESIMedicalAllow = hr.ESIMedicalAllow,
+                    ESILTA = hr.ESILTA,
+                    ESIEA = hr.ESIEA,
+                    ESIMiscEarning = hr.ESIMiscEarning,
+                    ESIOtherAllow = hr.ESIOtherAllow,
+                    ESIAttBonus = hr.ESIAttBonus,
+
+                    OTBasic = hr.OTBasic,
+                    OTDA = hr.OTDA
+                };
+
+            AllStaff = (await _unitOfWork.Staffs.GetAllAsync())
+                        .Where(x => x.Status == "Active")
+                        .ToList();
+            if (RowId.HasValue && RowId>0)
+            {
+                await LoadExistingSalary(RowId.Value);
+            }
+            else 
+            {
+                await InitializeNewSalary(0);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateWorkingDays()
+    {
+        int year = CurrentSalary.SalYear ?? 0;
+        int month = CurrentSalary.SalMonth ?? 0;
+
+        if (year > 0 && month > 0)
+        {
+            CurrentSalary.WorkingDays = DateTime.DaysInMonth(year, month);
+        }
+        else
+        {
+            CurrentSalary.WorkingDays = 0;
+        }
+    }
+
+    private string GetLabel(string fieldName)
+    {
+        return SalaryHeadSettings
+            .FirstOrDefault(x => x.FieldName == fieldName)?
+            .PrintName ?? fieldName;
+    }
+
+    private async Task LoadExistingSalary(int rowId)
+    {
+        try
+        {
+            var salaryVM = await salaryService.GetSalaryByRowIdAsync(rowId);
+
+            if (salaryVM == null)
+            {
+                await _js.ToastrWarning("Salary record not found.");
+                return;
+            }
+
+            salaryVM.RowId = rowId;
+
+            // Find staff by StaffID from the salary record
+            var staff = await _unitOfWork.Staffs
+                        .GetQueryable()
+                        .FirstOrDefaultAsync(s => s.StaffID == salaryVM.StaffId);
+
+            if (staff != null)
+            {
+                // Set the selected employee type for your UI (radio buttons)
+                SelectedEmployeeType = staff.Reporting;
+
+                // **Only include this specific staff in the filtered list**
+                FilteredStaff = new List<Staff> { staff };
+            }
+            else
+            {
+                // If staff not found, clear FilteredStaff so UI shows nothing
+                FilteredStaff = new List<Staff>();
+            }
+
+            CurrentSalary = salaryVM;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing salary.");
+            await _logs.LogDeveloperError(ex, $"LoadExistingSalary failed for RowId: {rowId}");
+        }
+    }
+
+    private async Task OnOTUnderBasicToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsOTunderBasic = true;
+        CurrentSalary.IsOTPerHour = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnOTPerHourToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsOTPerHour = true;
+        CurrentSalary.IsOTunderBasic = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnHRAPerDayToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsHRAPerDay = true;
+        CurrentSalary.IsHRAPerMonth = false;
+        RecalculateEarnings();
+        StateHasChanged();
+
+    }
+
+    private async Task OnHRAPerMonthToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsHRAPerMonth = true;
+        CurrentSalary.IsHRAPerDay = false;
+        RecalculateEarnings();
+        StateHasChanged();
+
+    }
+
+    private async Task OnTAPerDayToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsTAPerDay = true;
+        CurrentSalary.IsTAPerMonth = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnTAPerMonthToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsTAPerMonth = true;
+        CurrentSalary.IsTAPerDay = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnSplAllowPerDayToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsSplAllowPerDay = true;
+        CurrentSalary.IsSplAllowPerMonth = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnSplAllowPerMonthToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsSplAllowPerMonth = true;
+        CurrentSalary.IsSplAllowPerDay = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnLTAPerDayToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsLTAPerDay = true;
+        CurrentSalary.IsLTAPerMonth = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnLTAPerMonthToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsLTAPerMonth = true;
+        CurrentSalary.IsLTAPerDay = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnMRPerDayToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsMRPerDay = true;
+        CurrentSalary.IsMRPerMonth = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnMRPerMonthToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsMRPerMonth = true;
+        CurrentSalary.IsMRPerDay = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnEAPerDayToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsEAPerDay = true;
+        CurrentSalary.IsEAPerMonth = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private async Task OnEAPerMonthToggle(ChangeEventArgs e)
+    {
+        CurrentSalary.IsEAPerMonth = true;
+        CurrentSalary.IsEAPerDay = false;
+        RecalculateEarnings();
+        StateHasChanged();
+    }
+
+    private void OnEmployeeTypeChanged(ChangeEventArgs e)
+    {
+        SelectedEmployeeType = e.Value?.ToString();
+
+        FilteredStaff = AllStaff
+            .Where(x => x.Reporting == SelectedEmployeeType)
+            .ToList();
+
+        SelectedStaffId = null;
+        CurrentSalary.Dept = null;
+
+        StateHasChanged();
+    }
+
+    void CalculateSalary()
+    {
+        salaryService.CalculateEarnings(CurrentSalary,HrMasterSetting);
+        salaryService.CalculateDeductions(CurrentSalary,HrMasterSetting);
+    }
+
+
+    // private async Task OnStaffChanged(ChangeEventArgs e)
+    // {
+    //     try
+    //     {
+    //         // =========================================================
+    //         // VALIDATION
+    //         // =========================================================
+
+    //         if (CurrentSalary.SalYear == 0 || CurrentSalary.SalMonth == 0)
+    //         {
+    //             await _js.ToastrWarning("Please select Year and Month first.");
+    //             return;
+    //         }
+
+    //         if (!int.TryParse(e.Value?.ToString(), out int selectedId))
+    //         {
+    //             await _js.ToastrWarning("Invalid staff selected.");
+    //             return;
+    //         }
+
+    //         // SAVE MONTH & YEAR BEFORE RESETTING OBJECT
+    //         var oldMonth = CurrentSalary.SalMonth;
+    //         var oldYear = CurrentSalary.SalYear;
+
+    //         // =========================================================
+    //         // CHECK EXISTING SALARY
+    //         // =========================================================
+
+    //         var existingSalary = await salaryService
+    //             .GetSalaryByStaffMonthYearAsync(
+    //                 selectedId,
+    //                 oldMonth,
+    //                 oldYear);
+
+    //         // =========================================================
+    //         // IF SALARY ALREADY EXISTS
+    //         // =========================================================
+
+    //         if (existingSalary != null)
+    //         {
+    //             CurrentSalary = existingSalary;
+
+    //             // LOAD LOAN DETAILS
+    //             var staffLoan = await staffLoanService
+    //                 .GetStaffLoanByStaffIdAsync(CurrentSalary.StaffId.Value);
+
+    //             if (staffLoan != null && staffLoan.LoanRows.Any())
+    //             {
+    //                 TotalLoanBalance = staffLoan.LoanRows
+    //                     .Where(x => !x.IsFinished)
+    //                     .Sum(x => x.BalanceAmount);
+
+    //                 CurrentSalary.LoanBalB4 = TotalLoanBalance;
+
+    //                 CurrentSalary.LoanAmtDed = staffLoan.LoanRows
+    //                     .Where(x => !x.IsFinished &&
+    //                                 x.NumberOfMonthsRecoveries > 0)
+    //                     .Sum(x => Math.Round(
+    //                         x.Amount / x.NumberOfMonthsRecoveries,
+    //                         2,
+    //                         MidpointRounding.AwayFromZero));
+
+    //                 var firstLoan = staffLoan.LoanRows
+    //                     .FirstOrDefault(x => !x.IsFinished);
+
+    //                 if (firstLoan != null)
+    //                 {
+    //                     CurrentSalary.LoanId = firstLoan.LoanId;
+    //                 }
+    //             }
+    //             else
+    //             {
+    //                 TotalLoanBalance = 0;
+    //                 CurrentSalary.LoanBalB4 = 0;
+    //                 CurrentSalary.LoanAmtDed = 0;
+    //                 CurrentSalary.LoanId = null;
+    //             }
+
+    //             RecalculateEarnings();
+
+    //             await _js.ToastrInfo("Existing salary record loaded.");
+
+    //             await InvokeAsync(StateHasChanged);
+
+    //             return;
+    //         }
+
+    //         // =========================================================
+    //         // CREATE FRESH OBJECT FOR NEW STAFF
+    //         // =========================================================
+
+    //         CurrentSalary = new SalaryVM
+    //         {
+    //             StaffId = selectedId,
+    //             SalMonth = oldMonth,
+    //             SalYear = oldYear
+    //         };
+
+    //         // =====================================
+    //         // 🔥 GET PREVIOUS SALARY STRUCTURE
+    //         // =====================================
+    //         var previousSalary = await _unitOfWork.Salaries
+    //             .GetQueryable()
+    //             .Where(x => x.StaffId == selectedId)
+    //             .OrderByDescending(x => x.SalYear)
+    //             .ThenByDescending(x => x.SalMonth)
+    //             .FirstOrDefaultAsync();
+
+    //         // =====================================
+    //         // 🔥 COPY ALLOWANCE FIELDS
+    //         // =====================================
+    //         if (previousSalary != null)
+    //         {
+    //             CurrentSalary.DA = previousSalary.DA;
+    //             CurrentSalary.HRA = previousSalary.HRA;
+    //             CurrentSalary.TA = previousSalary.TA;
+    //             CurrentSalary.MR = previousSalary.MR;
+    //             CurrentSalary.EA = previousSalary.EA;
+    //             CurrentSalary.LTA = previousSalary.LTA;
+    //             CurrentSalary.SplAllow = previousSalary.SplAllow;
+    //             CurrentSalary.Basic = previousSalary.Basic;
+
+    //             CurrentSalary.IsHRAPerDay = previousSalary.IsHRAPerDay;
+    //             CurrentSalary.IsHRAPerMonth = previousSalary.IsHRAPerMonth;
+    //             CurrentSalary.IsTAPerDay = previousSalary.IsTAPerDay;
+    //             CurrentSalary.IsTAPerMonth = previousSalary.IsTAPerMonth;
+    //             CurrentSalary.IsLTAPerDay = previousSalary.IsLTAPerDay;
+    //             CurrentSalary.IsLTAPerMonth = previousSalary.IsLTAPerMonth;
+    //             CurrentSalary.IsSplAllowPerDay = previousSalary.IsSplAllowPerDay;
+    //             CurrentSalary.IsSplAllowPerMonth = previousSalary.IsSplAllowPerMonth;
+    //             CurrentSalary.IsMRPerDay = previousSalary.IsMRPerDay;
+    //             CurrentSalary.IsMRPerMonth = previousSalary.IsMRPerMonth;
+    //             CurrentSalary.IsEAPerDay = previousSalary.IsEAPerMonth;
+    //             CurrentSalary.IsEAPerMonth = previousSalary.IsEAPerMonth;
+    //         }
+
+    //         // =========================================================
+    //         // GET SELECTED STAFF
+    //         // =========================================================
+
+    //         var selectedStaff = FilteredStaff
+    //             .FirstOrDefault(x => x.StaffID == selectedId);
+
+    //        //24/04/26
+    //         CurrentSalary.OtCount = selectedStaff.OtCount;
+    //         //24/04/26
+
+    //         if (selectedStaff == null)
+    //         {
+    //             await _js.ToastrWarning("Staff not found.");
+    //             return;
+    //         }
+
+    //         // =========================================================
+    //         // STAFF DETAILS
+    //         // =========================================================
+        
+    //         CurrentSalary.Dept = selectedStaff.Department;
+
+    //         // WORKING HOURS
+    //         if (TimeSpan.TryParse(selectedStaff.WorkingHrs, out var ts))
+    //             CurrentSalary.WorkingHrs = (decimal)ts.TotalHours;
+    //         else
+    //             CurrentSalary.WorkingHrs = 0;
+
+    //         // =========================================================
+    //         // ATTENDANCE
+    //         // =========================================================
+
+    //         var attendanceData = await _unitOfWork.Attendances
+    //             .Query()
+    //             .Where(a =>
+    //                 a.StaffId == selectedId &&
+    //                 a.Year == oldYear &&
+    //                 a.MonthId == oldMonth)
+    //             .ToListAsync();
+
+    //         if (!attendanceData.Any())
+    //         {
+    //             if (!EnableAttendanceEdit)
+    //             {
+    //                 await _js.ToastrWarning("No attendance found for selected month.");
+    //                 return;
+    //             }
+    //         }
+
+    //         if (attendanceData.Any())
+         
+    //         {
+    //             var firstAttendance = attendanceData.First();
+
+    //             var ldetailString = firstAttendance.Ldetail ?? "";
+
+    //             var otDetailString = firstAttendance.OtDetail ?? "";
+
+    //             // ATTENDANCE DAYS
+    //             var days = ldetailString
+    //                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
+    //                 .Select(x => x.Trim().ToUpper())
+    //                 .ToList();
+
+    //             // OT VALUES
+    //             var otdays = otDetailString
+    //                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
+    //                 .Select(x =>
+    //                     decimal.TryParse(x.Trim(), out var val)
+    //                         ? val
+    //                         : 0)
+    //                 .ToList();
+
+    //             int totalDays = DateTime.DaysInMonth(
+    //                  CurrentSalary.SalYear!.Value,
+    //                  CurrentSalary.SalMonth!.Value);
+
+    //             CurrentSalary.WorkingDays = totalDays;
+
+    //             CurrentSalary.PresentDays = days.Count(x => MapStatus(x, biometricExcelSetting) == "P");
+
+    //             CurrentSalary.AbsentDays = days.Count(x => MapStatus(x, biometricExcelSetting) == "A");
+
+    //             CurrentSalary.Holidays =days.Count(x => MapStatus(x, biometricExcelSetting) == "H");
+
+
+    //             /////POOOOO///////
+    //             decimal paidLeave = 0;
+    //             decimal unpaidLeave = 0;
+    //             decimal paidLCount = 0;
+    //             foreach (var status in days)
+    //             {
+    //                 if (MapStatus(status, biometricExcelSetting) != "L")
+    //                     continue;
+
+    //                 var leave = await leaveTypeService.GetByAttendanceCode(status);
+
+    //                 if (leave == null)
+    //                     continue;
+
+    //                 // L follows special rule pooja commented for leave deduction in salary
+    //                 if (leave.AttendanceCode.Trim().ToUpper() == "L")
+    //                 {
+    //                     if (paidLCount < 1)
+    //                     {
+    //                         paidLeave++;
+    //                         paidLCount++;
+    //                     }
+    //                     else
+    //                     {
+    //                         unpaidLeave++;
+    //                     }
+    //                 }
+    //                 else
+    //                 {
+    //                     // SL / CL / EL...
+    //                     if (leave.DeductSalary)
+    //                         unpaidLeave++;
+    //                     else
+    //                         paidLeave++;
+    //                 }
+    //             }
+
+    //             CurrentSalary.LeaveDays = days.Count(x => MapStatus(x, biometricExcelSetting) == "L");
+
+    //             // Do not pay LOP
+    //             CurrentSalary.PayableDays =
+    //                 CurrentSalary.PresentDays +
+    //                 paidLeave +
+    //                 CurrentSalary.Holidays;
+
+    //             CurrentSalary.OT = CurrentSalary.OtCount ? otdays.Sum() : 0;
+
+    //         }
+
+    //         // =========================================================
+    //         // LOAN DETAILS
+    //         // =========================================================
+    //         var loanData = await staffLoanService
+    // .GetStaffLoanByStaffIdAsync(selectedId);
+
+    //         if (loanData != null && loanData.LoanRows.Any())
+    //         {
+    //             var eligibleLoans = loanData.LoanRows
+    //                 .Where(x =>
+    //                 {
+    //                     if (x.IsFinished) return false;
+
+    //                     var loanMonth = new DateTime(
+    //                         x.DateOfIssue.Year,
+    //                         x.DateOfIssue.Month,
+    //                         1);
+
+    //                     // compare directly using CurrentSalary month/year
+    //                     return new DateTime(x.DateOfIssue.Year, x.DateOfIssue.Month, 1)
+    //     < new DateTime(oldYear.GetValueOrDefault(), oldMonth.GetValueOrDefault(), 1);
+    //                 })
+    //                 .ToList();
+
+    //             TotalLoanBalance = eligibleLoans.Sum(x => x.BalanceAmount);
+
+    //             CurrentSalary.LoanBalB4 = TotalLoanBalance;
+
+    //             CurrentSalary.LoanAmtDed = eligibleLoans
+    //                 .Where(x => x.NumberOfMonthsRecoveries > 0)
+    //                 .Sum(x => Math.Round(
+    //                     x.Amount / x.NumberOfMonthsRecoveries,
+    //                     2,
+    //                     MidpointRounding.AwayFromZero));
+
+    //             CurrentSalary.LoanId = eligibleLoans.FirstOrDefault()?.LoanId;
+    //         }
+    //         else
+    //         {
+    //             TotalLoanBalance = 0;
+    //             CurrentSalary.LoanBalB4 = 0;
+    //             CurrentSalary.LoanAmtDed = 0;
+    //             CurrentSalary.LoanId = null;
+    //         }
+           
+    //         // =========================================================
+    //         // RECALCULATE
+    //         // =========================================================
+    //         //24/04/26
+    //         if (!CurrentSalary.OtCount)
+    //         {
+    //             CurrentSalary.OT = 0;
+    //             CurrentSalary.EarnedOT = 0;
+    //         }
+    //         //24/04/26
+
+    //         RecalculateEarnings();
+
+
+    //         await InvokeAsync(StateHasChanged);
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         await _logs.LogDeveloperError(ex,"Error occurred while changing staff.");
+
+    //         await _js.ToastrError("Failed to load employee details.");
+    //     }
+    // }
+
+     private async Task OnStaffChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            // =========================================================
+            // VALIDATION
+            // =========================================================
+
+            if (CurrentSalary.SalYear == 0 || CurrentSalary.SalMonth == 0)
+            {
+                await _js.ToastrWarning("Please select Year and Month first.");
+                return;
+            }
+
+            if (!int.TryParse(e.Value?.ToString(), out int selectedId))
+            {
+                await _js.ToastrWarning("Invalid staff selected.");
+                return;
+            }
+
+            // SAVE MONTH & YEAR BEFORE RESETTING OBJECT
+            var oldMonth = CurrentSalary.SalMonth;
+            var oldYear = CurrentSalary.SalYear;
+
+            // =========================================================
+            // CHECK EXISTING SALARY
+            // =========================================================
+
+            var existingSalary = await salaryService
+                .GetSalaryByStaffMonthYearAsync(
+                    selectedId,
+                    oldMonth,
+                    oldYear);
+
+            // =========================================================
+            // IF SALARY ALREADY EXISTS
+            // =========================================================
+
+            if (existingSalary != null)
+            {
+                CurrentSalary = existingSalary;
+
+                // LOAD LOAN DETAILS
+                var staffLoan = await staffLoanService
+                    .GetStaffLoanByStaffIdAsync(CurrentSalary.StaffId.Value);
+
+                if (staffLoan != null && staffLoan.LoanRows.Any())
+                {
+                    TotalLoanBalance = staffLoan.LoanRows
+                        .Where(x => !x.IsFinished)
+                        .Sum(x => x.BalanceAmount);
+
+                    CurrentSalary.LoanBalB4 = TotalLoanBalance;
+
+                    CurrentSalary.LoanAmtDed = staffLoan.LoanRows
+                        .Where(x => !x.IsFinished &&
+                                    x.NumberOfMonthsRecoveries > 0)
+                        .Sum(x => Math.Round(
+                            x.Amount / x.NumberOfMonthsRecoveries,
+                            2,
+                            MidpointRounding.AwayFromZero));
+
+                    var firstLoan = staffLoan.LoanRows
+                        .FirstOrDefault(x => !x.IsFinished);
+
+                    if (firstLoan != null)
+                    {
+                        CurrentSalary.LoanId = firstLoan.LoanId;
+                    }
+                }
+                else
+                {
+                    TotalLoanBalance = 0;
+                    CurrentSalary.LoanBalB4 = 0;
+                    CurrentSalary.LoanAmtDed = 0;
+                    CurrentSalary.LoanId = null;
+                }
+
+                RecalculateEarnings();
+
+                await _js.ToastrInfo("Existing salary record loaded.");
+
+                await InvokeAsync(StateHasChanged);
+
+                return;
+            }
+
+            // =========================================================
+            // CREATE FRESH OBJECT FOR NEW STAFF
+            // =========================================================
+
+            CurrentSalary = new SalaryVM
+            {
+                StaffId = selectedId,
+                SalMonth = oldMonth,
+                SalYear = oldYear
+            };
+
+            // =====================================
+            // 🔥 GET PREVIOUS SALARY STRUCTURE
+            // =====================================
+            var previousSalary = await _unitOfWork.Salaries
+                .GetQueryable()
+                .Where(x => x.StaffId == selectedId)
+                .OrderByDescending(x => x.SalYear)
+                .ThenByDescending(x => x.SalMonth)
+                .FirstOrDefaultAsync();
+
+            // =====================================
+            // 🔥 COPY ALLOWANCE FIELDS
+            // =====================================
+            if (previousSalary != null)
+            {
+                CurrentSalary.DA = previousSalary.DA;
+                CurrentSalary.HRA = previousSalary.HRA;
+                CurrentSalary.TA = previousSalary.TA;
+                CurrentSalary.MR = previousSalary.MR;
+                CurrentSalary.EA = previousSalary.EA;
+                CurrentSalary.LTA = previousSalary.LTA;
+                CurrentSalary.SplAllow = previousSalary.SplAllow;
+                CurrentSalary.Basic = previousSalary.Basic;
+
+                CurrentSalary.IsHRAPerDay = previousSalary.IsHRAPerDay;
+                CurrentSalary.IsHRAPerMonth = previousSalary.IsHRAPerMonth;
+                CurrentSalary.IsTAPerDay = previousSalary.IsTAPerDay;
+                CurrentSalary.IsTAPerMonth = previousSalary.IsTAPerMonth;
+                CurrentSalary.IsLTAPerDay = previousSalary.IsLTAPerDay;
+                CurrentSalary.IsLTAPerMonth = previousSalary.IsLTAPerMonth;
+                CurrentSalary.IsSplAllowPerDay = previousSalary.IsSplAllowPerDay;
+                CurrentSalary.IsSplAllowPerMonth = previousSalary.IsSplAllowPerMonth;
+                CurrentSalary.IsMRPerDay = previousSalary.IsMRPerDay;
+                CurrentSalary.IsMRPerMonth = previousSalary.IsMRPerMonth;
+                CurrentSalary.IsEAPerDay = previousSalary.IsEAPerDay;
+                CurrentSalary.IsEAPerMonth = previousSalary.IsEAPerMonth;
+            }
+
+            // =========================================================
+            // GET SELECTED STAFF
+            // =========================================================
+
+            var selectedStaff = FilteredStaff
+                .FirstOrDefault(x => x.StaffID == selectedId);
+
+           //24/04/26
+            CurrentSalary.OtCount = selectedStaff.OtCount;
+            //24/04/26
+
+            if (selectedStaff == null)
+            {
+                await _js.ToastrWarning("Staff not found.");
+                return;
+            }
+
+            // =========================================================
+            // STAFF DETAILS
+            // =========================================================
+        
+            CurrentSalary.Dept = selectedStaff.Department;
+
+            // WORKING HOURS
+            if (TimeSpan.TryParse(selectedStaff.WorkingHrs, out var ts))
+                CurrentSalary.WorkingHrs = (decimal)ts.TotalHours;
+            else
+                CurrentSalary.WorkingHrs = 0;
+
+            // =========================================================
+            // ATTENDANCE
+            // =========================================================
+
+            var attendanceData = await _unitOfWork.Attendances
+                .Query()
+                .Where(a =>
+                    a.StaffId == selectedId &&
+                    a.Year == oldYear &&
+                    a.MonthId == oldMonth)
+                .ToListAsync();
+
+            int totalDays = DateTime.DaysInMonth(
+oldYear.GetValueOrDefault(),
+oldMonth.GetValueOrDefault());
+            // Always set Working Days
+            CurrentSalary.WorkingDays = totalDays;
+
+
+            if (!attendanceData.Any())
+            {
+                await _js.ToastrWarning("No attendance found for selected month. You can continue with manual salary entry.");
+             
+                // ======================================
+                // MANUAL ENTRY MODE
+                // ======================================
+                // If Edit Attendance is checked, initialize attendance values
+                
+                CurrentSalary.PresentDays = totalDays;
+                CurrentSalary.AbsentDays = 0;
+                CurrentSalary.LeaveDays = 0;
+                CurrentSalary.Holidays = 0;
+                CurrentSalary.PayableDays = totalDays;
+
+                CurrentSalary.OT = 0;
+                CurrentSalary.EarnedOT = 0;
+               
+            }
+
+            // if (attendanceData.Any())
+            else
+            {
+                var firstAttendance = attendanceData.First();
+
+                var ldetailString = firstAttendance.Ldetail ?? "";
+                var otDetailString = firstAttendance.OtDetail ?? "";
+
+                var days = ldetailString
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim().ToUpper())
+                    .ToList();
+
+                var otdays = otDetailString
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x =>
+                        decimal.TryParse(x.Trim(), out var val)
+                            ? val
+                            : 0)
+                    .ToList();
+
+                CurrentSalary.PresentDays =
+                    days.Count(x => MapStatus(x, biometricExcelSetting) == "P");
+
+                CurrentSalary.AbsentDays =
+                    days.Count(x => MapStatus(x, biometricExcelSetting) == "A");
+
+                CurrentSalary.Holidays =
+                    days.Count(x => MapStatus(x, biometricExcelSetting) == "H");
+
+                decimal paidLeave = 0;
+                decimal unpaidLeave = 0;
+                decimal paidLCount = 0;
+
+                foreach (var status in days)
+                {
+                    if (MapStatus(status, biometricExcelSetting) != "L")
+                        continue;
+
+                    var leave = await leaveTypeService.GetByAttendanceCode(status);
+
+                    if (leave == null)
+                        continue;
+
+                    if (leave.AttendanceCode.Trim().ToUpper() == "L")
+                    {
+                        if (paidLCount < 1)
+                        {
+                            paidLeave++;
+                            paidLCount++;
+                        }
+                        else
+                        {
+                            unpaidLeave++;
+                        }
+                    }
+                    else
+                    {
+                        if (leave.DeductSalary)
+                            unpaidLeave++;
+                        else
+                            paidLeave++;
+                    }
+                }
+
+                CurrentSalary.LeaveDays =
+                    days.Count(x => MapStatus(x, biometricExcelSetting) == "L");
+
+                CurrentSalary.PayableDays =
+                    CurrentSalary.PresentDays +
+                    paidLeave +
+                    CurrentSalary.Holidays;
+
+                CurrentSalary.OT =
+                    CurrentSalary.OtCount ? otdays.Sum() : 0;
+            }
+            // Recalculate salary
+            RecalculateEarnings();
+            // =========================================================
+            // LOAN DETAILS
+            // =========================================================
+            var loanData = await staffLoanService
+    .GetStaffLoanByStaffIdAsync(selectedId);
+
+            if (loanData != null && loanData.LoanRows.Any())
+            {
+                var eligibleLoans = loanData.LoanRows
+                    .Where(x =>
+                    {
+                        if (x.IsFinished) return false;
+
+                        var loanMonth = new DateTime(
+                            x.DateOfIssue.Year,
+                            x.DateOfIssue.Month,
+                            1);
+
+                        // compare directly using CurrentSalary month/year
+                        return new DateTime(x.DateOfIssue.Year, x.DateOfIssue.Month, 1)
+        < new DateTime(oldYear.GetValueOrDefault(), oldMonth.GetValueOrDefault(), 1);
+                    })
+                    .ToList();
+
+                TotalLoanBalance = eligibleLoans.Sum(x => x.BalanceAmount);
+
+                CurrentSalary.LoanBalB4 = TotalLoanBalance;
+
+                CurrentSalary.LoanAmtDed = eligibleLoans
+                    .Where(x => x.NumberOfMonthsRecoveries > 0)
+                    .Sum(x => Math.Round(
+                        x.Amount / x.NumberOfMonthsRecoveries,
+                        2,
+                        MidpointRounding.AwayFromZero));
+
+                CurrentSalary.LoanId = eligibleLoans.FirstOrDefault()?.LoanId;
+            }
+            else
+            {
+                TotalLoanBalance = 0;
+                CurrentSalary.LoanBalB4 = 0;
+                CurrentSalary.LoanAmtDed = 0;
+                CurrentSalary.LoanId = null;
+            }
+           
+            // =========================================================
+            // RECALCULATE
+            // =========================================================
+            //24/04/26
+            if (!CurrentSalary.OtCount)
+            {
+                CurrentSalary.OT = 0;
+                CurrentSalary.EarnedOT = 0;
+            }
+            //24/04/26
+
+            RecalculateEarnings();
+
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex,"Error occurred while changing staff.");
+
+            await _js.ToastrError("Failed to load employee details.");
+        }
+    }
+
+    private bool IsMatch(string value, string dbValue)
+    {
+        if (string.IsNullOrWhiteSpace(dbValue))
+            return false;
+
+        return dbValue
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim().ToUpper())
+            .Contains(value.Trim().ToUpper());
+    }
+
+    private string MapStatus(string status, BiometricExcelSetting setting)
+    {
+        if (IsMatch(status, setting.P))
+            return "P";
+
+        if (IsMatch(status, setting.A))
+            return "A";
+
+        if (IsMatch(status, setting.L))
+            return "L";
+
+        if (IsMatch(status, setting.H))
+            return "H";
+
+        if (IsMatch(status, setting.W))
+            return "W";
+
+        if (IsMatch(status, setting.O))
+            return "O";
+
+        // if (IsMatch(status, setting.M))
+        //     return "M";
+
+        // if (IsMatch(status, setting.N))
+        //     return "N";
+        return status;
+    }
+
+
+
+    private async Task InitializeNewSalary(int rowId)
+    {
+        try
+        {
+            SalaryEmp.RowId = 0;
+            SalaryEmp.SalDate = DateTime.Today;
+            SalaryEmp.SalMonth = DateTime.Today.Month;
+            SalaryEmp.SalYear = DateTime.Today.Year;
+            await InvokeAsync(StateHasChanged);
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new salary.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewSalary failed for RowId: {rowId}");
+        }
+    }
+
+    #endregion
+
+    #region Salary Operations
+    private async Task UpsertSalary()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // VM → Entity
+            var salaryEntity = Mapper.Map<Salary>(CurrentSalary);
+
+            if (string.IsNullOrEmpty(salaryEntity.Dept))
+            {
+                await _js.ToastrError("Department is required.");
+                return;
+            }
+
+            await salaryService.SaveSalaryAsync(salaryEntity);
+
+            await _js.ToastrSuccess("Salary saved successfully.");
+
+            await _js.ToastrSuccess("Salary saved successfully.");
+            _navigationManager.NavigateTo("/salaryList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertSalary failed.");
+            await _js.ToastrError("Error saving Salary.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void RecalculateEarnings()
+    {
+        // // 1. Calculate earnings
+        salaryService.CalculateEarnings(CurrentSalary, HrMasterSetting);
+
+        // // 2. Calculate deductions
+        salaryService.CalculateDeductions(CurrentSalary,HrMasterSetting);
+    }
+
+    private void OnPFChanged(ChangeEventArgs e)
+    {
+        CurrentSalary.IsPF = (bool)e.Value!;
+        
+
+        salaryService.CalculateDeductions(CurrentSalary, HrMasterSetting);
+
+        StateHasChanged();
+    }
+
+    private void OnESIChanged(ChangeEventArgs e)
+    {
+        CurrentSalary.IsESI = (bool)e.Value!;
+
+        salaryService.CalculateDeductions(CurrentSalary, HrMasterSetting);
+
+        StateHasChanged();
+    }
+
+    private void OnPTChanged(ChangeEventArgs e)
+    {
+        CurrentSalary.IsPT = (bool)e.Value!;
+
+        salaryService.CalculateDeductions(CurrentSalary, HrMasterSetting);
+
+        StateHasChanged();
+    }
+
+
+    #endregion
+}

@@ -1,0 +1,358 @@
+﻿@page "/leaveType/create"
+@page "/leaveType/update/{LeaveTypeId:int}"
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@LeaveTypeTitle"
+                            TitleIcon="@LeaveTypeIcon"
+                            Breadcrumbs="@leaveTypeBreadcrumbs" />
+
+
+                <div class="card-body">
+                    <EditForm Model="LeaveType" OnValidSubmit="UpsertLeavetype">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="LeaveType.LeaveName"
+                                                      Id="LeaveName"
+                                                      Placeholder="Leave Name"
+                                                      CssClass="form-control" />
+                                    <label for="LeaveName">Leave Name</label>
+                                    <ValidationMessage For="@(() => LeaveType.LeaveName)" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="LeaveType.AttendanceCode"
+                                                      Id="AttendanceCode"
+                                                      Placeholder="Attendance Code"
+                                                      CssClass="form-control" />
+                                    <label for="AttendanceCode">Attendance Code</label>
+                                    <ValidationMessage For="@(() => LeaveType.AttendanceCode)" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="LeaveType.LeaveDescription"
+                                                      Id="LeaveDescription"
+                                                      Placeholder="Leave Description"
+                                                      CssClass="form-control" />
+                                    <label for="LeaveDescription">Leave Description </label>
+                                    <ValidationMessage For="@(() => LeaveType.LeaveDescription)" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="LeaveType.MaxAllowedPerYear"
+                                                 Id="MaxAllowedPerYear"
+                                                 Placeholder="Maximum Leave Allowed PerYear"
+                                                 class="form-control" />
+                                    <label for="MaxAllowedPerYear">Maximum Leave Allowed PerYear</label>
+                                    <ValidationMessage For="@(() => LeaveType.MaxAllowedPerYear)" />
+                                </div>
+                            </div>
+
+
+                            <div class="col-12 col-md-3">
+                                <div class="border rounded p-3 d-flex align-items-center">
+                                    <div class="form-check mb-0">
+                                        <InputCheckbox class="form-check-input" @bind-Value="LeaveType.PaidLeave" id="PaidLeave" />
+                                        <label class="form-check-label ms-2 bg-success text-white px-2 rounded" for="PaidLeave">
+                                            Paid Leave
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="mt-1 ps-1">
+                                    <ValidationMessage For="@(() => LeaveType.PaidLeave)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-3">
+                                <div class="border rounded p-3 d-flex align-items-center">
+                                    <div class="form-check mb-0">
+                                        <InputCheckbox class="form-check-input"
+                                                       @bind-Value="LeaveType.DeductSalary"
+                                                       id="DeductSalary" />
+
+                                        <label class="form-check-label ms-2 bg-danger text-white px-2 rounded"
+                                               for="DeductSalary">
+                                            Deduct Salary
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mt-1 ps-1">
+                                    <ValidationMessage For="@(() => LeaveType.DeductSalary)" />
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <div class="border rounded p-3 d-flex align-items-center">
+                                    <div class="form-check mb-0">
+                                        <InputCheckbox class="form-check-input" @bind-Value="LeaveType.IsCarryForward" id="IsCarryForward" />
+                                        <label class="form-check-label ms-2 bg-success text-white px-2 rounded" for="IsCarryForward">
+                                            IsCarryForward
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="mt-1 ps-1">
+                                    <ValidationMessage For="@(() => LeaveType.IsCarryForward)" />
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <div class="border rounded p-3 d-flex align-items-center">
+                                    <div class="form-check mb-0">
+                                        <InputCheckbox class="form-check-input" @bind-Value="LeaveType.IsCashable" id="IsCashable" />
+                                        <label class="form-check-label ms-2 bg-success text-white px-2 rounded" for="IsCashable">
+                                            IsCashable
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="mt-1 ps-1">
+                                    <ValidationMessage For="@(() => LeaveType.IsCashable)" />
+                                </div>
+                            </div>
+
+                        </div>
+                        <div class="row mt-3">
+                            <!-- Created By -->
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="LeaveType.CreatedBy"
+                                               id="CreatedBy"
+                                               class="form-control"
+                                               readonly />
+                                    <label for="CreatedBy">Created By</label>
+                                    <ValidationMessage For="@(() => LeaveType.CreatedBy)" />
+                                </div>
+                            </div>
+
+                            <!-- Created Date -->
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <input type="text"
+                                           id="CreatedDate"
+                                           class="form-control"
+                                           value="@((LeaveType.CreatedDate.HasValue) ? LeaveType.CreatedDate.Value.ToString("dd/MM/yyyy") : "")"
+                                           readonly />
+                                    <label for="CreatedDate">Created Date</label>
+                                </div>
+                            </div>
+
+                            <!-- Modified By -->
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="LeaveType.ModifiedBy"
+                                               id="ModifiedBy"
+                                               class="form-control"
+                                               readonly />
+                                    <label for="ModifiedBy">Modified By</label>
+                                    <ValidationMessage For="@(() => LeaveType.ModifiedBy)" />
+                                </div>
+                            </div>
+
+                            <!-- Modified Date -->
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <input type="text"
+                                           id="ModifiedDate"
+                                           class="form-control"
+                                           value="@((LeaveType.ModifiedDate.HasValue) ? LeaveType.ModifiedDate.Value.ToString("dd/MM/yyyy") : "")"
+                                           readonly />
+                                    <label for="ModifiedDate">Modified Date</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(LeaveTypeId == 0 || LeaveTypeId == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-6 col-md-3 mt-3">
+                                <a href="/leaveType" class="btn btn-secondary w-100" disabled="@isProcessing">
+                                    <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                                </a>
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+
+
+            </div>
+        </div>
+    }
+}
+
+
+@code {
+    protected override string ScreenName => "LeaveType";
+
+    [Parameter]
+    public int? LeaveTypeId { get; set; }
+
+    private bool isProcessing = true;
+    private LeaveType LeaveType { get; set; } = new();
+    private string currentUser = "";
+
+    private List<PageHeader.BreadcrumbItem> leaveTypeBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Human Resource Master" },
+        new PageHeader.BreadcrumbItem { Text = "Leave Type Master", IsLast = true }
+    };
+
+    private string LeaveTypeTitle => LeaveTypeId == 0 || LeaveTypeId == null ? "Create Leave Type" : "Update Leave Type";
+    private string LeaveTypeIcon => LeaveTypeId == 0 || LeaveTypeId == null ? "bi bi-plus-circle" : "bi bi-pencil-square";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await GetCurrentUser();
+            await loadLeavetypes();
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() Method for LeaveTypes");
+        }
+    }
+
+    private async Task GetCurrentUser()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                currentUser = user.Identity.Name;
+            }
+        }
+        catch (Exception ex)
+        {
+            currentUser = "";
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the GetCurrentUser() Method for LeaveTypes");
+            await _js.ToastrError("Error On Getting Current user");
+        }
+    }
+
+    private async Task loadLeavetypes()
+    {
+        try
+        {
+            if (LeaveTypeId > 0)
+            {
+                var existing = await _unitOfWork.LeaveTypes.GetAsync(LeaveTypeId.Value);
+                if (existing != null)
+                {
+                    LeaveType = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the loadLeavetypes() Method for LeaveTypes");
+            await _js.ToastrError("Error On Leave type load");
+
+        }
+    }
+
+    private async Task UpsertLeavetype()
+    {
+        try
+        {
+            isProcessing = true;
+
+            bool isDuplicate = await _unitOfWork.LeaveTypes.ExistsByNameAsync("LeaveName", LeaveType.LeaveName?.Trim(), "LeaveTypeId", LeaveType.LeaveTypeId == 0 ? null : LeaveType.LeaveTypeId);
+            if (isDuplicate)
+            {
+                await _js.ToastrError("LeaveType name already exists.");
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Leave Types", action: $"User tried to create an existing  LeaveTypes. {LeaveType.LeaveName}",
+                additionalInfo: $"LeaveName: {LeaveType.LeaveName}");
+                isProcessing = false;
+                return;
+            }
+
+            var now = DateTime.Now;
+
+            LeaveType.LeaveName = LeaveType.LeaveName?.Trim();
+
+            if (LeaveType.LeaveTypeId == 0)
+            {
+                LeaveType.CreatedBy = currentUser;
+                LeaveType.CreatedDate = now;
+
+                await _unitOfWork.LeaveTypes.CreateAsync(LeaveType);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Leave Types", action: $"User Created a new record for LeaveTypes. {LeaveType.LeaveName}",
+                additionalInfo: $"LeaveName: {LeaveType.LeaveName}");
+                await _js.ToastrSuccess("LeaveType Created Successfully");
+            }
+            else
+            {
+                LeaveType.ModifiedBy = currentUser;
+                LeaveType.ModifiedDate = now;
+
+                await _unitOfWork.LeaveTypes.UpdateAsync(LeaveType);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Leave Types", action: $"User Modified a record for LeaveTypes. {LeaveType.LeaveName}",
+                additionalInfo: $"LeaveName: {LeaveType.LeaveName}");
+                await _js.ToastrSuccess("LeaveType Updated Successfully");
+            }
+
+            isProcessing = false;
+            _navigationManager.NavigateTo("/leaveType");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertLeavetype() Method for LeaveTypes");
+            await _js.ToastrError("Error While Save record!..");
+
+            isProcessing = false;
+        }
+    }
+}

@@ -1,0 +1,325 @@
+﻿@page "/SubconSCN/details/{SCNId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ILabourServices
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.ISubContractSCNService
+@using V.SMART.Shared.Repository.IRepository.IMasterRepository.IAdmins
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.LabourSCN_VM
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.SubContractViewModel
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ISubConSCNService _scnService
+@inject IUserAuthorityRepository userAuthority
+@inject ReportService reportService
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 1050;">
+        <img src="/_content/V.SMART.Shared/images/loading.gif" alt="Loading..." class="img-fluid" style="max-height: 100px;" />
+    </div>
+}
+else
+{
+    <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+        <!-- Company Details Section -->
+        <div class="row align-items-center mb-4 g-4">
+            <div class="col-12 col-lg-3 text-center">
+                @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                {
+                    <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid rounded-3" style="max-height:120px;" />
+                }
+            </div>
+            <div class="col-12 col-lg-9 text-lg-start text-center">
+                <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+                <p class="text-muted mb-0"><strong>GST No:</strong> @(company?.GSTIN ?? "N/A")</p>
+            </div>
+        </div>
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        <!-- CustOmer & Document Details Section -->
+        <div class="row g-3 mb-4">
+            <!-- CustOmer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Customer Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(SubconSCNVMs?.VendorName) ? SubconSCNVMs.VendorName : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(SubconSCNVMs?.VendorAddress) ? SubconSCNVMs.VendorAddress : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>GSTIN</strong></td><td>@(!string.IsNullOrEmpty(SubconSCNVMs?.VendorGSTNo) ? SubconSCNVMs.VendorGSTNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(SubconSCNVMs?.VendorContactNo) ? SubconSCNVMs.VendorContactNo : "N/A")</td></tr>
+                                @*                              <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(SubconSCNVMs?.kin) ? SubconSCNVMs.TermsAndCondition : "N/A")</td></tr> *@
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Document Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>SCN No</strong></td>
+                                    <td>@(SubconSCNVMs != null ? $"{SubconSCNVMs.SCNNo}{SubconSCNVMs.Suffix}" : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>SCN Date</strong></td>
+                                    <td>@(SubconSCNVMs?.SCNDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+
+                                @*       <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Issue Store.</strong></td>
+                                    <td>@(SubconSCNVMs?.IssueStoreName.ToString() ?? "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Add Store.</strong></td>
+                                    <td>@(SubconSCNVMs?.AddStoreName?.ToString() ?? "N/A")</td>
+                                </tr> *@
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Remarks.</strong></td>
+                                    <td>@(SubconSCNVMs?.MainRemarks ?? "N/A")</td>
+                                </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DC Items Section -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                Purchase GRN Items
+            </div>
+            <div class="table-responsive" style="overflow-x:auto;">
+                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th>Sl No.</th>
+                            <th>Item Code</th>
+                            <th>Description</th>
+                            <th>UOM</th>
+                            @* <th>HSN</th> *@
+                            <th>Accept Qty</th>
+                            <th>Reject Qty</th>
+                            <th>Rework Qty</th>
+                            <th>Unit Price</th>
+                            <th>Basic Amount</th>
+                            <th>Ref GRN No</th>
+                            <th>Ref GRN Date</th>
+                            @*        <th>Ref Dc No</th>
+                            <th>Ref Dc Date</th> *@
+                            <th>Inspectio No.</th>
+                            <th>NCR No.</th>
+                            @*  <th>Batch No.</th> *@
+                            @*   <th>Heat No.</th> *@
+                            <th>Remarks</th>
+                            <th>Cost-Center</th>
+                            <th>Item Cancel</th>
+                            @*  <th>Specification</th>
+                            <th>Category</th> *@
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (SubconSCNVMs?.SubConSCNSubVMs != null && SubconSCNVMs.SubConSCNSubVMs.Any())
+                        {
+                            @foreach (var item in SubconSCNVMs.SubConSCNSubVMs)
+                            {
+                                <tr>
+                                    <td>@item.SlNo</td>
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td>@item.MeasureUnit</td>
+                                    @*  <td>@item.HSN</td> *@
+                                    <td>@FormatDecimal(item.AccQty)</td>
+                                    <td>@FormatDecimal(item.RejQty)</td>
+                                    <td>@FormatDecimal(item.RewQty)</td>
+                                    <td>@FormatDecimal(item.UnitPrice)</td>
+                                    <td>@FormatDecimal(item.AccQty * item.UnitPrice)</td>
+                                    @*            <td>@item.RefGRNNo </td>
+                                    <td>@item.RefGRNDate </td> *@
+                                    <td>@item.RefGRNNo</td>
+                                    <td>@item.RefGRNDate </td>
+                                    <td>@item.InsNO </td>
+                                    <td>@item.NCRNo </td>
+                                    @* <td>@item.Batch </td> *@
+                                    @* <td>@item.Heat </td> *@
+
+                                    <td>@item.Remark </td>
+                                    <td>@item.ProjectNo </td>
+                                    @* <td>@item.SelectedItem. </td> *@
+                                    @*    <td>@item.Specification </td>
+                                    <td>@item.Category </td> *@
+
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="13" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        @if (isOtherScreen == false)
+        {
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="/subConScnList" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+                <a href="@($"/DcSubConSCN/update/{SCNId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+
+                @*  @if ((!Autharization) || (Autharization && SubconSCNVMs.Autho))
+                { *@
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+                @*          }
+                else if (Autharization && !SubconSCNVMs.Authorized)
+                {
+
+                    <button class="btn btn-danger" disabled title="Authorization required to generate PDF">
+                        <i class="bi bi-file-earmark-pdf"></i> Authorization Required
+                    </button>
+
+                } *@
+
+
+            </div>
+
+        }
+
+    </div>
+}
+
+
+@code
+{
+    protected override string ScreenName => "Sub-Contract SCN";
+
+    [Parameter] public int SCNId { get; set; }
+    [Parameter] public bool isOtherScreen { get; set; }
+    string? pdfBase64;
+    private bool isProcessing { get; set; } = true;
+
+    private SubConSCNVM SubconSCNVMs { get; set; } = new SubConSCNVM();
+    private VendorVM VendorVMs { get; set; } = new VendorVM();
+
+    private Companydetails company { get; set; } = new Companydetails();
+    public bool Autharization = false;
+
+    private List<LabourSCNSubVM> refGRNs = new();
+    private string refGRNNosDisplay = "N/A";
+    private string refGRNDatesDisplay = "N/A";
+
+    private int Decimalplaces { get; set; } = 2;
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            company = await _scnService.GetCompanyDetailsAsync();
+            await LoadDcDetails();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Faild in OnInitializedAsync purchase SCN");
+        }
+    }
+
+    private async Task LoadDcDetails()
+    {
+        if (SCNId > 0)
+        {
+            var grn = await _scnService.GetSubconSCNByIdAsync(SCNId);
+            if (grn != null)
+            {
+                SubconSCNVMs = grn;
+                Autharization = (await userAuthority.GetAllWithUserAsync()).Any(x => x.IsPurchSCN == true);
+            }
+
+            Decimalplaces = await _scnService.GetDecimalPlacesAsync();
+
+            VendorVMs = await _scnService.GetVendorByIdAsync(SubconSCNVMs.VendorCode.Value);
+
+            // refGRNs = await _scnService.GetDistinctRefGRNBySCNIdAsync(LabourSCNVMs.SCNId);
+
+            if (refGRNs.Any())
+            {
+                // Only join the existing items, no extra commas
+                refGRNNosDisplay = string.Join(", ", refGRNs.Select(e => e.RefGRNNo).Where(n => !string.IsNullOrEmpty(n)));
+                refGRNDatesDisplay = string.Join(", ", refGRNs
+                    .Select(e => e.RefGRNDate.HasValue ? e.RefGRNDate.Value.ToString("dd/MM/yyyy") : null)
+                    .Where(d => !string.IsNullOrEmpty(d)));
+            }
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            // Sathish
+            var pdfBytes = await reportService.Generate_Report(SCNId, "SubconSCN.frx", "SCNId", SubconSCNVMs.SCNCancel, ScreenName, "Sp_Print_SubconSCN");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf LabourSCN");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in LabourSCN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

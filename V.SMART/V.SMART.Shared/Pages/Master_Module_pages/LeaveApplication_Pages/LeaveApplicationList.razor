@@ -1,0 +1,385 @@
+﻿@page "/leaveApplication"
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitofwork
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this LeaveApplication?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+     <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Card Header -->
+
+             <PageHeader TitleText="Leave Application list"
+                    TitleIcon="bi bi-person"
+                    Breadcrumbs="@leaveBalanceBreadcrumbs" />
+
+            <div class="card-body">
+
+                <div class="row g-3 align-items-center mb-3">
+
+                    <!-- 🔍 Search -->
+                    <div class="col-12 col-lg-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <input value="@leaveApplicationNameFilter"
+                                   @oninput="OnSearchChanged"
+                                   class="form-control form-control-sm"
+                                   placeholder="Search by Employee or Leave Name..." />
+                        </div>
+                    </div>
+
+                    <!-- 📄 Page size -->
+                    <div class="col-6 col-lg-2">
+                        <select class="form-select form-select-sm" @onchange="OnPageSizeChanged">
+                            <option value="5" selected>5</option>
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+
+                    <!-- ✅ Status filter -->
+                    <div class="col-6 col-lg-3">
+                        <select class="form-select form-select-sm shadow-sm"
+                                value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select status of records">
+                            <option value="">-- Select Status --</option>
+                            <option value="All">All</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Rejected">Rejected</option>
+                            <option value="Canceled">Cancelled</option>
+                        </select>
+                    </div>
+
+                    <!-- ➕ Add New -->
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-3 text-lg-end">
+                            <a href="/leaveApplication/create" 
+                               class="btn btn-success btn-sm w-100 w-lg-auto">
+                                <i class="bi bi-plus-square me-1"></i> Add New Leave Application
+                            </a>
+                        </div>
+                    }
+
+                </div>
+
+
+                
+                @if (leaveApplications.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid class="table table-striped table-bordered align-middle text-wrap"
+                                   Items="leaveApplications.AsQueryable()"
+                                   ItemKey="@(a => a.LeaveAppID)"
+                                   Pagination="paginationState">
+
+                            <PropertyColumn Title="Employee Name" Property="@(a => a.Staff.StaffName)" Sortable="true" />
+                            <PropertyColumn Title="Leave Name" Property="@(a => a.LeaveType.LeaveName)" Sortable="true" />
+                            <PropertyColumn Title="From Date" Property="@(a => a.FromDate)" Sortable="true" />
+                            <PropertyColumn Title="To Date" Property="@(a => a.ToDate)" Sortable="true" />
+                            <PropertyColumn Title="Total Days" Property="@(a => a.TotalDays)" Sortable="true" />
+                            <PropertyColumn Title="Reason" Property="@(a => a.Reason)" Sortable="true" />
+                            <PropertyColumn Title="BalDays Before LeaveApp" Property="@(a => a.BalDaysBeforeLeaveApp)" Sortable="true" />
+
+                            <TemplateColumn Title="Status" Context="a" Sortable="true">
+                                            @if (a.LeaveStatus == "Applied")
+                                            {
+                                                <span class="badge bg-primary">Applied</span>
+                                            }
+                                            else if (a.LeaveStatus == "Pending")
+                                            {
+                                                <span class="badge bg-warning text-dark">Pending</span>
+                                            }
+                                            else if (a.LeaveStatus == "Approved")
+                                            {
+                                                <span class="badge bg-success">Approved</span>
+                                            }
+                                            else if (a.LeaveStatus == "Rejected")
+                                            {
+                                                <span class="badge bg-danger">Rejected</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">@a.LeaveStatus</span>
+                                            }
+                            </TemplateColumn>
+
+                            <PropertyColumn Title="Reject reason" Property="@(a => a.RejectReason)" Sortable="true" />
+                            <PropertyColumn Title="Applied Date" Property="@(a => a.AppliedDate)" Format="dd/MM/yyyy hh:mm tt" Sortable="true" />
+                            <PropertyColumn Title="Approved By" Property="@(a => a.ApprovedBy)" Sortable="true" />
+                            <PropertyColumn Title="Approval Date" Property="@(a => a.ApprovalDate)" Format="dd/MM/yyyy hh:mm tt" Sortable="true" />
+                            <PropertyColumn Title="Created By" Property="@(a => a.CreatedBy)" Sortable="true" />
+                            <PropertyColumn Title="Created Date" Property="@(a => a.CreatedDate)" Format="dd/MM/yyyy hh:mm tt" Sortable="true" />
+                            <TemplateColumn Title="Actions" Context="e">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"/leaveApplication/update/{e.LeaveAppID}")" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDelete(e.LeaveAppID)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </QuickGrid>
+                    </div>
+
+                    <div class="card-footer bg-white border-0 mt-3">
+                        <Paginator State="paginationState" />
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center mt-4 text-muted">No Leave Application available.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // User Rights
+    protected override string ScreenName => "Leave Application";
+
+    private bool isProcessing = true;
+    private int LeaveAppID = 0;
+    private IEnumerable<LeaveApplication> leaveApplications = new List<LeaveApplication>();
+    private string? leaveApplicationNameFilter;
+    private string? selectedStatus = "";
+    private PaginationState paginationState = new() { ItemsPerPage = 5 };
+
+    private Timer? debounceTimer;
+
+     private List<PageHeader.BreadcrumbItem> leaveBalanceBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Human Resource" },
+        new PageHeader.BreadcrumbItem { Text = "Leave Application", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await loadLeaveApplication();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() method for LeaveApplicationList");
+        }
+    }
+
+    private async Task loadLeaveApplication()
+    {
+        try
+        {
+            var allleaveapplication = await _unitofwork.LeaveApplications.GetAllAsync();
+
+            // 🔍 Apply Name Filter
+            if (!string.IsNullOrWhiteSpace(leaveApplicationNameFilter))
+            {
+                string keyword = leaveApplicationNameFilter.Trim().ToLower();
+                allleaveapplication = allleaveapplication
+                    .Where(a => (!string.IsNullOrEmpty(a.Staff.StaffName) && a.Staff.StaffName.ToLower().Contains(keyword))
+                             || (!string.IsNullOrEmpty(a.LeaveType.LeaveName) && a.LeaveType.LeaveName.ToLower().Contains(keyword)))
+                    .ToList();
+            }
+
+            // 🔍 Apply Status Filter
+            if (!string.IsNullOrEmpty(selectedStatus) && selectedStatus != "All")
+            {
+                allleaveapplication = allleaveapplication
+                    .Where(a => a.LeaveStatus != null && a.LeaveStatus.Equals(selectedStatus, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            leaveApplications = allleaveapplication;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the loadLeaveApplication(); method for LeaveApplicationList");
+        }
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            leaveApplicationNameFilter = e.Value?.ToString();
+
+            debounceTimer?.Dispose();
+            debounceTimer = new Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await loadLeaveApplication();
+                    StateHasChanged();
+                });
+            }, null, 300, Timeout.Infinite); // 300ms debounce
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnSearchChanged() event for LeaveApplicationList");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value is not null)
+            {
+                paginationState.ItemsPerPage = int.Parse((string)e.Value);
+                await loadLeaveApplication();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnPageSizeChanged() event for LeaveApplicationList");
+        }
+    }
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString();
+        await loadLeaveApplication();
+    }
+
+    private async Task HandleDelete(int id)
+    {
+        LeaveAppID = id;
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && LeaveAppID != 0)
+            {
+                isProcessing = true;
+
+                var emp_leaves = await _unitofwork.LeaveApplications.GetAsync(LeaveAppID);
+
+                if (emp_leaves == null)
+                {
+                    await _js.ToastrError("Leave Application not found.");
+                    isProcessing = false;
+                    return;
+                }
+
+                if (emp_leaves.LeaveStatus == "Approved" || emp_leaves.LeaveStatus == "Rejected")
+                {
+                    await _js.ToastrError("You cannot delete an Approved or Rejected Leave Application.");
+                    isProcessing = false;
+                    return;
+                }
+
+                using (var transaction = await _unitofwork.BeginTransactionAsync())
+                {
+                    try
+                    {
+                        var empBalance = await _unitofwork.EmployeeLeaveBalances
+                            .GetQueryable().Where(b => b.EmployeeID == emp_leaves.EmployeeID
+                                        && b.LeaveTypeId == emp_leaves.LeaveTypeId).FirstOrDefaultAsync();
+
+                        if (empBalance != null)
+                        {
+                            empBalance.LeavesTaken -= emp_leaves.TotalDays;
+                            empBalance.Balance += emp_leaves.TotalDays;
+
+                            await _unitofwork.EmployeeLeaveBalances.UpdateAsync(empBalance);
+                        }
+
+                        var deleted = await _unitofwork.LeaveApplications.DeleteAsync(LeaveAppID);
+
+                        if (deleted)
+                        {
+                            await _unitofwork.SaveAsync();
+                            await transaction.CommitAsync();
+
+                            await LoggingService.LogUserAction(
+                                UserName: await _userService.GetUsernameAsync(),
+                                Machine: _userService.MachineName,
+                                IP_Address: _userService.IpAddress,
+                                screen: "LeaveApplication",
+                                action: $"User deleted an existing LeaveApplication. {emp_leaves.EmployeeID}",
+                                additionalInfo: $"EmployeeID: {emp_leaves.EmployeeID}, LeaveTypeId: {emp_leaves.LeaveTypeId}, Days Rolled Back: {emp_leaves.TotalDays}"
+                            );
+
+                            await _js.ToastrSuccess("Leave Application deleted successfully, leave balance updated.");
+                        }
+                        else
+                        {
+                            await transaction.RollbackAsync();
+                            await _js.ToastrError("Error encountered while deleting Leave Application.");
+                        }
+
+                        await loadLeaveApplication();
+                    }
+                    catch (Exception exInner)
+                    {
+                        await transaction.RollbackAsync();
+                        await LoggingService.LogDeveloperError(exInner, "Transaction rolled back in confirmDelete_Click()");
+                        await _js.ToastrError("Transaction failed. No changes were saved.");
+                    }
+                    finally
+                    {
+                        isProcessing = false;
+                    }
+                }
+            }
+
+            LeaveAppID = 0;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling confirmDelete_Click() for LeaveApplicationList");
+        }
+    }
+
+    public void Dispose()
+    {
+        debounceTimer?.Dispose();
+    }
+}

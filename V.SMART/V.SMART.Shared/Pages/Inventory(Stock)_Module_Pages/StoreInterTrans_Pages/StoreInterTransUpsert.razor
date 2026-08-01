@@ -1,0 +1,1356 @@
+﻿@page "/storeInterTrans/create"
+@page "/storeInterTrans/update/{ISTId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IInventoryService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.InventoryViewModel.MaterialIssueNoteVM
+@using V.SMART.Shared.ViewModels.InventoryViewModel.SCNGenViewModel
+@using V.SMART.Shared.ViewModels.InventoryViewModel.StoreInterTransferViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject IExcelTemplateService _excelTemplateService
+@inject ICalculationService _calculationService
+@inject IStoreInterTransService _storeInterTransService
+@inject ILoggingService _logs
+@inject ReportService _reportService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+
+    if (ActiveModal == "Item")
+    {
+    <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+    <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                   refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@(StoreInterTransVMs.ISTId > 0 ? "Update IST" : "Create IST")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@ISTFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="StoreInterTransVMs" OnValidSubmit="UpsertIST">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        @if (StoreInterTransVMs.ISTId > 0 && !string.IsNullOrWhiteSpace(StoreInterTransVMs.ISTNo))
+                        {
+                            <CorrespondenceStatus ReferenceType="InterStore-Transfer"
+                                                  ReferenceId="@StoreInterTransVMs.ISTId"
+                                                  ReferenceTypeName="@StoreInterTransVMs.ISTNo" />
+                        }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <!-- =================== Inter Store Transfer Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Inter Store Information</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- Inter Store Transfer No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Inter Store Transfer No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                           placeholder="Inter Store Transfer No."
+                                                           maxlength="30"
+                                                           @bind-Value="@StoreInterTransVMs.ISTNo"
+                                                           readonly />
+                                                <span class="input-group-text rounded-3">@StoreInterTransVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => StoreInterTransVMs.ISTNo)" />
+                                            <ValidationMessage For="@(() => StoreInterTransVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!--Inter Store Transfer Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Inter Store Transfer Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@StoreInterTransVMs.ISTDate" />
+                                            <ValidationMessage For="@(() => StoreInterTransVMs.ISTDate)" />
+                                        </div>
+                                    </div>
+
+                                    @* <button type="submit" class="btn btn-primary">Submit</button> *@
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Store Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">
+                                        <i class="bi bi-gear-wide-connected me-1"></i>Stores Details
+                                    </span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <div class="mb-2 row">
+                                        <label class="col-3 col-form-label pt-1 text-dark">
+                                            <small>Issue From Store</small>
+                                        </label>
+
+                                        <div class="col-9">
+                                            <select value="@StoreInterTransVMs.StoreIdFrom"
+                                                    @onchange="OnStoreChanged"
+                                                    class="form-select form-select-sm rounded-3 w-100"
+                                                    id="Purchasescn" >
+                                                <option value="0">--Select Issue Store--</option>
+                                                @foreach (var storeid in storesCanIssue)
+                                                {
+                                                    <option value="@storeid.StoreId">@storeid.StoreName</option>
+                                                }
+                                            </select>
+
+                                            <ValidationMessage For="@(() => StoreInterTransVMs.StoreIdFrom)" />
+                                        </div>
+                                    </div>
+
+
+                                    <div class="mb-2 row">
+                                        <label class="col-3 col-form-label pt-1 text-dark">
+                                            <small>Add To Store</small>
+                                        </label>
+
+                                        <div class="col-9">
+                                            <InputSelect class="form-select form-select-sm" @bind-Value="StoreInterTransVMs.StoreIdTo">
+                                                <option value="0"><small>-- Select --</small></option>
+                                                @foreach (var storeid in storesCanAdd)
+                                                {
+                                                    <option value="@storeid.StoreId"><small>@storeid.StoreName</small></option>
+                                                }
+                                            </InputSelect>
+
+                                            <ValidationMessage For="@(() => StoreInterTransVMs.StoreIdTo)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Same store validation message -->
+                                    @if (StoreInterTransVMs.StoreIdFrom == StoreInterTransVMs.StoreIdTo && StoreInterTransVMs.StoreIdFrom > 0)
+                                    {
+                                        <div class="text-danger mb-2"><strong>Both stores cannot be the same.</strong></div>
+                                    }
+
+                                    <!-- Remarks -->
+                                    <div class="row mb-2">
+                                        <label class="col-12 col-sm-3 col-form-label text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="2"
+                                                      placeholder="Enter remarks here..."
+                                                      @bind="StoreInterTransVMs.MainRemark"></textarea>
+                                            <ValidationMessage For="@(() => StoreInterTransVMs.MainRemark)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1"
+                                 style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header bg-primary-subtle text-dark">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                        <span class="fw-bold fs-6">Item Details</span>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0"
+                                               style="table-layout: fixed; min-width: 1000px;">
+
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:25px;">Sl.No</th>
+                                                    <th style="width:180px;">Item Code</th>
+                                                    <th style="width:130px;">Item Name</th>
+                                                    <th style="width:30px;">UOM</th>
+
+                                                    <th style="width:100px;">Qty</th>
+                                                    <th style="width:100px;">Stock Qty</th>
+                                                    <th style="width:40px;" class="freeze-last-col text-center">Action</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in StoreInterTransVMs.StoreInterTransSubVMs)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                         Value="subitem.SelectedItemVMs"
+                                                                                         ValueChanged="@(async item => await OnItemChanged(subitem, item))"
+                                                                                         ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                         SearchFunc="SearchItems"
+                                                                                         Dense="true"
+                                                                                         Variant="Variant.Outlined"
+                                                                                         Placeholder="Search Item Code"
+                                                                                         Title="Search Atleast 3 Letters in Item-Code"
+                                                                                         Class="w-100 autocomplete-sm"
+                                                                                         MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                                                                                && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                       Size="Size.Small"
+                                                                                       Color="Color.Primary"
+                                                                                       OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                       Edge="Edge.End"
+                                                                                       Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.UOM</td>
+                                                        @*   <td class="d-none">@subitem.UtlQty</td> *@
+
+                                                        <!-- Qty -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Issue Qty"
+                                                                       title="Enter Issue Qty"
+                                                                       step="any"
+                                                                       @bind="subitem.Qty"
+                                                                       @bind:event="oninput"
+                                                                       @onchange="@(e => OnQtyChange(e, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.Qty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.Qty</span>
+                                                            }
+                                                        </td>
+
+                                                        <td class="text-danger fw-bold">
+                                                            @subitem.StockQty
+                                                            <ValidationMessage For="@(() => subitem.StockQty)" />
+                                                        </td>
+
+                                                        <!-- Action Buttons -->
+
+                                                        <td class="freeze-last-col text-end">
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                        @onclick="async () => await SaveRow(subitem)">
+                                                                    <i class="bi bi-check-lg"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel"
+                                                                        @onclick="async () => await CancelEdit(subitem, StoreInterTransVMs)">
+                                                                    <i class="bi bi-x-lg"></i>
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                        @onclick="async () => await EditRowAsync(subitem)">
+                                                                    <i class="bi bi-pencil"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                        @onclick="async () => await RemoveRow(subitem)">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                        </table>
+                                    </div>
+
+                                    <div class="mt-2 text-start">
+                                        <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                            <i class="bi bi-plus-circle me-1"></i> Add Item
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Action Buttons =================== -->
+                        <div class="row g-3 mt-2">
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3">
+                                    <button type="submit"
+                                            class="btn btn-primary w-100 rounded-3"
+                                            disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i>
+                                        @(StoreInterTransVMs.ISTId > 0 ? "Update" : "Create")
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="col-6 col-md-3">
+                                <SmartBackButton Url="/storeIntertransList" />
+                            </div>
+
+                            @if (CanCreate || CanEdit && ISTId > 0)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+
+                        </div>
+
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Inter Store Transfer";
+
+    private int screenCode { get; set; }
+
+    [Parameter] public int? ISTId { get; set; }
+
+    bool StoresSelected =>
+    StoreInterTransVMs.StoreIdFrom > 0 &&
+    StoreInterTransVMs.StoreIdTo > 0 &&
+    StoreInterTransVMs.StoreIdFrom != StoreInterTransVMs.StoreIdTo;
+
+    private bool isProcessing = true;
+
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    private StoreInterTransVM StoreInterTransVMs { get; set; } = new();
+    private StoreInterTransSubVM? rowToDelete;
+    private StoreInterTransSubVM? rowToCancel;
+
+    private DateTime? DueDate { get; set; } = DateTime.Today;
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private List<CostCenterVM> CostCenterVMs = new();
+    private List<Store> stores = new();
+
+    private List<Store> storesCanIssue = new();
+    private List<Store> storesCanAdd = new();
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<string> UserList = new();
+
+    private List<PageHeader.BreadcrumbItem> ISTFormBreadcrumbs = new()
+    {
+        new() { Text = "Inventory(Stock)" },
+        new() { Text = "Inter Store Transfer", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    #endregion
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            screenCode = await _storeInterTransService.GetScreenCodeByScreenNameAsync(ScreenName);
+            stores = (await _storeInterTransService.GetAllActiveStoresAsync()).ToList();
+            DecimalPlaces = await _storeInterTransService.GetDecimalPlacesAsync();
+            CostCenterVMs = await _storeInterTransService.GetAllCostCenterDetails();
+
+            storesCanIssue = stores.Where(x => x.CanIssue == true).ToList();
+            storesCanAdd = stores.Where(x => x.CanAdd == true).ToList();
+
+            if (ISTId.HasValue)
+            {
+                await LoadExistingIST(ISTId.Value);
+            }
+            else
+            {
+                await InitializeNewIST();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task LoadExistingIST(int istId)
+    {
+        try
+        {
+            // Load IST
+            StoreInterTransVMs = await _storeInterTransService.GetISTByISTIdAsync(istId);
+
+            if (StoreInterTransVMs == null)
+            {
+                await _js.ToastrWarning("Inter Store Transfer not found.");
+                return;
+            }
+
+            if (StoreInterTransVMs.StoreIdTo <= 0)
+            {
+                await _js.ToastrWarning("Store From (StoreAdd) not selected.");
+                return;
+            }
+
+            if (StoreInterTransVMs.StoreIdFrom <= 0)
+            {
+                await _js.ToastrWarning("Store To (StoreIssue) not selected.");
+                return;
+            }
+
+            // Use StoreAddId for stock & attachments (FROM store)
+            var fromStoreId = StoreInterTransVMs.StoreIdTo;
+
+            // ---- Load attachment counts ----
+            foreach (var sub in StoreInterTransVMs.StoreInterTransSubVMs
+                         .Where(q => q.ItemId.HasValue && q.ItemId.Value > 0))
+            {
+                attachmentCounts[sub.ItemId.Value] =
+                    await _storeInterTransService.GetCorrespondenceAttachmentsCountAsync(
+                        sub.ItemId.Value,
+                        "Item"
+                    );
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing IST.");
+            await _logs.LogDeveloperError(ex, $"LoadExistingIST failed for ISTID: {istId}");
+        }
+    }
+
+
+    private async Task InitializeNewIST()
+    {
+        try
+        {
+            StoreInterTransVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            StoreInterTransVMs.ISTNo = await _storeInterTransService.GetISTInterStoreNumberAsync(StoreInterTransVMs.Suffix);
+
+            var MapStoreForIST = await _storeInterTransService.GetMappedStoreForFormAsync("InterStoreTransferForm");
+
+            if (MapStoreForIST.StoreId > 0)
+            {
+                StoreInterTransVMs.StoreIdFrom = MapStoreForIST.StoreId;
+                StoreInterTransVMs.StoreIssName = MapStoreForIST.StoreName;
+            }
+            else
+            {
+                StoreInterTransVMs.StoreIdFrom = null;
+                StoreInterTransVMs.StoreIssName = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new IST.");
+            await _logs.LogDeveloperError(ex, $"InitializeNewIST failed!.. ");
+        }
+    }
+
+    #endregion
+
+    #region Template Download
+
+    private readonly string[] headers = new[]
+    {
+        "SlNo", "ItemCode", "ItemName","UOM",
+        "IssueQty", "UnitPrice", "Remark", "BatchNo", "Make", "RackNo"
+    };
+
+    #endregion
+
+    #region Store Handlers
+
+    private async Task OnStoreFromChanged(ChangeEventArgs e)
+    {
+        StoreInterTransVMs.StoreIdFrom = Convert.ToInt32(e.Value);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnStoreToChanged(ChangeEventArgs e)
+    {
+        int selected = Convert.ToInt32(e.Value);
+
+        // Block same store selection
+        if (selected == StoreInterTransVMs.StoreIdFrom)
+        {
+            StoreInterTransVMs.StoreIdTo = 0;
+            await _js.InvokeVoidAsync("alert", "Issue From Store and Add To Store cannot be the same.");
+            return;
+        }
+
+        StoreInterTransVMs.StoreIdTo = selected;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    #endregion
+
+    #region Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (!StoresSelected)
+        {
+            await _js.ToastrError("Please select both Issue Store and Add Store before searching items.");
+            return Enumerable.Empty<ItemVM>();
+        }
+
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _storeInterTransService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(StoreInterTransSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItemVMs = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.UOM = item.MeasureUnit;
+
+                // 🔹 Fetch stock quantity for the selected store
+                if (subitem.ItemId > 0 && StoreInterTransVMs.StoreIdFrom > 0)
+                {
+                    var stockDict = await _storeInterTransService.GetStockForItemsAsync(
+                        new List<int> { subitem.ItemId.Value },
+                        StoreInterTransVMs.StoreIdFrom ?? 0
+                    );
+
+                    subitem.StockQty = stockDict.TryGetValue(subitem.ItemId.Value, out var qty)
+                        ? qty
+                        : 0m;
+                }
+
+                // 🔹 Fetch attachment count
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _storeInterTransService
+                        .GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+
+                    attachmentCounts[subitem.ItemId.Value] = count;
+                }
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItemVMs = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.UOM = null;
+                subitem.UnitPrice = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Quantity Handlers
+
+    private async Task UpdateSubItemQtyAsync(StoreInterTransSubVM subItem, decimal newQty)
+    {
+        // Validate positive quantity
+        if (newQty <= 0)
+        {
+            subItem.Qty = 0;
+            await _js.ToastrWarning("Qty must be a positive number.");
+            return;
+        }
+
+        // NEW line (not saved yet)
+        if (subItem.ISTSubId == 0)
+        {
+            if (newQty <= subItem.StockQty)
+            {
+                subItem.Qty = newQty;
+            }
+            else
+            {
+                subItem.Qty = subItem.StockQty;
+                await _js.ToastrWarning("Qty cannot be greater than available Stock Qty.");
+            }
+            return;
+        }
+
+        // EXISTING line (already saved in MIN)
+        var original = await _storeInterTransService.GetISTSubItemDetailByISTSubIdAsync(subItem.ISTSubId);
+        if (original == null) return;
+
+        // Calculate max allowed quantity = previously issued + current stock
+        var maxAllowedQty = original.Qty + subItem.StockQty;
+
+        if (newQty <= maxAllowedQty)
+        {
+            subItem.Qty = newQty;
+        }
+        else
+        {
+            subItem.Qty = maxAllowedQty;
+            await _js.ToastrWarning($"Issue Qty cannot be greater than available stock ({maxAllowedQty}).");
+        }
+    }
+
+    private async Task OnQtyChange(ChangeEventArgs e, StoreInterTransSubVM subItem)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty)) return;
+            await UpdateSubItemQtyAsync(subItem, newQty);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnQtyChange failed for ISTSubId: {subItem?.ISTSubId}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(StoreInterTransSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            // Basic validations
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.Qty <= 0)
+                errors.Add("Quantity must be greater than 0.");
+
+            // Stock validation
+            decimal maxAllowedQty = row.StockQty;
+
+            if (row.ISTSubId > 0)
+            {
+                // Existing line: allow increasing up to current stock + previously issued quantity
+                var original = await _storeInterTransService.GetISTSubItemDetailByISTSubIdAsync(row.ISTSubId);
+                if (original != null)
+                    maxAllowedQty = original.Qty.GetValueOrDefault() + row.StockQty;
+            }
+
+            if (row.Qty > maxAllowedQty)
+            {
+                errors.Add($"Qty cannot be greater than available stock ({maxAllowedQty}).");
+            }
+
+            // Show errors if any
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await _logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = StoreInterTransVMs.StoreInterTransSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await _logs.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            StoreInterTransVMs.StoreInterTransSubVMs.Add(new StoreInterTransSubVM
+            {
+                ISTSubId = StoreInterTransVMs.ISTId,
+                IsEditable = true
+            });
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await _logs.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(StoreInterTransSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            if (!StoreInterTransVMs.StoreInterTransSubVMs.Any(x => x.IsEditable))
+            {
+                StoreInterTransVMs.StoreInterTransSubVMs.Add(new StoreInterTransSubVM
+                {
+                    ISTSubId = StoreInterTransVMs.ISTId,
+                    IsEditable = true
+                });
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SaveRow failed for ISTSubId: {item?.ISTSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(StoreInterTransSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItemVMs == null && item.ItemId > 0)
+            {
+                item.SelectedItemVMs = await _storeInterTransService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"EditRowAsync failed for SITSubId: {item?.ISTSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(StoreInterTransSubVM? item, StoreInterTransVM? parentIst)
+    {
+        try
+        {
+            if (item == null || parentIst == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.Qty.HasValue || item.Qty.Value <= 0) ||
+                (!item.UnitPrice.HasValue || item.UnitPrice.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentIst.StoreInterTransSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CancelEdit failed for ISTSubId: {item?.ISTSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(StoreInterTransSubVM item)
+    {
+        try
+        {
+            if (StoreInterTransVMs.StoreInterTransSubVMs.Count == 1 && item.ISTSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                StoreInterTransVMs.StoreInterTransSubVMs.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                if (!StoreInterTransVMs.StoreInterTransSubVMs.Any())
+                    StoreInterTransVMs.StoreInterTransSubVMs = new List<StoreInterTransSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"RemoveRow failed for ISTSubId: {item?.ISTSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            if (StoreInterTransVMs?.StoreInterTransSubVMs == null || !StoreInterTransVMs.StoreInterTransSubVMs.Any())
+                return;
+
+            int counter = 1;
+            foreach (var sub in StoreInterTransVMs.StoreInterTransSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Item" => "Add New Item",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.ISTSubId > 0)
+            {
+                await _storeInterTransService.DeleteAndResequenceAsync(rowToDelete, StoreInterTransVMs, screenCode);
+
+                StoreInterTransVMs.StoreInterTransSubVMs = await _storeInterTransService.GetISTSubByISTIdAsync(StoreInterTransVMs.ISTId, StoreInterTransVMs.StoreIdFrom.Value);
+            }
+
+            else
+            {
+                StoreInterTransVMs.StoreInterTransSubVMs.Remove(rowToDelete);
+
+                if (!StoreInterTransVMs.StoreInterTransSubVMs.Any())
+                {
+                    StoreInterTransVMs.StoreInterTransSubVMs.Add(new StoreInterTransSubVM
+                    {
+                        ISTId = StoreInterTransVMs.ISTId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < StoreInterTransVMs.StoreInterTransSubVMs.Count; i++)
+                        StoreInterTransVMs.StoreInterTransSubVMs[i].SlNo = i + 1;
+                }
+            }
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error confirming deletion for ISTId: {StoreInterTransVMs.ISTId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _storeInterTransService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region CostCenter
+
+    private Task OnCostCenterChanged(ChangeEventArgs e, StoreInterTransSubVM row)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            row.CostId = selectedId;
+
+            var selectedCostCenter = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            row.ProjectNo = selectedCostCenter?.ProjectNo; // Will be null if not found
+        }
+        else
+        {
+            // No selection or invalid selection
+            row.CostId = null;
+            row.ProjectNo = null;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+    #region Inter Store Transfer Operations
+
+    private async Task UpsertIST()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove blank rows
+            StoreInterTransVMs.StoreInterTransSubVMs.RemoveAll(x => !x.ItemId.HasValue);
+
+            if (!StoreInterTransVMs.StoreInterTransSubVMs.Any())
+            {
+                await _js.ToastrError("Cannot save an IST without valid items.");
+                return;
+            }
+
+            // -----------------------------
+            //   CALCULATE BALANCE QTY
+            // -----------------------------
+
+            bool exist = false;
+
+            foreach (var line in StoreInterTransVMs.StoreInterTransSubVMs)
+            {
+                // Qty is nullable -> must convert safely
+                decimal qty = line.Qty ?? 0m;
+
+                // If BalQty is 0 (new record), start with qty
+                decimal startingBal = line.BalQty == 0 ? qty : line.BalQty;
+
+                // AddQty is double -> safe convert
+                decimal addQty = Convert.ToDecimal(line.AddQty);
+
+                // Calculate new balance
+                line.BalQty = startingBal - addQty;
+
+                // Prevent negative
+                if (line.BalQty < 0)
+                    line.BalQty = 0;
+
+
+
+                // Validation
+                bool isValid = await ValidateISTLineAsync(line);
+                if (!isValid) return;
+
+
+                exist = await _storeInterTransService.IsRouteCardStockExistsAsync(line.ItemId.GetValueOrDefault());
+                if (exist)
+                {
+                    await _js.ToastrError($"This item {line.ItemCode} is already linked to a Route Card. Manual issue is not allowed.");
+                    return;
+                }
+
+            }
+
+
+            // -----------------------------
+            //   SAVE TO DATABASE
+            // -----------------------------
+            bool isNew = StoreInterTransVMs.ISTId == 0;
+
+            try
+            {
+                await _storeInterTransService.UpsertISTAsync(StoreInterTransVMs, screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNew)
+                await _js.ToastrSuccess("Internal Store Transfer saved successfully.");
+            else
+                await _js.ToastrSuccess("Internal Store Transfer updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/storeIntertransList");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "UpsertIST failed.");
+            await _js.ToastrError("Error saving Inter Store Transfer.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    
+
+    private async Task<bool> ValidateISTLineAsync(StoreInterTransSubVM line)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (!line.ItemId.HasValue)
+                errors.Add("Item selection is required.");
+
+            if (!line.Qty.HasValue || line.Qty <= 0)
+                errors.Add($"Item {line.ItemCode}: Quantity must be greater than 0.");
+
+            decimal maxAllowedQty = line.StockQty;
+
+            if (line.ISTSubId > 0)
+            {
+                var original = await _storeInterTransService.GetISTSubItemDetailByISTSubIdAsync(line.ISTSubId);
+                if (original != null)
+                    maxAllowedQty = original.Qty.GetValueOrDefault() + line.StockQty;
+            }
+
+            if (line.Qty > maxAllowedQty)
+                errors.Add($"Item {line.ItemCode}:Qty cannot exceed available stock ({maxAllowedQty}).");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrError(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ValidateISTLineAsync failed.");
+            await _js.ToastrError("Error validating Inter Store Transfer line.");
+            return false;
+        }
+    }
+    #endregion
+
+    #region Formatting
+
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+    #endregion
+
+
+    private async Task OnStoreChanged(ChangeEventArgs e)
+    {
+        StoreInterTransVMs.StoreIdFrom = int.Parse(e.Value.ToString());
+        await LoadStockForAllItems(StoreInterTransVMs.StoreIdFrom.Value);
+    }
+    private async Task LoadStockForAllItems(int storeId)
+    {
+        foreach (var item in StoreInterTransVMs.StoreInterTransSubVMs)
+        {
+            item.StockQty = await _storeInterTransService.GetStockQtyFromStockManager(item.ItemId.Value, storeId);
+        }
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            var pdfBytes = await _reportService.Generate_Report(ISTId.GetValueOrDefault(), "StoreInterTransfer.frx", "ISTId", false, "StoreInterTrans", "Sp_Print_InterStoreTransfer");
+
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Store Inter Transfer");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Store Inter Transfer.");
+        }
+    }
+
+}

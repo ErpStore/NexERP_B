@@ -1,0 +1,1521 @@
+﻿@page "/bom/create"
+@page "/bom/update/{AssmblyID:int}"
+
+@inherits BaseUserRightsComponent
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.MasterService.InventoryService
+@using MudBlazor
+
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IAssemblyDefService _assyDefService
+@inject IAssemblyDefLabourService _assyDeflabService
+@inject IExcelTemplateService excelTemplateService
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="Bill of Material"
+                        TitleIcon="bi bi-diagram-3-fill"
+                        Breadcrumbs="@bomBreadcrumbs" />
+
+            <div class="card-body">
+                <div class="accordion" id="bomAccordion">
+                    <div class="accordion-item border-0">
+                        <h2 class="accordion-header" id="headingAssembly">
+                            <button class="accordion-button fw-semibold" type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#collapseAssembly"
+                                    aria-expanded="true"
+                                    aria-controls="collapseAssembly">
+                                <i class="bi bi-box-seam me-2"></i> Assembly Details
+                            </button>
+                        </h2>
+
+                        <div id="collapseAssembly"
+                             class="accordion-collapse collapse show"
+                             aria-labelledby="headingAssembly"
+                             data-bs-parent="#bomAccordion">
+                            <div class="accordion-body bg-light rounded-3">
+                                @if (assemblyDef != null)
+                                {
+                                    <EditForm Model="@bomRows" OnValidSubmit="UpsertBOM">
+                                        <ObjectGraphDataAnnotationsValidator />
+                                        <ValidationSummary />
+
+                                        <div class="row mb-3 align-items-center">
+                                            <label class="col-12 form-label fw-semibold">
+                                                @(assemblyDef.IsComponent ? "Select Component Item" : "Select Assembly Item")
+                                            </label>
+
+                                            <div class="col-md-4">
+                                                <MudAutocomplete T="ItemVM"
+                                                Value="assemblyDef.SelectedAssyItemVMs"
+                                                ValueChanged="@(async item =>
+                                                                                            {
+                                                    if (assemblyDef.IsComponent)
+                                                        await OnComponentChanged(item);
+                                                    else
+                                                        await OnAssemblyChanged(item);
+                                                })"
+                                                ToStringFunc="@(item => item?.ItemCode.Trim() ?? string.Empty)"
+                                                SearchFunc="@(assemblyDef.IsComponent
+                                                                                    ? SearchBOMAssinedComponentItems
+                                                                            : SearchAssySubAssyItems)"
+                                                Dense="true"
+                                                Variant="Variant.Outlined"
+                                                Placeholder="@(assemblyDef.IsComponent ? "Search Component Item" : "Search Assembly Item")"
+                                                Class="w-100 autocomplete-sm"
+                                                MaxItems="50"
+                                                OnBlur="@(e => TrimAutocompleteValue())" />
+                                                <ValidationMessage For="@(() => assemblyDef.AssmblyID)" />
+                                            </div>
+
+                                            <div class="col-md-4 ">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="assemblyDef.AssemblyItemName"
+                                                               class="form-control rounded-3"
+                                                               id="Description" readonly/>
+                                                    
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-4 d-flex align-items-center justify-content-start mt-4 mt-md-0">
+                                                <div class="form-check form-switch d-flex align-items-center">
+                                                    <InputCheckbox @bind-Value="assemblyDef.IsComponent"
+                                                                   id="componentCheck"
+                                                                   class="form-check-input me-2"
+                                                                   disabled="@(bomRows.Any(r => !string.IsNullOrWhiteSpace(r.PartItemCode)))" />
+                                                    <label for="componentCheck" class="@($"fw-semibold rounded px-2 py-1 shadow-sm {(assemblyDef.IsComponent ? "bg-success text-white" : "bg-light text-dark")}")">
+                                                        As Components
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                        <!-- Component Table -->
+                                        <div class="table-responsive mt-3" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
+                                            <table class="table table-bordered table-sm align-middle text-center mb-0"
+                                                   style="table-layout: fixed; min-width: 1200px;">
+                                                <thead class="custom-blue sticky-top" style="z-index: 2;">
+                                                    <tr>
+                                                        <th style="width: 60px;">Sl No.</th>
+                                                        <th style="width: 140px;">Item Code</th>
+                                                        <th style="width: 240px;">Item Name</th>
+                                                        <th style="width: 80px;">UOM</th>
+                                                        <th style="width: 100px;">Utility Qty</th>
+                                                        @if (assemblyDef.IsComponent)
+                                                        {
+                                                            <th style="width: 120px;">Process</th>
+                                                        }
+                                                        <th style="width: 90px;">Cancel</th>
+                                                        @* SNS *@
+                                                        <th style="width: 200px;">Customer Material</th>
+
+                                                        <th style="width: 220px;">Remarks</th>
+                                                        <th style="width: 150px;">Rack No.</th>
+                                                        @* <th style="width: 120px;">Action</th> *@
+                                                        <th style="width:100px;" class="freeze-last-col">
+
+                                                            <div class="d-flex align-items-center justify-content-end gap-2">
+
+                                                                <button type="button" class="btn btn-sm @(IsAllEditable ? "btn-success" : "btn-danger")"
+                                                                        title="Lock / Unlock All Rows"  @onclick="ToggleAllEditable">
+
+                                                                    <i class="bi @(IsAllEditable? "bi-unlock-fill" : "bi-lock-fill")"></i>
+
+                                                                </button>
+
+                                                                <span>Action</span>
+
+                                                            </div>
+
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="custom-size">
+                                                    @if (bomRows?.Any() == true)
+                                                    {
+                                                        @foreach (var row in bomRows)
+                                                        {
+                                                            <tr @ondblclick="() => OnRowDoubleClick(row)">
+                                                                <td>@row.SlNo</td>
+                                                                <td>
+                                                                    @if (row.IsEditable)
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                         Value="row.SelectedItemVMs"
+                                                                                         ValueChanged="@(async item => await OnItemChanged(row, item))"
+                                                                                         ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                         SearchFunc="@(assemblyDef.IsComponent
+                                                                                              ? SearchOnlyComponentItems
+                                                                                            : SearchSubAssyAndItemsAsync)"
+                                                                     Dense="true"
+                                                                     Variant="Variant.Outlined"
+                                                                     Placeholder="Search Item"
+                                                                     Class="w-100 autocomplete-sm"
+                                                                     MaxItems="50" />
+                                                                     <ValidationMessage For="@(() => row.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+
+                                                                        <span>@row.PartItemCode</span>
+                                                                    }
+                                                                </td>
+                                                                <td class="text-start">@row.PartItemName</td>
+                                                                <td>@row.UOM</td>
+                                                                <td>
+                                                                    @if (row.IsEditable)
+                                                                    {
+                                                                        <input type="number"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Utility Qty"
+                                                                               title="Enter Utility Qty"
+                                                                               step="any"
+                                                                               @bind="row.UtilQty"
+                                                                               @bind:event="oninput"
+                                                                               @onchange="@(e => OnUtilQtyChanged(e, row))" />
+                                                                        <ValidationMessage For="@(() => row.UtilQty)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @row.UtilQty
+                                                                    }
+                                                                </td>
+
+                                                                @if (assemblyDef.IsComponent)
+                                                                {
+                                                                    <td>
+                                                                        <select class="form-control form-control-sm"
+                                                                                @bind="row.ProcessId">
+                                                                            <option value="0">-- Select Process --</option>
+                                                                            @foreach (var p in process)
+                                                                            {
+                                                                                <option value="@p.ProcessId">
+                                                                                    @p.ProcessName
+                                                                                </option>
+                                                                            }
+                                                                        </select>
+                                                                        <ValidationMessage For="@(() => row.ProcessId)" />
+                                                                    </td>
+                                                                }
+
+                                                                <td class="text-center align-middle">
+                                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                                        <InputCheckbox @bind-Value="row.Cancel"
+                                                                                       @bind-Value:event="onchange"
+                                                                                       ValueChanged="@(async (value) => await OnItemCancelChanged(row))"
+                                                                                       class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                    </div>
+                                                                    <ValidationMessage For="@(() => row.Cancel)"
+                                                                                       class="text-danger fw-semibold small mt-2 d-block" />
+
+                                                                </td>
+                                                                <td class="text-center align-middle">
+                                                                    <div class="form-check form-switch d-flex justify-content-center">
+
+                                                                        <InputCheckbox @bind-Value="row.IsLabourMaterial"
+                                                                                       class="form-check-input border border-2 shadow-lg p-2 fs-4 rounded-pill" />
+
+                                                                    </div>
+
+                                                                    <ValidationMessage For="@(() => row.IsLabourMaterial)"
+                                                                                       class="text-danger fw-semibold small mt-2 d-block" />
+                                                                </td>
+
+                                                                <td>
+                                                                    @if (row.IsEditable)
+                                                                    {
+                                                                        <InputTextArea @bind-Value="row.Remarks" Rows="1" class="form-control form-control-sm" />
+                                                                        <ValidationMessage For="@(() => row.Remarks)" />
+                                                                    }
+                                                                    else
+                                                                    {
+
+                                                                        @row.Remarks
+                                                                    }
+                                                                </td>
+
+                                                                <td>
+                                                                    @row.RackNo
+                                                                </td>
+
+                                                                <td class="text-end">
+                                                                    @if (row.IsEditable)
+                                                                    {
+                                                                        <button type="button" class="btn btn-success btn-sm me-1"
+                                                                                title="Save" @onclick="async () => await SaveRow(row)">
+                                                                            <i class="bi bi-check-lg"></i>
+                                                                        </button>
+                                                                        <button type="button" class="btn btn-secondary btn-sm"
+                                                                                title="Cancel" @onclick="async () => await CancelEdit(row)">
+                                                                            <i class="bi bi-x-lg"></i>
+                                                                        </button>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <button type="button" class="btn btn-primary btn-sm me-1"
+                                                                                title="Edit" @onclick="async () => await EditRowAsync(row)">
+                                                                            <i class="bi bi-pencil"></i>
+                                                                        </button>
+                                                                        <button type="button" class="btn btn-danger btn-sm"
+                                                                                title="Delete" @onclick="async () => await RemoveRow(row)">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    }
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <tr>
+                                                            <td colspan="8" class="text-center text-muted">No records found.</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <!-- Footer Controls -->
+                                        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                                            <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                                <i class="bi bi-plus-circle me-1"></i> Add Item
+                                            </button>
+                                        </div>
+
+                                        <div class="row mb-2">
+                                            @if (CanCreate || CanEdit)
+                                            {
+                                                <div class="col-6 col-md-3 mt-3">
+                                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                                        <i class="bi bi-floppy2-fill me-1"></i> @(IsAssyExistsinAssydef ? "Update" : "Create")
+                                                    </button>
+                                                </div>
+
+                                                @if (IsAssyExistsinAssydef)
+                                                {
+                                                    <div class="col-6 col-md-3 mt-3">
+                                                        <button type="button" class="btn btn-outline-secondary w-100"
+                                                                @onclick="OnPrintBOMModifyTrack">
+                                                            <i class="bi bi-printer-fill me-1"></i> Print BOM Modify Track
+                                                        </button>
+                                                    </div>
+                                                }
+
+                                            }
+                                            <div class="col-6 col-md-3 mt-3">
+                                                <SmartBackButton Url="@($"/bomList?currentPage={currentPage}")" />
+                                            </div>
+                                        </div>
+                                    </EditForm>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+}
+
+
+@code {
+    [Parameter] public int? AssmblyID { get; set; }
+
+    protected override string ScreenName => "BOM";
+
+    private bool isProcessing = true;
+
+    private AssemblyDefVM assemblyDef = new();
+    private List<AssemblyDefVM> bomRows = new();
+
+    private AssemblyDefVM? rowToDelete = null;
+    private AssemblyDefVM? rowToCancel = null;
+    private AssemblyDefVM? rowToView = null;
+    private bool IsAssyExistsinAssydef { get; set; } = false;
+
+    private AssemblyDefLabourVM assemblylabDef = new();
+    private List<AssemblyDefLabourVM> bomlabRows = new();
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private IEnumerable<Process> process = Enumerable.Empty<Process>();
+
+    private bool IsAllSelected => bomRows != null && bomRows.All(r => r.IsSelected);
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> bomBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "BOM", IsLast = true }
+    };
+    private bool IsAllEditable;
+
+    private void TrimAutocompleteValue()
+    {
+        if (assemblyDef?.SelectedAssyItemVMs?.ItemCode != null)
+        {
+            assemblyDef.SelectedAssyItemVMs.ItemCode = assemblyDef.SelectedAssyItemVMs.ItemCode.Trim();
+        }
+    }
+
+    private async Task SelectAll(int rowId)
+    {
+        await _js.InvokeVoidAsync("selectInputText", $"ReqQty-{rowId}");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            if (AssmblyID > 0)
+            {
+                var Assy = await _assyDefService.GetAssyByAssemblyIdAsync(AssmblyID.Value);
+
+                assemblyDef.AssmblyID = AssmblyID;
+                assemblyDef.AssemblyItemCode = Assy.AssemblyItemCode;
+                assemblyDef.AssemblyItemName = Assy.AssemblyItemName;
+                assemblyDef.SelectedAssyItemVMs = await _assyDefService.GetItemByItemIdAsync(AssmblyID);
+
+                assemblyDef.IsComponent = Assy.IsComponent;
+
+                await LoadSelectedProcessAsync(assemblyDef.AssmblyID.Value);
+
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(AssmblyID.Value);
+                IsAssyExistsinAssydef = await _assyDefService.IsAssyExistsInAssyDefAsync(assemblyDef.AssmblyID.Value);
+
+            }
+            else
+            {
+                assemblyDef = new AssemblyDefVM();
+                bomRows.Clear();
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error on OnInitializedAsync ");
+        }
+    }
+
+    #region Assembly and Item Handlers
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool isChecked = e?.Value is bool b && b;
+        foreach (var row in bomRows)
+            row.IsSelected = isChecked;
+    }
+
+    private void OnRowSelected(AssemblyDefVM row, object? value)
+    {
+        if (value is bool isChecked)
+            row.IsSelected = isChecked;
+    }
+
+    private async Task OnAssemblyChanged(ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                assemblyDef.AssmblyID = item.ItemId;
+                assemblyDef.AssemblyItemCode = item.ItemCode;
+                assemblyDef.AssemblyItemName = item.ItemName;
+                assemblyDef.SelectedAssyItemVMs = item;
+
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(item.ItemId);
+                await ResetSlno();
+
+                IsAssyExistsinAssydef = await _assyDefService.IsAssyExistsInAssyDefAsync(assemblyDef.AssmblyID.Value);
+                await AddRow();
+            }
+            else
+            {
+                assemblyDef.AssmblyID = null;
+                assemblyDef.AssemblyItemCode = null;
+                assemblyDef.AssemblyItemName = null;
+                assemblyDef.SelectedAssyItemVMs = null;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error on OnAssemblyChanged");
+            await _js.ToastrError("Failed to process assembly selection. Please try again.");
+        }
+    }
+
+
+    private async Task OnComponentChanged(ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                assemblyDef.AssmblyID = item.ItemId;
+                assemblyDef.AssemblyItemCode = item.ItemCode;
+                assemblyDef.AssemblyItemName = item.ItemName;
+                assemblyDef.SelectedAssyItemVMs = item;
+
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(item.ItemId);
+
+                if (bomRows.Count == 0)
+                {
+                    await AddRow();
+                }
+
+                await ResetSlno();
+
+                IsAssyExistsinAssydef =
+                    await _assyDefService.IsAssyExistsInAssyDefAsync(assemblyDef.AssmblyID.Value);
+
+                await LoadSelectedProcessAsync(assemblyDef.AssmblyID.Value);
+            }
+            else
+            {
+                assemblyDef.AssmblyID = null;
+                assemblyDef.AssemblyItemCode = null;
+                assemblyDef.AssemblyItemName = null;
+                assemblyDef.SelectedAssyItemVMs = null;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnComponentChanged");
+            await _js.ToastrError("Failed to process component selection. Please try again.");
+        }
+    }
+
+
+    private async Task<IEnumerable<ItemVM>> SearchSubAssyAndItemsAsync(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _assyDefService.SearchSubAssyAndItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task<IEnumerable<ItemVM>> SearchOnlyComponentItems(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _assyDefService.SearchOnlyComponentItems(value);
+            token.ThrowIfCancellationRequested();
+
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task<IEnumerable<ItemVM>> SearchAssySubAssyItems(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        assemblyDef.AssemblyItemCode = value;
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _assyDefService.SearchAssyAndSubAssyItemsAsync(value);
+
+            token.ThrowIfCancellationRequested();
+
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchAssySubAssyItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+
+    private async Task<IEnumerable<ItemVM>> SearchBOMAssinedComponentItems(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        assemblyDef.AssemblyItemCode = value;
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _assyDefService.SearchBOMAssinedComponentItems(value);
+
+            token.ThrowIfCancellationRequested();
+
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchBOMAssinedComponentItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+
+    private async Task OnItemChanged(AssemblyDefVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItemVMs = item;
+                subitem.ItemId = item.ItemId;
+                subitem.PartItemCode = item.ItemCode;
+                subitem.PartItemName = item.ItemName;
+                subitem.UOM = item.MeasureUnit;
+            }
+            else
+            {
+                subitem.SelectedItemVMs = null;
+                subitem.ItemId = null;
+                subitem.PartItemCode = null;
+                subitem.PartItemName = null;
+                subitem.UOM = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(AssemblyDefVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null || row.ItemId <= 0)
+                errors.Add("Please select an Item.");
+
+            if (row.UtilQty <= 0)
+                errors.Add("Utilization quantity must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await _logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = bomRows.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await _logs.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            var newRow = new AssemblyDefVM
+            {
+                Id = 0,
+                IsEditable = true,
+                SlNo = bomRows.Count + 1,
+                AssmblyID = assemblyDef.AssmblyID,
+                IsComponent = assemblyDef.IsComponent,
+                Cancel = false
+            };
+
+            bomRows.Add(newRow);
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await _logs.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(AssemblyDefVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            if (!bomRows.Any())
+                bomRows.Add(item);
+
+            await ResetSlno();
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SaveRow failed for Row Id: {item?.Id}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(AssemblyDefVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItemVMs == null && item.ItemId.HasValue && item.ItemId.Value > 0)
+            {
+                try
+                {
+                    item.SelectedItemVMs = await _assyDefService.GetItemByItemIdAsync(item.ItemId.Value);
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"EditRowAsync failed for Row Id: {item?.Id}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(AssemblyDefVM? item)
+    {
+        try
+        {
+            if (item == null) return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId == null || item.ItemId <= 0) ||
+                (item.UtilQty <= 0 && (item.ReqQty <= 0 || item.BalQty <= 0));
+
+            if (isEmptyOrInvalid)
+            {
+                if (item.Id == 0)
+                {
+                    bomRows.Remove(item);
+                    await ResetSlno();
+                }
+                else
+                {
+                    item.IsEditable = false;
+                }
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CancelEdit failed for Row Id: {item?.Id}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(AssemblyDefVM item)
+    {
+        try
+        {
+            if (bomRows.Count == 1 && item.Id > 0)
+            {
+                await _js.ToastrWarning("At least one row item is required.");
+                return;
+            }
+
+            if (item.Id > 0 && (item.UtilQty != item.BalQty))
+            {
+                await _js.ToastrWarning("This row cannot be deleted because transactions exist for it.");
+                return;
+            }
+
+            if (item.Id == 0)
+            {
+                bomRows.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+                if (!bomRows.Any()) bomRows = new List<AssemblyDefVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"RemoveRow failed for Row Id: {item?.Id}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ConfirmDeleteRow()
+    {
+        if (rowToDelete == null) return;
+
+        try
+        {
+            bomRows.Remove(rowToDelete);
+            rowToDelete = null;
+            await ResetSlno();
+            await _js.ToastrSuccess("Row deleted successfully.");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ConfirmDeleteRow failed.");
+            await _js.ToastrError("Failed to delete the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in bomRows)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+    #region UtilityQty
+
+    private async Task OnUtilQtyChanged(ChangeEventArgs e, AssemblyDefVM assyVM)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty))
+                return;
+
+            if (assyVM.Id == 0)
+            {
+                assyVM.UtilQty = newQty;
+                assyVM.BalQty = newQty;
+            }
+            else
+            {
+                var original = await _assyDefService.GetUtiliyQtyById(assyVM.Id);
+                var alreadyTransacted = original.UtilQty - original.BalQty;
+
+                if (newQty < alreadyTransacted)
+                {
+                    assyVM.UtilQty = alreadyTransacted;
+                    assyVM.BalQty = 0;
+                    await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} as it is already transacted.");
+                }
+                else
+                {
+                    var difference = newQty - original.UtilQty;
+                    assyVM.UtilQty = newQty;
+                    assyVM.BalQty = original.BalQty + difference;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnUtilQtyChanged");
+            await _js.ToastrError("Unexpected error while updating Utility Qty.");
+        }
+    }
+
+    #endregion
+
+    #region Bom Operations/ Update or Insert
+
+    private async Task UpsertBOM()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (!bomRows.Any())
+            {
+                await _js.ToastrError("Cannot save a BOM without valid items.");
+                return;
+            }
+
+            foreach (var line in bomRows)
+            {
+                bool isValid = await ValidateBOMLineAsync(line);
+                if (!isValid) return;
+            }
+
+            bool isNew = await _assyDefService.IsNewBOMAsync(assemblyDef.AssmblyID.Value);
+
+
+            await _assyDefService.UpsertBOMAsync(isNew, assemblyDef, bomRows);
+
+            bool isNewLab = await _assyDeflabService.IsNewBOMAsync(assemblyDef.AssmblyID.Value);
+            assemblylabDef = new AssemblyDefLabourVM
+            {
+                Id = assemblyDef.Id,
+                IsSelected = assemblyDef.IsSelected,
+                AssmblyID = assemblyDef.AssmblyID,
+                AssemblyItemCode = assemblyDef.AssemblyItemCode,
+                AssemblyItemName = assemblyDef.AssemblyItemName,
+                SelectedAssyItemVMs = assemblyDef.SelectedAssyItemVMs,
+                ItemId = assemblyDef.ItemId,
+                PartItemCode = assemblyDef.PartItemCode,
+                PartItemName = assemblyDef.PartItemName,
+                SelectedItemVMs = assemblyDef.SelectedItemVMs,
+                UOM = assemblyDef.UOM,
+                PartSpecification = assemblyDef.PartSpecification,
+                HSNCode = assemblyDef.HSNCode,
+                ItemType = assemblyDef.ItemType,
+                CategoryName = assemblyDef.CategoryName,
+                SlNo = assemblyDef.SlNo,
+                UtilQty = assemblyDef.UtilQty,
+                BalQty = assemblyDef.BalQty,
+                ReqQty = assemblyDef.ReqQty,
+                IsComponent = assemblyDef.IsComponent,
+                Completed = assemblyDef.Completed,
+                Cancel = assemblyDef.Cancel,
+                CostId = assemblyDef.CostId,
+                CostCenterName = assemblyDef.CostCenterName,
+                ProcessId = assemblyDef.ProcessId,
+                ProcessName = assemblyDef.ProcessName,
+                StockConvertedQty = assemblyDef.StockConvertedQty,
+                PRConvertedQty = assemblyDef.PRConvertedQty,
+                Remarks = assemblyDef.Remarks,
+                CreatedBy = assemblyDef.CreatedBy,
+                CreatedDate = assemblyDef.CreatedDate,
+                ModifiedBy = assemblyDef.ModifiedBy,
+                ModifiedDate = assemblyDef.ModifiedDate,
+                IsEditable = assemblyDef.IsEditable,
+                IsBOM = assemblyDef.IsBOM,
+                BomStockQty = assemblyDef.BomStockQty,
+                RackNo = assemblyDef.RackNo,
+                UnitPrice = assemblyDef.UnitPrice,
+                MaterialCost = assemblyDef.MaterialCost,
+                LaborCost = assemblyDef.LaborCost,
+                TotalCost = assemblyDef.TotalCost,
+                AssemblyCost = assemblyDef.AssemblyCost,
+                IsLabourMaterial = assemblyDef.IsLabourMaterial,
+            };
+            bomlabRows = bomRows.Select(assemblyDef => new AssemblyDefLabourVM
+            {
+                Id = assemblyDef.Id,
+                IsSelected = assemblyDef.IsSelected,
+                AssmblyID = assemblyDef.AssmblyID,
+                AssemblyItemCode = assemblyDef.AssemblyItemCode,
+                AssemblyItemName = assemblyDef.AssemblyItemName,
+                SelectedAssyItemVMs = assemblyDef.SelectedAssyItemVMs,
+                ItemId = assemblyDef.ItemId,
+                PartItemCode = assemblyDef.PartItemCode,
+                PartItemName = assemblyDef.PartItemName,
+                SelectedItemVMs = assemblyDef.SelectedItemVMs,
+                UOM = assemblyDef.UOM,
+                PartSpecification = assemblyDef.PartSpecification,
+                HSNCode = assemblyDef.HSNCode,
+                ItemType = assemblyDef.ItemType,
+                CategoryName = assemblyDef.CategoryName,
+                SlNo = assemblyDef.SlNo,
+                UtilQty = assemblyDef.UtilQty,
+                BalQty = assemblyDef.BalQty,
+                ReqQty = assemblyDef.ReqQty,
+                IsComponent = assemblyDef.IsComponent,
+                Completed = assemblyDef.Completed,
+                Cancel = assemblyDef.Cancel,
+                CostId = assemblyDef.CostId,
+                CostCenterName = assemblyDef.CostCenterName,
+                ProcessId = assemblyDef.ProcessId,
+                ProcessName = assemblyDef.ProcessName,
+                StockConvertedQty = assemblyDef.StockConvertedQty,
+                PRConvertedQty = assemblyDef.PRConvertedQty,
+                Remarks = assemblyDef.Remarks,
+                CreatedBy = assemblyDef.CreatedBy,
+                CreatedDate = assemblyDef.CreatedDate,
+                ModifiedBy = assemblyDef.ModifiedBy,
+                ModifiedDate = assemblyDef.ModifiedDate,
+                IsEditable = assemblyDef.IsEditable,
+                IsBOM = assemblyDef.IsBOM,
+                BomStockQty = assemblyDef.BomStockQty,
+                RackNo = assemblyDef.RackNo,
+                UnitPrice = assemblyDef.UnitPrice,
+                MaterialCost = assemblyDef.MaterialCost,
+                LaborCost = assemblyDef.LaborCost,
+                TotalCost = assemblyDef.TotalCost,
+                AssemblyCost = assemblyDef.AssemblyCost,
+                IsLabourMaterial = assemblyDef.IsLabourMaterial
+            }).ToList();
+
+
+
+
+            await _assyDeflabService.UpsertBOMAsync(isNewLab, assemblylabDef, bomlabRows);
+
+            if (isNew)
+                await _js.ToastrSuccess("BOM created successfully.");
+            else
+                await _js.ToastrSuccess("BOM updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/bomList");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "UpsertBOM failed.");
+            await _js.ToastrError("Error saving BOM.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateBOMLineAsync(AssemblyDefVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.UtilQty.HasValue || line.UtilQty <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemId}: Utilized Quantity must be greater than 0.");
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ValidateBOMLineAsync failed.");
+            await _js.ToastrError("Error Validate BOM LineAsync BOM line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+    #region Item cancel
+
+    private async Task OnItemCancelChanged(AssemblyDefVM subitem)
+    {
+        try
+        {
+            if ((subitem.UtilQty ?? 0) != (subitem.BalQty ?? 0))
+            {
+                await _js.ToastrError("Item cannot be cancelled — some transactions have been made on it.");
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.Cancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                }
+                rowToCancel = subitem;
+
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Item.Cancel method");
+            await _logs.LogDeveloperError(ex, "Error in Item Cancel in BOM");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelItem(AssemblyDefVM rowToCancel)
+    {
+        if (rowToCancel == null) return;
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            rowToCancel.Cancel = !rowToCancel.Cancel;
+
+            await _assyDefService.UpdateItemCancelAsync(rowToCancel);
+
+            var action = rowToCancel.Cancel
+                ? $"Item Cancelled Assembly Code: {rowToCancel.AssemblyItemCode}  canceled Child Item :{rowToCancel.PartItemCode}"
+                : $"Item Reverted Assembly Cade : {rowToCancel.AssemblyItemCode} canceled Child Item :{rowToCancel.PartItemCode}";
+
+            await _logs.LogUserAction(
+                UserName: username,
+                Machine: machine,
+                IP_Address: ip,
+                screen: "Bill of Material",
+                action: action,
+                additionalInfo: $"Assembly Code: {rowToCancel.AssemblyItemCode} And child Item Code:{rowToCancel.PartItemCode}"
+            );
+
+            if (rowToCancel.AssmblyID.HasValue)
+            {
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(rowToCancel.AssmblyID.Value);
+            }
+            else
+            {
+                bomRows = new List<AssemblyDefVM>();
+            }
+
+
+            await ResetSlno();
+
+            var toastMessage = rowToCancel.Cancel
+                ? "Item cancelled successfully."
+                : "Item has been reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+            rowToCancel = null;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            rowToCancel = null;
+            await _js.ToastrError("An error occurred while cancelling/reverting the Item.");
+            await _logs.LogDeveloperError(ex, $"Item Cancel/Reverse failed for Assembly/Part Code: {rowToCancel.AssemblyItemCode}");
+        }
+        finally
+        {
+            rowToCancel = null;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Modal handlers
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "ItemCancel":
+                    await CancelItem(rowToCancel);
+                    break;
+
+                case "Confirm_View":
+                    await confirmViewRow_Click(true);
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.PartItemCode;
+
+            if (rowToDelete.Id > 0)
+            {
+                await _assyDefService.DeleteAndResequenceAsync(rowToDelete);
+                bomRows.Remove(rowToDelete);
+                await ResetSlno();
+                StateHasChanged();
+            }
+            else
+            {
+                bomRows.Remove(rowToDelete);
+
+                if (!bomRows.Any())
+                {
+                    bomRows.Add(new AssemblyDefVM
+                    {
+                        AssmblyID = assemblyDef.AssmblyID,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    await ResetSlno();
+                }
+            }
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error confirming deletion for Assembly Child Item: {rowToDelete.PartItemCode}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Row Double click
+
+    private async Task OnRowDoubleClick(AssemblyDefVM row)
+    {
+
+        try
+        {
+            if (!string.Equals(row.CategoryName, "Assembly", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(row.CategoryName, "Sub-Assembly", StringComparison.OrdinalIgnoreCase))
+            {
+                await _js.ToastrInfo("The selected item does not belong to the Assembly or Sub-Assembly category.");
+                return;
+            }
+
+            if (row.ItemId.HasValue)
+            {
+                ModalTitle = "Are you sure you want to view this Assembly/Sub-Assembly??";
+                btnColor = "btn-primary";
+                btnText = "Yes! View";
+                confirmation = "Confirm_View";
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+            rowToView = row;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the OnRowDoubleClick method");
+            await _logs.LogDeveloperError(ex, "Error in OnRowDoubleClick in BOM");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task confirmViewRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToView == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            if (!rowToView.ItemId.HasValue)
+            {
+                await _js.ToastrWarning("Item Code is missing for the selected row.");
+                return;
+            }
+
+            var subAssembly = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(rowToView.ItemId.Value);
+
+            if (subAssembly != null && subAssembly.Any())
+            {
+                var mainAssembly = subAssembly.First(); // take the first assembly as main
+
+                assemblyDef.AssmblyID = mainAssembly.AssmblyID;
+                assemblyDef.AssemblyItemCode = mainAssembly.AssemblyItemCode;
+                assemblyDef.AssemblyItemName = mainAssembly.AssemblyItemName;
+
+                assemblyDef.SelectedAssyItemVMs = await _assyDefService.GetItemByItemIdAsync(mainAssembly.AssmblyID);
+                bomRows = subAssembly;
+            }
+            else
+            {
+                var item = await _assyDefService.GetItemByItemIdAsync(rowToView.ItemId);
+                await OnAssemblyChanged(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error confirming View for Assembly/Sub-Assembly Item: {assemblyDef?.AssemblyItemCode}");
+            await _js.ToastrError("An error occurred during rowDoubleClick. Please try again.");
+        }
+        finally
+        {
+            rowToView = null;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+
+    #region Load process
+
+    private async Task LoadSelectedProcessAsync(int itemId)
+    {
+        try
+        {
+            process = (await _assyDefService.LoadSelectedProcessAsync(itemId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error loading process flow chart.");
+            await _js.ToastrError("Failed to load process");
+        }
+    }
+
+    #endregion
+
+    #region Print BOM Modified Report
+
+    private async Task OnPrintBOMModifyTrack()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (assemblyDef.AssmblyID == null || assemblyDef.AssmblyID <= 0)
+            {
+                await _js.ToastrError("Please select a valid Assembly before printing the BOM Modify Track report.");
+                return;
+            }
+
+            var headers = new[]
+            {
+                "RecNo",
+                "ItemCode",
+                "ItemName",
+                "MeasureUnit",
+                "UtilityQty",
+                "Cancel",
+                "ProcessName",
+                "Remark",
+                "CreatedBy",
+                "CreatedDate"
+            };
+
+            var data = await _assyDefService.GetAssemblyModifyTrackByAssyId(assemblyDef.AssmblyID.Value);
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "BOM Modify Track",
+                headers: headers,
+                sampleData: data
+            );
+
+            var base64 = Convert.ToBase64String(fileBytes);
+            await _js.InvokeVoidAsync("downloadExcelFile", base64, "BOMModifyTrack.xlsx");
+
+
+            await _js.ToastrSuccess("BOM Modify Track printed successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPrintBOMModifyTrack failed.");
+            await _js.ToastrError("Failed to print BOM Modify Track.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task ToggleAllEditable()
+    {
+        try
+        {
+            IsAllEditable = !IsAllEditable;
+
+
+            foreach (var item in bomRows)
+            {
+                item.IsEditable = IsAllEditable;
+                if (item.SelectedItemVMs == null && item.ItemId.HasValue && item.ItemId.Value > 0)
+                {
+                    item.SelectedItemVMs = await _assyDefService.GetItemByItemIdAsync(item.ItemId.Value);
+                }
+            }
+
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ToggleAllEditable failed.");
+            await _js.ToastrError("Failed to print BOM Modify Track.");
+        }
+
+
+    }
+
+    #endregion
+}
+

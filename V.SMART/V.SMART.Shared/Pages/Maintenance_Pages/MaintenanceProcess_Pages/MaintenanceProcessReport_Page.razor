@@ -1,0 +1,497 @@
+﻿@page "/maintenanceprocess/maintenancereport/"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMaintenanceService
+@using V.SMART.Shared.BusinessLayer.BusinessService.MaintenanceService
+@using V.SMART.Shared.Data.Maintenance.MaintenanceSchedule
+@using V.SMART.Shared.Data.Maintenance.Maintenance_Process
+@using V.SMART.Shared.ViewModels.MaintenanceViewModel.MaintenanceScheduleVM
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _js
+@inject IMaintenanceProcessService _maintenanceProcessService
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+
+<MasterModal IsVisible="isModalVisible"
+             Title="Maintenance Process Details"
+             MaxWidth="600px"
+             OnClose="CloseModal">
+
+<MaintenanceProcessDetails IsModelVisible="true" list=@MaintenanceSchedule
+                                                    SelectedDate=@(SelectedDate.HasValue?SelectedDate.Value:DateTime.Now)
+                                                     IsReport=true
+                                                    OnClose="CloseModal" />
+                                       
+</MasterModal>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+
+else
+{
+if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <PageHeader TitleText="MaintenanceReport"
+                            TitleIcon="bi bi-list- check"
+                            Breadcrumbs="@EnquirySalesBreadcrumbs" />
+                <label class="form-label fw-bold ms-3 mt-3">Select Maintenance Between Date : </label>
+
+                <div class="card-body p-4">
+                    <div class="row g-3 align-items-center">
+
+                        <!-- FROM DATE -->
+                        <div class="col-12 col-lg-2 d-flex align-items-center">
+                            <input type="date" class="form-control" @bind-value="fromdate" />
+                            <span class="mx-2 fw-bold">to</span>
+                        </div>
+
+                        <!-- TO DATE -->
+                        <div class="col-12 col-lg-2 ms-lg-3">
+                            <input type="date" class="form-control" @bind-value="todate" />
+                        </div>
+
+                        <!-- SEARCH BOX -->
+                        <div class="col-12 col-lg-2">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <InputText @bind-Value="searchText"
+                                           @oninput="ApplyFilters"
+                                           class="form-control border-start-0"
+                                           placeholder="Search here" />
+                            </div>
+                        </div>
+
+                        <!-- DROPDOWN -->
+                        <div class="col-12 col-lg-2">
+                            <select class="form-select form-select-sm shadow-sm" @onchange="FilterRows">
+                                <option value="">-- All --</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Pending">Pending</option>
+                            </select>
+                        </div>
+
+                        <!-- Rows Selection -->
+                        <div class="col-12 col-lg-2">
+                            <select class="form-select form-select-sm shadow-sm"
+                                    @onchange="OnPageSizeChanged"
+                                    title="Select number of records per page">
+                                <option value="10" selected>10 per page</option>
+                                <option value="20">20 per page</option>
+                                <option value="50">50 per page</option>
+                            </select>
+                        </div>
+
+                        <!-- VIEW BUTTON -->
+                        <div class="col-12 col-lg-1 text-lg-end">
+                            <button class="btn btn-success btn-sm w-100 w-lg-auto"
+                                    @onclick="() => LoadMaintenanceProcessList(fromdate, todate)">
+                                View
+                            </button>
+                        </div>
+
+                    </div>
+
+                        @if (MaintenanceScheduleList?.Any()==true)
+                        {
+                       
+                                <div class="table-responsive mt-3">
+                                        <QuickGrid Items="MaintenanceScheduleList.AsQueryable()"
+                                               Pagination="@pagination"
+                                               Class="quickgrid table table-bordered text-center text-wrap">
+                                            <!-- Simple property columns -->
+                                            <PropertyColumn Title="Machine Name" Property="@(c => c.MachineName)" />
+                                            <PropertyColumn Title="Description" Property="@(c => c.Description)" />
+                                            <PropertyColumn Title="Maintenance Type" Property="@(c => c.MaintenanceName)" />
+
+                                            <TemplateColumn Title="Due Days" Context="context">
+                                                    @{
+                                                        var dueDays = (context.ScheduleDate.Date - DateTime.Now.Date).Days;
+                                                        if (dueDays > 0)
+                                                        {
+                                                            <span class="badge bg-warning text-dark">@dueDays days left</span>
+                                                        }
+                                                        else if (dueDays < 0)
+                                                        {
+                                                            <span class="badge bg-warning text-black">@Math.Abs(dueDays) days overdue</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-primary">Due today</span>
+                                                        }
+                                                    }
+                                            </TemplateColumn>
+
+                                            <PropertyColumn Title="Schedule Date" Property="@(c => c.ScheduleDate.ToString("dd-MM-yyyy"))" />
+
+                                            <!-- Computed column: Status -->
+                                            <TemplateColumn Title="Status" Context="context">
+                                          
+                                                    @if (maintenanceProcessStatus.TryGetValue((context.MachineId, context.ScheduleId, context.ScheduleDate.Date), out var list)
+                                                        && list.Any())
+                                                    {
+                                                        var process = list.First();
+
+                                                        @if (process.ScheduleId == context.ScheduleId && process.MaintenanceStatus == true &&
+                                                            process.MachineId == context.MachineId && process.MaintenanceId == context.MaintenanceId &&
+                                                            process.ModifiedDate.HasValue &&
+                                                            (process.MaintenanceId == 1
+                                                                ? (process.ModifiedDate.Value.Date == context.ScheduleDate.Date)
+                                                                : true))
+                                                        {
+                                                            <span class="badge bg-success">
+                                                                <i class="bi bi-check-square"></i> Completed
+                                                            </span>;
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-danger">
+                                                                <i class="bi bi-x-square"></i> Pending
+                                                            </span>;
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger">
+                                                            <i class="bi bi-x-square"></i> Pending
+                                                        </span>;
+                                                    }
+                                            </TemplateColumn>
+
+                                            <!-- Button column -->
+                                            <TemplateColumn Title="Details" Context="context">
+
+                                                    <button class="btn btn-sm btn-outline-info" @onclick="(() => OpenModal(context))">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+
+                                            </TemplateColumn>
+                                    </QuickGrid>
+                                </div>
+
+                                <div class="row card-footer bg-white border-0 mt-3">
+
+                                    <div class="col-12">
+                                            <Paginator State="@pagination" />
+                                    </div>
+
+                                    <div class="col-12 col-lg-2 mb-2 ms-lg-auto mt-2">
+                                        <button class="btn btn-outline-dark w-100" @onclick="GotoMaintenanceProcessScreen">Close</button>
+                                    </div>
+
+                                </div>
+
+                        }
+                        else
+                        {
+                            <p class="text-center">No Schedules found.</p>
+                        }
+                        <hr/>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    #region  Declarations And Properties
+    protected override string ScreenName => "MaintenanceProcess";
+    private bool isProcessing = true;
+    private string? searchText { get; set; } = string.Empty;
+    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    private Dictionary<(int MachineId, int ScheduleId, DateTime SelectedDate), List<MaintenanceProcess>> maintenanceProcessStatus =
+        new Dictionary<(int MachineId, int ScheduleId, DateTime SelectedDate), List<MaintenanceProcess>>();
+    
+    private List<MaintenanceScheduleVM> MaintenanceScheduleList = new();
+    private MaintenanceScheduleVM MaintenanceSchedule = new();
+    private List<MaintenanceScheduleVM> FilterMaintenanceSchedules = new();
+    
+    private DateTime? SelectedDate;
+    private String? MaintenanceName = null;
+    private DateTime? todate = DateTime.Now;  
+    private DateTime? fromdate=DateTime.Now.AddDays(-7);
+
+    private bool status = false;
+    private String? selectedStatus;
+    private List<PageHeader.BreadcrumbItem> EnquirySalesBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Maintenance" },
+        new PageHeader.BreadcrumbItem { Text = "Maintenance Process" },
+        new PageHeader.BreadcrumbItem { Text = "Report", IsLast = true }
+    };
+
+    //Model State
+    private bool isModalVisible = false;
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadMaintenanceProcessList(fromdate, todate);
+            await InvokeAsync(StateHasChanged);
+            FilterMaintenanceSchedules = MaintenanceScheduleList.ToList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+            await _js.ToastrError("An error occurred during initialization.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+    #endregion
+
+    #region Load Maintenance Process List
+
+    private async Task LoadMaintenanceProcessList(DateTime? fromdate, DateTime? todate)
+    {
+        if (fromdate == null || todate == null)
+        {
+            await _js.ToastrError("Please select both From Date and To Date");
+            return;
+        }
+
+        try
+        {
+            isProcessing = true;
+            StateHasChanged();
+            // 🔥 SINGLE SERVICE CALL
+            MaintenanceScheduleList = await _maintenanceProcessService.FindSchedules(fromdate, todate);
+            maintenanceProcessStatus = await _maintenanceProcessService.FindBetweenProcess(fromdate, todate);
+
+            if (!maintenanceProcessStatus.Any())
+            {
+                await _js.ToastrSuccess("No Schedules found");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadMaintenanceProcessList()");
+            await _js.ToastrError("An error occurred while loading maintenance data.");
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    #endregion
+
+    #region Go to MaintenanceReport
+
+    private async Task GotoMaintenanceReport()
+    {
+        try
+        {
+            _navigation.NavigateTo("maintenanceprocess/MaintenanceReport");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GotoMaintenanceReport()");
+            await _js.ToastrError("An error occurred while loading the GotoMaintenanceReport.");
+        }
+    }
+
+    #endregion
+
+    #region Closing Model
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            await LoadMaintenanceProcessList(fromdate, todate);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region OpenModel
+
+    private async Task OpenModal(MaintenanceScheduleVM list)
+    {
+        try
+        {
+            SelectedDate = list.ScheduleDate;
+            isModalVisible = true;
+            MaintenanceSchedule = list;
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed ");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Go to MaintenanceProcess Screen
+
+    private async Task GotoMaintenanceProcessScreen()
+    {
+        try
+        {
+            isProcessing = true;
+            _navigation.NavigateTo("/maintenanceprocess");
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "Error in GotoMaintenanceProcessScreen()");
+            await _js.ToastrError("An error occurred while loading the GotoMaintenanceProcessScreen.");
+        }
+    }
+
+    #endregion
+
+    #region FilterRows
+
+    private async Task FilterRows(ChangeEventArgs e)
+    {
+        try
+        {
+                isProcessing = true;
+                selectedStatus = e.Value?.ToString();
+                if (string.IsNullOrEmpty(selectedStatus))
+                {
+                    // If no status is selected, reload the full list
+                    _ = LoadMaintenanceProcessList(fromdate, todate);
+                }
+                else
+                {
+                    // Filter the MaintenanceScheduleList based on the selected status
+            
+                    if (selectedStatus == "Completed")
+                    {
+                        MaintenanceScheduleList = FilterMaintenanceSchedules.Where(schedule =>
+                        {
+                            var key = (schedule.MachineId, schedule.ScheduleId, schedule.ScheduleDate);
+                            if (maintenanceProcessStatus.TryGetValue(key, out var processList) && processList.Any())
+                            {
+                                var process = processList.First();
+                                return process.MaintenanceStatus == true &&
+                                       process.MachineId == schedule.MachineId &&
+                                       process.MaintenanceId == schedule.MaintenanceId &&
+                                       (process.MaintenanceId == 1 ? (process.ModifiedDate.HasValue && process.ModifiedDate.Value.Date == schedule.ScheduleDate.Date) : true);
+                            }
+                            return false;
+                        }).ToList();
+                    }
+                    else if (selectedStatus == "Pending")
+                    {
+                        MaintenanceScheduleList = FilterMaintenanceSchedules.Where(schedule =>
+                        {
+                            var key = (schedule.MachineId, schedule.ScheduleId, schedule.ScheduleDate);
+                            if (maintenanceProcessStatus.TryGetValue(key, out var processList) && processList.Any())
+                            {
+                                var process = processList.First();
+                                return !(process.MaintenanceStatus == true &&
+                                         process.MachineId == schedule.MachineId &&
+                                         process.MaintenanceId == schedule.MaintenanceId &&
+                                         (process.MaintenanceId == 1 ? (process.ModifiedDate.HasValue && process.ModifiedDate.Value.Date == schedule.ScheduleDate.Date) : true));
+                            }
+                            return true; // No process means it's pending
+                        }).ToList();
+                    }
+                }
+                isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in FilterRows()");
+            await _js.ToastrError("An error occurred while loading the FilterRows");
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region ApplyFilters
+
+    private async Task ApplyFilters(ChangeEventArgs e)
+    {
+        try
+        {
+            searchText = e.Value?.ToString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                // If search text is empty, reload the full list
+                _ = LoadMaintenanceProcessList(fromdate, todate);
+            }
+            else
+            {
+                // Filter the MaintenanceScheduleList based on the search text
+                MaintenanceScheduleList = MaintenanceScheduleList.Where(schedule =>
+                    (schedule.MachineName != null && schedule.MachineName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (schedule.Description != null && schedule.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (schedule.MaintenanceName != null && schedule.MaintenanceName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                    schedule.ScheduleDate.ToString("dd-MM-yyyy").Contains(searchText)
+                ).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ApplyFilters()");
+            await _js.ToastrError("An error occurred while loading the ApplyFilters");
+        }
+    }
+
+    #endregion
+
+    #region OnPageSizeChanged
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value is not null && int.TryParse(e.Value.ToString(), out int pageSize))
+            {
+                pagination.ItemsPerPage = pageSize;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnPageSizeChanged");
+            await _js.ToastrError("Failed to update page size.");
+        }
+    }
+
+    #endregion
+}
+

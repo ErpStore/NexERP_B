@@ -1,0 +1,1013 @@
+﻿@page "/prpoRating"
+
+@using MudBlazor
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.IRatingService
+@using V.SMART.Shared.ViewModels.ReportViewModel.Ratings
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+@inject ICustomerService customerService
+@inject IVendorService vendorService
+@inject ExcelExportService ExcelExportService
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService CurrentUserService
+@inject IPrPoRatingService _prPoRatingService
+
+<style>
+    .table-heading th {
+        background-color:#F1E2D1 !important;
+        color: black !important;
+    }
+</style>
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-lg border-0 rounded-3">
+
+            <PageHeader TitleText="PR_PO Rating"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@Ratings" />
+
+            <div class="card-body bg-light">
+                <div class="card shadow-sm border-0 h-100">
+
+                    <div class="card border-0 shadow-sm rounded-4 mb-3">
+                        <div class="card-body">
+
+                            <div class="row g-3 align-items-stretch">
+
+                                <!-- ================= FILTER CARD ================= -->
+                                <div class="col-lg-8">
+
+                                    <div class="card border-0 shadow-sm h-100">
+
+                                        <div class="card-header bg-primary text-white fw-bold">
+                                            <i class="bi bi-funnel me-2"></i>Filters
+                                        </div>
+
+                                        <div class="card-body">
+
+                                            <!-- From / To -->
+                                            <div class="row align-items-center mb-3">
+
+                                                <label class="col-lg-2 col-form-label fw-semibold">
+                                                    <i class="bi bi-calendar-date me-1"></i>
+                                                    From Date
+                                                </label>
+
+                                                <div class="col-lg-4">
+                                                    <InputDate @bind-Value="fromDate"
+                                                               class="form-control" />
+                                                </div>
+
+                                                <label class="col-lg-2 col-form-label fw-semibold">
+                                                    <i class="bi bi-calendar-check me-1"></i>
+                                                    To Date
+                                                </label>
+
+                                                <div class="col-lg-4">
+                                                    <InputDate @bind-Value="toDate"
+                                                               @onchange="OnToDateChanged"
+                                                               class="form-control" />
+                                                </div>
+
+                                            </div>
+
+                                            <!-- Vendor -->
+                                            <div class="row align-items-center">
+
+                                                <label class="col-lg-2 col-form-label fw-semibold">
+                                                    <i class="bi bi-building me-1"></i>
+                                                    Vendor
+                                                </label>
+
+                                                <div class="col-lg-10">
+
+                                                    <MudAutocomplete T="int"
+                                                                     Value="@SelectedStoreId"
+                                                                     ValueChanged="@((int id)=>OnStoreChanged(id))"
+                                                                     SearchFunc="@SearchStores"
+                                                                     ToStringFunc="@(s => VendorList.FirstOrDefault(x => x.VendorCode == s)?.VendorName ?? "All Vendors")"
+                                                                     Variant="Variant.Outlined"
+                                                                     Dense="true"
+                                                                     Margin="Margin.None"
+                                                                     Placeholder="Select Vendor Name"
+                                                                     Style="width:100%" />
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                                <!-- ================= RATING CARD ================= -->
+
+                                <div class="col-lg-4">
+
+                                    <div class="card border-0 shadow-sm h-100">
+
+                                        <div class="card-header bg-success text-white fw-bold">
+                                            <i class="bi bi-award me-2"></i>
+                                            Rating Information
+                                        </div>
+
+                                        <div class="card-body p-2">
+
+                                            <table class="table table-bordered table-hover table-sm text-center align-middle mb-0">
+
+                                                <thead class="table-light">
+
+                                                    <tr>
+                                                        <th style="width:65%">Created Days</th>
+                                                        <th>Rating</th>
+                                                    </tr>
+
+                                                </thead>
+
+                                                <tbody>
+
+                                                    <tr>
+                                                        <td>Within 1 Day</td>
+                                                        <td>
+                                                            <span class="badge bg-success">
+                                                                Excellent
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>2 - 3 Days</td>
+                                                        <td>
+                                                            <span class="badge bg-info">
+                                                                Good
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>4 - 7 Days</td>
+                                                        <td>
+                                                            <span class="badge bg-warning text-dark">
+                                                                Average
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>Above 7 Days</td>
+                                                        <td>
+                                                            <span class="badge bg-danger">
+                                                                Poor
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+
+                                                </tbody>
+
+                                            </table>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mt-3">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-header bg-primary-subtle text-dark d-flex justify-content-between align-items-center flex-wrap gap-2">
+
+                                <!-- TITLE -->
+                                <h6 class="mb-0">
+                                    <i class="bi bi-file-earmark-text me-2"></i> Pr PO Rating Report
+                                </h6>
+
+                                <div class="card-header text-white " style="background:#0B1849">
+
+                                    <div class="row align-items-center gy-2">
+                                        <!-- RIGHT SIDE -->
+                                        <div class="col-12 col-lg">
+                                            <div class="row g-2 justify-content-lg-end">
+
+                                                <!-- SEARCH -->
+                                                <div class="col-12 col-md-auto">
+                                                    <div class="input-group shadow-sm rounded-3 overflow-hidden border">
+                                                        <span class="input-group-text bg-white border-0">
+                                                            <i class="bi bi-search text-muted"></i>
+                                                        </span>
+
+                                                        <input type="text"
+                                                               class="form-control border-start-0"
+                                                               placeholder="Search PRNo.,PONo., Vendor..."
+                                                               @bind="searchText"
+                                                               @bind:event="oninput" />
+                                                    </div>
+                                                </div>
+
+                                                <!-- COLUMN MENU -->
+                                                <div class="col-12 col-md-auto">
+                                                    <div class="dropdown w-100">
+                                                        <button class="btn btn-outline-light w-100"
+                                                                type="button"
+                                                                data-bs-toggle="dropdown">
+                                                            <i class="bi bi-layout-three-columns me-1"></i>
+                                                            Manage Columns
+                                                        </button>
+
+                                                        <ul class="dropdown-menu p-3 shadow border-0 rounded-4"
+                                                            style="max-height:400px; overflow:auto; min-width:260px;z-index:1055;">
+
+                                                            @foreach (var col in Columns.Where(c => !c.IsDetailColumn || IsDetailView))
+                                                            {
+                                                                <li class="mb-2">
+                                                                    <div class="form-check">
+                                                                        <input class="form-check-input"
+                                                                               type="checkbox"
+                                                                               checked="@col.IsVisible"
+                                                                               @onchange="async e => await OnColumnChanged(col, e.Value)" />
+
+                                                                        <label class="form-check-label small fw-semibold">
+                                                                            @col.Title
+                                                                        </label>
+                                                                    </div>
+                                                                </li>
+                                                            }
+                                                        </ul>
+                                                    </div>
+                                                </div>
+
+                                                <!-- PRINT -->
+                                                <div class="col-12 col-md-auto">
+                                                    <button class="btn btn-success rounded-3 shadow-sm fw-semibold w-100"
+                                                            id="btnPrint"
+                                                            @onclick="Print">
+                                                        <i class="bi bi-file-earmark-excel-fill me-2"></i>
+                                                        Print
+                                                    </button>
+                                                </div>
+
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <div class="card-body p-0">
+                                
+                                @if (FilteredTDSSummaryData != null && FilteredTDSSummaryData.Any())
+                                {
+                                    <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                        <table class="table table-bordered table-hover table-striped align-middle mb-0" style="min-width:1900px; white-space:nowrap;">
+
+                                            <thead class="custom-blue text-center align-middle sticky-top">
+                                                <tr>
+                                                    @if (IsColumnVisible("SlNo"))
+                                                    {
+                                                        <th>Sl No.</th>
+                                                    }
+                                                    @if (IsColumnVisible("VendorName"))
+                                                    {
+                                                        <th>Vendor Name</th>
+                                                    }
+                                                    @if (IsColumnVisible("PRNo"))
+                                                    {
+                                                        <th>PR No.</th>
+                                                    }
+                                                    @if (IsColumnVisible("PRDate"))
+                                                    {
+                                                        <th>PR Date</th>
+                                                    }
+                                                    @if (IsColumnVisible("PRQty"))
+                                                    {
+                                                        <th>PR Qty</th>
+                                                    }
+                                                    @if (IsColumnVisible("PRItemCancl"))
+                                                    {
+                                                        <th>PR ItemCancl</th>
+                                                    }
+                                                    @if (IsColumnVisible("PRCreatedBy"))
+                                                    {
+                                                        <th>PR CreatedBy</th>
+                                                    }
+                                                    @if (IsColumnVisible("PRCreatedDate"))
+                                                    {
+                                                        <th>PR CreatedDate</th>
+                                                    }
+                                                    @if (IsColumnVisible("PONo"))
+                                                    {
+                                                        <th>PO No.</th>
+                                                    }
+                                                    @if (IsColumnVisible("PODate"))
+                                                    {
+                                                        <th>PO Date</th>
+                                                    }
+                                                    @if (IsColumnVisible("POQty"))
+                                                    {
+                                                        <th>PO Qty</th>
+                                                    }
+                                                    @if (IsColumnVisible("ItemCancel"))
+                                                    {
+                                                        <th>ItemCancel</th>
+                                                    }
+                                                    @if (IsColumnVisible("POCreatedBy"))
+                                                    {
+                                                        <th>PO CreatedBy</th>
+                                                    }
+                                                    @if (IsColumnVisible("POCreatedDate"))
+                                                    {
+                                                        <th>PO CreatedDate</th>
+                                                    }
+                                                    @if (IsColumnVisible("ItemCode"))
+                                                    {
+                                                        <th>ItemCode</th>
+                                                    }
+                                                    @if (IsColumnVisible("ItemName"))
+                                                    {
+                                                        <th>ItemName</th>
+                                                    }
+                                                    @if (IsColumnVisible("DelayDays"))
+                                                    {
+                                                    <th>DelayDays</th>
+                                                    }
+                                                    @if (IsColumnVisible("Rating"))
+                                                    {
+                                                        <th>Rating</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+
+                                            <tbody>
+
+                                               
+                                                @foreach (var item in FilteredTDSSummaryData)
+                                                {
+                                                    <tr>
+                                                        @if (IsColumnVisible("SlNo"))
+                                                        {
+                                                            <td class="text-center">@item.SlNo</td>
+                                                        }
+                                                        @if (IsColumnVisible("VendorName"))
+                                                        {
+                                                            <td>@item.VendorName</td>
+                                                        }
+                                                        @if (IsColumnVisible("PRNo"))
+                                                        {
+                                                            <td>@item.PRNo</td>
+                                                        }
+                                                        @if (IsColumnVisible("PRDate"))
+                                                        {
+                                                            <td>@item.PRDate</td>
+                                                        }
+                                                        @if (IsColumnVisible("PRQty"))
+                                                        {
+                                                            <td>@item.PRQty</td> 
+                                                               
+                                                                                    }
+                                                        @if (IsColumnVisible("PRItemCancl"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @item.PRItemCancl
+                                                            </td>
+                                                        }
+                                                        @if (IsColumnVisible("PRCreatedBy"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @item.PRCreatedBy
+                                                            </td>
+                                                        }
+                                                        @if (IsColumnVisible("PRCreatedDate"))
+                                                        {
+                                                            <td>@item.POCreatedDate</td>
+                                                        }
+                                                        @if (IsColumnVisible("PONo"))
+                                                        {
+                                                            <td>@item.PONo</td>
+                                                        }
+                                                        @if (IsColumnVisible("PODate"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @item.PODate
+                                                            </td>
+                                                        }
+                                                        @if (IsColumnVisible("POQty"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @item.POQty
+                                                            </td>
+                                                        }
+                                                        @if (IsColumnVisible("ItemCancel"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @item.ItemCancel
+                                                            </td>
+                                                        }
+                                                        @if (IsColumnVisible("POCreatedBy"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @item.POCreatedBy
+                                                            </td>
+                                                        }
+                                                        @if (IsColumnVisible("POCreatedDate"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @item.POCreatedDate
+                                                            </td>
+                                                        }
+                                                        @if (IsColumnVisible("ItemCode"))
+                                                        {
+                                                            <td>@item.ItemCode</td>
+                                                        }
+                                                        @if (IsColumnVisible("ItemName"))
+                                                        {
+                                                            <td>@item.ItemName</td>
+                                                        }
+                                                    @if (IsColumnVisible("DelayDays"))
+                                                        {
+                                                            <td>
+                                                                <span class="badge bg-secondary">
+                                                                    @item.DelayDays
+                                                                </span>
+                                                                    
+                                                            </td>
+                                                        }
+                                                        @if (IsColumnVisible("Rating"))
+                                                        {
+                                                            <td class="text-center">
+                                                                @if (item.Rating == "Excellent")
+                                                                {
+                                                                    <span class="badge bg-success">Excellent</span>
+                                                                }
+                                                                else if (item.Rating == "Good")
+                                                                {
+                                                                    <span class="badge bg-info">Good</span>
+                                                                }
+                                                                else if (item.Rating == "Average")
+                                                                {
+                                                                    <span class="badge bg-warning text-dark">Average</span>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span class="badge bg-danger">Poor</span>
+                                                                }
+                                                            </td>
+                                                        }
+                                                    </tr>
+                                                }
+                                                
+                                            </tbody>
+
+                                        </table>
+                                    </div>
+                                }
+                                else
+                                {
+                                <div class="text-center py-5">
+                                    <i class="bi bi-inbox fs-1 text-muted"></i>
+                                    <h5 class="mt-3 text-muted">No Details Found</h5>
+                                </div>
+                                }
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "PR PO Rating Report";
+    private bool isProcessing = true;
+    private string searchText = string.Empty;
+    private bool IsDetailView { get; set; }
+    private List<PageHeader.BreadcrumbItem> Ratings { get; set; } = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Ratings" },
+        new PageHeader.BreadcrumbItem { Text = "PR PO Rating", IsLast = true }
+    };
+    private List<Vendor> Vendors = new();
+    public string ReportType { get; set; } = "0";
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+    private int SelectedStoreId = 0;
+    private string partySearch = "";
+    private List<Vendor> FilteredParties = new();
+    // private List<CustomerVM> FilteredCustomers = new();
+    private List<VendorVM> FilteredVendors = new();
+    private bool showInfoPanel = false;
+    private bool IsLoading = false;
+
+    private int SelectedPartyId;
+    private int SelectedVendorCode;
+    private string SelectedTopic = "";
+    // public DateTime? FromDate = DateTime.Today.AddMonths(-1);
+    // public DateTime? ToDate = DateTime.Today;
+    private DateTime fromDate = DateTime.Today.AddMonths(-1);
+
+    private DateTime toDate = DateTime.Today.AddDays(1);
+    private List<CustomerVM> CustomerList = new();
+    private List<Vendor> VendorList = new();
+    private string customerSearch { get; set; } = string.Empty;
+    private string vendorSearch { get; set; } = string.Empty;
+
+    private List<PrPoratingVM> FilteredData = new();
+    private string? UserName;
+    private int screenCode { get; set; }
+    private List<GridColumn> Columns = new();
+    private string UserId = "";
+
+
+    private List<PrPoratingVM> PrPoReportList = new();
+    private List<PrPoratingVM> FilteredTDSReportList = new();
+    private string SelectedReportType = "Sales";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadVendors();
+            await InitializeColumns(IsHidden);
+           // screenCode = await prPoRatingService.GetScreenCodeByScreenNameAsync(ScreenName);
+            UserName = await CurrentUserService.GetUsernameAsync();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync in Stock Positions");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadVendors()
+    {
+        VendorList = await _prPoRatingService.GetAllActiveVendorsAsync(fromDate, toDate);
+    }
+
+    private async Task LoadData(ChangeEventArgs e)
+    {
+        var vendorcode = Convert.ToInt32(e.Value);
+        PrPoReportList = await _prPoRatingService.GetVendorRatingData(fromDate, toDate, vendorcode);
+        await InitializeColumns(IsHidden);
+
+    }
+
+    private async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+        {
+            // ================= MAIN COLUMNS =================
+            new() { Title = "Sl No.", Field = "SlNo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Vendor Name", Field = "VendorName", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PR No.", Field = "PRNo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PR Date", Field = "PRDate", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PR Qty", Field = "PRQty", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PR ItemCancl", Field = "PRItemCancl", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PR CreatedBy", Field = "TotalBasicAmount", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PR CreatedDate", Field = "PRCreatedDate", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PO No.", Field = "PONo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PO Date", Field = "PODate", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PO Qty", Field = "POQty", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "ItemCancel", Field = "ItemCancel", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PO CreatedBy", Field = "POCreatedBy", IsVisible = true, IsDetailColumn = false },
+
+            new() { Title = "PO CreatedDate", Field = "POCreatedDate", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "ItemCode", Field = "ItemCode", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "ItemName", Field = "ItemName", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "DelayDays", Field = "DelayDays", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Rating", Field = "Rating", IsVisible = true, IsDetailColumn = false },
+
+        };
+
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error loading column preferences for JobOrderList");
+            await _js.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await PreferenceService.SavePreferencesAsync(ScreenName, UserName, Columns);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in HandleColumnChange()");
+        }
+    }
+
+  
+
+
+    private async Task OnStoreChanged(int storeId)
+    {
+        try
+        {
+            SelectedStoreId = storeId;
+            FilteredTDSReportList = await _prPoRatingService.GetVendorRatingData(fromDate, toDate, SelectedStoreId);
+            await InitializeColumns(IsHidden);
+
+        }
+        catch (Exception ex)
+        {
+            
+            throw;
+        }
+
+    }
+
+    private Task<IEnumerable<int>> SearchStores(string term, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(term))
+            return Task.FromResult(VendorList.Select(s => s.VendorCode));
+
+        var result = VendorList
+            .Where(s => s.VendorName.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.VendorCode);
+        return Task.FromResult(result);
+    }
+
+    private async Task OnColumnChanged(GridColumn column, object value)
+    {
+        try
+        {
+            column.IsVisible = Convert.ToBoolean(value);
+            await PreferenceService.SavePreferencesAsync(ScreenName, UserName, Columns);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error changing column");
+        }
+    }
+
+    private bool IsColumnVisible(string field)
+    {
+        return Columns.Any(x => x.Field == field && x.IsVisible);
+    }
+
+    private async Task OnToDateChanged(ChangeEventArgs e)
+    {
+        toDate = Convert.ToDateTime(e.Value);
+
+        await LoadVendors();
+    }
+
+    IEnumerable<PrPoratingVM> FilteredTDSSummaryData
+    {
+        get
+        {
+            var filtered = (FilteredTDSReportList ?? Enumerable.Empty<PrPoratingVM>())
+                .Where(s =>
+                    string.IsNullOrWhiteSpace(searchText)
+                    || (!string.IsNullOrWhiteSpace(s.PRNo) &&
+                        s.PRNo.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrWhiteSpace(s.VendorName) &&
+                        s.VendorName.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrWhiteSpace(s.PONo) &&
+                        s.PONo.Contains(searchText, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            for (int i = 0; i < filtered.Count; i++)
+            {
+                filtered[i].SlNo = i + 1;
+            }
+
+            return filtered;
+        }
+    }
+
+
+    #region For Item Attachments
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            else if (confirmation == "Export")
+            {
+                await ExportTDSSummaryDataToExcel(isConfirmed);
+            }
+            else
+            {
+                await _js.ToastrWarning("Unknown confirmation action.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task Print()
+    {
+        if (FilteredTDSReportList == null || !FilteredTDSReportList.Any())
+        {
+            await _js.ToastrWarning("Sorry, no data available to print");
+            return;
+        }
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task confirmation_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && confirmation == "Export")
+            {
+                await ExportTDSSummaryDataToExcel(isConfirmed);
+                confirmation = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while handling confirmation_Click");
+
+            await _js.ToastrError("Error while exporting Tax Details");
+        }
+    }
+
+
+
+    #endregion
+
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            searchText = e.Value?.ToString() ?? "";
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while searching");
+        }
+    }
+
+
+    private async Task ExportTDSSummaryDataToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirm)
+                return;
+
+            if (FilteredTDSSummaryData == null || !FilteredTDSSummaryData.Any())
+            {
+                await _js.ToastrWarning("No data available");
+                return;
+            }
+
+            List<Dictionary<string, object>> exportData = new();
+
+            foreach (var item in FilteredTDSSummaryData)
+            {
+                Dictionary<string, object> row = new();
+
+                // =========================
+                // MAIN COLUMNS
+                // =========================
+
+                if (IsColumnVisible("SlNo"))
+                    row.Add("Sl No.", item.SlNo);
+
+                if (IsColumnVisible("VendorName"))
+                    row.Add("Vendor Name", item.VendorName);
+
+                if (IsColumnVisible("PRNo"))
+                    row.Add("PR No.", item.PRNo);
+
+                if (IsColumnVisible("PRDate"))
+                    row.Add("PR Date", item.PRDate);
+
+                if (IsColumnVisible("PRQty"))
+                    row.Add("PR Qty", item.PRQty);
+
+                if (IsColumnVisible("PRItemCancl"))
+                    row.Add("PR ItemCancl", item.PRItemCancl);
+
+                if (IsColumnVisible("PRCreatedBy"))
+                    row.Add("PR CreatedBy", item.PRCreatedBy);
+
+                if (IsColumnVisible("PRCreatedDate"))
+                    row.Add("PR CreatedDate", item.PRCreatedDate);
+
+                if (IsColumnVisible("PONo"))
+                    row.Add("PO No.", item.PONo);
+
+                if (IsColumnVisible("PODate"))
+                    row.Add("PO Date", item.PODate);
+
+                if (IsColumnVisible("POQty"))
+                    row.Add("PO Qty", item.POQty);
+
+                if (IsColumnVisible("ItemCancel"))
+                    row.Add("ItemCancel", item.ItemCancel);
+
+                if (IsColumnVisible("POCreatedBy"))
+                    row.Add("PO CreatedBy", item.POCreatedBy);
+
+                if (IsColumnVisible("POCreatedDate"))
+                    row.Add("PO CreatedDate", item.POCreatedDate);
+
+                if (IsColumnVisible("ItemCode"))
+                    row.Add("ItemCode", item.ItemCode);
+
+                if (IsColumnVisible("ItemName"))
+                    row.Add("ItemName", item.ItemName);
+
+                if (IsColumnVisible("DelayDays"))
+                    row.Add("DelayDays", item.DelayDays);
+
+                if (IsColumnVisible("Rating"))
+                    row.Add("Rating", item.Rating);
+                exportData.Add(row);
+            }
+
+            if (!exportData.Any())
+            {
+                await _js.ToastrWarning("No data found for export");
+
+                return;
+            }
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "TDSSummary", "TDS Summary List");
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.DownloadExcelAsync(base64, "TDSSummary.xlsx");
+            await _js.ToastrSuccess("Excel exported successfully");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ExportTDSSummaryDataToExcel");
+            await _js.ToastrError("Error while exporting TDS Summary Report!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task<byte[]> CreateTemplateAsync(string sheetName, string[] headers, IEnumerable<object> data)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook();
+
+            var worksheet = workbook.Worksheets.Add(sheetName);
+
+            // HEADER
+            for (int col = 0; col < headers.Length; col++)
+            {
+                var cell = worksheet.Cell(1, col + 1);
+
+                cell.Value = headers[col];
+
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = XLColor.Yellow;
+            }
+
+            int rowIndex = 2;
+
+            foreach (var obj in data)
+            {
+                for (int col = 0; col < headers.Length; col++)
+                {
+                    var header = headers[col];
+
+                    object? value = null;
+
+                    // PROPERTY MATCH
+                    var prop = obj.GetType().GetProperty(header);
+
+                    if (prop != null)
+                    {
+                        value = prop.GetValue(obj);
+                    }
+
+                    worksheet.Cell(rowIndex, col + 1).Value =
+                        value?.ToString() ?? "";
+                }
+
+                rowIndex++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+
+            workbook.SaveAs(stream);
+
+            return stream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "CreateTemplateAsync");
+
+            await _js.ToastrError("Excel creation failed");
+
+            return Array.Empty<byte>();
+        }
+    }
+}

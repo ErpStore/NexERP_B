@@ -1,0 +1,252 @@
+﻿@page "/income/create"
+@page "/income/update/{IncomeCode:int}"
+
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService CurrentUserService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ILoggingService LoggingService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@incomeTitle"
+                            TitleIcon="@incomeIcon"
+                            Breadcrumbs="@incomeBreadcrumbs" />
+
+
+                <div class="card-body">
+                    <EditForm Model="Income" OnValidSubmit="UpsertIncome">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+
+                            @if (Income != null && Income.IncomeCode > 0 && !string.IsNullOrWhiteSpace(Income.IncomeName))
+                            {
+                                <CorrespondenceStatus ReferenceType="Income"
+                                    ReferenceId="@Income.IncomeCode"
+                                    ReferenceTypeName="@Income.IncomeName" />
+                            }
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Income.IncomeName" class="form-control" id="IncomeName" placeholder="Income Name" CssClass="form-control" />
+                                    <label for="IncomeName">Income Name</label>
+                                    <ValidationMessage For="@(() => Income.IncomeName)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Income.IncomeDesc" class="form-control" id="IncomeDesc" placeholder="Income Description" CssClass="form-control" />
+                                    <label for="ExpenseDesc">Income Description</label>
+
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Income Type</label>
+                                <InputRadioGroup @bind-Value="Income.IsDirect">
+                                    <div class="d-flex gap-4">
+                                        <div class="form-check">
+                                            <InputRadio id="direct" class="form-check-input" Value="true" />
+                                            <label for="direct" class="form-check-label">Direct</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <InputRadio id="indirect" class="form-check-input" Value="false" />
+                                            <label for="indirect" class="form-check-label">Indirect</label>
+                                        </div>
+                                    </div>
+                                </InputRadioGroup>
+                                <ValidationMessage For="@(() => Income.IsDirect)" />
+                            </div>
+
+                            @if (Income.IncomeCode > 0)
+                            {
+                                <div class="row g-3 mt-2">
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="Income.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                            <label for="CreatedBy">Created By</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                                <input class="form-control" id="CreatedDate" value="@Income.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                            <label for="CreatedDate">Created Date</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                                <InputText @bind-Value="Income.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                            <label for="ModifiedBy">Modified By</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                                <input class="form-control" id="ModifiedDate" value="@Income.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                            <label for="ModifiedDate">Modified Date</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(IncomeCode == 0 || IncomeCode == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/income" />
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Income";
+    [Parameter]
+    public int? IncomeCode { get; set; }
+
+    private bool isProcessing = true;
+    private Income Income { get; set; } = new Income();
+
+    private List<PageHeader.BreadcrumbItem> incomeBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Account" },
+        new PageHeader.BreadcrumbItem { Text = "Income", IsLast = true }
+    };
+
+    private string incomeIcon = "bi bi-graph-up-arrow";
+    private string incomeTitle => (IncomeCode == 0 || IncomeCode == null ? "Create" : "Update") + " Income";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.; // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadIncome();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Income OnInitializedAsync() Method");
+        }
+    }
+
+    private async Task LoadIncome()
+    {
+        try
+        {
+            if (IncomeCode > 0)
+            {
+                var existing = await _unitOfWork.Incomes.GetAsync(IncomeCode.Value);
+                if (existing != null)
+                {
+                    Income = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Income LoadIncome() Method");
+        }
+    }
+    private string GetCssClass(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "is-invalid" : "is-valid";
+    }
+
+    private string GetCssClass(bool value)
+    {
+        return value ? "is-valid" : "is-invalid";
+    }
+    private async Task UpsertIncome()
+    {
+        try
+        {
+            isProcessing = true;
+
+            bool isDuplicate = await _unitOfWork.Incomes.ExistsByNameAsync("IncomeName", Income.IncomeName?.Trim(), "IncomeCode", Income.IncomeCode == 0 ? null : Income.IncomeCode);
+
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Income name already exists.");
+                isProcessing = false;
+                return;
+            }
+
+            if (Income.IncomeCode == 0)
+            {
+                Income.CreatedBy = await CurrentUserService.GetUsernameAsync();
+                Income.CreatedDate = DateTime.Now;
+                await _unitOfWork.Incomes.CreateAsync(Income);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress, screen: "Income", action: $"Income Created Successfully {Income.IncomeName}",
+                additionalInfo: $"IncomeName: {Income.IncomeName}");
+                await _js.ToastrSuccess("Income created successfully.");
+            }
+            else
+            {
+
+                Income.ModifiedBy = await CurrentUserService.GetUsernameAsync();
+                Income.ModifiedDate = DateTime.Now;
+                await _unitOfWork.Incomes.UpdateAsync(Income);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress, screen: "Income", action: $"Income Updated Successfully {Income.IncomeName}",
+               additionalInfo: $"IncomeName: {Income.IncomeName}");
+                await _js.ToastrSuccess("Income updated successfully.");
+            }
+
+            isProcessing = false;
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/income");
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Income UpsertIncome() Method");
+        }
+
+    }
+}

@@ -1,0 +1,995 @@
+﻿@page "/contractReviewCheckList/create"
+@page "/contractReviewCheckList/update/{Id:int}"
+@using V.SMART.Shared.Data.SalesAndLabour.ContractReview
+@using V.SMART.Shared.ViewModels.MasterViewModel.AdminViewmodel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.ContractReviewVM
+@using MudBlazor
+@using System.Text.Json
+
+@inherits BaseUserRightsComponent
+
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IContractReviewService _contractReview
+
+@inject IMfgPoService mfgPoService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseOrderAcceptance">
+    
+    @if(ActiveModal == "OA")
+    {
+        <OrderAccecptance Reviews="ContractReviewVMS" />
+        <div class="modal-footer">
+            <button class="btn btn-primary" @onclick="SaveOrderAcceptance" disabled="@isProcessing">
+                <i class="bi bi-save me-1"></i> @OAbuttonText 
+            </button>
+           
+            <button class="btn btn-secondary" @onclick="CloseOrderAcceptance" disabled="@isProcessing">
+                <i class="bi bi-x-circle me-1"></i> Close
+            </button>
+        </div>
+    }
+
+</MasterModal>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- header-->
+            <PageHeader TitleText="@(Id == 0 || Id == null ? "Create Contract Review Check" : "Update Contract Review Check")"
+                        TitleIcon="bi bi-person"
+                        Breadcrumbs="@ContractreviewCheckListBreadcrumbs" />
+            <div class="card-body">
+                 <EditForm Model="ContractReviewVMS" OnValidSubmit="UpsertContractReview">
+                        <ObjectGraphDataAnnotationsValidator />
+                        <ValidationSummary />
+                        <div class="row g-3 mb-2 align-items-center">
+
+                            <!-- Correspondence Status -->
+                            <div class="col-12 col-md-12 d-flex justify-content-end">
+                                @if (ContractReviewVMS is not null
+                                                        && ContractReviewVMS.Id > 0
+                                                        && !string.IsNullOrWhiteSpace(ContractReviewVMS.ContractNo))
+                                {
+                                    <CorrespondenceStatus ReferenceType="ContractReview"
+                                                          ReferenceId="@ContractReviewVMS.Id"
+                                                          ReferenceTypeName="@ContractReviewVMS.ContractNo" />
+                                }
+                            </div>
+
+                        </div>
+                        <div class="row g-3 mb-2">
+
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+                                    <!-- Header -->
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">PO Reference  Information</span>
+                                    </div>
+                                    <div class="card-body p-3">
+
+                                        <!-- PoNo Selection -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Ref PoNo.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                @if (ContractReviewVMS.Id > 0)
+                                                {
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@ContractReviewVMS.PoNo" readonly />
+                                                        
+                                                }
+                                                else
+                                                {
+                                                    <select class="form-select form-select-sm rounded-3 w-100"
+                                                            value="@ContractReviewVMS.PoNo"
+                                                            @onchange="OnPoNoChanged">
+                                                        <option value="" disabled selected>Select PO No.</option>
+                                                        @foreach (var cp in LoadNewmfgPos)
+                                                        {
+                                                            <option value="@cp.PONo">@cp.PONo</option>
+                                                        }
+                                                    </select>
+                                                }
+
+                                                <ValidationMessage For="@(() => ContractReviewVMS.PoNo)" />
+                                            </div>
+                                        </div>
+                                    @if (!string.IsNullOrEmpty(ContractReviewVMS.OANo))
+                                    {
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>OA No.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                               placeholder="OA No."
+                                                               maxlength="30"
+                                                               @bind-Value="@ContractReviewVMS.OANo" readonly />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                         <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>OA Date :</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3"
+                                                           @bind-Value="@ContractReviewVMS.OADate"  Format="dd/MM/yyyy" readonly/>
+                                            </div>
+                                        </div>
+                                    }
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <!-- Document Details -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Document Details</span>
+                                    </div>
+                                    <div class="card-body p-3">
+
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>CheckList No.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                            placeholder="Prefix"
+                                                            maxlength="10"
+                                                            @bind-Value="@ContractReviewVMS.Prefix"
+                                                            style="flex:0 0 70px;" />
+
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                               placeholder="CheckList No."
+                                                               maxlength="30"
+                                                               @bind-Value="@ContractReviewVMS.ContractNo" readonly />
+                                                    <span class="input-group-text rounded-3">@ContractReviewVMS.Suffix</span>
+                                                </div>
+                                                <ValidationMessage For="@(() => ContractReviewVMS.ContractNo)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Date -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small> Date :</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3"
+                                                           @bind-Value="@ContractReviewVMS.ContractDate" Format="dd/MM/yyyy"/>
+                                                <ValidationMessage For="@(() => ContractReviewVMS.ContractDate)" />
+                                            </div>
+                                        </div>
+                                       
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>ReviewedBy</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+
+                                                   <select class="form-select form-select-sm rounded-3 w-100"
+                                                            @bind="ContractReviewVMS.RevisedBy">
+                                                        <option value="" disabled selected>Select a reviewed by</option>
+                                                        @foreach (var uname in Reviewed)
+                                                        {
+                                                            <option value="@uname.UserName">@uname.UserName</option>
+                                                        }
+                                                    </select>
+                                                   
+                                                </div>
+                                                <ValidationMessage For="@(() => ContractReviewVMS.RevisedBy)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>ApprovedBy</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+
+                                                   <select class="form-select form-select-sm rounded-3 w-100"
+                                                            @bind="ContractReviewVMS.ApprovedBy">
+                                                        <option value="" disabled selected>Select a ApprovedBy By</option>
+                                                        @foreach (var uname in Approved)
+                                                        {
+                                                            <option value="@uname.UserName">@uname.UserName</option>
+                                                        }
+                                                    </select>
+                                                   
+                                                </div>
+                                                <ValidationMessage For="@(() => ContractReviewVMS.ApprovedBy)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Review Result</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+                                                     <InputSelect class="form-select form-select-sm rounded-3 w-100"
+                                                                     @bind-Value="ContractReviewVMS.ReviewResult"
+                                                                     TValue="bool?">
+
+                                                            <option value="">-- Select Result --</option>
+                                                            <option value="true">Accepted</option>
+                                                            <option value="false">Rejected</option>
+
+                                                     </InputSelect>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Item Details Table -->
+                            <div class="col-12 mt-2">
+                                <div class="card shadow-sm">
+
+                                    <div class="card-header bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Contract Review Master Details</span>
+                                    </div>
+
+                                    <div class="card-body p-2">
+
+                                        <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                                            <table class="table table-bordered table-sm text-center align-middle mb-0"
+                                                   style="table-layout: fixed; min-width: 700px;">
+
+                                                <thead class="custom-blue">
+                                                    <tr>
+                                                        <th style="width: 60px;">Sl.No</th>
+                                                        <th style="width: 300px;">Master Description</th>
+                                                        <th style="width: 500px;">Remarks</th>
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody class="custom-size">
+                                                    @if (MasterReview != null && MasterReview.Any())
+                                                    {
+                                                        foreach (var enq in MasterReview)
+                                                        {
+                                                            <tr>
+                                                                <td>@enq.SlNo</td>
+
+                                                                <td>@enq.Description</td>
+
+                                                                <td>
+                                                                    <InputText class="form-control form-control-sm"
+                                                                               @bind-Value="enq.Remarks"
+                                                                               placeholder="Enter remarks" />
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+
+                            <div class="col-12 mt-2">
+                                <div class="card h-100 shadow-sm">
+
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Item Details</span>
+                                    </div>
+                                     <div class="card-body p-2">
+                                        <div class="table-responsive" style="overflow-x:auto;">
+                                            <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1800px;">
+                                                <thead class="custom-blue">
+                                                    <tr>
+                                                        <th style="width:60px;">Sl.No</th>
+                                                        <th style="width:150px;">Part No.</th>
+                                                        <th style="width:200px;">Description</th>
+                                                        <th style="width:100px;">UOM</th>
+                                                        <th style="width:100px;">Qty</th>
+                                                        <th style="width:120px;">Unit Price</th>
+                                                        <th style="width:120px;">CGST%</th>
+                                                        <th style="width:120px;">SGST%</th>
+                                                        <th style="width:120px;">IGST%</th>
+                                                        <th style="width:150px;">Issue</th>
+                                                        <th style="width:170px;">Further Revision</th>
+                                                        <th style="width:180px;">Delivery Terms</th>
+                                                        <th style="width:140px;">Lead Time</th>
+                                                        <th style="width:160px;">Mode Of Transp.</th>
+                                                        <th style="width:130px;">Type</th>
+                                                        <th style="width:180px;">Customer Specific</th>
+                                                        <th style="width:220px;">Risk In Order Acceptance</th>
+                                                        <th style="width:200px;">Remarks</th>
+                                                    </tr>
+
+                                                </thead>
+
+                                                <tbody class="custom-size">
+                                                    @if (ContractReviewVMS != null)
+                                                    {
+                                                        @foreach (var enq in ContractReviewVMS.ContractReviewSubVMS)
+                                                        {
+                                                            <tr>
+                                                                <td>@enq.SlNo</td>
+                                                                <td>@enq.ItemCode</td>
+                                                                <td>@enq.ItemName</td>
+                                                                <td>@enq.MeasureUnit</td>
+                                                                <td>@enq.Qty</td>
+                                                                <td>@enq.UnitPrice</td>
+
+                                                                <td>
+                                                                    <InputNumber @bind-Value="enq.LineCGSTRate"
+                                                                                 class="form-control form-control-sm"
+                                                                                 placeholder="Enter CGST"
+                                                                                 title="Enter CGST Percentage"/>
+                                                                    <ValidationMessage For="@(() => enq.LineCGSTRate)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputNumber @bind-Value="enq.LineSGSTRate"
+                                                                                 class="form-control form-control-sm"
+                                                                                 placeholder="Enter SGST"
+                                                                                 title="Enter SGST Percentage" />
+                                                                    <ValidationMessage For="@(() => enq.LineSGSTRate)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputNumber @bind-Value="enq.LineIGSTRate"
+                                                                                 class="form-control form-control-sm"
+                                                                                 placeholder="Enter IGST"
+                                                                                 title="Enter IGST Percentage" />
+                                                                    <ValidationMessage For="@(() => enq.LineIGSTRate)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.Issue"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Issue Details"
+                                                                               title="Issue Details" />
+                                                                    <ValidationMessage For="@(() => enq.Issue)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.FurtherRevision"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Further Revision"
+                                                                               title="Further Revision"/>
+                                                                    <ValidationMessage For="@(() => enq.FurtherRevision)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.DeliveryTerms"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Delivery Terms"
+                                                                               title="Delivery Terms" />
+                                                                    <ValidationMessage For="@(() => enq.DeliveryTerms)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.LeadTime"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Lead Time"
+                                                                               title="Lead Time" />
+                                                                    <ValidationMessage For="@(() => enq.LeadTime)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.ModeOfTransport"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Mode of Transport"
+                                                                               title="Mode of Transport" />
+                                                                    <ValidationMessage For="@(() => enq.ModeOfTransport)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.Type"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Type"
+                                                                               title="Type" />
+                                                                    <ValidationMessage For="@(() => enq.Type)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.CustomerSplReq"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Customer Specific Requirement"
+                                                                               title="Customer Specific Requirement" />
+                                                                    <ValidationMessage For="@(() => enq.CustomerSplReq)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.RiskOrderAccept"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Risk in Order Acceptance"
+                                                                               title="Risk in Order Acceptance" />
+                                                                    <ValidationMessage For="@(() => enq.RiskOrderAccept)" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <InputText @bind-Value="enq.Remarks"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Remarks"
+                                                                               title="Remarks" />
+                                                                    <ValidationMessage For="@(() => enq.Remarks)" />
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    }
+                                                </tbody>
+
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+
+                        @if (ContractReviewVMS.Id > 0)
+                        {
+                            <div class="row g-3">
+                                <!-- Created By -->
+                                <div class="col-12 col-lg-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="ContractReviewVMS.CreatedBy"
+                                                   id="CreatedBy"
+                                                   class="form-control"
+                                                   placeholder="Created By"
+                                                   disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="col-12 col-lg-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="CreatedDate"
+                                               placeholder="Created Date"
+                                               value="@ContractReviewVMS.CreatedDate"
+                                               disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified By -->
+                                <div class="col-12 col-lg-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="ContractReviewVMS.ModifiedBy"
+                                                   id="ModifiedBy"
+                                                   class="form-control"
+                                                   placeholder="Modified By"
+                                                   disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified Date -->
+                                <div class="col-12 col-lg-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="ModifiedDate"
+                                               placeholder="Modified Date"
+                                               value="@ContractReviewVMS.ModifiedDate?.ToString("dd/MM/yyyy hh:mm:ss")"
+                                               disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                        }
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+
+                        <div class="row mt-3">
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-xxl-3 col-12">
+                                        <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i> @(Id == 0 || Id == null ? "Create" : "Update")
+                                        </button>
+                                </div>
+                            }
+                            <div class="col-xxl-3 col-12">
+                                <SmartBackButton Url="/contractReviewCheckList" />
+                            </div>
+
+                           @if(refPoId>0 || selectedPoId>0)
+                           {
+                                <div class="col-xxl-3 col-12">
+                                    <a href="@($"MfgPO/update/{(refPoId > 0 ? refPoId : selectedPoId)}")"
+                                       class="btn w-100" title="Back To Enquiry" style="background-color: #28a745;color: #fff;font-weight: 600; 
+                                              font-size: 14px; 
+                                              border-radius: 8px; 
+                                              display: flex; 
+                                              align-items: center; 
+                                              justify-content: center;">
+                                        <i class="bi bi-arrow-left-circle me-2" style="font-size:16px;"></i>
+                                        Back To PO
+                                    </a>
+                                </div>
+                           }
+                           
+                        </div>
+                    </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Contract Review CheckList";
+
+    [Parameter] public int? Id { get; set; }
+    [Parameter] public int? refPoId { get; set; }
+    private bool isProcessing = true;
+    private int selectedPoId = 0;
+    private ContractReviewVM ContractReviewVMS { get; set; } = new();
+    private List<ContractReviewVM> ContractReviewList { get; set; } = new List<ContractReviewVM>();
+    private List<MfgPoVM> LoadNewmfgPos { get; set; } = new List<MfgPoVM>();
+
+    private List<User> Reviewed { get; set; } = new List<User>();
+    private List<UserAuthorityVM> Approved { get; set; } = new List<UserAuthorityVM>();
+    private List<ContractReviewMasterVM> MasterReview { get; set; } = new List<ContractReviewMasterVM>();
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private string selectedPoNo = null;
+
+    private List<PageHeader.BreadcrumbItem> ContractreviewCheckListBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Sales" },
+        new PageHeader.BreadcrumbItem { Text = "Contract Review Check", IsLast = true }
+    };
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+    private string ModalTitle = string.Empty;
+
+    private string OAbuttonText = "Save";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            if (Id.HasValue)
+            {
+                await LoadExistingContractReview(Id.Value);
+            }
+            else if (refPoId > 0)
+            {
+                await ToLoadExistingPoDetailsData(refPoId.Value);
+            }
+            else
+            {
+                ContractReviewVMS.ContractDate = DateTime.Now;
+                await LoadallMfgPos();
+
+                await ToLoadReviewedBy();
+                await ToLoadApprovedBy();
+                await ToLoadMasterDescription();
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync in ContractReviewCheckList failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task autoIncreamentNo()
+    {
+        try
+        {
+            ContractReviewVMS.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            ContractReviewVMS.ContractNo = await _contractReview.GetContractReviewNumberAsync(ContractReviewVMS.Suffix);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "autoIncreamentNo ContractReview upsert ");
+            await _js.ToastrError("Failed to autoIncreamentNo");
+        }
+
+    }
+
+    private async Task LoadExistingContractReview(int Id)
+    {
+        try
+        {
+            ContractReviewVMS = await _contractReview.GetContractReviewByIdAsync(Id);
+            await ToLoadReviewedBy();
+            await ToLoadApprovedBy();
+            if (ContractReviewVMS == null)
+            {
+                await _js.ToastrWarning("ContractReview not found.");
+                return;
+            }
+            // ✅ 1. LOAD ReviewJson
+            if (!string.IsNullOrWhiteSpace(ContractReviewVMS.ReviewJson))
+            {
+                MasterReview =
+                    JsonSerializer.Deserialize<List<ContractReviewMasterVM>>(
+                        ContractReviewVMS.ReviewJson) ?? new();
+            }
+            else
+            {
+                MasterReview = new();
+            }
+
+            foreach (var dcSub in ContractReviewVMS.ContractReviewSubVMS.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[dcSub.ItemId] =
+                    await _contractReview.GetCorrespondenceAttachmentsCountAsync(dcSub.ItemId, "Item");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load Existing LoadExistingContractReview.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingContractReview failed in ContractReview for Id: {Id}");
+        }
+    }
+
+    private async Task ToLoadExistingPoDetailsData(int refpoId)
+    {
+        try
+        {
+
+            ContractReviewVMS = await _contractReview.GetPoDetailsByPoIdAsync(refpoId);
+            await autoIncreamentNo();
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "ToLoadExistingPoDetailsData in  ContractReviewUpsert upsert");
+            await _js.ToastrError("Failed to ToLoadExistingPoDetailsData new in ContractReviewUpsert upsert.");
+        }
+    }
+
+    private async Task LoadallMfgPos()
+    {
+        try
+        {
+            LoadNewmfgPos = (await _contractReview.GetAvailableMfgPosAsync()).ToList();
+            await autoIncreamentNo();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadNewContractReview in in ContractReview upsert");
+            await _js.ToastrError("Failed to initialize new in LoadNewContractReview upsert.");
+        }
+    }
+
+    private async Task ToLoadReviewedBy()
+    {
+        try
+        {
+            Reviewed = await _contractReview.GetRevisedByUsersAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ToLoadReviewedBy");
+            await _js.ToastrError("Error while loading ToLoadReviewedBy.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task ToLoadApprovedBy()
+    {
+        try
+        {
+            Approved = await _contractReview.GetApprovedByUsersAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ToLoadApprovedBy");
+            await _js.ToastrError("Error while loading ToLoadApprovedBy.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task ToLoadMasterDescription()
+    {
+        try
+        {
+            var masterList = await _contractReview.GetMasterAsync();
+
+            MasterReview = masterList.Select((m, index) => new ContractReviewMasterVM
+            {
+                SlNo = index+1,
+                Description = m.Description,
+                Remarks=string.Empty
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ToLoadMasterDescription");
+            await _js.ToastrError("Error while loading ToLoadMasterDescription.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPoNoChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            selectedPoNo = e.Value?.ToString();
+            if (!string.IsNullOrEmpty(selectedPoNo))
+            {
+                var selectedmfgPo = LoadNewmfgPos.FirstOrDefault(x => x.PONo == selectedPoNo);
+                if (selectedmfgPo != null)
+                {
+                    var existingReview =await _contractReview.GetPoDetailsByPoIdAsync(selectedmfgPo.PoId);
+                    ContractReviewVMS = existingReview;
+
+                    var masterList = await _contractReview.GetMasterAsync();
+
+                    MasterReview = masterList.Select((m, index) => new ContractReviewMasterVM
+                    {
+                        SlNo = index + 1,
+                        Description = m.Description,
+                        Remarks = ResolveAutoRemark(m.Description, existingReview) ?? string.Empty
+                    }).ToList();
+                    await autoIncreamentNo();
+                }
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "OnPoNoChanged in  Contractreview upsert");
+            await _js.ToastrError("Failed to OnPoNoChanged  in Contractreview upsert.");
+        }
+    }
+
+    private static string? ResolveAutoRemark(string description,ContractReviewVM po)
+    {
+        //  description = description.ToLowerInvariant();
+
+        if (description.Contains("Company name."))
+            return po.CustName;
+
+        if (description.Contains("Company billing address."))
+            return po.CustAddress;
+
+        if (description.Contains("Ship to address."))
+            return po.CustAddress;
+
+        if (description.Contains("Contact name."))
+            return "";
+
+
+        if (description.Contains("Contact phone number."))
+            return po.CustContactNo;
+
+        if (description.Contains("P.O.No"))
+            return po.PoNo;
+
+        return null;                                                                     
+    }
+
+    private async Task UpsertContractReview()
+    {
+        isProcessing = true;
+        try
+        {
+
+            if (await toValidateContractReview())
+            {
+                ContractReviewVMS.ReviewJson = JsonSerializer.Serialize(MasterReview, new JsonSerializerOptions
+                {
+                    WriteIndented = false
+                });
+
+                var isNewContractReview = ContractReviewVMS.Id == 0;
+                await _contractReview.UpsertContractReview(ContractReviewVMS);
+                if (ContractReviewVMS.ReviewResult == true)
+                {
+                    isModalVisible = true;   
+                }
+                if (isModalVisible && ContractReviewVMS.ReviewResult==true)
+                {
+                    await OrderAcceptance();
+                }
+
+                if (isNewContractReview)
+                    await _js.ToastrSuccess("ContractReview saved successfully.");
+                else
+                    await _js.ToastrSuccess("ContractReview updated successfully.");
+
+                // Discard popup Clear
+                await _js.InvokeVoidAsync("NavigationGuard.clear");
+                // _navigationManager.NavigateTo("/contractReviewCheckList");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertContractReview");
+            await _js.ToastrError("Error saving UpsertContractReview.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> toValidateContractReview()
+    {
+        bool valid = true;
+
+        if (string.IsNullOrEmpty(ContractReviewVMS.ContractNo))
+        {
+            await _js.ToastrWarning("ContractReview No. should not be empty");
+            valid = false;
+        }
+        else if (ContractReviewVMS.ContractDate == default(DateTime))
+        {
+            await _js.ToastrWarning("Please enter ContractReviewVMS Date.");
+            valid = false;
+        }
+        else if (string.IsNullOrWhiteSpace(ContractReviewVMS.PoNo))
+        {
+            await _js.ToastrWarning("Ref PoNo. should not be empty");
+            valid = false;
+        }
+
+        else if (!ContractReviewVMS.ContractReviewSubVMS.Any())
+        {
+            await _js.ToastrWarning("At least one row item is required.");
+            valid = false;
+        }
+        else if (string.IsNullOrWhiteSpace(ContractReviewVMS.RevisedBy))
+        {
+            await _js.ToastrWarning("Please select Revised By");
+            valid = false;
+        }
+        else if (string.IsNullOrWhiteSpace(ContractReviewVMS.ApprovedBy))
+        {
+            await _js.ToastrWarning("Please select Approved By");
+            valid = false;
+        }
+        return valid;
+    }
+
+    #region for OrderAcceptance
+    private async Task OrderAcceptance()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (ContractReviewVMS.PoId <= 0)
+            {
+                await _js.ToastrError("Invalid PO.");
+                return;
+            }
+
+            if(string.IsNullOrEmpty(ContractReviewVMS.OANo))
+            {
+                var generatedOANo = await _contractReview.GetNextOANumberAsync(ContractReviewVMS.Suffix);
+                ContractReviewVMS.OANo = generatedOANo;
+                ContractReviewVMS.OADate = DateTime.Now;
+
+                OAbuttonText = "Save";
+            }
+            else
+            {
+                OAbuttonText = "Update";
+            }
+            ActiveModal = "OA";
+            ModalTitle = "Order Accecptance";
+            isModalVisible = true;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OrderAcceptance");
+            await _js.ToastrError("Failed to generate OA Number.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task SaveOrderAcceptance()
+    {
+        try
+        {
+            isProcessing = true;
+            
+            if (ContractReviewVMS.ContractNo!=null)
+            {
+                 
+                 await _contractReview.UpdateOADetails(ContractReviewVMS.ContractNo,ContractReviewVMS.OANo,ContractReviewVMS.OADate,ContractReviewVMS.PoId.Value);
+            }
+           
+
+            if(OAbuttonText == "Save")
+            {
+                await _js.ToastrSuccess("Order Acceptance saved successfully!");
+                OAbuttonText = "Update";
+            }
+            else
+            {
+                await _js.ToastrSuccess("Order Acceptance Modified successfully!");
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in SaveOrderAcceptance");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public void CloseOrderAcceptance()
+    {
+        isModalVisible = false;      // 🔥 CLOSE MODAL
+        _navigationManager.NavigateTo("/contractReviewCheckList");
+    }
+
+    #endregion
+    
+}

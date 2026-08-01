@@ -1,0 +1,566 @@
+﻿@page "/Daybook"
+
+
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.HistoryVM
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel
+
+@inject IDaybookService DaybookService
+@inject IExcelTemplateService excelTemplateService
+@inject IJSRuntime JS
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigation
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-4 mt-4">
+
+        <div class="card shadow-sm">
+
+            <PageHeader TitleText="Day Book Report"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@PoBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-3 align-items-end">
+
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">From Date</label>
+                        <InputDate @bind-Value="FromDate"
+                                   class="form-control" />
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">To Date</label>
+                        <InputDate @bind-Value="ToDate"
+                                   class="form-control" />
+                    </div>
+
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100"
+                                @onclick="LoadData">
+                            <i class="bi bi-eye"></i> View
+                        </button>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Search</label>
+
+                        <input type="text"
+                               class="form-control"
+                               placeholder="Search by Heading, Doc No, Party, Item, User..."
+                               @bind="searchText"
+                               @bind:event="oninput" />
+                    </div>
+
+                    <div class="col-md-2">
+                        <button class="btn  w-100 text-white" style="background-color:#6f42c1; border-color:#6f42c1;"
+                                @onclick="ExportToExcel">
+                            <i class="bi bi-printer"></i> Print
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+
+            @if (IsLoading)
+            {
+                <div class="alert alert-info m-2">
+                    Loading...
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                    <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                        <thead class="custom-blue text-center align-middle sticky-top">
+
+                            <tr>
+                                <th class="text-center">Sl No.</th>
+                                <th class="text-center">Date</th>
+                                <th>Screen Name</th>
+                                <th>Doc No.</th>
+                                <th>From / To Whom</th>
+                                <th>Item</th>
+                                <th class="text-end">Qty</th>
+                                <th>Created By</th>
+                                <th>Modified By</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            @if (FilteredReportList.Any())
+                            {
+                                i = 1;
+                                @foreach (var item in FilteredReportList)
+                                {
+                                    <tr>
+
+                                        <td class="text-center">
+                                            @i
+                                        </td>
+
+                                        <td class="text-center">
+                                            @item.DocDate.ToString("dd-MM-yyyy")
+                                        </td>
+
+                                        <td>
+                                            @item.Heading
+                                        </td>
+
+                                        <td>
+                                            @item.DocNo
+                                        </td>
+
+                                        <td>
+                                            @item.FromToWhom
+                                        </td>
+
+                                        <td>
+                                            @item.Item
+                                        </td>
+
+                                        <td class="text-end">
+                                            @(item.Qty?.ToString("N2"))
+                                        </td>
+
+                                        <td>
+                                            @item.CreatedBy
+                                        </td>
+
+                                        <td>
+                                            @item.ModifiedBy
+                                        </td>
+
+                                    </tr>
+                                    i++;
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="9"
+                                        class="text-center text-muted py-4">
+                                        No records found
+                                    </td>
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+           }
+
+            <div class="card shadow-sm mt-3">
+
+                <!-- Header -->
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">Cash Flow</h6>
+                </div>
+
+                <!-- Search & Excel -->
+                <div class="card-body">
+                    <div class="row g-3 align-items-end">
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Search Cash Flow</label>
+                            <input type="text"
+                                   class="form-control"
+                                   placeholder="Search Voucher No, Pay To, Pay From, Mode..."
+                                   @bind="cashFlowSearchText"
+                                   @bind:event="oninput" />
+                        </div>
+
+                        <div class="col-md-2">
+                            <button class="btn w-100 text-white"
+                                    style="background-color:#6f42c1; border-color:#6f42c1;"
+                                    @onclick="ExportToPrint">
+                                <i class="bi bi-printer"></i>
+                                Print
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="table-responsive border rounded"
+                     style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                    <table class="table table-bordered table-sm mb-0 align-middle">
+                        <!-- your table -->
+                    </table>
+
+                </div>
+
+            </div>
+
+
+
+                <div class="card-body p-0">
+
+                    <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                        <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                            <thead class="custom-blue text-center align-middle sticky-top">
+
+                                <tr>
+                                    <th>Sl No</th>
+                                    <th>Date</th>
+                                    <th>Voucher No</th>
+                                    <th>Out Flow</th>
+                                    <th>Pay To</th>
+                                    <th>In Flow</th>
+                                    <th>Pay From</th>
+                                    <th>Mode</th>
+                                    <th>Cheque No</th>
+                                    <th>Amount</th>
+                                </tr>
+
+                            </thead>
+
+                            <tbody>
+                                @if (FilteredCashFlowList.Any())
+                                {
+                               
+                                    i = 1;
+                                
+                                    @foreach (var item in FilteredCashFlowList)
+                                    {
+                                        <tr>
+                                            <td>@i</td>
+                                            <td>@item.TranDate.ToString("dd-MM-yyyy")</td>
+                                            <td>@item.VoucherNo</td>
+                                            <td>@item.OutFlow</td>
+                                            <td>@item.PayTo</td>
+                                            <td>@item.InFlow</td>
+                                            <td>@item.PayFrom</td>
+                                            <td>@item.PaymentMode</td>
+                                            <td>@item.ChequeNo</td>
+                                            <td class="text-end">@item.Amount.ToString("N2")</td>
+                                        </tr>
+                                           i++;
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="10" class="text-center text-muted py-4">
+                                            No records found
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+   
+}
+@code
+{
+    protected override string ScreenName => "Day Book";
+
+    private List<DaybookVM> DaybookList = new();
+    private List<CashFlowVM> CashFlowList = new();
+
+    private bool isProcessing = true;
+
+    private DateTime FromDate = DateTime.Today;
+    private DateTime ToDate = DateTime.Today;
+
+    private string searchText = string.Empty;
+    private string cashFlowSearchText = string.Empty;
+
+    int i = 0;
+
+    private bool IsLoading;
+
+    private List<DaybookVM> reportList = new();
+
+    private List<PageHeader.BreadcrumbItem> PoBreadcrumbs = new()
+    {
+        new()
+        {
+            Text = "Report"
+        },
+        new()
+        {
+            Text = "History"
+        },
+
+        new()
+        {
+            Text = "Day Book",
+            IsLast = true
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadData();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Day Book OnInitializedAsync");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            IsLoading = true;
+
+            DaybookList = await DaybookService.GetDayBookAsync(FromDate,ToDate);
+
+            CashFlowList = await DaybookService.GetCashFlowAsync(FromDate,ToDate);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private IEnumerable<CashFlowVM> FilteredCashFlowList
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(cashFlowSearchText))
+                return CashFlowList;
+
+            var search = cashFlowSearchText.Trim();
+
+            return CashFlowList.Where(x =>
+                (!string.IsNullOrEmpty(x.VoucherNo) &&
+                    x.VoucherNo.Contains(search, StringComparison.OrdinalIgnoreCase))
+
+                || (!string.IsNullOrEmpty(x.OutFlow) &&
+                    x.OutFlow.Contains(search, StringComparison.OrdinalIgnoreCase))
+
+                || (!string.IsNullOrEmpty(x.PayTo) &&
+                    x.PayTo.Contains(search, StringComparison.OrdinalIgnoreCase))
+
+                || (!string.IsNullOrEmpty(x.InFlow) &&
+                    x.InFlow.Contains(search, StringComparison.OrdinalIgnoreCase))
+
+                || (!string.IsNullOrEmpty(x.PayFrom) &&
+                    x.PayFrom.Contains(search, StringComparison.OrdinalIgnoreCase))
+
+                || (!string.IsNullOrEmpty(x.PaymentMode) &&
+                    x.PaymentMode.Contains(search, StringComparison.OrdinalIgnoreCase))
+
+                || (!string.IsNullOrEmpty(x.ChequeNo) &&
+                    x.ChequeNo.Contains(search, StringComparison.OrdinalIgnoreCase))
+
+                || x.Amount.ToString("N2").Contains(search, StringComparison.OrdinalIgnoreCase)
+
+                || x.TranDate.ToString("dd-MM-yyyy")
+                    .Contains(search, StringComparison.OrdinalIgnoreCase)
+            );
+        }
+    }
+
+    private IEnumerable<DaybookVM> FilteredReportList =>
+        string.IsNullOrWhiteSpace(searchText)
+            ? DaybookList : DaybookList.Where(x =>
+
+                (x.Heading?.Contains(searchText,
+                    StringComparison.OrdinalIgnoreCase) ?? false)
+
+                ||
+
+                (x.DocNo?.Contains(searchText,
+                    StringComparison.OrdinalIgnoreCase) ?? false)
+
+                ||
+
+                (x.FromToWhom?.Contains(searchText,
+                    StringComparison.OrdinalIgnoreCase) ?? false)
+
+                ||
+
+                (x.Item?.Contains(searchText,
+                    StringComparison.OrdinalIgnoreCase) ?? false)
+
+                ||
+
+                (x.DocDate.ToString("dd-MM-yyyy")
+                    .Contains(searchText,
+                    StringComparison.OrdinalIgnoreCase))
+
+                ||
+
+                (x.Qty?.ToString()
+                    .Contains(searchText) ?? false)
+
+                ||
+
+                (x.CreatedBy?.Contains(searchText,
+                    StringComparison.OrdinalIgnoreCase) ?? false)
+
+                ||
+
+                (x.ModifiedBy?.Contains(searchText,
+                    StringComparison.OrdinalIgnoreCase) ?? false)
+            );
+
+    private async Task ExportToExcel()
+    {
+        try
+        {
+            if (!FilteredReportList.Any())
+            {
+                await JS.ToastrWarning("No records available to export.");
+
+                return;
+            }
+
+            string[] headers =
+            {
+            "Sl No",
+            "Doc Date",
+            "Heading",
+            "Doc No",
+            "From To Whom",
+            "Item",
+            "Qty",
+            "Created By",
+            "Modified By"
+        };
+
+            var exportData = FilteredReportList
+                .Select((x, index) => new
+                {
+                    SlNo = index + 1,
+                    DocDate = x.DocDate.ToString("dd-MM-yyyy"),
+                    Heading = x.Heading ?? string.Empty,
+                    DocNo = x.DocNo ?? string.Empty,
+                    FromToWhom = x.FromToWhom ?? string.Empty,
+                    Item = x.Item ?? string.Empty,
+                    Qty = x.Qty?.ToString("N2") ?? "0.00",
+                    CreatedBy = x.CreatedBy ?? string.Empty,
+                    ModifiedBy = x.ModifiedBy ?? string.Empty
+                })
+                .ToList<object>();
+
+            var fileBytes =
+                await excelTemplateService.CreateTemplateAsync(
+                    sheetName: "Day Book Report",
+                    headers: headers,
+                    sampleData: exportData);
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await JS.InvokeVoidAsync( "downloadExcelFile", base64,$"DayBookReport_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await JS.ToastrWarning($"Export Failed : {ex.Message}");
+        }
+    }
+
+    private async Task ExportToPrint()
+    {
+        try
+        {
+            var filteredData = FilteredCashFlowList.ToList();
+
+            if (!filteredData.Any())
+            {
+                await JS.ToastrWarning( "No records available to export.");
+                return;
+            }
+
+            string[] headers =
+            {
+            "Sl No",
+            "Tran Date",
+            "Voucher No",
+            "Out Flow",
+            "Pay To",
+            "In Flow",
+            "Pay From",
+            "Payment Mode",
+            "Cheque No",
+            "Amount"
+        };
+
+            var exportData = filteredData
+                .Select((x, index) => new
+                {
+                    SlNo = index + 1,
+                    TranDate = x.TranDate.ToString("dd-MM-yyyy"),
+                    VoucherNo = x.VoucherNo ?? string.Empty,
+                    OutFlow = x.OutFlow ?? string.Empty,
+                    PayTo = x.PayTo ?? string.Empty,
+                    InFlow = x.InFlow ?? string.Empty,
+                    PayFrom = x.PayFrom ?? string.Empty,
+                    PaymentMode = x.PaymentMode ?? string.Empty,
+                    ChequeNo = x.ChequeNo ?? string.Empty,
+                    Amount = x.Amount.ToString("N2")
+                })
+                .ToList<object>();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Cash Flow Report",
+                headers: headers,
+                sampleData: exportData);
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await JS.InvokeVoidAsync("downloadExcelFile",base64,$"CashFlowReport_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await JS.ToastrError( $"Export Failed: {ex.Message}");
+        }
+    }
+}

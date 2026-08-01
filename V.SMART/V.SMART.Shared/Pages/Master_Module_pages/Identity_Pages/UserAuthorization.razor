@@ -1,0 +1,459 @@
+﻿@page "/userLevelAuthorization/create"
+@page "/userLevelAuthorization/update/{Id:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAdminService
+@using V.SMART.Shared.ViewModels.MasterViewModel.AdminViewmodel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService currentUserService
+
+@inject IUserAuthorityService userAuthorityService
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@userAuthorityTitle"
+                        TitleIcon="@userAuthorityIcon"
+                        Breadcrumbs="@userAuthorityBreadcrumbs" />
+
+            <div class="card-body p-4 p-md-5">
+                <EditForm Model="UserAuthorityVMs" OnValidSubmit="UpsertUserAuthority">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="mb-4">
+                        <label for="UserId" class="form-label fw-bold">Select User</label>
+
+                        <select id="UserId"
+                                class="form-select form-select-lg"
+                                value="@UserAuthorityVMs.UserId"
+                                @onchange="OnUserChanged">
+
+                            <option value="0">-- Select User --</option>
+
+                            @foreach (var user in Users)
+                            {
+                                <option value="@user.UserId">@user.UserName</option>
+                            }
+                        </select>
+                    </div>
+
+
+                    @if (UserAuthorityVMs.UserId.HasValue || UserAuthorityVMs.UserId > 0)
+                    {
+                        <div class="row g-4">
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Manufacturing Quotation"
+                                                     LevelLabel="Manufacturing Quotation Level"
+                                                     SwitchId="mfgQuoteSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsMfgQuote"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsMfgQuoteLevel" />
+                            </div>
+
+                            <!--New Code-->
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Sales Purchase Order"
+                                                     LevelLabel="Sales Purchase Order Level"
+                                                     SwitchId="poSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsSalesPo"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsSalesPoLevel" />
+                            </div>
+                            <!--End Of New Code-->
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Material Requisition/Indent"
+                                                     LevelLabel="Material Requisition/Indent Level"
+                                                     SwitchId="prSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsPR"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsPRLevel" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Purchase Order"
+                                                     LevelLabel="Purchase Order Level"
+                                                     SwitchId="poSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsPO"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsPOLevel" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Purchase SCN"
+                                                     LevelLabel="Purchase SCN Level"
+                                                     SwitchId="purchaseSCNSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsPurchSCN"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsPurchSCNLevel" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Sub-Contract SCN"
+                                                     LevelLabel="Sub-Contract SCN Level"
+                                                     SwitchId="subContractSCNSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsSubConSCN"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsSubConSCNLevel" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Production Assembly SCN"
+                                                     LevelLabel="Production Assembly SCN Level"
+                                                     SwitchId="productionAssemblySwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsProdAssySCN"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsProdAssySCNLevel" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Production Component SCN"
+                                                     LevelLabel="Production Component SCN Level"
+                                                     SwitchId="productionComponentSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsProdCompSCN"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsProdCompSCNLevel" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Labour-Work SCN"
+                                                     LevelLabel="Labour-Work SCN  Level"
+                                                     SwitchId="labourSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsLabourSCN"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsLabourSCNLevel" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Route Card"
+                                                     LevelLabel="Route Card Level"
+                                                     SwitchId="rcSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsRc"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsRcLevel" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Leave Application"
+                                                     LevelLabel="Leave Application Level"
+                                                     SwitchId="leaveSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsLeave"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsLeaveLevel" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <AuthorizationToggle Label="Stock Issue Request"
+                                                     LevelLabel="Stock Issue Request Level"
+                                                     SwitchId="StockReqSwitch"
+                                                     @bind-SwitchValue="UserAuthorityVMs.IsStockReq"
+                                                     @bind-LevelValue="UserAuthorityVMs.IsStockReqLevel" />
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-4">
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3">
+                                    <button type="submit" class="btn btn-primary btn-lg w-100 d-flex align-items-center justify-content-center" disabled="@isProcessing">
+                                        @if (isProcessing)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        }
+                                        <i class="bi bi-floppy2-fill me-2"></i> @(UserAuthorityVMs.Id > 0 ? "Update" : "Create")
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="col-6 col-md-3">
+                                <SmartBackButton Url="/userLevelAuthorization" />
+                            </div>
+                        </div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "User Level Authorization";
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool isProcessing = true;
+    private UserAuthorityVM UserAuthorityVMs { get; set; } = new();
+
+    private List<UserVM> Users = new();
+
+    private List<PageHeader.BreadcrumbItem> userAuthorityBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Admin Master" },
+        new PageHeader.BreadcrumbItem { Text = "Authority Manage Master", IsLast = true }
+    };
+
+    private string userAuthorityIcon = "bi bi-person";
+    private string userAuthorityTitle => (UserAuthorityVMs.Id > 0 ? "Update" : "Create") + " User Level Authorization";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadUsers();
+            await LoadUserAuthority();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error initializing UserLevelAuthorization page.");
+            await _js.ToastrError("An error occurred while loading the page.");
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            Users = await userAuthorityService.GetLevelAuthorizedUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"LoadUsers failed. {ex.Message}");
+            await _js.ToastrError("An error occurred while loading the users.");
+        }
+    }
+
+    private async Task LoadUserAuthority()
+    {
+        try
+        {
+            if (Id.HasValue && Id.Value > 0)
+            {
+                var existing = await userAuthorityService.GetUserLevelAuthByIdAsync(Id.Value);
+                UserAuthorityVMs = existing;
+            }
+            else
+            {
+                UserAuthorityVMs = new UserAuthorityVM();
+            }
+        }
+        catch (Exception ex)
+        {
+            UserAuthorityVMs = new UserAuthorityVM();
+            await LoggingService.LogDeveloperError(ex, $"LoadUserAuthority failed. {ex.Message}");
+            await _js.ToastrError("An error occurred while loading the user authority.");
+        }
+    }
+
+    private async Task OnUserChanged(ChangeEventArgs e)
+    {
+        isProcessing = true;
+
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out int selectedUserId) || selectedUserId == 0)
+            {
+                UserAuthorityVMs.UserId = null;
+                await _js.ToastrInfo("Please select a valid user.");
+                return;
+            }
+
+            UserAuthorityVMs.UserId = selectedUserId;
+
+            var existingAuthority = await userAuthorityService.GetUserLevelAuthByUserIdAsync(selectedUserId);
+
+            if (existingAuthority != null)
+            {
+                UserAuthorityVMs = existingAuthority;
+
+                await _js.ToastrSuccess($"Loaded authorization for user: {existingAuthority.UserName}");
+            }
+            else
+            {
+                UserAuthorityVMs = new UserAuthorityVM
+                {
+                    UserId = selectedUserId
+                };
+
+                await _js.ToastrInfo("No authorization found. You can create a new one.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnUserChanged failed.");
+            await _js.ToastrError("An error occurred while selecting the user.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UpsertUserAuthority()
+    {
+        if (isProcessing) // Prevent double click save
+            return;
+
+        isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var isValid = await ValidateUserAuthority();
+            if (!isValid)
+                return;
+
+            bool isNew = UserAuthorityVMs.Id == 0;
+
+            await userAuthorityService.UpsertUserAuthAsync(UserAuthorityVMs);
+
+            await _js.ToastrSuccess(isNew
+                ? "Authority Manage Master created successfully"
+                : "Authority Manage Master updated successfully");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/userLevelAuthorization");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertUserAuthority Save Error");
+            await _js.ToastrError("Something went wrong while saving data.");
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+
+
+    private async Task<bool> ValidateHierarchyLevel(string moduleName, bool isEnabled, string? selectedLevel, Func<UserAuthorityVM, string?> levelSelector)
+    {
+        if (!isEnabled)
+            return true;
+
+        if (string.IsNullOrWhiteSpace(selectedLevel))
+        {
+            await _js.ToastrError($"Please select {moduleName} Level.");
+            return false;
+        }
+
+        selectedLevel = selectedLevel.Trim();
+
+        if (selectedLevel == "Level1")
+            return true;
+
+        var allUsers = await userAuthorityService.GetAllUserAuthoritiesAsync();
+
+        // Exclude current user
+        var otherUsers = allUsers
+            .Where(x => x.UserId != UserAuthorityVMs.UserId)
+            .ToList();
+
+        bool hasLevel1 = otherUsers.Any(x => levelSelector(x) == "Level1");
+        bool hasLevel2 = otherUsers.Any(x => levelSelector(x) == "Level2");
+
+        if (selectedLevel == "Level2")
+        {
+            if (!hasLevel1)
+            {
+                await _js.ToastrWarning($"{moduleName}: Please configure a Level 1 approver before assigning Level 2.");
+                return false;
+            }
+        }
+
+        if (selectedLevel == "Level3")
+        {
+            if (!hasLevel1 || !hasLevel2)
+            {
+                await _js.ToastrWarning($"{moduleName}: Please configure Level 1 and Level 2 approvers before assigning Level 3.");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private async Task<bool> ValidateUserAuthority()
+    {
+        if (!UserAuthorityVMs.UserId.HasValue)
+        {
+            await _js.ToastrError("Please select a user.");
+            return false;
+        }
+
+        // Manufacturing Quotation
+        if (!await ValidateHierarchyLevel("Manufacturing Quotation", UserAuthorityVMs.IsMfgQuote, UserAuthorityVMs.IsMfgQuoteLevel, x => x.IsMfgQuoteLevel))
+            return false;
+
+        //Sales Purchase Order
+        if (!await ValidateHierarchyLevel("Sales Order", UserAuthorityVMs.IsSalesPo, UserAuthorityVMs.IsSalesPoLevel, x => x.IsSalesPoLevel))
+            return false;
+
+        // Purchase Requisition
+        if (!await ValidateHierarchyLevel("Purchase Requisition", UserAuthorityVMs.IsPR, UserAuthorityVMs.IsPRLevel, x => x.IsPRLevel))
+            return false;
+
+        // Purchase Order
+        if (!await ValidateHierarchyLevel("Purchase Order", UserAuthorityVMs.IsPO, UserAuthorityVMs.IsPOLevel, x => x.IsPOLevel))
+            return false;
+
+        // Purchase SCN
+        if (!await ValidateHierarchyLevel("Purchase SCN", UserAuthorityVMs.IsPurchSCN, UserAuthorityVMs.IsPurchSCNLevel, x => x.IsPurchSCNLevel))
+            return false;
+
+        // Sub Contract SCN
+        if (!await ValidateHierarchyLevel("Sub-Contract SCN", UserAuthorityVMs.IsSubConSCN, UserAuthorityVMs.IsSubConSCNLevel, x => x.IsSubConSCNLevel))
+            return false;
+
+        // Production Assembly
+        if (!await ValidateHierarchyLevel("Production Assembly SCN", UserAuthorityVMs.IsProdAssySCN, UserAuthorityVMs.IsProdAssySCNLevel, x => x.IsProdAssySCNLevel))
+            return false;
+
+        // Production Component
+        if (!await ValidateHierarchyLevel("Production Component SCN", UserAuthorityVMs.IsProdCompSCN, UserAuthorityVMs.IsProdCompSCNLevel, x => x.IsProdCompSCNLevel))
+            return false;
+
+        // Labour
+        if (!await ValidateHierarchyLevel("Labour SCN", UserAuthorityVMs.IsLabourSCN, UserAuthorityVMs.IsLabourSCNLevel, x => x.IsLabourSCNLevel))
+            return false;
+
+        // Route Card
+        if (!await ValidateHierarchyLevel("Route Card", UserAuthorityVMs.IsRc, UserAuthorityVMs.IsRcLevel, x => x.IsRcLevel))
+            return false;
+
+        // Leave
+        if (!await ValidateHierarchyLevel("Leave Authorization", UserAuthorityVMs.IsLeave, UserAuthorityVMs.IsLeaveLevel, x => x.IsLeaveLevel))
+            return false;
+
+        return true;
+    }
+
+
+
+
+
+}

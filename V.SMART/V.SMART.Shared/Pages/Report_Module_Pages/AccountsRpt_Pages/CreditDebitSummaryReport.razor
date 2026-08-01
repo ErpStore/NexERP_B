@@ -1,0 +1,1517 @@
+﻿@page "/creditdebitSummaryReport"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITaxDetailsReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.AccountsReportViewModel
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+@inject ICustomerService customerService
+@inject IVendorService vendorService
+@inject ExcelExportService ExcelExportService
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService CurrentUserService
+@inject ICreditDebitSummaryService creditDebitSummaryService
+
+<style>
+    .table-heading th {
+        background-color: #C8ACD6 !important;
+        color: black !important;
+    }
+
+    .form-control:focus {
+        box-shadow: 0 0 0 .25rem rgba(99,102,241,.15);
+    }
+
+    .table tbody tr {
+        transition: .25s;
+    }
+
+        .table tbody tr:hover {
+            background: #eef2ff;
+            transform: scale(1.002);
+        }
+
+    .table td,
+    .table th {
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    .table {
+        border-radius: 15px;
+        overflow: hidden;
+    }
+
+    .report-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 18px;
+        border-radius: 16px;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all .25s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,.10);
+    }
+
+        .report-card:hover {
+            transform: translateY(-2px);
+        }
+
+    .sales-card {
+        background: linear-gradient(135deg,#2563eb,#1d4ed8);
+    }
+
+    .purchase-card {
+        background: linear-gradient(135deg,#16a34a,#15803d);
+    }
+</style>
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        @* <div class="card shadow-sm border-1"> *@
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="CreditDebitNote Summary Report"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@CreditDebitSummaryBreadcrumbs" />
+
+            @* <div class="card-body bg-light"> *@
+            <div class="card-body" style="background:linear-gradient(180deg,#f8fafc,#eef2ff);">
+                <div class="card shadow-sm border-0 h-100">
+
+                    <div class="card border-0 shadow-sm rounded-4 mb-3">
+                        <div class="row g-3 mb-3">
+
+                            <!-- DATE RANGE -->
+                            @* <div class="col-md-3"> *@
+                                <div class="col-lg-3 col-md-4">
+
+                                <div class="card border-0 shadow-sm rounded-4 h-100">
+
+                                    <div class="card-header py-2 text-white fw-semibold"
+                                        
+                                        style="background:linear-gradient(135deg,#2563eb,#4f46e5);">
+                                        <i class="bi bi-calendar-range-fill me-2"></i>
+                                        Date Range
+                                    </div>
+
+                                    <div class="card-body shadow-sm p-4">
+
+                                        <label class="small fw-semibold">From Date</label>
+
+                                        <InputDate @bind-Value="FromDate" class="form-control shadow-sm mb-4 py-2 rounded-3" />
+                                        <label class="small fw-semibold">To Date</label>
+
+                                        <InputDate @bind-Value="ToDate" class="form-control shadow-sm mb-4 py-2 rounded-3" />
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- REPORT TYPE -->
+                                <div class="col-lg-9 col-md-8">
+
+                                <div class="card border-0 shadow-sm rounded-4 h-100">
+
+                                    <div class="card-header py-2 text-white fw-semibold"
+                                        
+                                        style="background:linear-gradient(135deg,#7c3aed,#c026d3);">
+                                        <i class="bi bi-sliders me-2"></i>
+                                        Report Configuration
+                                    </div>
+
+                                    <div class="card-body p-3">
+                                            <!-- Report Type -->
+ 
+                                        <div class="row g-4 align-items-start">
+                                            <div class="col-lg-4">
+                                                <label class="small fw-bold mb-2">Report Type</label>
+
+                                                <div class="d-grid gap-3">
+
+                                                    <!-- SALES -->
+                                                    <input type="radio"
+                                                           class="btn-check"
+                                                           name="reportType"
+                                                           id="sales"
+                                                           checked="@(SelectedReportType == "Sales")"
+                                                           @onchange='async e => await ChangeReportType("Sales")' />
+
+                                                    <label class="report-card sales-card" for="sales">
+                                                        <span>
+                                                            <i class="bi bi-graph-up-arrow me-2"></i>
+                                                            Sales
+                                                        </span>
+
+                                                        <span>
+                                                            @if (SelectedReportType == "Sales")
+                                                            {
+                                                                <i class="bi bi-check-circle-fill fs-5 text-white"></i>
+                                                            }
+                                                            else
+                                                            {
+                                                                <i class="bi bi-circle fs-5 text-white"></i>
+                                                            }
+                                                        </span>
+                                                    </label>
+
+                                                    <!-- PURCHASE -->
+                                                    <input type="radio"
+                                                           class="btn-check"
+                                                           name="reportType"
+                                                           id="purchase"
+                                                           checked="@(SelectedReportType == "Purchase")"
+                                                           @onchange='async e => await ChangeReportType("Purchase")' />
+
+                                                    <label class="report-card purchase-card" for="purchase">
+                                                        <span>
+                                                            <i class="bi bi-cart-check me-2"></i>
+                                                            Purchase
+                                                        </span>
+
+                                                        <span>
+                                                            @if (SelectedReportType == "Purchase")
+                                                            {
+                                                                <i class="bi bi-check-circle-fill fs-5 text-white"></i>
+                                                            }
+                                                            else
+                                                            {
+                                                                <i class="bi bi-circle fs-5 text-white"></i>
+                                                            }
+                                                        </span>
+                                                    </label>
+
+                                                </div>
+                                            </div>
+
+                                            <!-- Party Name -->
+                                      
+                                            <div class="col-lg-8">
+
+                                                <label class="small fw-bold">Party Name</label>
+
+                                                <input class="form-control rounded-pill shadow-sm border-0"
+                                                        placeholder="Search Party Name..."
+                                                        value="@partySearch"
+                                                        @oninput="OnPartySearchChange" />
+                                        
+                                                <div class="bg-white rounded-4 shadow-sm mt-3 p-3 border"
+                                                     style="height:200px;
+                                                        width:100%;
+                                                        overflow-y:auto;
+                                                        overflow-x:auto;
+                                                        white-space:nowrap;">
+
+                                                    <!-- ALL -->
+                                                    <div class="dropdown-item cursor-pointer
+                                                         @(SelectedParty == "ALL" ? "text-white fw-bold" : "")"
+                                                         style="@(SelectedParty == "ALL" ? "background-color:#815355;" : "")"
+                                                         @onclick='() => SelectParty("ALL")'>
+                                                        ALL
+                                                    </div>
+
+                                                    @foreach (var item in FilteredItems)
+                                                    {
+                                                        <div class="dropdown-item cursor-pointer
+                                                             @(SelectedParty == item.Customer ? "text-white fw-bold" : "")"
+                                                             style="@(SelectedParty == item.Customer ? "background-color:#815355;" : "")"
+                                                             @onclick='() => SelectParty(item.Customer)'>
+
+                                                            @item.Customer
+
+                                                        </div>
+                                                    }
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(SelectedParty) || IsAllSelected)
+                    {
+                        <div class="card shadow-sm mt-3">
+                            <div class="card shadow-sm border-0">
+                                <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2"
+                                     style="background:#744577">
+
+                                    <!-- TITLE -->
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-file-earmark-text me-2"></i> CreditDebitNote Summary Report
+                                    </h6>
+
+                                    <div class="card-header text-white" style="background:#744577">
+
+                                        <div class="row align-items-center gy-2">
+                                            <!-- RIGHT SIDE -->
+                                            <div class="col-12 col-lg">
+                                                <div class="row g-2 justify-content-lg-end">
+
+                                                    <!-- SEARCH -->
+                                                    <div class="col-12 col-md-5">
+                                                        <div class="input-group shadow-sm rounded-3 overflow-hidden border">
+                                                            <span class="input-group-text bg-white border-0">
+                                                                <i class="bi bi-search text-muted"></i>
+                                                            </span>
+
+                                                            <input type="text"
+                                                                   class="form-control border-start-0"
+                                                                   placeholder="Search InvoiceNo., Customer, Vendor..."
+                                                                   @bind="searchText"
+                                                                   @bind:event="oninput" />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- COLUMN MENU -->
+                                                    <div class="col-12 col-md-auto">
+                                                        <div class="dropdown w-100">
+                                                            <button class="btn btn-light text-dark shadow-sm rounded-pill px-4 w-100"
+                                                                    type="button"
+                                                                    data-bs-toggle="dropdown">
+                                                                <i class="bi bi-layout-three-columns me-1"></i>
+                                                                Manage Columns
+                                                            </button>
+
+                                                            <ul class="dropdown-menu p-3 shadow border-0 rounded-4"
+                                                                style="max-height:300px; overflow:auto; min-width:260px;">
+
+                                                                @foreach (var col in Columns.Where(c => !c.IsDetailColumn || IsDetailView))
+                                                                {
+                                                                    <li class="mb-2">
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input"
+                                                                                   type="checkbox"
+                                                                                   checked="@col.IsVisible"
+                                                                                   @onchange="async e => await OnColumnChanged(col, e.Value)" />
+
+                                                                            <label class="form-check-label small fw-semibold">
+                                                                                @col.Title
+                                                                            </label>
+                                                                        </div>
+                                                                    </li>
+                                                                }
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- PRINT -->
+                                                    <div class="col-12 col-md-auto">
+                                                        <button class="btn btn rounded-pill px-4 fw-semibold border-0"
+                                                                style="background:linear-gradient(135deg,#059669,#10b981); color:white;"
+                                                                id="btnPrint"
+                                                                @onclick="Print">
+                                                            <i class="bi bi-file-earmark-excel-fill me-2"></i>
+                                                            Print
+                                                        </button>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-0">
+
+                                    <div class="table-responsive">
+
+
+                                        <table class="table table-hover table-striped table-bordered align-middle"
+                                               style="min-width:3500px;">
+
+                                            <thead style="background:linear-gradient(135deg,#1e293b,#334155);color:white;">
+                                                <tr>
+
+                                                    @if (IsColumnVisible("SlNo"))
+                                                    {
+                                                        <th style="min-width:80px;">Sl No</th>
+                                                    }
+
+                                                    @if (IsColumnVisible("Customer"))
+                                                    {
+                                                        <th style="min-width:250px;">Customer</th>
+                                                    }
+
+                                                    @if (IsColumnVisible("Type"))
+                                                    {
+                                                        <th style="min-width:140px;">Type</th>
+                                                    }
+
+                                                    @if (IsColumnVisible("InvoiceNo"))
+                                                    {
+                                                        <th style="min-width:180px;">Invoice No</th>
+                                                    }
+
+                                                    @if (IsColumnVisible("InvoiceDate"))
+                                                    {
+                                                        <th style="min-width:140px;">Invoice Date</th>
+                                                    }
+
+                                                    @if (IsColumnVisible("TotalBasicAmount"))
+                                                    {
+                                                        <th style="min-width:180px;" class="text-end">
+                                                            Total Basic Amount
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("DiscountPercent"))
+                                                    {
+                                                        <th style="min-width:140px;" class="text-end">
+                                                            Discount %
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("DiscountAmount"))
+                                                    {
+                                                        <th style="min-width:180px;" class="text-end">
+                                                            Discount Amount
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("TotalGrossAmount"))
+                                                    {
+                                                        <th style="min-width:180px;" class="text-end">
+                                                            Total Gross Amount
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("FreightCharges"))
+                                                    {
+                                                        <th style="min-width:160px;" class="text-end">
+                                                            Freight Charges
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("PackingPercent"))
+                                                    {
+                                                        <th style="min-width:140px;" class="text-end">
+                                                            Packing %
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("PackingCharges"))
+                                                    {
+                                                        <th style="min-width:170px;" class="text-end">
+                                                            Packing Charges
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("InsurancePercent"))
+                                                    {
+                                                        <th style="min-width:150px;" class="text-end">
+                                                            Insurance %
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("InsuranceCharges"))
+                                                    {
+                                                        <th style="min-width:180px;" class="text-end">
+                                                            Insurance Charges
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("TotalTaxable"))
+                                                    {
+                                                        <th style="min-width:170px;" class="text-end">
+                                                            Total Taxable
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("CGstRate"))
+                                                    {
+                                                        <th style="min-width:130px;" class="text-end">
+                                                            CGST Rate
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("TotalCGSTAmount"))
+                                                    {
+                                                        <th style="min-width:180px;" class="text-end">
+                                                            CGST Amount
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("SGstRate"))
+                                                    {
+                                                        <th style="min-width:130px;" class="text-end">
+                                                            SGST Rate
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("TotalSGSTAmount"))
+                                                    {
+                                                        <th style="min-width:180px;" class="text-end">
+                                                            SGST Amount
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("IGstRate"))
+                                                    {
+                                                        <th style="min-width:130px;" class="text-end">
+                                                            IGST Rate
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("TotalIGSTAmount"))
+                                                    {
+                                                        <th style="min-width:180px;" class="text-end">
+                                                            IGST Amount
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("TCSPercent"))
+                                                    {
+                                                        <th style="min-width:130px;" class="text-end">
+                                                            TCS %
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("TCSAmount"))
+                                                    {
+                                                        <th style="min-width:170px;" class="text-end">
+                                                            TCS Amount
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("OtherCharges"))
+                                                    {
+                                                        <th style="min-width:170px;" class="text-end">
+                                                            Other Charges
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("GrandTotal"))
+                                                    {
+                                                        <th style="min-width:180px;" class="text-end">
+                                                            Grand Total
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("CreditAmt"))
+                                                    {
+                                                        <th style="min-width:200px;" class="text-end">
+                                                            Credit/Debit Amount
+                                                        </th>
+                                                    }
+
+                                                    @if (IsColumnVisible("MainRemark"))
+                                                    {
+                                                        <th style="min-width:350px;">
+                                                            Remark
+                                                        </th>
+                                                    }
+
+                                                </tr>
+
+                                            </thead>
+
+                                            <tbody>
+
+                                                @foreach (var item in FilteredCreditDebitSumData)
+                                                {
+                                                    <tr>
+                                                        @if (IsColumnVisible("SlNo"))
+                                                        {
+                                                            <td>@item.SlNo</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("Customer"))
+                                                        {
+                                                            <td>@item.Customer</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("Type"))
+                                                        {
+                                                            <td>
+                                                                <span class="badge @(item.Type switch
+                                                                      {
+                                                                          "Sales" => "rounded-pill px-3 py-2 bg-success",
+                                                                          "Labour" => "rounded-pill px-3 py-2 bg-warning text-dark",
+                                                                          "Purchase" => "rounded-pill px-3 py-2 bg-primary",
+                                                                          "SubContract" => "rounded-pill px-3 py-2 bg-danger",
+                                                                          _ => "bg-secondary"
+                                                                      })">
+                                                                    @item.Type
+                                                                </span>
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("InvoiceNo"))
+                                                        {
+                                                            <td>@item.InvoiceNo</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("InvoiceDate"))
+                                                        {
+                                                            <td>@item.InvoiceDate?.ToString("dd/MM/yyyy")</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalBasicAmount"))
+                                                        {
+                                                            <td class="text-end">@item.TotalBasicAmount?.ToString("N2")</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("DiscountPercent"))
+                                                        {
+                                                            <td class="text-end">@item.DiscountPercent?.ToString("N2")</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("DiscountAmount"))
+                                                        {
+                                                            <td class="text-end">@item.DiscountAmount?.ToString("N2")</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalGrossAmount"))
+                                                        {
+                                                            <td class="text-end">@item.TotalGrossAmount?.ToString("N2")</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("FreightCharges"))
+                                                        {
+                                                            <td class="text-end">@item.FreightCharges?.ToString("N2")</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("PackingPercent"))
+                                                        {
+                                                            <td class="text-end">@item.PackingPercent?.ToString("N2")</td>
+                                                        }
+
+                                                        @if (IsColumnVisible("PackingCharges"))
+                                                        {
+                                                            <td class="text-end">@item.PackingCharges?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("InsurancePercent"))
+                                                        {
+                                                            <td class="text-end">@item.InsurancePercent?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("InsuranceCharges"))
+                                                        {
+                                                            <td class="text-end">@item.InsuranceCharges?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("TotalTaxable"))
+                                                        {
+                                                            <td class="text-end">@item.TotalTaxable?.ToString("N2")</td>
+                                                        }
+                                                       
+                                                        @if (IsColumnVisible("CGstRate"))
+                                                        {
+                                                            <td class="text-end">@item.CGstRate?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("TotalCGSTAmount"))
+                                                        {
+                                                            <td class="text-end">@item.TotalCGSTAmount?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("SGstRate"))
+                                                        {
+                                                            <td class="text-end">@item.SGstRate?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("TotalSGSTAmount"))
+                                                        {
+                                                            <td class="text-end">@item.TotalSGSTAmount?.ToString("N2")</td>
+                                                        }
+                                                       
+                                                        @if (IsColumnVisible("IGstRate"))
+                                                        {
+                                                            <td class="text-end">@item.IGstRate?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("TotalIGSTAmount"))
+                                                        {
+                                                            <td class="text-end">@item.TotalIGSTAmount?.ToString("N2")</td>
+                                                        }
+                                                       
+                                                        @if (IsColumnVisible("TCSPercent"))
+                                                        {
+                                                            <td class="text-end">@item.TCSPercent?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("TCSAmount"))
+                                                        {
+                                                            <td class="text-end">@item.TCSAmount?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("OtherCharges"))
+                                                        {
+                                                            <td class="text-end">@item.OtherCharges?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("GrandTotal"))
+                                                        {
+                                                            <td class="text-end">@item.GrandTotal?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("CreditAmt"))
+                                                        {
+                                                            <td class="text-end">@item.CreditAmt?.ToString("N2")</td>
+                                                        }
+                                                        
+                                                        @if (IsColumnVisible("MainRemark"))
+                                                        {
+                                                            <td>@item.MainRemark</td>
+                                                        }
+
+                                                    </tr>
+                                                 }
+                                            </tbody>
+
+                                            @if (FilteredCreditDebitSumData != null && FilteredCreditDebitSumData.Any())
+                                            {
+                                                <tfoot style="background:linear-gradient(135deg,#fef3c7,#fde68a); font-weight:700;">
+                                                    <tr>
+                                                        @{
+                                                            int totalColspan = 0;
+
+                                                            if (IsColumnVisible("SlNo")) totalColspan++;
+                                                            if (IsColumnVisible("Customer")) totalColspan++;
+                                                            if (IsColumnVisible("Type")) totalColspan++;
+                                                            if (IsColumnVisible("InvoiceNo")) totalColspan++;
+                                                            if (IsColumnVisible("InvoiceDate")) totalColspan++;
+                                                        }
+
+                                                        <td colspan="@totalColspan" class="text-end fw-bold">
+                                                            Total :
+                                                        </td>
+
+                                                        @if (IsColumnVisible("TotalBasicAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.TotalBasicAmount ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("DiscountPercent"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("DiscountAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.DiscountAmount ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalGrossAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.TotalGrossAmount ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("FreightCharges"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.FreightCharges ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("PackingPercent"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("PackingCharges"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.PackingCharges ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("InsurancePercent"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("InsuranceCharges"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.InsuranceCharges ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalTaxable"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.TotalTaxable ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("CGstRate"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalCGSTAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.TotalCGSTAmount ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("SGstRate"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalSGSTAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.TotalSGSTAmount ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("IGstRate"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalIGSTAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.TotalIGSTAmount ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TCSPercent"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TCSAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.TCSAmount ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("OtherCharges"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.OtherCharges ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("GrandTotal"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.GrandTotal ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("CreditAmt"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredCreditDebitSumData.Sum(x => x.CreditAmt ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("MainRemark"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="16" class="text-center text-muted py-4">
+                                No Records Found
+                            </td>
+                        </tr>
+                    }
+
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "CreditDebit Summary Report";
+    private bool isProcessing = true;
+    private string searchText = string.Empty;
+    private bool IsDetailView { get; set; }
+    private List<PageHeader.BreadcrumbItem> CreditDebitSummaryBreadcrumbs { get; set; } = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Accounts" },
+        new PageHeader.BreadcrumbItem { Text = "CreditDebitSummary", IsLast = true }
+    };
+    private List<Customer> Customers = new();
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private List<Customer> FilteredParties = new();
+
+    private List<CustomerVM> FilteredCustomers = new();
+    private List<VendorVM> FilteredVendors = new();
+    private List<ItemVM> FilteredHSNItems = new();
+    private bool IsLoading = false;
+
+    public List<CreditNoteDebitNoteSummaryVM> CreditNoteDebitNoteSummaryVMs { get; set; } = new();
+
+    private string SelectedItemId;
+    public string SelectedItemCode { get; set; }
+    private string SelectedTopic = "";
+    public DateTime? FromDate = DateTime.Today.AddMonths(-1);
+    public DateTime? ToDate = DateTime.Today;
+
+    private List<ItemVM> ItemList = new();
+
+    private List<CreditNoteDebitNoteSummaryVM> FilteredData = new();
+    private string? UserName;
+    private int screenCode { get; set; }
+    private List<GridColumn> Columns = new();
+    private string UserId = "";
+
+
+    private List<CreditNoteDebitNoteSummaryVM> CreditDebitSummaryList = new();
+    private List<CreditNoteDebitNoteSummaryVM> FilteredCreditDebitSummaryList = new();
+
+    private List<CreditNoteDebitNoteSummaryVM> AllCreditDebitData = new();
+    private List<CreditNoteDebitNoteSummaryVM> FilteredCreditDebitSummaryData = new();
+    private bool IsAllSelected => SelectedParty == "ALL";
+    private string partySearch = "";
+    private List<CreditNoteDebitNoteSummaryVM> CreditDebitSummaryData = new();
+    private string SelectedReportType = "";
+    private string SelectedParty = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            CreditDebitSummaryData = new();
+            FilteredCreditDebitSummaryData = new();
+            await InitializeColumns(IsHidden);
+            screenCode = await creditDebitSummaryService.GetScreenCodeByScreenNameAsync(ScreenName);
+            UserName = await CurrentUserService.GetUsernameAsync();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync in Stock Positions");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // ================= MAIN COLUMNS =================
+                new() { Title = "Sl No", Field = "SlNo", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Customer", Field = "Customer", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Type", Field = "Type", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Invoice No", Field = "InvoiceNo", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Invoice Date", Field = "InvoiceDate", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Total Basic Amount", Field = "TotalBasicAmount", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Discount %", Field = "DiscountPercent", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Discount Amount", Field = "DiscountAmount", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Total Gross Amount", Field = "TotalGrossAmount", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Freight Charges", Field = "FreightCharges", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Packing %", Field = "PackingPercent", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Packing Charges", Field = "PackingCharges", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Insurance %", Field = "InsurancePercent", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Insurance Charges", Field = "InsuranceCharges", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Total Taxable", Field = "TotalTaxable", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "CGST Rate", Field = "CGstRate", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "CGST Amount", Field = "TotalCGSTAmount", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "SGST Rate", Field = "SGstRate", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "SGST Amount", Field = "TotalSGSTAmount", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "IGST Rate", Field = "IGstRate", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "IGST Amount", Field = "TotalIGSTAmount", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "TCS %", Field = "TCSPercent", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "TCS Amount", Field = "TCSAmount", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Other Charges", Field = "OtherCharges", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Grand Total", Field = "GrandTotal", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Credit/Debit Amount", Field = "CreditAmt", IsVisible = true, IsDetailColumn = false },
+                new() { Title = "Remark", Field = "MainRemark", IsVisible = true, IsDetailColumn = false }
+
+            };
+
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error loading column preferences for JobOrderList");
+            await _js.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await PreferenceService.SavePreferencesAsync(ScreenName, UserName, Columns);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in HandleColumnChange()");
+        }
+    }
+
+    private async Task OnColumnChanged(GridColumn column, object value)
+    {
+        try
+        {
+            column.IsVisible = Convert.ToBoolean(value);
+            await PreferenceService.SavePreferencesAsync(ScreenName, UserName, Columns);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error changing column");
+        }
+    }
+
+    private bool IsColumnVisible(string field)
+    {
+        return Columns.Any(x => x.Field == field && x.IsVisible);
+    }
+
+    private async Task ChangeReportType(string reportType)
+    {
+        SelectedReportType = reportType;
+        await LoadCreditDebitData();
+    }
+
+    private async Task OnReportTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            IsLoading = true;
+
+            SelectedTopic = e.Value?.ToString() ?? "";
+
+            var result = await creditDebitSummaryService.GetCreditDebitSummaryReportAsync(
+                SelectedTopic,
+                FromDate,
+                ToDate);
+
+            FilteredCreditDebitSummaryData = result?.ToList()
+                ?? new List<CreditNoteDebitNoteSummaryVM>();
+
+            int i = 1;
+
+            foreach (var item in FilteredCreditDebitSummaryData)
+            {
+                item.SlNo = i++;
+            }
+        }
+        catch (Exception ex)
+        {
+            FilteredCreditDebitSummaryData = new List<CreditNoteDebitNoteSummaryVM>();
+
+            await _logs.LogDeveloperError(ex, "Error in OnReportTypeChanged");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadCreditDebitData()
+    {
+        CreditDebitSummaryData =
+            await creditDebitSummaryService.GetCreditDebitSummaryReportAsync(
+                SelectedReportType,
+                FromDate,
+                ToDate);
+
+        FilteredCreditDebitSummaryData =
+            CreditDebitSummaryData.ToList();
+
+        int i = 1;
+
+        foreach (var item in FilteredCreditDebitSummaryData)
+        {
+            item.SlNo = i++;
+        }
+
+        SelectedParty = "ALL";
+
+        StateHasChanged();
+    }
+
+    private void ApplyHSNFilter()
+    {
+        if (SelectedParty == "ALL")
+        {
+            FilteredCreditDebitSummaryData = AllCreditDebitData.ToList();
+        }
+        else
+        {
+            FilteredCreditDebitSummaryData = AllCreditDebitData
+                .Where(x => x.Customer == SelectedParty)
+                .ToList();
+        }
+
+        StateHasChanged();
+    }
+
+    private IEnumerable<CreditNoteDebitNoteSummaryVM> FilteredItems
+    {
+        get
+        {
+            if (CreditDebitSummaryData == null)
+                return Enumerable.Empty<CreditNoteDebitNoteSummaryVM>();
+
+            return CreditDebitSummaryData
+                .Where(x =>
+                    string.IsNullOrWhiteSpace(partySearch)
+                    ||
+                    x.Customer.Contains(
+                        partySearch,
+                        StringComparison.OrdinalIgnoreCase))
+                .GroupBy(x => x.Customer)
+                .Select(g => g.First())
+                .OrderBy(x => x.Customer);
+        }
+    }
+
+    private void SelectParty(string party)
+    {
+        SelectedParty = party;
+
+        if (party == "ALL")
+        {
+            FilteredCreditDebitSummaryData =
+                CreditDebitSummaryData.ToList();
+        }
+        else
+        {
+            FilteredCreditDebitSummaryData =
+                CreditDebitSummaryData
+                .Where(x => x.Customer == party)
+                .ToList();
+        }
+
+        int i = 1;
+
+        foreach (var item in FilteredCreditDebitSummaryData)
+        {
+            item.SlNo = i++;
+        }
+
+        StateHasChanged();
+    }
+
+    IEnumerable<CreditNoteDebitNoteSummaryVM> FilteredCreditDebitSumData
+    {
+        get
+        {
+            var filtered = (FilteredCreditDebitSummaryData ?? Enumerable.Empty<CreditNoteDebitNoteSummaryVM>())
+                .Where(s =>
+                    string.IsNullOrWhiteSpace(searchText)
+                    || (!string.IsNullOrWhiteSpace(s.InvoiceNo) &&
+                        s.InvoiceNo.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrWhiteSpace(s.Customer) &&
+                        s.Customer.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrWhiteSpace(s.Type) &&
+                        s.Type.Contains(searchText, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            for (int i = 0; i < filtered.Count; i++)
+            {
+                filtered[i].SlNo = i + 1;
+            }
+
+            return filtered;
+        }
+    }
+
+    #region For Item Attachments
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            else if (confirmation == "Export")
+            {
+                await ExportCreditDebitSummaryDataToExcel(isConfirmed);
+            }
+            else
+            {
+                await _js.ToastrWarning("Unknown confirmation action.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task Print()
+    {
+        if (FilteredCreditDebitSumData == null || !FilteredCreditDebitSumData.Any())
+        {
+            await _js.ToastrWarning("Sorry, no data available to print");
+            return;
+        }
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task confirmation_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && confirmation == "Export")
+            {
+                await ExportCreditDebitSummaryDataToExcel(isConfirmed);
+                confirmation = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while handling confirmation_Click");
+
+            await _js.ToastrError("Error while exporting Tax Details");
+        }
+    }
+
+    #endregion
+
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            searchText = e.Value?.ToString() ?? "";
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while searching");
+        }
+    }
+
+    private void OnPartySearchChange(ChangeEventArgs e)
+    {
+        partySearch = e.Value?.ToString() ?? "";
+
+        FilteredHSNItems = ItemList
+            .Where(x =>
+                !string.IsNullOrWhiteSpace(x.HSNCode) &&
+                x.HSNCode.Contains(
+                    partySearch,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private async Task DateChanged()
+    {
+        if (!string.IsNullOrEmpty(SelectedTopic))
+        {
+            await LoadCreditDebitData();
+        }
+    }
+
+
+    private async Task ExportCreditDebitSummaryDataToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirm)
+                return;
+
+            if (FilteredCreditDebitSumData == null || !FilteredCreditDebitSumData.Any())
+            {
+                await _js.ToastrWarning("No data available");
+                return;
+            }
+
+            int i = 1;
+
+            foreach (var item in FilteredCreditDebitSumData)
+            {
+                item.SlNo = i++;
+            }
+
+            List<Dictionary<string, object>> exportData = new();
+
+            foreach (var item in FilteredCreditDebitSumData)
+            {
+                Dictionary<string, object> row = new();
+
+                // =========================
+                // MAIN COLUMNS
+                // =========================
+
+                if (IsColumnVisible("SlNo"))
+                    row.Add("Sl No.", item.SlNo);
+
+                if (IsColumnVisible("Customer"))
+                    row.Add("Customer", item.Customer);
+
+                if (IsColumnVisible("Type"))
+                    row.Add("Type", item.Type);
+
+                if (IsColumnVisible("InvoiceNo"))
+                    row.Add("Invoice No.", item.InvoiceNo);
+
+                if (IsColumnVisible("InvoiceDate"))
+                    row.Add("Invoice Date", item.InvoiceDate?.ToString("dd/MM/yyyy"));
+
+                if (IsColumnVisible("TotalBasicAmount"))
+                    row.Add("Total Basic Amount", item.TotalBasicAmount);
+
+                if (IsColumnVisible("DiscountPercent"))
+                    row.Add("Discount %", item.DiscountPercent);
+
+                if (IsColumnVisible("DiscountAmount"))
+                    row.Add("Discount Amount", item.DiscountAmount);
+
+                if (IsColumnVisible("TotalGrossAmount"))
+                    row.Add("Total Gross Amount", item.TotalGrossAmount);
+
+                if (IsColumnVisible("FreightCharges"))
+                    row.Add("Freight Charges", item.FreightCharges);
+
+                if (IsColumnVisible("PackingPercent"))
+                    row.Add("Packing %", item.PackingPercent);
+
+                if (IsColumnVisible("PackingCharges"))
+                    row.Add("Packing Charges", item.PackingCharges);
+
+                if (IsColumnVisible("InsurancePercent"))
+                    row.Add("Insurance %", item.InsurancePercent);
+
+                if (IsColumnVisible("InsuranceCharges"))
+                    row.Add("Insurance Charges", item.InsuranceCharges);
+
+                if (IsColumnVisible("TotalTaxable"))
+                    row.Add("Total Taxable", item.TotalTaxable);
+
+                if (IsColumnVisible("CGstRate"))
+                    row.Add("CGST Rate", item.CGstRate);
+
+                if (IsColumnVisible("TotalCGSTAmount"))
+                    row.Add("CGST Amount", item.TotalCGSTAmount);
+
+                if (IsColumnVisible("SGstRate"))
+                    row.Add("SGST Rate", item.SGstRate);
+
+                if (IsColumnVisible("TotalSGSTAmount"))
+                    row.Add("SGST Amount", item.TotalSGSTAmount);
+
+                if (IsColumnVisible("IGstRate"))
+                    row.Add("IGST Rate", item.IGstRate);
+
+                if (IsColumnVisible("TotalIGSTAmount"))
+                    row.Add("IGST Amount", item.TotalIGSTAmount);
+
+                if (IsColumnVisible("TCSPercent"))
+                    row.Add("TCS %", item.TCSPercent);
+
+                if (IsColumnVisible("TCSAmount"))
+                    row.Add("TCS Amount", item.TCSAmount);
+
+                if (IsColumnVisible("OtherCharges"))
+                    row.Add("Other Charges", item.OtherCharges);
+
+                if (IsColumnVisible("GrandTotal"))
+                    row.Add("Grand Total", item.GrandTotal);
+
+                if (IsColumnVisible("CreditAmt"))
+                    row.Add("Credit/Debit Amount", item.CreditAmt);
+
+                if (IsColumnVisible("MainRemark"))
+                    row.Add("Remark", item.MainRemark);
+                exportData.Add(row);
+            }
+
+            if (!exportData.Any())
+            {
+                await _js.ToastrWarning("No data found for export");
+
+                return;
+            }
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "CreditDebitSummary", "CreditDebit Summary List");
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.DownloadExcelAsync(base64, "CreditDebitSummary.xlsx");
+            await _js.ToastrSuccess("Excel exported successfully");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ExportCreditDebitSummaryDataToExcel");
+            await _js.ToastrError("Error while exporting CreditDebit Summary Report!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task<byte[]> CreateTemplateAsync(string sheetName, string[] headers, IEnumerable<object> data)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook();
+
+            var worksheet = workbook.Worksheets.Add(sheetName);
+
+            // HEADER
+            for (int col = 0; col < headers.Length; col++)
+            {
+                var cell = worksheet.Cell(1, col + 1);
+
+                cell.Value = headers[col];
+
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = XLColor.Yellow;
+            }
+
+            int rowIndex = 2;
+
+            foreach (var obj in data)
+            {
+                for (int col = 0; col < headers.Length; col++)
+                {
+                    var header = headers[col];
+
+                    object? value = null;
+
+                    // PROPERTY MATCH
+                    var prop = obj.GetType().GetProperty(header);
+
+                    if (prop != null)
+                    {
+                        value = prop.GetValue(obj);
+                    }
+
+                    worksheet.Cell(rowIndex, col + 1).Value =
+                        value?.ToString() ?? "";
+                }
+
+                rowIndex++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+
+            workbook.SaveAs(stream);
+
+            return stream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "CreateTemplateAsync");
+
+            await _js.ToastrError("Excel creation failed");
+
+            return Array.Empty<byte>();
+        }
+    }
+}

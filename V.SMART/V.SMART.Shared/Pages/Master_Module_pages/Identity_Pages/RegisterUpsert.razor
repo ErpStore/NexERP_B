@@ -1,0 +1,1242 @@
+﻿
+@page "/register"
+@page "/user/create"
+@page "/user/update/{UserId:int}"
+
+@using QRCoder
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAdminService
+@using V.SMART.Shared.Data.Master.Admin
+@using V.SMART.Shared.Data.Master.Admin_Module
+@using V.SMART.Shared.ViewModels.MasterViewModel.AdminViewmodel
+
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService currentUserService
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserSession userSession
+@inject IUserService userService
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@userTitle"
+                            TitleIcon="@userIcon"
+                            Breadcrumbs="@userBreadcrumbs" />
+
+                <div class="card-body p-4">
+                    <EditForm Model="UserVMs"
+                              OnValidSubmit="UpsertUser"
+                              autocomplete="off"
+                              @attributes="@(new Dictionary<string, object> { ["name"] = Guid.NewGuid().ToString() })">
+
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <ul class="nav nav-tabs mb-4">
+                            <li class="nav-item">
+                                <button class="nav-link @(activeTab == "details" ? "active" : "")" type="button" @onclick="@(() => SetTab("details"))">
+                                    <i class="bi bi-person-circle me-1"></i> User Details
+                                </button>
+                            </li>
+
+                            @if (IsAssignStatesFeatureEnabled && currentUserRole == UserRole.Administrator)
+                            {
+                                <li class="nav-item">
+                                    <button class="nav-link @(activeTab == "states" ? "active" : "")" type="button" @onclick="@(() => SetTab("states"))">
+                                        <i class="bi bi-geo-alt-fill me-1"></i> Assign State Leads
+                                    </button>
+                                </li>
+                            }
+
+                            @if (UserVMs.IsQrEnabled && currentUserRole == UserRole.Administrator)
+                            {
+                                <li class="nav-item">
+                                    <button class="nav-link @(activeTab == "qr" ? "active" : "")"
+                                            type="button"
+                                            @onclick="@(() => SetTab("qr"))">
+
+                                        <i class="bi bi-qr-code me-1"></i>
+                                        QR Login
+
+                                    </button>
+                                </li>
+                            }
+
+                        </ul>
+
+                        @if (activeTab == "details")
+                        {
+                            <div class="row g-4">
+
+                                @if (currentUserRole == UserRole.Administrator)
+                                {
+                                    <div class="col-12 mb-3">
+                                        <div class="p-3 border rounded bg-light d-flex align-items-center">
+                                            <div class="form-check me-3 mb-0">
+                                                <InputCheckbox
+                                                    @key="IsViewOnlyDisabled"
+                                                    @bind-Value="UserVMs.IsViewOnly"
+                                                    class="form-check-input"
+                                                    id="viewOnlyCheckbox"
+                                                    disabled="@IsViewOnlyDisabled" />
+                                            </div>
+
+                                            <label class="form-check-label fw-bold fs-5 flex-grow-1 mb-0" for="viewOnlyCheckbox">
+                                                View Only
+                                                <span class="ms-2" data-bs-toggle="tooltip" title="This user will have read-only access">
+                                                    <i class="bi bi-info-circle text-primary" style="cursor:pointer;"></i>
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <small class="text-success fst-italic mt-2 d-block" style="font-size: 0.9rem;">
+                                            <strong>Selecting this option restricts the user to view-only access — no create, edit, or delete permissions.</strong>
+                                        </small>
+                                    </div>
+
+                                    @if (UserVMs.IsViewOnly)
+                                    {
+                                        <!-- Show UserName textbox if ViewOnly is checked -->
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <InputText @bind-Value="UserVMs.UserName"
+                                                           class="form-control"
+                                                           id="UserName"
+                                                           placeholder="User Name"
+                                                           @attributes="@(new Dictionary<string, object>
+                                                           {
+                                                           ["autocomplete"] = "off",
+                                                            ["name"] = Guid.NewGuid().ToString()
+                                                        })" />
+                                                <label for="UserName">User Name</label>
+                                            </div>
+                                            <ValidationMessage For="@(() => UserVMs.UserName)" />
+                                        </div>
+
+                                    }
+                                    else if (UserVMs.UserId > 0)
+                                    {
+                                        <!-- Show UserName textbox if ViewOnly is checked -->
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <InputText @bind-Value="UserVMs.UserName"
+                                                           class="form-control"
+                                                           id="UserName"
+                                                           placeholder="User Name"
+                                                           @attributes="@(new Dictionary<string, object>
+                                                           {
+                                                           ["autocomplete"] = "off",
+                                                            ["name"] = Guid.NewGuid().ToString()
+                                                        })"
+                                                        readonly/>
+                                                <label for="UserName">User Name</label>
+                                            </div>
+                                            <ValidationMessage For="@(() => UserVMs.UserName)" />
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <!-- Show Staff dropdown if ViewOnly is NOT checked -->
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+
+                                                <select class="form-select"
+                                                        id="StaffId"
+                                                        @bind="UserVMs.StaffId"
+                                                        @bind:after="OnStaffChanged">
+
+                                                    <option value="">Select Staff</option>
+
+                                                    @foreach (var staff in Staffs)
+                                                    {
+                                                        <option value="@staff.StaffID">@staff.StaffName</option>
+                                                    }
+
+                                                </select>
+
+                                                <label for="StaffId">Staff</label>
+                                            </div>
+
+                                            <ValidationMessage For="@(() => UserVMs.StaffId)" />
+                                        </div>
+                                    }
+
+                                    <!-- User Role -->
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputSelect @bind-Value="UserVMs.Role" class="form-select" id="UserRole">
+                                                <option value="">Select Role</option>
+                                                @foreach (var role in Enum.GetValues(typeof(UserRole)).Cast<UserRole>())
+                                                {
+                                                    <option value="@role">@role</option>
+                                                }
+                                            </InputSelect>
+                                            <label for="UserRole">User Role</label>
+                                        </div>
+                                        <ValidationMessage For="@(() => UserVMs.Role)" />
+                                    </div>
+
+                                }
+                                else
+                                {
+                                    <!-- Non-admin readonly fields -->
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="UserVMs.UserName"
+                                                       class="form-control"
+                                                       id="UserName"
+                                                       placeholder="User Name"
+                                                       readonly
+                                                       @attributes="@(new Dictionary<string, object>
+                                                       {
+                                                       ["autocomplete"] = "off",
+                                                                                                  ["name"] = Guid.NewGuid().ToString()
+                                                                                              })" />
+                                                                                     <label for="UserName">User Name</label>
+                                                                                 </div>
+                                                                                 <ValidationMessage For="@(() => UserVMs.UserName)" />
+                                                                             </div>
+
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputSelect @bind-Value="UserVMs.Role" class="form-select" id="UserRole" disabled>
+                                                <option value="">Select Role</option>
+                                                @foreach (var role in Enum.GetValues(typeof(UserRole)).Cast<UserRole>())
+                                                {
+                                                    <option value="@role">@role</option>
+                                                }
+                                            </InputSelect>
+                                            <label for="UserRole">User Role</label>
+                                        </div>
+                                        <ValidationMessage For="@(() => UserVMs.Role)" />
+                                    </div>
+
+                                }
+
+
+
+                                <!-- Phone Number -->
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <TrimmedInputText @bind-Value="UserVMs.PhoneNumber"
+                                                          CssClass="form-control"
+                                                          id="PhoneNumber"
+                                                          placeholder="Phone Number"
+                                                          maxlength="13"
+                                                          inputmode="mobile"
+                                                          onkeypress="return (event.charCode >= 48 && event.charCode <= 57) || (event.charCode == 43 && this.selectionStart == 0)" />
+                                        <label for="PhoneNumber">Phone Number</label>
+                                    </div>
+                                    <ValidationMessage For="@(() => UserVMs.PhoneNumber)" />
+                                </div>
+
+                                <!-- Change Password Switch -->
+                                @if (UserVMs.UserId != 0)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-body py-3 d-flex align-items-center justify-content-between">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="bi bi-key-fill text-info fs-4"></i>
+                                                    <label class="form-check-label fw-semibold mb-0" for="changePasswordSwitch">
+                                                        Change Password
+                                                        <span class="badge bg-secondary ms-2">Security</span>
+                                                    </label>
+                                                </div>
+                                                <div class="form-check form-switch m-0">
+                                                    <InputCheckbox @bind-Value="UserVMs.ChangePassword"
+                                                                   class="form-check-input fs-5"
+                                                                   id="changePasswordSwitch" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+
+                                <!-- Password Fields -->
+                                @if (UserVMs.UserId == 0 || UserVMs.ChangePassword)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="UserVMs.UserPassword"
+                                                       type="password"
+                                                       class="form-control"
+                                                       id="UserPassword"
+                                                       placeholder="Password"
+                                                       autocomplete="new-password" />
+                                            <label for="UserPassword">Password</label>
+                                        </div>
+                                        <ValidationMessage For="@(() => UserVMs.UserPassword)" />
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="UserVMs.ConfirmPassword"
+                                                       type="password"
+                                                       class="form-control"
+                                                       id="ConfirmPassword"
+                                                       placeholder="Confirm Password"
+                                                       autocomplete="new-password" />
+                                            <label for="ConfirmPassword">Confirm Password</label>
+                                        </div>
+                                        <ValidationMessage For="@(() => UserVMs.ConfirmPassword)" />
+                                    </div>
+                                }
+
+                                <!-- Level Authorization -->
+                                @if (UserVMs.UserId != null && UserVMs.UserId != 0 && currentUserRole == UserRole.Administrator)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-body py-3 d-flex align-items-center justify-content-between">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="bi bi-shield-lock text-primary fs-4"></i>
+                                                    <label class="form-check-label fw-semibold mb-0" for="LevelAuthorization">
+                                                        Enable User Level Authorization
+                                                        <span class="badge bg-secondary ms-2">Access Control</span>
+                                                    </label>
+                                                </div>
+                                                <div class="form-check form-switch m-0">
+                                                    <InputCheckbox @bind-Value="UserVMs.LevelAuthorization"
+                                                                   class="form-check-input fs-5"
+                                                                   id="LevelAuthorization" />
+                                                </div>
+                                            </div>
+                                            <ValidationMessage For="@(() => UserVMs.LevelAuthorization)" class="text-danger px-3" />
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (currentUserRole == UserRole.Administrator && UserVMs.UserId != 0)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-body py-3 d-flex align-items-center justify-content-between">
+
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="bi bi-qr-code text-success fs-4"></i>
+
+                                                    <label class="form-check-label fw-semibold mb-0"
+                                                           for="QrLoginSwitch">
+
+                                                        Enable QR Login
+
+                                                        <span class="badge bg-secondary ms-2">
+                                                            Security
+                                                        </span>
+
+                                                    </label>
+                                                </div>
+
+                                                <div class="form-check form-switch m-0">
+
+                                                    <InputCheckbox @bind-Value="UserVMs.IsQrEnabled"
+                                                                   class="form-check-input fs-5"
+                                                                   id="QrLoginSwitch" />
+
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Email Config -->
+                            <h5 class="text-primary mt-5"><i class="bi bi-envelope-fill me-2"></i>E-Mail Configuration</h5>
+                            <hr />
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="UserVMs.EmailId" class="form-control" id="EmailId" placeholder="Email" />
+                                        <label for="EmailId">Email</label>
+                                    </div>
+                                    <ValidationMessage For="@(() => UserVMs.EmailId)" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="UserVMs.EmailServerName" class="form-control" id="EmailServerName" placeholder="Email Server Name" />
+                                        <label for="EmailServerName">Email Server Name</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-floating position-relative">
+                                        <input @bind="UserVMs.EmailAppPassword" type="@EmailAppPasswordInputType"
+                                               class="form-control pe-5" id="EmailAppPassword" placeholder="Email App Password" />
+                                        <label for="EmailAppPassword">Email App Password</label>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary position-absolute top-50 end-0 translate-middle-y me-2"
+                                                @onclick="() => showEmailAppPassword = !showEmailAppPassword">
+                                            <i class="fa @(showEmailAppPassword ? "fa-eye-slash" : "fa-eye")"></i>
+                                        </button>
+                                    </div>
+                                    <ValidationMessage For="@(() => UserVMs.EmailAppPassword)" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-floating position-relative">
+                                        <input @bind="UserVMs.EmailConfirmAppPassword" type="@EmailConfirmAppPasswordInputType"
+                                               class="form-control pe-5" id="EmailConfirmAppPassword" placeholder="Confirm Email App Password" />
+                                        <label for="EmailConfirmAppPassword">Confirm Email App Password</label>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary position-absolute top-50 end-0 translate-middle-y me-2"
+                                                @onclick="() => showEmailConfirmAppPassword = !showEmailConfirmAppPassword">
+                                            <i class="fa @(showEmailConfirmAppPassword ? "fa-eye-slash" : "fa-eye")"></i>
+                                        </button>
+                                    </div>
+                                    <ValidationMessage For="@(() => UserVMs.EmailConfirmAppPassword)" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="UserVMs.EmailPortNo" class="form-control" id="EmailPortNo" placeholder="Port Number" />
+                                        <label for="EmailPortNo">Email Port No</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check form-switch mt-3">
+                                        <InputCheckbox @bind-Value="UserVMs.HideManualJobOrderButton"
+                                                       class="form-check-input"
+                                                       id="HideManualJobOrderButton"
+                                                       title="When enabled, the Manual Job Order button will be hidden. By default, the button is visible." />
+
+                                        <label class="form-check-label" for="HideManualJobOrderButton">
+                                            Hide Manual Job Order Button
+                                        </label>
+                                    </div>
+                                </div>
+                                @if (userSession.UserId==1)
+                                {
+                                    <div class="col-md-3">
+                                        <div class="form-floating">
+                                            <InputNumber @bind-Value="UserVMs.TrialDays"
+                                                         class="form-control"
+                                                         id="TrialDays"
+                                                         title="@GetTrialDaysTitle()" />
+                                            <label for="TrialDays">
+                                                Trial Days
+                                            </label>
+                                            <ValidationMessage For="@(() => UserVMs.TrialDays)" />
+                                        </div>
+                                    </div>
+                                }
+                                
+                            </div>
+
+                            @if (userSession.UserId == 1)
+                            {
+                                <!-- Device Access Control -->
+                                <h5 class="text-primary mt-5"><i class="bi bi-laptop me-2"></i>User Device Settings</h5>
+                                <hr />
+
+                                <div class="row g-4">
+
+                                    <!-- Desktop -->
+                                    <div class="col-md-6">
+
+                                        <div class="card shadow-sm border-0 h-100">
+                                            <div class="card-header bg-primary text-white">
+                                                <i class="bi bi-pc-display me-2"></i>
+                                                Desktop Login
+                                            </div>
+
+                                            <div class="card-body">
+
+                                                <!-- Allow Desktop -->
+                                                <div class="form-check form-switch mb-3">
+                                                    <InputCheckbox class="form-check-input"
+                                                                   @bind-Value="UserVMs.IsDesktop" />
+                                                    <label class="form-check-label fw-semibold">
+                                                        Allow Desktop Login
+                                                    </label>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">Desktop Name</label>
+                                                    <InputText class="form-control"
+                                                               @bind-Value="UserVMs.DesktopName"
+                                                               readonly />
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label" style="display:none">Device ID</label>
+                                                    <InputText class="form-control"
+                                                               @bind-Value="UserVMs.DesktopDeviceId"
+                                                               readonly style="display:none" />
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">IP Address</label>
+                                                    <InputText class="form-control"
+                                                               @bind-Value="UserVMs.IpAddress"
+                                                               readonly />
+                                                </div>
+
+                                                <button type="button"
+                                                        class="btn btn-outline-danger btn-sm" @onclick="ResetDesktopControl">
+                                                    <i class="bi bi-arrow-repeat me-1"></i>
+                                                    Reset Desktop
+                                                </button>
+
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    <!-- Mobile -->
+                                    <div class="col-md-6">
+
+                                        <div class="card shadow-sm border-0 h-100">
+
+                                            <div class="card-header bg-success text-white">
+                                                <i class="bi bi-phone me-2"></i>
+                                                Mobile Login
+                                            </div>
+
+                                            <div class="card-body">
+
+                                                <!-- Allow Mobile -->
+                                                <div class="form-check form-switch mb-3">
+                                                    <InputCheckbox class="form-check-input"
+                                                                   @bind-Value="UserVMs.IsMobile" />
+                                                    <label class="form-check-label fw-semibold">
+                                                        Allow Mobile Login
+                                                    </label>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label" >Mobile Name</label>
+                                                    <InputText class="form-control"
+                                                               @bind-Value="UserVMs.MobileName"
+                                                               readonly />
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label" style="display:none">Device ID</label>
+                                                    <InputText class="form-control"
+                                                               @bind-Value="UserVMs.MobileDeviceId"
+                                                               readonly style="display:none" />
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">IP Address</label>
+                                                    <InputText class="form-control"
+                                                               @bind-Value="UserVMs.MobileIpAddress"
+                                                               readonly />
+                                                </div>
+
+                                                <button type="button"
+                                                        class="btn btn-outline-danger btn-sm" @onclick="ResetMobileControl">
+                                                    <i class="bi bi-arrow-repeat me-1"></i>
+                                                    Reset Mobile
+                                                </button>
+
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                                ////////////////////////////////////////////////
+
+                            }
+
+                            <div class="row g-3 mt-2">
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="UserVMs.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="CreatedDate" value="@UserVMs.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="UserVMs.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="ModifiedDate" value="@UserVMs.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                        }
+
+                        @if (activeTab == "states")
+                        {
+                            @if (IsAssignStatesFeatureEnabled && currentUserRole==UserRole.Administrator)
+                            {
+                                <div class="border rounded p-3 bg-light shadow-sm">
+                                    <h5 class="text-primary mb-3">Assign Leads to State</h5>
+
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               id="selectAllStates"
+                                               @bind="IsAllStatesSelected"
+                                               @bind:event="onchange" />
+                                        <label class="form-check-label fw-semibold text-dark" for="selectAllStates">
+                                            Select All States
+                                        </label>
+                                    </div>
+
+                                    <div style="max-height: 300px; overflow-y: auto;">
+                                        @foreach (var state in StateList)
+                                        {
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       id="state_@state.StateCode"
+                                                       value="@state.StateCode"
+                                                       @onchange="e => OnAllStateCheckboxChanged(e, state.StateCode)"
+                                                       checked="@UserVMs.StateCodes.Contains(state.StateCode)" />
+                                                <label class="form-check-label" for="state_@state.StateCode">
+                                                    @state.StateName
+                                                </label>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-warning mt-3">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    Settings > Screen management ==> Assigning states is only available when User Level Authorization is enabled.
+                                    Ann Also Administrator have only rights
+                                </div>
+                            }
+                        }
+
+
+                        @if (activeTab == "qr" && UserVMs.IsQrEnabled)
+                        {
+                            <div class="card shadow-sm border-0">
+
+                                <div class="card-header bg-primary text-white d-flex align-items-center">
+
+                                    <div>
+                                        <h5 class="mb-0">
+                                            <i class="bi bi-qr-code-scan me-2"></i>
+                                            QR Login Management
+                                        </h5>
+
+                                        <small>
+                                            Generate, Print and Manage ERP QR Login
+                                        </small>
+                                    </div>
+
+                                    <div class="ms-auto">
+
+                                        @if (UserVMs.QrToken.HasValue)
+                                        {
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                                Active
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">
+                                                <i class="bi bi-x-circle-fill"></i>
+                                                Not Generated
+                                            </span>
+                                        }
+
+                                    </div>
+
+                                </div>
+
+                                <div class="card-body">
+
+                                    <div class="row">
+
+                                        <!-- Information -->
+
+                                        <div class="col-lg-7">
+
+                                            <div class="card border shadow-sm h-100">
+
+                                                <div class="card-body">
+
+                                                    <h6 class="text-primary mb-3">
+                                                        QR Information
+                                                    </h6>
+
+                                                    <table class="table table-sm align-middle">
+
+                                                        <tbody>
+
+                                                            <tr>
+                                                                <th width="180">
+                                                                    <i class="bi bi-key"></i>
+                                                                    QR Token
+                                                                </th>
+
+                                                                <td class="text-break">
+                                                                    @(UserVMs.QrToken ?? Guid.Empty)
+                                                                </td>
+                                                            </tr>
+
+                                                            <tr>
+                                                                <th>
+                                                                    <i class="bi bi-calendar-plus"></i>
+                                                                    Created Date
+                                                                </th>
+
+                                                                <td>
+                                                                    @(UserVMs.QrCreatedDate?.ToString("dd-MMM-yyyy") ?? "--")
+                                                                </td>
+                                                            </tr>
+
+                                                            <tr>
+                                                                <th>
+                                                                    <i class="bi bi-calendar-x"></i>
+                                                                    Expiry Date
+                                                                </th>
+
+                                                                <td>
+                                                                    @(UserVMs.QrExpiryDate?.ToString("dd-MMM-yyyy") ?? "--")
+                                                                </td>
+                                                            </tr>
+
+                                                            <tr>
+                                                                <th>
+                                                                    <i class="bi bi-clock-history"></i>
+                                                                    Last Login
+                                                                </th>
+
+                                                                <td>
+                                                                    @(UserVMs.LastQrLogin?.ToString("dd-MMM-yyyy hh:mm tt") ?? "--")
+                                                                </td>
+                                                            </tr>
+
+                                                            <tr>
+                                                                <th>
+                                                                    <i class="bi bi-building"></i>
+                                                                    Production User
+                                                                </th>
+
+                                                                <td>
+
+                                                                    <div class="form-check form-switch">
+
+                                                                        <InputCheckbox @bind-Value="UserVMs.IsProductionBased"
+                                                                                       class="form-check-input" />
+
+                                                                    </div>
+
+                                                                </td>
+                                                            </tr>
+
+                                                        </tbody>
+
+                                                    </table>
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                        <!-- QR Preview -->
+
+                                        <div class="col-lg-5">
+
+                                            <div class="card border shadow-sm">
+
+                                                <div class="card-body text-center">
+
+                                                    @if (!string.IsNullOrWhiteSpace(UserVMs.QrCodeImage))
+                                                    {
+                                                        <img src="@UserVMs.QrCodeImage"
+                                                             class="img-fluid mb-3"
+                                                             style="max-height:220px;" />
+
+                                                        <h5>
+                                                            @UserVMs.UserName
+                                                        </h5>
+
+                                                        <div class="text-muted mb-3">
+                                                            ERP QR Login
+                                                        </div>
+
+                                                        <span class="badge bg-info">
+                                                            Valid Till
+                                                            @UserVMs.QrExpiryDate?.ToString("dd-MMM-yyyy")
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-qr-code display-1 text-secondary"></i>
+
+                                                        <div class="text-muted mt-3">
+                                                            QR Code Not Generated
+                                                        </div>
+                                                    }
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    <hr />
+
+                                    <div class="d-flex gap-2">
+
+                                        @if (!UserVMs.QrToken.HasValue)
+                                        {
+                                            <button class="btn btn-success"
+                                                    type="button"
+                                                    @onclick="GenerateQr">
+
+                                                <i class="bi bi-qr-code"></i>
+                                                Generate QR
+
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-warning"
+                                                    type="button"
+                                                    @onclick="RegenerateQr">
+
+                                                <i class="bi bi-arrow-repeat"></i>
+                                                Regenerate
+
+                                            </button>
+
+                                            <button class="btn btn-primary"
+                                                    type="button"
+                                                    @onclick="PrintQr">
+
+                                                <i class="bi bi-printer"></i>
+                                                Print
+
+                                            </button>
+                                        }
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        }
+
+
+                        <div class="row mt-5">
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                    <i class="bi bi-save-fill me-1"></i> @(UserVMs.UserId == 0 ? "Create" : "Update")
+                                </button>
+                            </div>
+
+                            <div class="col-md-3">
+                                <SmartBackButton OnNavigate="NavigateBack" />
+                            </div>
+                        </div>
+
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .table th {
+        color: #555;
+        font-weight: 600;
+    }
+
+    .table td {
+        color: #222;
+    }
+
+    .card {
+        border-radius: 12px;
+    }
+
+    .btn {
+        border-radius: 8px;
+    }
+</style>
+
+@code {
+
+    protected override string ScreenName => "User";
+
+    [Parameter] public int? UserId { get; set; }
+
+    private bool isProcessing = true;
+    private string activeTab = "details";
+
+    string? pdfBase64;
+
+    private UserVM UserVMs = new();
+    private List<State> StateList = new();
+    private List<Staff> Staffs = new();
+
+    private bool IsAssignStatesFeatureEnabled;
+    private UserRole currentUserRole;
+
+    private bool showEmailAppPassword;
+    private bool showEmailConfirmAppPassword;
+
+    private string EmailAppPasswordInputType => showEmailAppPassword ? "text" : "password";
+    private string EmailConfirmAppPasswordInputType => showEmailConfirmAppPassword ? "text" : "password";
+
+    private bool IsNewUser => !UserId.HasValue || UserId.Value == 0;
+    private string userTitle => (IsNewUser ? "Create" : "Update") + " User";
+
+    private List<PageHeader.BreadcrumbItem> userBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Admin Master" },
+        new PageHeader.BreadcrumbItem { Text = "User Master", IsLast = true }
+    };
+
+    private bool IsViewOnlyDisabled => UserVMs.UserId > 0 || UserVMs.StaffId > 0;
+
+    private string userIcon = "bi bi-person";
+
+    private void SetTab(string tab) => activeTab = tab;
+    //-----------------------------------------------19-06-2026-------------
+    private bool redirectToAccessDenied;
+    private bool redirectToUser;
+    //-------------------------------------------------
+
+    // ================= INIT =================
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                //19-06-2026
+                // _navigationManager.NavigateTo("/access-denied");
+                // return;
+                redirectToAccessDenied = true;
+                return;
+            }
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            currentUserRole = await userService.GetCurrentUserRoleAsync(authState.User);
+
+            if (!IsNewUser)
+            {
+                UserVMs = await userService.GetUserForEditAsync(UserId!.Value);
+
+                if (UserVMs == null)
+                {
+                    //19-06-2026
+                    // _navigationManager.NavigateTo("/user");
+                    // return;
+                    redirectToUser = true;
+                    return;
+                }
+
+                if (UserVMs.QrToken.HasValue)
+                {
+                    var qrUrl = $"{_navigationManager.BaseUri.TrimEnd('/')}/qrlogin/{UserVMs.QrToken}";
+
+                    UserVMs.QrCodeImage = GenerateQrImage(qrUrl);
+                }
+            }
+            else
+            {
+                UserVMs = await userService.GetNewUserAsync();
+                Staffs = await userService.GetAvailableStaffAsync();
+            }
+
+            StateList = await userService.GetStatesAsync();
+            IsAssignStatesFeatureEnabled = await userService.IsAssignStatesFeatureEnabledAsync();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "User Page Init Error");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // ================= STAFF AUTO FILL =================
+    private void OnStaffChanged()
+    {
+        if (UserVMs.StaffId == null || !Staffs.Any())
+            return;
+
+        var staff = Staffs.FirstOrDefault(s => s.StaffID == UserVMs.StaffId);
+
+        if (staff != null)
+        {
+            UserVMs.UserName = staff.StaffName ?? string.Empty;
+            UserVMs.PhoneNumber = staff.PhoneNo ?? string.Empty;
+        }
+    }
+
+    // ================= STATE CHECKBOX =================
+    private bool IsAllStatesSelected
+    {
+        get => StateList.Count > 0 && UserVMs.StateCodes.Count == StateList.Count;
+        set
+        {
+            if (value)
+                UserVMs.StateCodes = StateList.Select(s => s.StateCode).ToList();
+            else
+                UserVMs.StateCodes.Clear();
+        }
+    }
+
+    private void OnAllStateCheckboxChanged(ChangeEventArgs e, int stateCode)
+    {
+        if (e?.Value == null)
+            return;
+
+        bool isChecked = e.Value.ToString()?.ToLower() == "true";
+
+        if (isChecked)
+        {
+            if (!UserVMs.StateCodes.Contains(stateCode))
+                UserVMs.StateCodes.Add(stateCode);
+        }
+        else
+        {
+            UserVMs.StateCodes.Remove(stateCode);
+        }
+    }
+
+    // ================= LEVEL AUTH =================
+    private async Task OnLevelAuthorizationChanged(bool value)
+    {
+        UserVMs.LevelAuthorization = value;
+        await _js.ToastrSuccess($"Level Authorization {(value ? "Enabled" : "Disabled")}");
+    }
+
+    // ================= SAVE =================
+    private async Task UpsertUser()
+    {
+        isProcessing = true;
+
+        try
+        {
+            var isNew = IsNewUser;
+
+            if (UserVMs.TrialDays > 0)
+            {
+                UserVMs.ExpiryDate = DateTime.Today.AddDays(UserVMs.TrialDays);
+            }
+            else
+            {
+                UserVMs.ExpiryDate = null; // If ExpiryDate is nullable
+                                           // or DateTime.MaxValue / keep existing value depending on your design
+            }
+
+            await userService.UpsertUserAsync(UserVMs);
+
+            await _js.ToastrSuccess(isNew
+                ? "User created successfully"
+                : "User updated successfully");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/user");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "User Save Error");
+            await _js.ToastrError(ex.Message);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // ================= NAVIGATION =================
+    private void NavigateBack()
+    {
+        if (currentUserRole == UserRole.Administrator)
+            _navigationManager.NavigateTo("/user");
+        else
+            _navigationManager.NavigateTo("/");
+    }
+
+
+    #region Generate And Regenerate QR And Print QR
+
+    private async Task GenerateQr()
+    {
+        await SaveQrAsync(false);
+    }
+
+    private async Task RegenerateQr()
+    {
+        await SaveQrAsync(true);
+    }
+
+    private async Task SaveQrAsync(bool isRegenerate)
+    {
+        try
+        {
+            isProcessing = true;
+
+            UserVMs.QrToken = Guid.NewGuid();
+            UserVMs.IsQrEnabled = true;
+            UserVMs.QrCreatedDate = DateTime.Now;
+            UserVMs.QrExpiryDate = DateTime.Now.AddYears(1);
+
+            // string qrUrl = http://iqsmart.bhargavisofttech.co.in/qrlogin/{UserVMs.QrToken}  Example
+
+            string qrUrl = $"{_navigationManager.BaseUri.TrimEnd('/')}/qrlogin/{UserVMs.QrToken}";
+
+            UserVMs.QrCodeImage = GenerateQrImage(qrUrl);
+
+            await userService.UpsertUserAsync(UserVMs);
+
+            await _js.ToastrSuccess(
+                isRegenerate
+                    ? "QR regenerated successfully."
+                    : "QR generated successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "QR Generation Error");
+
+            await _js.ToastrError("Unable to generate QR.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private string GenerateQrImage(string text)
+    {
+        using QRCodeGenerator generator = new();
+
+        using QRCodeData data = generator.CreateQrCode(text, QRCodeGenerator.ECCLevel.Q);
+
+        PngByteQRCode qrCode = new(data);
+
+        return $"data:image/png;base64,{Convert.ToBase64String(qrCode.GetGraphic(20))}";
+    }
+
+
+    private async Task PrintQr()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (string.IsNullOrWhiteSpace(UserVMs.QrCodeImage))
+            {
+                await _js.ToastrWarning("No QR codes have been generated for this user.");
+                return;
+            }
+           
+
+            byte[] excelBytes = await userService.PrintQrCards(UserVMs.UserId);
+
+            if (excelBytes == null || excelBytes.Length == 0)
+                return;
+
+            string excelBase64 = Convert.ToBase64String(excelBytes);
+
+            await _js.InvokeVoidAsync("downloadExcelFile", excelBase64,"EmployeeQrCodes.xlsx");
+        }
+        catch (Exception ex)
+        {
+
+            await _js.ToastrError("Print Implementation pending");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+   
+
+    #endregion
+
+    //19-06-2026
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        if (redirectToAccessDenied)
+        {
+            _navigationManager.NavigateTo("/access-denied", true);
+            return;
+        }
+
+        if (redirectToUser)
+        {
+            _navigationManager.NavigateTo("/user", true);
+            return;
+        }
+    }
+    private string GetTrialDaysTitle()
+    {
+        if (UserVMs.TrialDays <= 0)
+            return "Enter the number of trial days.";
+
+        return $"The application trial license will expire after {UserVMs.TrialDays} day{(UserVMs.TrialDays > 1 ? "s" : "")} from the installation date.";
+    }
+
+    private void ResetMobileControl()
+    {
+        UserVMs.MobileDeviceId = null;
+        UserVMs.MobileName = null;
+        UserVMs.MobileIpAddress = null;
+    }
+
+    private void ResetDesktopControl()
+    {
+        UserVMs.DesktopDeviceId = null;
+        UserVMs.DesktopName = null;
+        UserVMs.IpAddress = null;
+    }
+}
+
+

@@ -1,0 +1,68 @@
+﻿@using V.SMART.Shared.ViewModels
+@inject IColumnPreferenceService PreferenceService
+
+
+<div class="row">
+
+    <div class="dropdown">
+        <button class="btn btn-sm w-100 w-md-auto dropdown-toggle"
+                type="button"
+                data-bs-toggle="dropdown"
+                style="background-color: #6a1b9a; color: #fff;">
+            Column Menu
+        </button>
+
+        <ul class="dropdown-menu p-2"
+            style="max-height: 250px; overflow-y: auto; width: max-content;">
+            @if (Columns is not null)
+            {
+                foreach (var col in Columns)
+                {
+                    <li class="form-check">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               checked="@col.IsVisible"
+                               disabled="@(!col.IsVisible && VisibleCount >= MaxVisible)"
+                               @onchange="@(() => ToggleColumn(col))" />
+
+                        <label class="form-check-label">@col.Title</label>
+                    </li>
+                }
+            }
+        </ul>
+    </div>
+
+    @* @if (ShowLimitWarning)
+    {
+        <div class="text-danger small" style="margin-top: 2px;">
+            ⚠️ Max @MaxVisible columns allowed.
+        </div>
+    } *@
+
+</div>
+@code {
+    [Parameter] public List<GridColumn> Columns { get; set; } = new();
+    [Parameter] public string ScreenName { get; set; } = "";
+    [Parameter] public string UserId { get; set; } = "";
+    [Parameter] public EventCallback<List<GridColumn>> OnChanged { get; set; }
+
+    [Parameter] public int MaxVisible { get; set; } = 7; // Change as needed
+
+    private bool ShowLimitWarning => VisibleCount >= MaxVisible;
+    private int VisibleCount => Columns.Count(c => c.IsVisible);
+
+    private async Task ToggleColumn(GridColumn col)
+    {
+        if (!col.IsVisible && VisibleCount >= MaxVisible)
+        {
+            // Optional: Replace with JS alert or Bootstrap alert
+            Console.WriteLine("Max visible column limit reached.");
+            return;
+        }
+
+        col.IsVisible = !col.IsVisible;
+
+        await PreferenceService.SavePreferencesAsync(ScreenName, UserId, Columns);
+        await OnChanged.InvokeAsync(Columns);
+    }
+}

@@ -1,0 +1,499 @@
+﻿@page "/GSTITC"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.IGSTITC
+@using V.SMART.Shared.ViewModels.ReportViewModel.GSTITCVM
+@using V.SMART.Shared.ViewModels.ReportViewModel.NewFolder
+
+@inherits BaseUserRightsComponent
+@inject IGSTITCService GSTITCService
+@inject IJSRuntime JS
+@inject NavigationManager _navigation
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-4 mt-4">
+
+        <div class="card shadow-sm">
+
+            <PageHeader TitleText="GST ITC_04"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@PoBreadcrumbs" />
+
+            <div class="card-body">
+
+                <div class="row align-items-end">
+
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">From Date</label>
+                        <InputDate @bind-Value="vm.FromDate"
+                                   class="form-control" />
+                    </div>
+
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">To Date</label>
+                        <InputDate @bind-Value="vm.ToDate"
+                                   class="form-control" />
+                    </div>
+
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">Report Type</label>
+                        <InputSelect @bind-Value="vm.ReportType"
+                                     class="form-select">
+                            <option value="0">Sub-Contract</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-2 mb-3">
+                        <button class="btn btn-primary w-100"
+                                @onclick="LoadData">
+                            <i class="bi bi-eye me-1"></i> View
+                        </button>
+                    </div>
+
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">Search</label>
+                        <input type="text"
+                               class="form-control"
+                               placeholder="Search by GST, Vendor Name, DC No"
+                               @bind="searchText"
+                               @bind:event="oninput" />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <button class="btn btn-success w-100"
+                                @onclick="DownloadExcel"
+                                disabled="@isProcessing">
+                            <i class="bi bi-printer"></i>
+                            GSTITC Print
+                        </button>
+                    </div>
+
+                </div>
+
+                @if (isProcessing)
+                {
+                    <div class="alert alert-info m-2">
+                        Loading...
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                        <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1800px; white-space:nowrap;">
+
+                            <thead class="custom-blue text-center align-middle sticky-top">
+                                <tr>
+                                    <th>Sl No.</th>
+                                    <th>GST No.</th>
+                                    <th>Vendor Name</th>
+                                    <th>State</th>
+                                    <th>Type</th>
+                                    <th>DC No.</th>
+                                    <th>DC Date</th>
+                                    <th>Item Code</th>
+                                    <th>Item Name</th>
+                                    <th>Unit</th>
+                                    <th class="text-end">Qty</th>
+                                    <th class="text-end">Taxable Amount</th>
+                                    <th class="text-end">IGST %</th>
+                                    <th class="text-end">CGST %</th>
+                                    <th class="text-end">SGST %</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @if (FilteredOutwardList.Any())
+                                {
+                                    @foreach (var row in FilteredOutwardList.Select((item, index) => new { item, index }))
+                                    {
+                                        <tr>
+                                            <td class="text-center">@(row.index + 1)</td>
+
+                                            <td>@row.item.GSTNo</td>
+
+                                            <td>@row.item.VendorName</td>
+
+                                            <td>@row.item.State</td>
+
+                                            <td>@row.item.Type</td>
+
+                                            <td>@row.item.DcNo</td>
+
+                                            <td class="text-center">
+                                                @row.item.DcDate
+                                            </td>
+
+                                            <td>@row.item.ItemCode</td>
+
+                                            <td>@row.item.ItemName</td>
+
+                                            <td class="text-center">
+                                                @row.item.MeasureUnit
+                                            </td>
+
+                                            <td class="text-end">
+                                                @row.item.Qty.ToString("N2")
+                                            </td>
+
+                                            <td class="text-end">
+                                                @row.item.TaxAmt.ToString("N2")
+                                            </td>
+
+                                            <td class="text-end">
+                                                @row.item.IGST.ToString("N2")
+                                            </td>
+
+                                            <td class="text-end">
+                                                @row.item.CGST.ToString("N2")
+                                            </td>
+
+                                            <td class="text-end">
+                                                @row.item.SGST.ToString("N2")
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="15" class="text-center text-muted py-4">
+                                            No records found
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+
+                        </table>
+
+                    </div>
+                }
+
+                <div class="table-responsive border rounded mt-5" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                    <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1800px; white-space:nowrap;">
+
+                        <thead class="custom-blue text-center align-middle sticky-top">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>GST No.</th>
+                                <th>Vendor Name</th>
+                                <th>State</th>
+                                <th>Ref DC No.</th>
+                                <th>Ref DC Date</th>
+                                <th>Item Code</th>
+                                <th>Item Name</th>
+                                <th>Unit</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Tax Amount</th>
+                                <th class="text-end">IGST</th>
+                                <th class="text-end">CGST</th>
+                                <th class="text-end">SGST</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            @if (FilteredInwardListSearch.Any())
+                            {
+                                @foreach (var row in FilteredInwardListSearch.Select((x, i) => new { x, i }))
+                                {
+                                    <tr>
+                                        <td>@(row.i + 1)</td>
+                                        <td>@row.x.GSTNo</td>
+                                        <td>@row.x.VendorName</td>
+                                        <td>@row.x.State</td>
+                                        <td>@row.x.RefDcNo</td>
+                                        <td>@row.x.RefDcDate?.ToString("dd-MM-yyyy")</td>
+                                        <td>@row.x.ItemCode</td>
+                                        <td>@row.x.ItemName</td>
+                                        <td>@row.x.MeasureUnit</td>
+                                        <td class="text-end">@row.x.Qty.ToString("N2")</td>
+                                        <td class="text-end">@row.x.TaxAmt.ToString("N2")</td>
+                                        <td class="text-end">@row.x.IGST.ToString("N2")</td>
+                                        <td class="text-end">@row.x.CGST.ToString("N2")</td>
+                                        <td class="text-end">@row.x.SGST.ToString("N2")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="14" class="text-center text-muted py-4">
+                                        No inward records found
+                                    </td>
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+
+        </div>
+
+    </div>
+}
+
+
+
+
+@code
+{
+    protected override string ScreenName => "GSTITC04";
+
+    private bool isProcessing = true;
+
+    private string searchText = string.Empty;
+    private string GSTITCSearchText = string.Empty;
+    private List<ITC04OutwardVM> OutwardList = new();
+    private List<ITC04InwardVM> InwardList = new();
+
+    private GSTITCVM vm = new()
+    {
+        FromDate = DateTime.Today.AddMonths(-1),
+        ToDate = DateTime.Today,
+        ReportType = 0
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+           // await LoadData();
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task LoadData()
+    {
+        try
+        {
+           
+            OutwardList = await GSTITCService.GetITC04OutwardDetailsAsync(vm.FromDate, vm.ToDate);
+
+            InwardList = await GSTITCService.GetITC04InwardDetailsAsync(vm.FromDate, vm.ToDate);
+
+            StateHasChanged();
+        }
+        catch (Exception ex) 
+        {
+            Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    
+    private List<PageHeader.BreadcrumbItem> PoBreadcrumbs = new()
+    {
+        new()
+        {
+            Text = "Report"
+        },
+        new()
+        {
+            Text = "Accounts"
+        },
+
+        new()
+        {
+            Text = "GST ITC_04",
+            IsLast = true
+        }
+    };
+
+    private IEnumerable<ITC04OutwardVM> FilteredOutwardList =>
+     string.IsNullOrWhiteSpace(searchText)
+         ? OutwardList
+         : OutwardList.Where(x =>
+
+             (x.GSTNo?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             (x.VendorName?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             (x.State?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             (x.Type?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             (x.DcNo?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             (x.DcDate?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             (x.ItemCode?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             (x.ItemName?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             (x.MeasureUnit?.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase) ?? false)
+
+             ||
+
+             x.Qty.ToString("N2").Contains(searchText)
+
+             ||
+
+             x.TaxAmt.ToString("N2").Contains(searchText)
+         );
+
+    private IEnumerable<ITC04InwardVM> FilteredInwardListSearch =>
+    string.IsNullOrWhiteSpace(searchText)
+        ? InwardList
+        : InwardList.Where(x =>
+
+            (x.GSTNo?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.VendorName?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.State?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.RefDcNo?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.ItemCode?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.ItemName?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.MeasureUnit?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.DcRem?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            x.Qty.ToString("N2").Contains(searchText)
+
+            ||
+
+            x.TaxAmt.ToString("N2").Contains(searchText)
+
+            ||
+
+            (x.RefDcDate?.ToString("dd-MM-yyyy")
+                .Contains(searchText) ?? false)
+
+            ||
+
+            (x.DcDate?.ToString("dd-MM-yyyy")
+                .Contains(searchText) ?? false)
+        );
+  
+
+    private async Task DownloadExcel()
+    {
+        try
+        {
+            if (vm.FromDate > vm.ToDate)
+            {
+                await JS.ToastrWarning("From Date cannot be greater than To Date.");
+
+                return;
+            }
+
+             isProcessing = true;
+
+            StateHasChanged();
+
+            var fileBytes = await GSTITCService.ExportITCReport(vm.FromDate,vm.ToDate,vm.ReportType);
+
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                await JS.ToastrWarning("No records found.");
+
+                return;
+            }
+
+            string fileName = $"GST_ITC04_{DateTime.Now:yyyyMMddHHmmss}.xlsx";
+
+            string base64 = Convert.ToBase64String(fileBytes);
+
+            await JS.InvokeVoidAsync("downloadExcelFile", base64, fileName);
+        }
+        catch (Exception ex)
+        {
+            await JS.ToastrWarning(ex.Message);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+}

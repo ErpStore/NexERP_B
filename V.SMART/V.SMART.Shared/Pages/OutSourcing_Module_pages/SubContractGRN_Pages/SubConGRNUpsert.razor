@@ -1,0 +1,3769 @@
+﻿@page "/DcSubConIncoming/create/{VendorCode:int}"
+@page "/DcSubConIncoming/update/{GRNId:int}"
+
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.ISubContractGRNService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchPoVM
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.SubContractViewModel
+@using V.SMART.Shared.ViewModels.PlanningViewModel.JobOrderViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+
+@inject ISubConGRNService subConGRNService
+@inject ReportService reportService
+@inject ILoggingService logs
+@inject IJSRuntime _js
+
+@inject NavigationManager _navigationManager
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<!--Do Detail Model-->
+<DetailsModal Title="Dc Details"
+              Columns="@DcColumns"
+              ColumnFields="@DcFields"
+              HiddenColumns="@DcHiddenColumns"
+              Data="@DcData"
+              IsVisible="@IsDcModalVisible"
+              IsVisibleChanged="@((val) => IsDcModalVisible = val)"
+              OnSelectedItems="OnDCSelectedAsync">
+</DetailsModal>
+
+<DetailsModal Title="Route Card Details"
+              Columns="@RcColumns"
+              ColumnFields="@RcFields"
+              HiddenColumns="@RcHiddenColumns"
+              Data="@RcData"
+              IsVisible="@IsRcModalVisible"
+              IsVisibleChanged="@((val) => IsRcModalVisible = val)"
+              OnSelectedItems="OnRcSelectedAsync">
+</DetailsModal>
+
+@if (!SubConGRNVMs.IsWithoutPoDc)
+{
+    <DetailsModal Title="PO Details"
+                  Columns="@PoColumns"
+                  ColumnFields="@PoFields"
+                  HiddenColumns="@PoHiddenColumns"
+                  Data="@PoData"
+                  IsVisible="@IsPoModalVisible"
+                  IsVisibleChanged="@((val) => IsPoModalVisible = val)"
+                  OnSelectedItems="@OnPoSelectedAsync">
+    </DetailsModal>
+}
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+
+    .disabled-card {
+        pointer-events: none;
+        opacity: 0.6;
+    }
+
+    .selected-card {
+        box-shadow: 0 0 0 2px rgba(25, 135, 84, 0.6);
+    }
+
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+             @if (SubConGRNVMs.Cancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+            else if (SubConGRNVMs.ShortClose)
+            {
+                <div class="cancelWatermark">SHORT CLOSED</div>
+            }
+
+
+            <PageHeader TitleText="@(SubConGRNVMs.GRNId > 0 ? "Update GRN" : "Create GRN")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@returnGRNBreadcrumbs" />
+            
+            <div class="card-body bg-light">
+                <EditForm Model="SubConGRNVMs" OnValidSubmit="UpsertSubConGRN">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <!-- Correspondence Status -->
+                    <div class="row g-3 mb-2 align-items-center">
+                        @if (SubConGRNVMs.GRNId > 0 && !string.IsNullOrWhiteSpace(SubConGRNVMs.GRNNo))
+                        {
+                            <CorrespondenceStatus ReferenceType="@ScreenName"
+                                                  ReferenceId="@SubConGRNVMs.GRNId"
+                                                  ReferenceTypeName="@SubConGRNVMs.GRNNo" />
+                        }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <!-- =================== Document Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Supplier & DC Details</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- Customer Autocomplete -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                            <div class="col-12 col-sm-9">
+                                                <MudAutocomplete T="VendorVM"
+                                                    Value="SelectedVendor"
+                                                    ValueChanged="@(async c => await OnVendorChanged(c))"
+                                                    ToStringFunc="@(c => c?.VendorName ?? string.Empty)"
+                                                    SearchFunc="SearchVendors"
+                                                    Dense="true"
+                                                    Variant="Variant.Outlined"
+                                                    Placeholder="Search Vendor"
+                                                    Title="Search at least 3 letters in Vendor"
+                                                    Class="w-100 autocomplete-sm"
+                                                    MaxItems="50"
+                                                    Clearable="true"
+                                                    ResetValueOnEmptyText="true" />
+                                            </div>
+
+                                    </div>
+
+                                    @if(PoWiseDcOut && !SubConGRNVMs.IsWithoutPoDc)
+                                    {
+                                         <div class="row g-2">
+
+                                          <!-- LEFT : PO LIST -->
+                                          <div class="col-6">
+                                              <div class="d-flex align-items-center gap-2 mb-1">
+
+                                                <!-- Search -->
+                                                <input type="text"
+                                                       class="form-control form-control-sm"
+                                                       style="flex:1;"
+                                                       placeholder="@(SubConGRNVMs.IsWithoutPoDc ? "Search Ref Dc No." : "Search PO No.")"
+                                                       @bind="SearchTextPo"
+                                                       @bind:event="oninput" />
+
+                                                <!-- Select All -->
+                                                <div class="form-check m-0">
+                                                    <input class="form-check-input"
+                                                           type="checkbox"
+                                                           checked="@IsAllPoSelected"
+                                                           @onchange="ToggleAllPO" />
+                                                    <label class="form-check-label small fw-semibold">
+                                                        All
+                                                    </label>
+                                                </div>
+
+                                            </div>
+                                         
+                                              <div class="border rounded-3 p-2 po-scroll" style="height: 90px; overflow-y: auto;">
+                                                  @if (SubConGRNVMs.IsWithoutPoDc)
+                                                  {
+                                                      @foreach (var dc in FilteredDc)
+                                                      {
+                                                          <div class="form-check border-bottom py-1 @(dc.IsSelected ? "bg-light" : "")"
+                                                               @key="dc.DcId">
+                                                              <input type="checkbox"
+                                                                     class="form-check-input"
+                                                                     id="@dc.DcId"
+                                                                     checked="@dc.IsSelected"
+                                                                     @onchange="e => OnDCCheckedChanged(dc, (bool)e.Value)" />
+                                                              <label class="form-check-label ms-1 small fw-semibold"
+                                                                     for="po_@dc.DcId">@dc.DcNo
+                                                              </label>
+                                                          </div>
+                                                      }
+
+                                                  }
+                                                  else
+                                                  {
+                                                     
+                                                          @foreach (var po in FilteredPos)
+                                                          {
+                                                              <div class="form-check border-bottom py-1 @(po.IsSelected ? "bg-light" : "")"
+                                                                   @key="po.PoId">
+                                                                  <input type="checkbox"
+                                                                         class="form-check-input"
+                                                                         id="po_@po.PoId"
+                                                                         checked="@po.IsSelected"
+                                                                         @onchange="e => OnPoCheckedChanged(po, (bool)e.Value)" />
+                                                                  <label class="form-check-label ms-1 small fw-semibold"
+                                                                         for="po_@po.PoId">@po.PONo
+                                                                  </label>
+                                                              </div>
+                                                           }
+                                                     
+                                                  }
+                                               
+                                              </div>
+                                          </div>
+
+                                          <!-- RIGHT : SCN LIST -->
+                                          <div class="col-6">
+                                              <div class="d-flex align-items-center gap-2 mb-1">
+
+                                                    <!-- Search -->
+                                                    <input type="text"
+                                                           class="form-control form-control-sm"
+                                                           style="flex:1;"
+                                                           placeholder="Search GRN No..."
+                                                           @bind="SearchTextDc"
+                                                           @bind:event="oninput" />
+
+                                                    <!-- Select All -->
+                                                    <div class="form-check m-0">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@IsAllGRNSelected"
+                                                               @onchange="ToggleAllGRN" />
+                                                        <label class="form-check-label small fw-semibold ms-1">
+                                                            All
+                                                        </label>
+                                                    </div>
+
+                                                </div>
+                                            
+
+                                              <div class="border rounded-3 p-2 po-scroll" style="height: 90px; overflow-y: auto;">
+                                                  @if (DcOuts.Count > 0)
+                                                  {
+                                                      @foreach (var scn in FilteredDc)
+                                                      {
+                                                          <div class="form-check border-bottom py-1 @(scn.IsSelected ? "bg-light" : "")"
+                                                               @key="scn.DcId">
+                                                              <input type="checkbox"
+                                                                     class="form-check-input"
+                                                                     id="scn_@scn.DcId"
+                                                                     @bind="scn.IsSelected" />
+                                                              <label class="form-check-label ms-1 small fw-semibold"
+                                                                     for="scn_@scn.DcId"> @scn.DcNo
+                                                              </label>
+                                                          </div>
+                                                      }
+                                                  }
+                                                  else
+                                                  {
+                                                      <div class="text-muted small text-center py-3">
+                                                          No Dc Outgoing available
+                                                      </div>
+                                                  }
+                                              </div>
+
+                                             <div class="text-end mt-2">
+                                                  <button type="button"
+                                                          class="btn btn-sm btn-primary"
+                                                          disabled="@(!DcOuts.Any(p => p.IsSelected))"
+                                                          @onclick="Loadpos">
+                                                      @(!SubConGRNVMs.IsWithoutPoDc ? "Load POs" : "Load GRN")
+                                                  </button>
+                                              </div>
+                                          </div>
+
+                                      </div>
+
+                                    }
+                                    else
+                                    {
+                                          <!-- DC Details -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. DC</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                @onclick="ShowDcDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> DC Details
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        @if (jobOrderPendingCount > 0)
+                                        {
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Route Card</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9 position-relative">
+                                                    <button type="button"
+                                                    class="btn btn-sm btn-warning w-100 d-flex align-items-center justify-content-center"
+                                                    @onclick="ShowRcDetails">
+                                                        <i class="bi bi-list-ul me-1"></i> Route Card Details
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+
+                                        <div class="mb-3 row">
+                                            <label class="col-12 col-sm-3 col-form-label fw-semibold text-dark pt-2">
+                                                <small>Options</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9 d-flex align-items-center gap-4">
+
+                                              @*   <!-- Rejection Switch -->
+                                                <div class="form-check form-switch"> 
+                                                    <input class="form-check-input"
+                                                           type="checkbox"
+                                                           role="switch"
+                                                           id="rejSwitch"
+                                                           checked="@SubConGRNVMs.Rejection"
+                                                           @onchange="OnRejectionChanged"
+                                                           disabled="@IsBothDisabled">
+                                                    <label class="form-check-label fw-medium 
+                                                            @(SubConGRNVMs.Rejection ? "text-danger fw-bold" : "text-dark")"
+                                                            for="rejSwitch">
+                                                            Rejection
+                                                    </label>
+                                                </div> *@
+
+                                                <!-- Return Switch -->
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input"
+                                                           type="checkbox"
+                                                           role="switch"
+                                                           id="returnSwitch"
+                                                           checked="@SubConGRNVMs.IsReturn"
+                                                           @onchange="OnReturnChanged"
+                                                           disabled="@IsBothDisabled">
+
+                                                    <label class="form-check-label fw-medium
+                                                        @(SubConGRNVMs.IsReturn ? "text-success fw-bold" : "text-dark")"
+                                                           for="returnSwitch">
+                                                        Return
+                                                    </label>
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                   @* } *@
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Production Material Issue Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Document Details</span>
+                                    @if (SubConGRNVMs.GRNId > 0 && (CanCreate || CanEdit))
+                                    {
+                                        <div class="d-flex gap-2">
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(SubConGRNVMs.Cancel ? "btn-success" : "btn-danger")"
+                                                    @onclick="Cancel">
+
+                                                @if (!SubConGRNVMs.Cancel)
+                                                {
+                                                    <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                                }
+                                            </button>
+                                            <!-- Short Close / Re-Open -->
+                                            <button type="button"
+                                                class="btn btn-sm rounded-3 @(SubConGRNVMs.ShortClose ? "btn-success" : "btn-warning")"
+                                                @onclick="() => AskToShortCloseAsync(SubConGRNVMs)"
+                                                disabled="@SubConGRNVMs.Cancel">
+
+                                                @if (!SubConGRNVMs.ShortClose)
+                                                {
+                                                    <i class="bi bi-box-seam me-1"></i>
+                                                    <span>Short Close</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Re-Open</span>
+                                                }
+                                            </button>
+                                        </div>
+                                    }
+
+
+                                </div>
+
+                                <div class="card-body">
+                                    <div class="row g-2 mb-2 align-items-stretch">
+
+                                    <!-- No Inspection -->
+                                    <div class="col-12 col-sm-4">
+                                        <div class="card shadow-sm border-2
+                                             @(SubConGRNVMs.IsNoInspection
+                                                 ? "border-success bg-success-subtle selected-card"
+                                                 : "border-light")
+                                             @(SubConGRNVMs.GRNId > 0 ? "disabled-card" : "")"
+                                             style="cursor:@(SubConGRNVMs.GRNId > 0 ? "not-allowed" : "pointer"); height:60px;"
+                                             @onclick="SubConGRNVMs.GRNId > 0 ? null : (() => ToggleNoInspection(true))">
+
+                                            <div class="card-body d-flex align-items-center justify-content-center py-2 px-2">
+                                                <i class="bi
+                                                    @(SubConGRNVMs.IsNoInspection
+                                                        ? "bi-check-circle-fill text-success"
+                                                        : "bi-circle text-muted") me-2"></i>
+
+                                                <span class="fw-semibold
+                                                    @(SubConGRNVMs.IsNoInspection
+                                                        ? "text-success"
+                                                        : "text-dark")">
+                                                    No Inspection
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Manual Selection -->
+                                    <div class="col-12 col-sm-4">
+                                        <div class="card shadow-sm border-2
+                                             @(SubConGRNVMs.IsManual
+                                                 ? "border-success bg-success-subtle selected-card"
+                                                 : "border-light")
+                                             @(SubConGRNVMs.GRNId > 0 ? "disabled-card" : "")"
+                                             style="cursor:@(SubConGRNVMs.GRNId > 0 || SubConGRNVMs.IsReturn ? "not-allowed" : "pointer"); height:60px;"
+                                             @onclick="SubConGRNVMs.GRNId > 0 || SubConGRNVMs.IsReturn ? null : (() => ToggleManualSelection(true))">
+
+                                            <div class="card-body d-flex align-items-center justify-content-center py-2 px-2">
+                                                <i class="bi
+                                                    @(SubConGRNVMs.IsManual
+                                                        ? "bi-check-circle-fill text-success"
+                                                        : "bi-circle text-muted") me-2"></i>
+
+                                                <span class="fw-semibold
+                                                    @(SubConGRNVMs.IsManual
+                                                        ? "text-success"
+                                                        : "text-dark")">
+                                                    Manual Selection
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                        @if(PoWiseDcOut)
+                                        {
+                                            <!-- Without PO -->
+                                            <div class="col-12 col-sm-4">
+                                                <div class="card shadow-sm border-2
+                                             @(SubConGRNVMs.IsWithoutPoDc
+                                                 ? "border-warning bg-warning-subtle selected-card"
+                                                 : "border-light")
+                                             @(SubConGRNVMs.GRNId > 0 ? "disabled-card" : "")"
+                                                style="cursor:@(SubConGRNVMs.GRNId > 0 ? "not-allowed" : "pointer"); height:60px;"
+                                                @onclick="SubConGRNVMs.GRNId > 0 ? null : (() => ToggleIsWithoutPoDc(true))">
+
+                                                    <div class="card-body d-flex align-items-center justify-content-center py-2 px-2">
+                                                        <i class="bi
+                                                    @(SubConGRNVMs.IsWithoutPoDc
+                                                        ? "bi-check-circle-fill text-warning"
+                                                        : "bi-circle text-muted") me-2"></i>
+
+                                                        <span class="fw-semibold
+                                                    @(SubConGRNVMs.IsWithoutPoDc
+                                                        ? "text-warning"
+                                                        : "text-dark")">
+                                                            Without PO
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+
+                                </div>
+
+                                    <!-- Party DC Details -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Party DC</small>
+                                        </label>
+
+                                        <div class="col-12 col-sm-9">
+                                            <div class="row">
+                                                <!-- Party DC No -->
+                                                <div class="col-12 col-sm-6 mb-1">
+                                                    <div class="input-group input-group-sm">
+                                                        <InputText class="form-control form-control-sm rounded-3"
+                                                                    placeholder="Party DC No."
+                                                                    maxlength="30"
+                                                                    @bind-Value="SubConGRNVMs.PartyDC" />
+                                                    </div>
+                                                    <ValidationMessage For="@(() => SubConGRNVMs.PartyDC)" />
+                                                </div>
+
+                                                <!-- Party DC Date -->
+                                                <div class="col-12 col-sm-6 mb-1">
+                                                    <div class="input-group input-group-sm">
+                                                        <InputDate class="form-control form-control-sm rounded-3"
+                                                                    @bind-Value="SubConGRNVMs.PartyDCDate" />
+                                                    </div>
+                                                    <ValidationMessage For="@(() => SubConGRNVMs.PartyDCDate)" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                    <!-- Material Return No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GRN No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                           placeholder="Material Return No."
+                                                           maxlength="30"
+                                                           @bind-Value="@SubConGRNVMs.GRNNo"
+                                                           readonly />
+
+                                                <span class="input-group-text rounded-3">@SubConGRNVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => SubConGRNVMs.GRNNo)" />
+                                            <ValidationMessage For="@(() => SubConGRNVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Material Return Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GRN Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@SubConGRNVMs.GRNDate" />
+                                            <ValidationMessage For="@(() => SubConGRNVMs.GRNDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Stores -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Add To Store</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    disabled>
+                                                    @* disabled="@(SubConGRNVMs.Rejection)"> *@
+                                                @foreach (var store in Stores)
+                                                {
+                                                    <option value="@store.StoreId"
+                                                            selected="@(store.StoreId == SubConGRNVMs.AddStoreId)">
+                                                        @store.StoreName
+                                                    </option>
+                                                }
+                                            </select>
+
+                                        </div>
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      @bind="SubConGRNVMs.MainRemark"></textarea>
+                                            <ValidationMessage For="@(() => SubConGRNVMs.MainRemark)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1"
+                                 style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Item Details</span>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0"
+                                               style="table-layout: fixed; min-width: 1500px;">
+
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:100px;">Trans Type</th>
+                                                    <th style="width:200px;">Item-Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:120px;">Return Qty</th>
+                                                    <th style="width:120px;">Unit Price</th>
+                                                    <th style="width:120px;">Possible Qty</th>
+
+                                                    @if(SubConGRNVMs.SubConGRNSubVMs.Any(x => x.RefPoSubId > 0))
+                                                    {
+                                                        <th style="width:130px;">Ref. PO No</th>
+                                                        <th style="width:130px;">Ref. PO Dt.</th>
+                                                    }
+                                                    @if(SubConGRNVMs.SubConGRNSubVMs.Any(x => x.RefRcSubId > 0))
+                                                    {
+                                                        <th style="width:130px;">RC No.</th>
+                                                        <th style="width:130px;">RC Dt.</th>
+                                                        <th style="width:130px;">Process</th>
+                                                        <th style="width:130px;">Machine Name</th>
+                                                    }
+                                                    @if(SubConGRNVMs.IsManual)
+                                                    {
+                                                        <th style="width:130px;">Ref. DC No</th>
+                                                        <th style="width:130px;">Ref. DC Dt.</th>
+                                                    }
+
+                                                    <th style="width:120px;">Cost Center</th>
+
+                                                    <th style="width:200px;">Remarks</th>
+                                                   @*  <th style="width:90px;" class="freeze-last-col text-end">Action</th> *@
+                                                    <th style="width:90px;" class="freeze-last-col">Action</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @if (SubConGRNVMs?.SubConGRNSubVMs?.Any() == true)
+                                                {
+                                                    @foreach (var subitem in SubConGRNVMs.SubConGRNSubVMs)
+                                                    {
+                                                        <tr @key="subitem">
+                                                            <td>@subitem.SlNo</td>
+
+                                                            <td>
+                                                                @subitem.TransType
+                                                            </td>
+
+                                                            <td>
+                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                    <span>@subitem.ItemCode</span>
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0 &&
+                                                                            attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                       Size="Size.Small"
+                                                                                       Color="Color.Primary"
+                                                                                       OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                       Title="@($"This item has {count} attachment(s). Click to view.")" />
+                                                                    }
+                                                                </div>
+                                                            </td>
+
+                                                            <td>@subitem.ItemName</td>
+                                                            <td>@subitem.MeasureUnit</td>
+
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Qty Returned"
+                                                                           title="Enter Quantity"
+                                                                           step="0.001"
+                                                                           @bind="subitem.Qty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" />
+                                                                    <ValidationMessage For="@(() => subitem.Qty)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @subitem.Qty
+                                                                }
+                                                            </td>
+
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Unit Price"
+                                                                           title="Enter Unit Price"
+                                                                           @bind="subitem.UnitPrice" step="any" />
+                                                                    <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @subitem.UnitPrice
+                                                                }
+                                                            </td>
+
+                                                            <td>@subitem.PossibleQty</td>
+
+                                                            @if(SubConGRNVMs.SubConGRNSubVMs.Any(x => x.RefPoSubId > 0))
+                                                            {
+                                                                <td>@subitem.RefPoNo</td>
+                                                                <td>@subitem.RefPoDate?.ToString("dd/MM/yyyy")</td>
+                                                            }
+
+                                                            @if(SubConGRNVMs.SubConGRNSubVMs.Any(x => x.RefRcSubId > 0))
+                                                            {
+                                                                <td>@subitem.RefRCNo</td>
+                                                                <td>@subitem.RefRcDate?.ToString("dd/MM/yyyy")</td>
+                                                                <td>@subitem.ProcessName</td>
+
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm"
+                                                                                value="@subitem.MachineId"
+                                                                                @onchange="e => OnMachineChanged(e, subitem)">
+                                                                            <option value="">-- Select Machine --</option>
+
+                                                                            @foreach (var machine in MachineList)
+                                                                            {
+                                                                                <option value="@machine.MachineId">
+                                                                                    @machine.MachineName
+                                                                                </option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.MachineName
+                                                                    }
+                                                                </td>
+                                                            }
+
+                                                            
+                                                            @if (SubConGRNVMs.IsManual)
+                                                            {
+                                                                <td>
+                                                                    @subitem.RefDcNo
+                                                                </td>
+
+                                                                <td>
+                                                                    @subitem.RefDCDate?.ToString("dd/MM/yyyy")
+                                                                </td>
+                                                            }
+
+
+                                                            <td>@subitem.ProjectNo</td>
+
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <InputText @bind-Value="subitem.Remarks"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter remarks" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @subitem.Remarks
+                                                                }
+                                                            </td>
+
+                                                            <td class="position-sticky end-0 bg-light text-end">
+                                                                @* <div class="d-flex justify-content-end gap-1"> *@
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                                @onclick="async () => await SaveRow(subitem)">
+                                                                            <i class="bi bi-check-lg"></i>
+                                                                        </button>
+                                                                        <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel"
+                                                                                @onclick="async () => await CancelEdit(subitem, SubConGRNVMs)">
+                                                                            <i class="bi bi-x-lg"></i>
+                                                                        </button>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                                @onclick="async () => await EditRowAsync(subitem)">
+                                                                            <i class="bi bi-pencil"></i>
+                                                                        </button>
+                                                                        <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                                @onclick="async () => await RemoveRow(subitem)">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    }
+                                                                @* </div> *@
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <tr>
+                                                        <td colspan="10" class="text-center text-muted fw-semibold" style="height:150px;">
+                                                            <div class="d-flex justify-content-center align-items-center" style="min-height:100px;">
+                                                                <i class="bi bi-info-circle me-2 text-secondary"></i>
+                                                                No items to display
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            @{
+                                                int remainingCols = 0;
+
+                                                if (SubConGRNVMs.SubConGRNSubVMs.Any(x => x.RefPoSubId > 0))
+                                                    remainingCols += 2;
+
+                                                if (SubConGRNVMs.SubConGRNSubVMs.Any(x => x.RefRcSubId > 0))
+                                                    remainingCols += 4;
+
+                                                if (SubConGRNVMs.IsManual)
+                                                    remainingCols += 2;
+
+                                                // Cost Center + Remarks + Action
+                                                remainingCols += 3;
+                                            }
+
+                                          @if (SubConGRNVMs?.SubConGRNSubVMs?.Any() == true)
+                                                {
+                                                    <tfoot class="table-warning text-dark fw-bold">
+                                                        <tr>
+                                                            <td colspan="5" class="text-end">Totals:</td>
+
+                                                            @* Filter incoming items first *@
+                                                            @{
+                                                                var inItems = SubConGRNVMs.SubConGRNSubVMs
+                                                                              .Where(x => x.TransType == "In").ToList();
+
+                                                                decimal totalQty = inItems.Sum(x => x.Qty ?? 0);
+                                                                decimal avgPrice = inItems.Any() ? inItems.Average(x => x.UnitPrice.GetValueOrDefault()) : 0;
+                                                                decimal totalPossible = inItems.Sum(x => x.PossibleQty ?? 0);
+                                                            }
+
+                                                            <td>@totalQty</td>
+                                                            <td>Avg: @avgPrice</td>
+                                                            <td>@totalPossible</td>
+                                                             <td colspan="@remainingCols"></td>
+                                                        </tr>
+                                                    </tfoot>
+                                                }
+
+                                        </table>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!--Action Buttons -->
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(SubConGRNVMs.GRNId > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                        }
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <SmartBackButton Url="/subConGrnList" />
+                        </div>
+
+                        @if (CanCreate || CanEdit && GRNId > 0)
+                        {
+                            <div class="col-12 col-md-3">
+                                <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                    <i class="bi bi-printer me-1"></i>Print
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+
+}
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Sub-Contrect GRN";
+    private int screenCode { get; set; }
+
+    [Parameter]
+    public int? GRNId { get; set; }
+
+    [Parameter]
+    public int? VendorCode { get; set; }
+
+    private bool isProcessing = true;
+    string? pdfBase64;
+
+    private SubConGRNVM SubConGRNVMs { get; set; } = new();
+
+    private SubConDcOutVM SubConDcOutVMs { get; set; } = new();
+
+    private List<Store> Stores = new();
+    public List<Machine> MachineList { get; set; } = new();
+    private VendorVM? SelectedVendor;
+    private SubConGRNSubVM? rowToDelete;
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<PageHeader.BreadcrumbItem> returnGRNBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "OutSourcing" },
+        new PageHeader.BreadcrumbItem { Text = "SubContract" },
+        new PageHeader.BreadcrumbItem { Text = "Goods Recive Note", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    //Detail Modal
+    private int jobOrderPendingCount = 0;
+    private int PurchaseOrderCount = 0;
+    private int DcOutCount = 0;
+
+    private bool IsRcModalVisible = false;
+    private List<Dictionary<string, object>>? RcData;
+    private List<string> RcColumns = new();
+    private List<string> RcFields = new();
+    private List<string> RcHiddenColumns = new();
+
+
+
+
+
+
+    #endregion
+
+    #region PO-Model
+
+    private bool IsDcModalVisible = false;
+
+    private List<Dictionary<string, object>> DcData = new();
+
+    private List<Dictionary<string, object>> AllDcData = new();
+
+    private List<string> DcColumns = new() { "DcId","DcSubId", "DC No.", "Dc Date", "ItemId",
+        "Item Code", "Item Name", "Measure Unit","CategoryCode","Category Name", "Qty", "Bal Qty", "Unit Price","Po Due Date","CostCenterId","Project No", "Remark","RefPoSubId"};
+
+    private List<string> DcFields = new() { "DcId","DcSubId", "DcNo", "DcDate", "ItemId",
+        "ItemCode", "ItemName", "MeasureUnit","CategoryCode", "CategoryName", "Qty", "BalQty",
+        "UnitPrice","PoDuedate","CostCenterId", "ProjectNo", "Remark","RefPoSubId" };
+
+    private List<string> DcHiddenColumns = new() { "DcId", "DcSubId", "ItemId", "CategoryCode", "CostCenterId" };
+
+
+    #endregion
+    #region PO-Model
+
+    string SearchTextPo = string.Empty;
+    string SearchTextDc = string.Empty;
+    private bool IsPoModalVisible = false;
+    public bool PoWiseDcOut = false;
+    private List<Dictionary<string, object>>? PoData;
+    private int poPendingCount = 0;
+
+    private List<string> PoColumns = new()
+    {
+        "PoSubId","PoId", "IsOpenPo","Trans Type","Po No", "Po Date","ItemId",
+        "Item Code", "Item Name", "UOM", "Qty", "Bal Qty", "Unit Price","Stock Qty", "Po Due Date","CostCenterId","Project No", "Remark","RCNo", "RCDt", "ProcessName"
+    };
+
+    private List<string> PoFields = new()
+    {
+        "PoSubId","PoId", "IsOpenPo", "TransType", "PoNo", "PoDate","ItemId",
+        "ItemCode", "ItemName", "UOM", "Qty", "BalQty", "UnitPrice", "StockQty", "PoDuedate","CostCenterId", "ProjectNo", "Remark", "RCNo", "RCDt", "ProcessName"
+    };
+
+    private List<string> PoHiddenColumns = new()
+    {
+        "PoSubId", "PoId", "ItemId", "CostCenterId",  "RefRcSubId","ProcessId"
+    };
+
+    private List<PurchPoVM> Pos = new();
+    private List<SubConDcOutVM> DcOuts = new();
+
+    private List<Dictionary<string, object>>? DcOutData;
+    private List<Dictionary<string, object>>? getPos = new();
+    private int DcOutPendingCount = 0;
+
+
+    IEnumerable<PurchPoVM> FilteredPos =>
+     string.IsNullOrWhiteSpace(SearchTextPo)
+     ? Pos
+     : Pos.Where(p =>
+     p.PONo.Contains(SearchTextPo, StringComparison.OrdinalIgnoreCase));
+
+    IEnumerable<SubConDcOutVM> FilteredDc =>
+       string.IsNullOrWhiteSpace(SearchTextDc)
+       ? DcOuts
+       : DcOuts.Where(p =>
+           p.DcNo.Contains(SearchTextDc, StringComparison.OrdinalIgnoreCase));
+
+    public List<int> selectedDCids { get; set; } = new();
+
+    #endregion
+    #region  Toggle Inspection
+
+    private void ToggleNoInspection(bool NoInspection)
+    {
+        if (NoInspection)
+        {
+            if (SubConGRNVMs.IsNoInspection)
+            {
+                SubConGRNVMs.IsNoInspection = false;
+            }
+            else
+            {
+                SubConGRNVMs.IsNoInspection = true;
+            }
+        }
+        else
+        {
+            SubConGRNVMs.IsNoInspection = false;
+        }
+    }
+
+    #endregion
+
+
+    #region  Toggle Manual
+
+    private void ToggleManualSelection(bool ManualSelection)
+    {
+        if (ManualSelection)
+        {
+            if (SubConGRNVMs.IsManual)
+            {
+                SubConGRNVMs.IsManual = false;
+                SubConGRNVMs.SubConGRNSubVMs.Clear();
+            }
+            else
+            {
+                SubConGRNVMs.IsManual = true;
+                SubConGRNVMs.SubConGRNSubVMs.Clear();
+            }
+        }
+        else
+        {
+            SubConGRNVMs.IsManual = false;
+            SubConGRNVMs.SubConGRNSubVMs.Clear();
+        }
+    }
+    private void ToggleIsWithoutPoDc(bool value)
+    {
+
+        if(value)
+        {
+            if(SubConGRNVMs.IsWithoutPoDc)
+            {
+                SubConGRNVMs.IsWithoutPoDc = false;
+                SubConGRNVMs.SubConGRNSubVMs.Clear();
+            }
+            else
+            {
+                SubConGRNVMs.IsWithoutPoDc = true;
+                SubConGRNVMs.SubConGRNSubVMs.Clear();
+            }
+
+
+        }
+        else
+        {
+            SubConGRNVMs.IsWithoutPoDc = false;
+            SubConGRNVMs.SubConGRNSubVMs.Clear();
+        }
+
+
+    }
+
+    #endregion
+
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            screenCode = await subConGRNService.GetScreenCodeByScreenNameAsync(ScreenName);
+           // Stores = await subConGRNService.GetAllActiveStoresAsync();
+            jobOrderPendingCount = await subConGRNService.GetPendingJobOrdersCountAsync();
+            MachineList = await subConGRNService.GetAllActiveMachinesAsync();
+            PoWiseDcOut = await subConGRNService.IsPOWiseSubConDcOutEnabledAsync();
+
+            if (GRNId.HasValue)
+            {
+                await LoadExistingSubconGRNByGRNId(GRNId.Value);
+            }
+            else
+            {
+                await InitializeNewSubconGRN();
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingSubconGRNByGRNId(int GRNId)
+    {
+        try
+        {
+            SubConGRNVMs = await subConGRNService.GetSubcontractGRNByGRNIdAsync(GRNId);
+
+            if (SubConGRNVMs == null)
+            {
+                await _js.ToastrWarning("Subcontract GRN not found.");
+                return;
+            }
+
+            SelectedVendor = await subConGRNService.GetVendorByVenerCodeAsync(SubConGRNVMs.VendorCode.Value);
+            if (SelectedVendor != null)
+                await ApplyVendorSelectionAsync(SelectedVendor);
+
+            // await ApplyCustomerSelectionAsync(SelectedVendor);
+
+            bool isReturnOrRejection =
+                SubConGRNVMs.IsReturn || SubConGRNVMs.Rejection;
+
+            foreach (var sub in SubConGRNVMs.SubConGRNSubVMs)
+
+            {
+                decimal balQty = sub.BalQty ?? 0m;
+                decimal? possibleQty = balQty;
+
+                // =====================================================
+                // 🔹 CASE 1: NORMAL FLOW (NOT Return / Rejection)
+                // =====================================================
+                if (!isReturnOrRejection && sub.RefDcSubId.HasValue && sub.RefDcSubId > 0)
+                {
+                    var issueIds = await subConGRNService.GetDcIdsByDcSubIdAsync(sub.RefDcSubId.Value);
+
+                    var issuedData = issueIds.Any()
+                        ? await subConGRNService.GetSubConGrnSubVMsByDcIdsAsync(issueIds)
+                        : new List<SubConGRNSubVM>();
+
+                    var issuedLookup = issuedData
+                        .Where(x => x.ItemId.HasValue)
+                        .ToDictionary(x => x.ItemId!.Value, x => x.BalQty ?? 0m);
+
+                    // 🔹 Assembly / Sub-Assembly
+                    if (sub.CategoryCode == 3 || sub.CategoryCode == 7)
+                    {
+                        var bomData = await _unitOfWork.AssmblyDefs
+                            .GetQueryable()
+                            .Where(x => x.AssmblyID == sub.ItemId)
+                            .Select(x => new { x.ItemId, x.UtilQty })
+                            .ToListAsync();
+
+                        decimal? minPossible = null;
+
+                        foreach (var bom in bomData)
+                        {
+                            issuedLookup.TryGetValue(bom.ItemId, out var issuedQty);
+
+                            if (bom.UtilQty > 0)
+                            {
+                                var possible = issuedQty / bom.UtilQty;
+                                minPossible = minPossible == null
+                                    ? possible
+                                    : Math.Min(minPossible.Value, possible);
+                            }
+                        }
+
+                        possibleQty = Math.Min(minPossible ?? 0m, balQty);
+                    }
+                    // 🔹 Component
+                    else if (sub.ItemId.HasValue)
+                    {
+                        if(sub.RefDcSubId>0)
+                        {
+                            possibleQty= await subConGRNService.GetDcOutBalQtyByDcSubId(sub.RefDcSubId??0);
+                        }
+                        else if(sub.RefPoSubId>0)
+                        {
+                            possibleQty= await subConGRNService.GetDcOutBalQtyByPoSubId(sub.RefPoSubId??0);
+                        }
+
+                        // issuedLookup.TryGetValue(sub.ItemId.Value, out var issuedQty);
+                        // /possibleQty = Math.Min(issuedQty, balQty);
+                        // possibleQty = issuedQty;
+                    }
+                }
+
+                // =====================================================
+                // 🔹 CASE 2: RETURN / REJECTION (RC-based)
+                // =====================================================
+                else if (!isReturnOrRejection && sub.RefRcSubId.HasValue && sub.RefRcSubId > 0)
+                {
+                    var issueIds = await subConGRNService.GetIssueIdsByRcSubIdAsync(sub.RefRcSubId.Value);
+
+                    if (issueIds.Any())
+                    {
+                        var issuedData = await subConGRNService.GetSubConGrnSubVMsByDcIdsAsync(issueIds);
+                        var rcData = await subConGRNService.GetRcDetailsByRcSubIdAsync(sub.RefRcSubId.Value);
+
+                        if (rcData != null)
+                        {
+                            decimal utility =
+                                rcData.SeqNo == 1
+                                    ? rcData.RouteCard?.RMWeight ?? 1m
+                                    : 1m;
+
+                            possibleQty = Math.Min(
+                                issuedData.Sum(x => x.BalQty ?? 0m) * utility,
+                                balQty
+                            );
+                        }
+                    }
+                }
+                else if (!isReturnOrRejection && sub.RefDcSubId.HasValue && sub.RefDcSubId > 0)
+                {
+                    decimal? issueBalQty = 0;
+
+                    // if (sub.TransType == "In")
+                    // {
+                    issueBalQty = await subConGRNService
+                        .GetIssueBalQtyByIssueSubId(sub.RefDcSubId.Value);
+                    //}
+
+                    possibleQty = issueBalQty.GetValueOrDefault();
+                }
+                // =====================================================
+                // 🔹 CASE 3: DIRECT ISSUE RETURN (IssueSub based)
+                // =====================================================
+                else if (isReturnOrRejection && sub.RefDcSubId.HasValue && sub.RefDcSubId > 0)
+                {
+                    var issueBalQty =
+                        await subConGRNService.GetIssueBalQtyByIssueSubId(sub.RefDcSubId.Value);
+
+                    possibleQty = issueBalQty.GetValueOrDefault();
+                }
+
+                // =====================================================
+                // 🔹 FINAL SAFETY
+                // =====================================================
+                if (possibleQty < 0)
+                    possibleQty = 0;
+
+                sub.PossibleQty = Math.Round(possibleQty??0, 3);
+                //sub.Qty = Math.Min(sub.Qty ?? sub.PossibleQty.Value, sub.PossibleQty.Value);
+            }
+
+            // 🔹 Attachment count
+            foreach (var prodSub in SubConGRNVMs.SubConGRNSubVMs.Where(x => x.ItemId.HasValue))
+            {
+                attachmentCounts[prodSub.ItemId.Value] =
+                    await subConGRNService
+                        .GetCorrespondenceAttachmentsCountAsync(prodSub.ItemId.Value, "Item");
+            }
+
+            IsSomeItemsTransMade = CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing Subcontract GRN.");
+            await logs.LogDeveloperError(ex,$"LoadExistingSubcontractGRN failed for GRNId: {GRNId}");
+        }
+    }
+
+
+    private bool CheckIsTransMade()
+    {
+        var list = SubConGRNVMs?.SubConGRNSubVMs
+                    .Where(x => x.TransType == "In")
+                    .ToList();
+        if (list == null || list.Count == 0)
+            return false;
+
+        decimal totalQty = 0, totalBalQty = 0;
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            totalQty += list[i].Qty.GetValueOrDefault();
+            totalBalQty += list[i].BalQty.GetValueOrDefault();
+        }
+
+        return totalQty != totalBalQty;
+    }
+
+    private async Task InitializeNewSubconGRN()
+    {
+        try
+        {
+            if (SubConGRNVMs == null)
+                SubConGRNVMs = new SubConGRNVM();
+
+            SubConGRNVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            SubConGRNVMs.GRNNo = await subConGRNService.GetSubconGRNNoAsync(SubConGRNVMs.Suffix);
+
+            var MapStoreForProdReturn = await subConGRNService.GetMappedStoreForFormAsync("SubConGRNForm");
+
+            if (MapStoreForProdReturn.StoreId > 0)
+            {
+                //////////////////vs
+                Stores.Clear();
+
+                Stores.Add(new Store
+                {
+                    StoreId = MapStoreForProdReturn.StoreId,
+                    StoreName = MapStoreForProdReturn.StoreName
+                });
+                ///////////////////
+                SubConGRNVMs.AddStoreId = MapStoreForProdReturn.StoreId;
+                SubConGRNVMs.StoreName = MapStoreForProdReturn.StoreName;
+            }
+            else
+            {
+                SubConGRNVMs.AddStoreId = null;
+                SubConGRNVMs.StoreName = null;
+            }
+
+            SelectedVendor = await subConGRNService.GetVendorByVenerCodeAsync(VendorCode.Value);
+
+            if (SelectedVendor != null)
+            {
+                await ApplyVendorSelectionAsync(SelectedVendor);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new Subcontract GRN.");
+            await logs.LogDeveloperError(ex, "InitializeNewSubconGRN failed");
+        }
+    }
+
+
+    private async Task ApplyVendorSelectionAsync(VendorVM? vendor)
+    {
+        try
+        {
+            SelectedVendor = vendor;
+            SubConGRNVMs.VendorCode = vendor?.VendorCode ?? 0;
+            SubConGRNVMs.VendorName = vendor?.VendorName;
+            SubConGRNVMs.VendorAddress = vendor?.VendorAddress;
+            SubConGRNVMs.VendorGstNo = vendor?.GSTNo;
+            SubConGRNVMs.VendorContactNo = vendor?.ContactNo;
+
+            poPendingCount = await subConGRNService.GetPendingPoCountAsync(vendor.VendorCode);
+            if(PoWiseDcOut)
+            {
+                DcOutPendingCount = await subConGRNService.GetPendingDcOutsPoCountAsync(vendor.VendorCode);
+
+                if (DcOutPendingCount>0)
+                {
+                    Pos= await subConGRNService.GetOpenPurchPosByReturnMaterialVendor(vendor.VendorCode);
+
+                }
+            }
+            //////////////////////////////////////////////////////////////
+            var MapStoreForProdReturn = await subConGRNService.GetMappedStoreForFormAsync("SubConGRNForm");
+
+            if (MapStoreForProdReturn.StoreId > 0)
+            {
+                Stores.Clear();
+
+                Stores.Add(new Store
+                {
+                    StoreId = MapStoreForProdReturn.StoreId,
+                    StoreName = MapStoreForProdReturn.StoreName
+                });
+
+                SubConGRNVMs.AddStoreId = MapStoreForProdReturn.StoreId;
+                SubConGRNVMs.StoreName = MapStoreForProdReturn.StoreName;
+            }
+            //////////////////////////////////////////////////////////////
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"ApplyVendorSelectionAsync failed for VendorCode: {vendor?.VendorCode}");
+            await _js.ToastrError("Failed to apply vendor selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Rejection And Return Toggle
+
+    private bool IsBothDisabled =>
+        SubConGRNVMs.SubConGRNSubVMs
+            ?.Any(x => !string.IsNullOrEmpty(x.ItemCode)) == true;
+
+
+    private async Task OnRejectionChanged(ChangeEventArgs args)
+    {
+        if (IsBothDisabled)
+            return;
+
+        SubConGRNVMs.Rejection = !SubConGRNVMs.Rejection;
+
+        if (SubConGRNVMs.Rejection)
+        {
+            SubConGRNVMs.IsReturn = false;
+
+            SubConGRNVMs.AddStoreId = 6;
+            SubConGRNVMs.StoreName = "REJECTION STORE";
+        }
+        else
+        {
+            var MapStoreForProdReturn = await subConGRNService.GetMappedStoreForFormAsync("PMReturnForm");
+            if (MapStoreForProdReturn.StoreId > 0)
+            {
+                SubConGRNVMs.AddStoreId = MapStoreForProdReturn.StoreId;
+                SubConGRNVMs.StoreName = MapStoreForProdReturn.StoreName;
+            }
+        }
+    }
+
+    private async Task OnReturnChanged(ChangeEventArgs args)
+    {
+        if (IsBothDisabled)
+            return;
+        try
+        {
+
+            SubConGRNVMs.IsReturn = !SubConGRNVMs.IsReturn;
+
+            if (SubConGRNVMs.IsReturn)
+            {
+                SubConGRNVMs.Rejection = false;
+                SubConGRNVMs.IsManual = true;
+                var MapStoreForProdReturn = await subConGRNService.GetMappedStoreForFormAsync("PMIssueForm");
+                if (MapStoreForProdReturn.StoreId > 0)
+                {
+                    SubConGRNVMs.AddStoreId = MapStoreForProdReturn.StoreId;
+                    SubConGRNVMs.StoreName = MapStoreForProdReturn.StoreName;
+                }
+                if (SelectedVendor.VendorCode > 0)
+                {
+                    poPendingCount = await subConGRNService.GetPendingPoCountAsync(SelectedVendor.VendorCode);
+                    if (PoWiseDcOut)
+                    {
+                        Pos = await subConGRNService.GetOpenPurchPosByReturnMaterialVendor(SelectedVendor.VendorCode);
+
+
+                    }
+
+
+
+                }
+
+            }
+            else
+            {
+                var MapStoreForProdReturn = await subConGRNService.GetMappedStoreForFormAsync("PMReturnForm");
+                SubConGRNVMs.IsManual = false;
+                if (MapStoreForProdReturn.StoreId > 0)
+                {
+                    SubConGRNVMs.AddStoreId = MapStoreForProdReturn.StoreId;
+                    SubConGRNVMs.StoreName = MapStoreForProdReturn.StoreName;
+                }
+
+                if (SelectedVendor.VendorCode>0)
+                {
+                    poPendingCount = await subConGRNService.GetPendingPoCountAsync(SelectedVendor.VendorCode);
+                    if (PoWiseDcOut)
+                    {
+                        DcOutPendingCount = await subConGRNService.GetPendingDcOutsPoCountAsync(SelectedVendor.VendorCode);
+
+                        if (DcOutPendingCount > 0)
+                        {
+                            Pos = await subConGRNService.GetOpenPurchPosWiseByVendor(SelectedVendor.VendorCode);
+
+                        }
+                    }
+
+                }
+                StateHasChanged();
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+
+        }
+    }
+
+    #endregion
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(SubConGRNSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.Qty == null || row.Qty <= 0)
+                errors.Add("Return Quantity must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = SubConGRNVMs.SubConGRNSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await logs.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await logs.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(SubConGRNSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"SaveRow failed for ReturnSubId: {item?.GRNSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(SubConGRNSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"EditRowAsync failed for ReturnSubId: {item?.GRNSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(SubConGRNSubVM? item, SubConGRNVM? parentProdReturnComp)
+    {
+        try
+        {
+            if (item == null || parentProdReturnComp == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.Qty.HasValue || item.Qty.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentProdReturnComp.SubConGRNSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"CancelEdit failed for ReturnSubId: {item?.GRNSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(SubConGRNSubVM item)
+    {
+        try
+        {
+            if (SubConGRNVMs.SubConGRNSubVMs.Count == 1 && item.GRNSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+            // Prevent deleting the last "In" transaction row
+            if (item.TransType == "In" && SubConGRNVMs.SubConGRNSubVMs.Count(x => x.TransType == "In") == 1 && item.GRNSubId > 0)
+            {
+                await _js.ToastrWarning("At least one 'In' item row is required.");
+                return;
+            }
+            // Manual mode validation
+            if (SubConGRNVMs.IsManual && item.GRNSubId > 0)
+            {
+                // Check last IN row
+                if (item.TransType == "In" &&
+                    SubConGRNVMs.SubConGRNSubVMs.Count(x => x.TransType == "In") == 1)
+                {
+                    await _js.ToastrWarning("At least one 'In' item row is required.");
+                    return;
+                }
+
+                // Check last OUT row
+                if (item.TransType == "Out" &&
+                    SubConGRNVMs.SubConGRNSubVMs.Count(x => x.TransType == "Out") == 1)
+                {
+                    await _js.ToastrWarning("At least one 'Out' item row is required.");
+                    return;
+                }
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction history.");
+                return;
+            }
+
+            // var result = await subConGRNService.ValidateDeleteAsync(item.RefRcSubId.Value, item.ItemId.Value,
+            // // item.Qty.GetValueOrDefault(), SubConGRNVMs.AddStoreId.Value);
+
+            // if (!result.IsValid)
+            // {
+            //     await _js.ToastrSuccess($"{result.Message}");
+            //     return;
+            // }
+
+            //important if Stock Add Need to check the same ScreenCode An the Correct Ref. item StockExists
+            var (addQty, balQty) = await subConGRNService.GetQtyBalQtyByStockAddAsync(
+                            screenCode,
+                            SubConGRNVMs.AddStoreId.Value,
+                            item.ItemId.Value,
+                            item.GRNSubId);
+
+            if (addQty != balQty)
+            {
+                await _js.ToastrWarning($"cannot delete item '{item.ItemCode}'. Stock already used.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                SubConGRNVMs.SubConGRNSubVMs.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                if (!SubConGRNVMs.SubConGRNSubVMs.Any())
+                    SubConGRNVMs.SubConGRNSubVMs = new List<SubConGRNSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"RemoveRow failed for ReturnSubId: {item?.GRNSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in SubConGRNVMs.SubConGRNSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+    #region Route Card Details
+
+    private async Task ConfigureJobOrderColumns()
+    {
+        bool isReturnOrRejection = SubConGRNVMs.IsReturn || SubConGRNVMs.Rejection;
+
+        if (!isReturnOrRejection)
+        {
+            RcColumns = new List<string>
+            {
+                "RefRcSubId","ItemId","ProcessId","MachineId","CostCenterId","RC No.", "RC Date","Seq No.","Trans Type",
+                "Item Code", "Item Name", "UOM","CategoryCode","Category","Qty", "Utility","Unit Price","Process", "Machine","Cost Center"
+
+            };
+
+            RcFields = new List<string>
+            {
+                "RefRcSubId","ItemId","ProcessId","MachineId","CostCenterId","RCNo", "RCDt","SeqNo","TransType",
+                "ItemCode", "ItemName", "MeasureUnit","CategoryCode","Category", "Qty", "Utility","UnitPrice","ProcessName", "MachineName","CostCenter"
+            };
+
+            RcHiddenColumns = new List<string>
+            {
+                "RefRcSubId","ItemId","ProcessId","MachineId","CostCenterId","CategoryCode"
+            };
+        }
+
+        else
+        {
+            RcColumns = new List<string>
+            {
+                "RefRcSubId","ItemId","ProcessId","MachineId","CostCenterId","IssueSubId","RC No.", "RC Date", "Trans Type", "Issue No", "Issue Dt",
+                "Item Code", "Item Name", "UOM","CategoryCode","Category","Qty","Unit Price","Process", "Machine","Cost Center"
+            };
+
+            RcFields = new List<string>
+            {
+                "RefRcSubId","ItemId","ProcessId","MachineId","CostCenterId","IssueSubId","RCNo", "RCDt","TransType","IssueNo","IssueDt",
+                "ItemCode", "ItemName", "MeasureUnit","CategoryCode","Category", "Qty","UnitPrice","ProcessName", "MachineName","CostCenter"
+            };
+
+            RcHiddenColumns = new List<string>
+            {
+                "RefRcSubId","ItemId","ProcessId","MachineId","CostCenterId","IssueSubId", "CategoryCode"
+            };
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+
+
+    private async Task ShowRcDetails()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await ConfigureJobOrderColumns();
+
+            MachineList = await subConGRNService.GetAllActiveMachinesAsync();
+
+            if (!SubConGRNVMs.IsReturn && !SubConGRNVMs.Rejection)
+            {
+                RcData = await subConGRNService.GetAllOpenRcDetailsAsync(SubConGRNVMs.VendorCode);
+                if (RcData != null && RcData.Count > 0)
+                {
+                    IsRcModalVisible = true;
+                }
+                else
+                {
+                    await _js.ToastrWarning("No open Route Card found.");
+                }
+            }
+            else
+            {
+                RcData = await subConGRNService.GetAllProductionIssuedItemsAsync();
+                if (RcData != null && RcData.Count > 0)
+                {
+                    IsRcModalVisible = true;
+                }
+                else
+                {
+                    await _js.ToastrWarning("No open Route Card found.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "ShowRouteCardDetails failed.");
+            await _js.ToastrError("Error fetching RouteCard Details list.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task OnRcSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        SubConGRNVMs.SubConGRNSubVMs ??= new();
+
+        bool isReturnOrRejection =
+            SubConGRNVMs.IsReturn || SubConGRNVMs.Rejection;
+
+        try
+        {
+            // =============================
+            // STEP 1: Collect all DcSubIds
+            // =============================
+            var dcSubIds = selectedItems
+                .Where(x => x.ContainsKey("RefRcSubId") && x["RefRcSubId"] != null)
+                .Select(x => Convert.ToInt32(x["RefRcSubId"]))
+                .Distinct()
+                .ToList();
+
+            var issueIds = await subConGRNService
+                          .GetDcIdsByRcSubIdsAsync(dcSubIds);
+            // =============================
+            // STEP 2: Fetch ALL issued data once
+            // =============================
+            // var allDcIds = await subConGRNService.GetDcIdsByDcSubIdsAsync(issueIds);
+
+            var issuedData = issueIds.Any()
+                ? await subConGRNService.GetSubConGrnSubVMsByDcIdsAsync(issueIds)
+                : new List<SubConGRNSubVM>();
+
+            var issuedLookup = issuedData
+                .GroupBy(x => x.ItemId)
+                .ToDictionary(g => g.Key,
+                    g => Math.Truncate(g.Sum(x => x.BalQty ?? 0m) * 100) / 100m);
+
+
+
+            foreach (var item in selectedItems)
+            {
+                if (!item.TryGetValue("ItemId", out var itemIdObj) || itemIdObj == null)
+                    continue;
+
+                int itemId = Convert.ToInt32(itemIdObj);
+
+                int rcSubId = item.TryGetValue("RefRcSubId", out var rcObj) && rcObj != null
+                    ? Convert.ToInt32(rcObj)
+                    : 0;
+
+                int issueSubId = item.TryGetValue("IssueSubId", out var issueObj) && issueObj != null
+                    ? Convert.ToInt32(issueObj)
+                    : 0;
+
+                int CategoryCode = item.TryGetValue("CategoryCode", out var catObj) && catObj != null
+                    ? Convert.ToInt32(catObj)
+                    : 0;
+
+                decimal balQty = item.TryGetValue("Qty", out var qtyObj) && qtyObj != null
+                    ? Convert.ToDecimal(qtyObj)
+                    : 0m;
+
+                decimal utility = item.TryGetValue("Utility", out var utilObj) && utilObj != null
+                    ? Convert.ToDecimal(utilObj)
+                    : 1m;
+
+                // avoid duplicates
+                if (SubConGRNVMs.SubConGRNSubVMs
+                    .Any(x => x.ItemId == itemId && x.RefRcSubId == rcSubId))
+                    continue;
+
+                decimal qty = balQty;
+
+                // Return / Rejection qty calculation
+                // if (!isReturnOrRejection && rcSubId > 0)
+                // {
+                //     var issueIds = await subConGRNService
+                //         .GetIssueIdsByRcSubIdAsync(rcSubId);
+
+                //     if (issueIds.Any())
+                //     {
+                //         var issuedData = await subConGRNService
+                //             .GetSubConGrnSubVMsByDcIdsAsync(issueIds);
+
+                //         qty = Math.Min(
+                //             issuedData.Sum(x => x.BalQty ?? 0) * utility,
+                //             balQty
+                //         );
+                //     }
+
+                //     if (qty < 0) qty = 0;
+                // }
+
+                var subVm = new SubConGRNSubVM
+                {
+                    //TransType = isReturnOrRejection ? "In" : "Out",
+
+                    TransType = "In",
+                    ItemId = itemId,
+                    ItemCode = item.TryGetValue("ItemCode", out var c) ? c?.ToString() : null,
+                    ItemName = item.TryGetValue("ItemName", out var n) ? n?.ToString() : null,
+                    MeasureUnit = item.TryGetValue("MeasureUnit", out var u) ? u?.ToString() : null,
+                    CategoryCode = CategoryCode,
+
+                    Qty = qty,
+                    BalQty = balQty,
+                    PossibleQty = qty,
+
+                    UnitPrice = item.TryGetValue("UnitPrice", out var r) && r != null
+                        ? Convert.ToDecimal(r)
+                        : 0m,
+
+                    RefRcSubId = rcSubId,
+                    RefRCNo = item.TryGetValue("RCNo", out var rcNo) ? rcNo?.ToString() : null,
+                    RefRcDate = item.TryGetValue("RCDt", out var rcDt) && rcDt != null
+                        ? Convert.ToDateTime(rcDt)
+                        : (DateTime?)null,
+
+                    //Important IssueId Mapping
+                    RefDcSubId = issueSubId > 0 ? issueSubId: null ,
+
+                    RefDcNo = item.TryGetValue("IssueNo", out var inNo) ? inNo?.ToString() : null,
+                    RefDCDate = item.TryGetValue("IssueDt", out var inDt) && inDt != null
+                        ? Convert.ToDateTime(inDt)
+                        : (DateTime?)null,
+
+                    ProcessId = item.TryGetValue("ProcessId", out var pId) && pId != null
+                        ? Convert.ToInt32(pId)
+                        : (int?)null,
+
+                    ProcessName = item.TryGetValue("ProcessName", out var pNm)
+                        ? pNm?.ToString()
+                        : null,
+
+                    MachineId = item.TryGetValue("MachineId", out var mId) && mId != null
+                        ? Convert.ToInt32(mId)
+                        : (int?)null,
+
+                    MachineName = item.TryGetValue("MachineName", out var mNm)
+                        ? mNm?.ToString()
+                        : null,
+
+                    CostId = item.TryGetValue("CostCenterId", out var ccId) && ccId != null
+                        ? Convert.ToInt32(ccId)
+                        : (int?)null,
+
+                    ProjectNo = item.TryGetValue("ProjectNo", out var prj)
+                        ? prj?.ToString()
+                        : null,
+
+                    IsEditable = true
+                };
+
+                SubConGRNVMs.SubConGRNSubVMs.Add(subVm);
+            }
+
+            if (issuedData.Any())
+            {
+                foreach (var outItem in issuedData)
+                {
+                    if (SubConGRNVMs.SubConGRNSubVMs
+                        .Any(x => x.ItemId == outItem.ItemId && x.RefDcSubId == outItem.RefDcSubId))
+                        continue;
+
+                    SubConGRNVMs.SubConGRNSubVMs.Add(new SubConGRNSubVM
+                    {
+                        TransType = "Out",
+                        RefDcSubId=outItem.RefDcSubId,
+                        ItemId = outItem.ItemId,
+                        ItemCode = outItem.ItemCode,
+                        ItemName = outItem.ItemName,
+                        MeasureUnit = outItem.MeasureUnit,
+
+                        Qty = outItem.Qty,
+                        PossibleQty = outItem.BalQty,
+                        UnitPrice = outItem.UnitPrice,
+
+                        RefDcNo = outItem.RefDcNo,
+                        RefDCDate = outItem.RefDCDate,
+
+                        ProjectNo = outItem.ProjectNo,
+                        Remarks = outItem.Remarks,
+                        IsEditable = true
+                    });
+                }
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "OnRcSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected Route Card items.");
+        }
+    }
+
+    
+
+    #endregion
+
+    #region Customer data Handlers
+
+    private async Task<IEnumerable<VendorVM>> SearchVendors(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<VendorVM>();
+
+        try
+        {
+            var results = await subConGRNService.SearchVendorsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<VendorVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"In SubConDcOut SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search Customers in Production Issue component Upsert. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+
+    private async Task OnVendorChanged(VendorVM? customer)
+    {
+        try
+        {
+            await ApplyCustomerSelectionAsync(customer);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnCustomerChanged: {ex}");
+            await logs.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting");
+
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(VendorVM? customerVM)
+    {
+        try
+        {
+            SubConGRNVMs.SelectedVendor = customerVM;
+            SubConGRNVMs.VendorCode = customerVM?.VendorCode ?? 0;
+            SubConGRNVMs.VendorName = customerVM?.VendorName;
+            //DcOutCount = await subConGRNService.GetDcdetailsForVendor(SubConGRNVMs.VendorCode.Value);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"ApplyVendorSelectionAsync failed for VendorCode: {customerVM?.VendorCode}");
+            await _js.ToastrError("Failed to apply vendor selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region On Machine Changed
+
+    private void OnMachineChanged(ChangeEventArgs e, SubConGRNSubVM row)
+    {
+        if (e.Value == null)
+            return;
+
+        int machineId = Convert.ToInt32(e.Value);
+
+        var machine = MachineList.FirstOrDefault(x => x.MachineId == machineId);
+
+        row.MachineId = machineId;
+        row.MachineName = machine?.MachineName;
+    }
+
+    #endregion
+
+    #region Show DcOutgoingDetails
+
+    private async Task ShowDcDetails()
+    {
+        if (SubConGRNVMs?.VendorCode != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                if (SubConGRNVMs.VendorCode.GetValueOrDefault() > 0)
+                { 
+
+                    if (!SubConGRNVMs.IsReturn && !SubConGRNVMs.Rejection)
+                    { 
+                        if(SubConGRNVMs.IsWithoutPoDc && PoWiseDcOut)
+                        {
+                            DcData = await subConGRNService.GetDCDetailsByWithOutPoVendorId(SubConGRNVMs.VendorCode.Value);
+                        }
+                        else
+                        {
+                            DcData = await subConGRNService.GetDCDetailsByVendorId(SubConGRNVMs.VendorCode.Value);
+                        }
+
+                    }
+                    else
+                    {
+                        DcData = await subConGRNService.GetDCDetailsByReturnVendorId(SubConGRNVMs.VendorCode.Value);
+                    }
+
+
+                }
+                else
+                {
+                    await _js.ToastrWarning("Select the Customer First");
+                    return;
+                }
+                IsDcModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await logs.LogDeveloperError(ex, "ShowPoDetails failed.");
+                await _js.ToastrError("Error fetching Show PoDetails details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnDCSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (SubConGRNVMs.SubConGRNSubVMs == null)
+            SubConGRNVMs.SubConGRNSubVMs = new List<SubConGRNSubVM>();
+
+        if (SubConDcOutVMs.SubConDcOutSubVMs == null)
+            SubConDcOutVMs.SubConDcOutSubVMs = new List<SubConDcOutSubVM>();
+
+        try
+        {
+            // =============================
+            // STEP 1: Collect all DcSubIds
+            // =============================
+            var dcSubIds = selectedItems
+                .Where(x => x.ContainsKey("DcSubId") && x["DcSubId"] != null)
+                .Select(x => Convert.ToInt32(x["DcSubId"]))
+                .Distinct()
+                .ToList();
+
+            // =============================
+            // STEP 2: Fetch ALL issued data once
+            // =============================
+            var allDcIds = await subConGRNService.GetDcIdsByDcSubIdsAsync(dcSubIds);
+
+            var issuedData = allDcIds.Any()
+                ? await subConGRNService.GetSubConGrnSubVMsByDcIdsAsync(allDcIds)
+                : new List<SubConGRNSubVM>();
+
+            var issuedLookup = issuedData
+                .GroupBy(x => x.ItemId)
+                .ToDictionary(g => g.Key,
+                    g => Math.Truncate(g.Sum(x => x.BalQty ?? 0m) * 100) / 100m);
+
+            // =============================
+            // STEP 3: Loop items
+            // =============================
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.TryGetValue("ItemId", out var itemVal) && itemVal != null ? Convert.ToInt32(itemVal) : 0;
+                if (itemId == 0) continue;
+
+                int dcSubId = item.TryGetValue("DcSubId", out var dcSubVal) && dcSubVal != null ? Convert.ToInt32(dcSubVal) : 0;
+
+                  int? poSubId = item.TryGetValue("RefPoSubId", out var dcSubVal1) && dcSubVal1 != null ? Convert.ToInt32(dcSubVal1) : null;
+
+                decimal balQty = item.TryGetValue("BalQty", out var balVal) && balVal != null ? Convert.ToDecimal(balVal) : 0m;
+
+                int categoryCode = item.TryGetValue("CategoryCode", out var catVal) && catVal != null ? Convert.ToInt32(catVal) : 0;
+                string categoryName = item.TryGetValue("CategoryName", out var catNameVal) ? catNameVal?.ToString() ?? "" : "";
+
+                // duplicate
+                if (SubConGRNVMs.SubConGRNSubVMs
+                    .Any(x => x.ItemId == itemId && x.RefDcSubId == dcSubId))
+                    continue;
+
+                decimal possibleQty = 0;
+
+                // =============================
+                // CALCULATION
+                // =============================
+                if (!SubConGRNVMs.IsManual)
+                {
+                     bool isSameItem = false;
+
+                    if (poSubId.HasValue && poSubId.Value > 0)
+                    {
+                        isSameItem = await subConGRNService.CheckIsSameAsOutItemByPoSubId(poSubId.Value);
+                    }
+
+                    // ✅ CASE 1: SAME ITEM (RUNNING BALANCE ✅)
+                    if (isSameItem)
+                    {
+                        if (issuedLookup.TryGetValue(itemId, out decimal availableQty))
+                        {
+                            decimal allocatedQty = Math.Min(availableQty, balQty);
+
+                            possibleQty = allocatedQty;
+
+                            //  Reduce ONLY in scnBalance
+                            issuedLookup[itemId] = availableQty - allocatedQty;
+                        }
+                        else
+                        {
+                            possibleQty = 0;
+                        }
+                    }
+                  
+                  else  if (categoryName == "ASSEMBLY" || categoryName == "SUB-ASSEMBLY")
+                    {
+                        var bomData = await subConGRNService.GetAssemblyItemsAsync(itemId);
+
+                        decimal? min = null;
+
+                        foreach (var bom in bomData)
+                        {
+                            decimal issuedQty = issuedLookup.TryGetValue(bom.ItemId, out var val) ? val : 0;
+
+                            if (bom.UtilQty > 0)
+                            {
+                                decimal calc = issuedQty / bom.UtilQty.GetValueOrDefault();
+                                min = min == null ? calc : Math.Min(min.Value, calc);
+                            }
+                        }
+
+                        possibleQty = Math.Min(min ?? 0, balQty);
+                    }
+                    else if (categoryName == "COMPONENT")
+                    {
+                        var rmItems = await subConGRNService.GetRawMaterialItemsAsync(itemId);
+
+                        decimal? min = null;
+
+                        foreach (var rm in rmItems)
+                        {
+                            decimal issuedQty = issuedLookup.TryGetValue(rm.ItemId, out var val) ? val : 0;
+
+                            if (rm.Weight > 0)
+                            {
+                                decimal calc = issuedQty / rm.Weight;
+                                min = min == null ? calc : Math.Min(min.Value, calc);
+                            }
+                        }
+
+                        possibleQty = Math.Min(min ?? 0, balQty);
+                    }
+                }
+                else
+                {
+                    possibleQty = balQty;
+                }
+
+                // =============================
+                // DATE PARSE
+                // =============================
+                DateTime? dcDate = null;
+
+                if (item.TryGetValue("DcDate", out var dateVal) && dateVal != null)
+                {
+                    DateTime.TryParseExact(
+                        dateVal.ToString(),
+                        "dd/MM/yyyy",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out DateTime parsed);
+
+                    dcDate = parsed;
+                }
+
+                // =============================
+                // CREATE IN ITEM
+                // =============================
+                var subVm = new SubConGRNSubVM
+                {
+                    TransType = item.TryGetValue("TransType", out var tVal) ? tVal?.ToString() ?? "In" : "In",
+
+                    ItemId = itemId,
+                    ItemCode = item.TryGetValue("ItemCode", out var codeVal) ? codeVal?.ToString() : null,
+                    ItemName = item.TryGetValue("ItemName", out var nameVal) ? nameVal?.ToString() : null,
+                    MeasureUnit = item.TryGetValue("MeasureUnit", out var uomVal) ? uomVal?.ToString() : null,
+
+                    CategoryCode = categoryCode,
+
+                    Qty = Round2(possibleQty),
+                    BalQty = Round2(balQty),
+                    PossibleQty = Round2(possibleQty),
+
+                    UnitPrice = item.TryGetValue("UnitPrice", out var priceVal) && priceVal != null
+                                    ? Convert.ToDecimal(priceVal)
+                                    : 0m,
+
+                    RefDcSubId = dcSubId,
+                    RefDcNo = item.TryGetValue("DcNo", out var dcNoVal) ? dcNoVal?.ToString() : null,
+                    RefDCDate = dcDate,
+                    RefPoSubId = poSubId,
+
+                    CostId = item.TryGetValue("CostCenterId", out var costVal) && costVal != null
+                                    ? Convert.ToInt32(costVal)
+                                    : (int?)null,
+
+                    ProjectNo = item.TryGetValue("ProjectNo", out var projVal) ? projVal?.ToString() : null,
+                    Remarks = item.TryGetValue("Remark", out var remVal) ? remVal?.ToString() : null,
+
+                    IsEditable = true
+                };
+
+                SubConGRNVMs.SubConGRNSubVMs.Add(subVm);
+            }
+
+            // =============================
+            // MANUAL MODE OUT ITEMS
+            // =============================
+            if (SubConGRNVMs.IsManual && issuedData.Any())
+            {
+                foreach (var outItem in issuedData)
+                {
+                    if (SubConGRNVMs.SubConGRNSubVMs
+                        .Any(x => x.ItemId == outItem.ItemId && x.RefDcSubId == outItem.RefDcSubId))
+                        continue;
+
+                    SubConGRNVMs.SubConGRNSubVMs.Add(new SubConGRNSubVM
+                    {
+                        TransType = "Out",
+
+                        RefDcSubId = outItem.RefDcSubId,
+
+                        ItemId = outItem.ItemId,
+                        ItemCode = outItem.ItemCode,
+                        ItemName = outItem.ItemName,
+                        MeasureUnit = outItem.MeasureUnit,
+
+                        Qty = outItem.Qty,
+                        PossibleQty = outItem.BalQty,
+                        UnitPrice = outItem.UnitPrice,
+
+                        RefDcNo = outItem.RefDcNo,
+                        RefDCDate = outItem.RefDCDate,
+
+                        ProjectNo = outItem.ProjectNo,
+                        Remarks = outItem.Remarks,
+
+                        IsEditable = true
+                    });
+                }
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "OnDCSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected DC items.");
+        }
+    }
+
+    // =============================
+    // COMMON ROUND FUNCTION
+    // =============================
+    private decimal Round2(decimal val)
+    {
+        return Math.Truncate(val * 100) / 100;
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                case "Cancel":
+                case "Revert":
+                    await CancelDc();
+                    break;
+
+                case "ShortClose":
+                    await ShortCloseLabourDcOutgoing();
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+
+            var (canDelete, message) = await subConGRNService.CanRemoveSubConGRNAsync(rowToDelete.GRNId, rowToDelete.GRNSubId);
+            if (!canDelete)
+            {
+                await _js.ToastrWarning(message);
+                return;
+            }
+
+            if (rowToDelete.GRNSubId > 0)
+            {
+                await subConGRNService.DeleteByDcsubConIncomingSubIdAsync(rowToDelete.GRNSubId, screenCode);
+
+                await LoadExistingSubconGRNByGRNId(SubConGRNVMs.GRNId);
+            }
+            else
+            {
+                SubConGRNVMs.SubConGRNSubVMs.Remove(rowToDelete);
+
+                if (!SubConGRNVMs.SubConGRNSubVMs.Any())
+                {
+                    SubConGRNVMs.SubConGRNSubVMs.Add(new SubConGRNSubVM
+                    {
+                        GRNId = SubConGRNVMs.GRNId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    await ResetSlno();
+                }
+            }
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex,
+                $"Error confirming deletion for GRNId: {SubConGRNVMs.GRNId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CancelDc()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!SubConGRNVMs.Cancel)
+            {
+                SubConGRNVMs.Cancel   = true;
+                SubConGRNVMs.CancelReason = cancelReason;
+                SubConGRNVMs.CancelDate = DateTime.Now;
+                SubConGRNVMs.CancelBy = username;
+
+                await subConGRNService.UpdatedCancelStatusAndAddOrRevertQtyPoWiseAync(SubConGRNVMs, screenCode);
+
+
+                await logs.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "SubCon GRN",
+                    action: $"Cancelled SubCon GRN No: {SubConGRNVMs.GRNNo}",
+                    additionalInfo: $"SubCon DC Id: {SubConGRNVMs.GRNId}"
+                );
+
+                await _js.ToastrSuccess("SubConGRN cancelled successfully.");
+            }
+            else
+            {
+                SubConGRNVMs.Cancel = false;
+                SubConGRNVMs.CancelReason = string.Empty;
+
+                await subConGRNService.UpdatedCancelStatusAndAddOrRevertQtyPoWiseAync(SubConGRNVMs, screenCode);
+
+                await logs.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "SubConGRN",
+                    action: $"Reverted SubConGRN GRN No: {SubConGRNVMs.GRNNo}",
+                    additionalInfo: $"DC Id: {SubConGRNVMs.GRNId}"
+                );
+
+                await _js.ToastrSuccess("SubConGRN has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while cancelling/reverting the SubCon GRN.");
+            await logs.LogDeveloperError(ex, $"CancelDc failed for DcId: {SubConGRNVMs.GRNId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task ShortCloseLabourDcOutgoing()
+    {
+        if (SubConGRNVMs == null)
+        {
+            await _js.ToastrError("No Labour Dc Outgoing selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            SubConGRNVMs.ShortClose = !SubConGRNVMs.ShortClose;
+            await subConGRNService.UpsertSubConGRNShortCloseAsync(SubConGRNVMs);
+
+            StateHasChanged();
+
+            string msg = SubConGRNVMs.ShortClose
+                 ? "SubCon GRN ShortClose Successfully!"
+                 : "SubCon GRN  ReOpen Successfully!";
+            await _js.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while updating ShortClose");
+            await logs.LogDeveloperError(ex, "Error in ShortClose()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region SubContract GRN Operations
+
+    private async Task UpsertSubConGRN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            SubConGRNVMs.SubConGRNSubVMs.RemoveAll(x => !x.ItemId.HasValue || !x.Qty.HasValue || x.Qty == 0);
+
+            if (!SubConGRNVMs.SubConGRNSubVMs.Any())
+            {
+                await _js.ToastrError("Cannot save a SubContract GRN without valid items.");
+                return;
+            }
+
+            foreach (var line in SubConGRNVMs.SubConGRNSubVMs)
+            {
+                bool isValid = await ValidateProdReturnSubAsync(line, SubConGRNVMs);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewProdIsssue = SubConGRNVMs.GRNId == 0;
+
+            try
+            {
+                await subConGRNService.UpsertSubConGRNAsync(SubConGRNVMs, screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewProdIsssue)
+                await _js.ToastrSuccess("SubContract GRN saved successfully.");
+            else
+                await _js.ToastrSuccess("SubContract GRN updated successfully.");
+
+                 // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/subConGrnList");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "UpsertSubConGRN failed.");
+            await _js.ToastrError("Error saving SubContract GRN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateProdReturnSubAsync(SubConGRNSubVM line, SubConGRNVM productionReturnCompVM)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.Qty.HasValue || line.Qty <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemId}: Return Quantity must be greater than 0.");
+                return false;
+            }
+
+
+            if (!productionReturnCompVM.Rejection && !productionReturnCompVM.IsReturn)
+            {
+                if (line.GRNSubId == 0 && line.RefRcSubId > 0)
+                {
+                    // var jobBalQty = await subConGRNService.GetJobOrderBalQtyFromJobId(line.RefJobOrderId.GetValueOrDefault());
+                    // if (line.QtyReturned > jobBalQty)
+                    // {
+                    //     line.QtyReturned = jobBalQty;
+                    //     line.BalQty = jobBalQty;
+                    //     await _js.ToastrWarning($"Qty cannot exceed Job Order Balance Qty ({jobBalQty}).");
+                    //     return false;
+                    // }
+                }
+                else if (line.GRNSubId > 0)
+                {
+                    var original = await subConGRNService.GetProductionReturnSubItemDetailByReturnSubIdAsync(line.GRNSubId);
+                    if (original != null)
+                    {
+                        decimal origBalQty = original.BalQty ?? 0m;
+                        decimal origQty = original.Qty ?? 0m;
+                        var alreadyTransacted = origQty - origBalQty;
+
+                        if (line.TransType == "In")
+                        {
+                            if (line.Qty < alreadyTransacted)
+                            {
+                                line.Qty = alreadyTransacted;
+                                line.BalQty = 0m;
+                                await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                                return false;
+                            }
+                            else
+                            {
+                                var difference = line.Qty.GetValueOrDefault() - origQty;
+                                line.BalQty = Math.Max(0m, origBalQty + difference);
+                            }
+                        }
+                        else
+                        {
+                            var originalSub = await subConGRNService.GetProdReturnSubItemDetailByOutGoingSubIdAsync(line.RefDcSubId.Value);
+                            var PossibleQty = originalSub.BalQty;
+                            var maxAllowedQty = original.Qty + PossibleQty.GetValueOrDefault();
+
+                            if (line.Qty > maxAllowedQty.GetValueOrDefault())
+                            {
+                                line.Qty = maxAllowedQty.GetValueOrDefault();
+                                line.BalQty = 0;
+                                await _js.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                            }
+
+                        }
+
+                    }
+                }
+            }
+            else
+            {
+                // if (line.ReturnSubId == 0 && line.RefIssueSubId > 0)
+                // {
+                //     var issueAssyItemBalQty = await subConGRNService.GetIssueBalQtyByIssueSubId(line.RefIssueSubId.GetValueOrDefault());
+                //     if (line.Qty > issueAssyItemBalQty)
+                //     {
+                //         line.Qty = issueAssyItemBalQty;
+                //         line.BalQty = issueAssyItemBalQty;
+                //         await _js.ToastrWarning($"Qty cannot exceed Production Issue item Balance Qty ({issueAssyItemBalQty}).");
+                //         return false;
+                //     }
+                // }
+                // else if (line.ReturnSubId > 0)
+                // {
+                //     var original = await subConGRNService.GetProductionReturnSubItemDetailByReturnSubIdAsync(line.ReturnSubId);
+                //     if (original != null)
+                //     {
+                //         decimal origBalQty = original.BalQty ?? 0m;
+                //         decimal origQty = original.QtyReturned ?? 0m;
+                //         var alreadyTransacted = origQty - origBalQty;
+
+                //         if (line.Qty < alreadyTransacted)
+                //         {
+                //             line.Qty = alreadyTransacted;
+                //             line.BalQty = 0m;
+                //             await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                //             return false;
+                //         }
+                //         else
+                //         {
+                //             var difference = line.Qty.GetValueOrDefault() - origQty;
+                //             line.BalQty = Math.Max(0m, origBalQty + difference);
+                //         }
+                //     }
+                // }
+
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "ValidateProdIssueSubAsync failed.");
+            await _js.ToastrError("Error Validate Production Issue line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+    #region Quantity Handlers
+
+    private async Task OnQtyChange(ChangeEventArgs e, SubConGRNSubVM SubVM)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.Qty = 0;
+                SubVM.BalQty = 0;
+                await _js.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+
+            if (SubVM.GRNSubId == 0)
+            {
+                if (SubVM.RefRcSubId > 0)
+                {
+                    var PossibleQty = SubVM.PossibleQty;
+
+                    if (newQty <= PossibleQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.Qty = PossibleQty;
+                        SubVM.BalQty = PossibleQty;
+                        await _js.ToastrWarning($"Qty can't be greater than Possible Route Card Qty ({PossibleQty}).");
+                    }
+                }
+                else if (SubVM.RefPoSubId > 0)
+                {
+                    var PossibleQty = SubVM.PossibleQty;
+
+                    if (newQty <= PossibleQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.Qty = PossibleQty;
+                        SubVM.BalQty = PossibleQty;
+                        await _js.ToastrWarning($"Qty can't be greater than Possible Purchase Order Qty ({PossibleQty}).");
+                    }
+                }
+                else
+                {
+                    var PossibleQty = SubVM.PossibleQty;
+
+                    if (newQty <= PossibleQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.Qty = PossibleQty;
+                        SubVM.BalQty = PossibleQty;
+                        await _js.ToastrWarning($"Qty can't be greater than Possible SubConDcOut Qty ({PossibleQty}).");
+                    }
+
+
+
+                    // SubVM.Qty = newQty;
+                    // SubVM.BalQty = newQty;
+                }
+            }
+            else
+            {
+                var original = await subConGRNService.GetProdReturnSubItemDetailByReturnSubIdAsync(SubVM.GRNSubId);
+                if (original == null) return;
+
+                if (SubVM.TransType == "In")
+                {
+
+                    var alreadyTransacted = original.Qty - original.BalQty;
+
+                    if (newQty < alreadyTransacted)
+
+                    {
+                        SubVM.Qty = alreadyTransacted;
+                        SubVM.BalQty = 0;
+                        await _js.ToastrWarning($"Qty Returned cannot be less than {alreadyTransacted} (already transacted).");
+                        return;
+                    }
+
+                    if (SubVM.RefRcSubId > 0)
+                    {
+                        var PossibleQty = SubVM.PossibleQty;
+                        var maxAllowedQty = original.Qty + PossibleQty.GetValueOrDefault();
+
+                        if (newQty > maxAllowedQty.GetValueOrDefault())
+                        {
+                            SubVM.Qty = maxAllowedQty.GetValueOrDefault();
+                            SubVM.BalQty = maxAllowedQty.GetValueOrDefault() - alreadyTransacted.GetValueOrDefault();
+                            await _js.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                        }
+                        else
+                        {
+                            SubVM.Qty = newQty;
+                            SubVM.BalQty = newQty - alreadyTransacted;
+                        }
+                    }
+                    else if (SubVM.RefPoSubId > 0)
+                    {
+                        var PossibleQty = SubVM.PossibleQty;
+                        var maxAllowedQty = original.Qty + PossibleQty.GetValueOrDefault();
+
+                        if (newQty > maxAllowedQty.GetValueOrDefault())
+                        {
+                            SubVM.Qty = maxAllowedQty.GetValueOrDefault();
+                            SubVM.BalQty = maxAllowedQty.GetValueOrDefault() - alreadyTransacted.GetValueOrDefault();
+                            await _js.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                        }
+                        else
+                        {
+                            SubVM.Qty = newQty;
+                            SubVM.BalQty = newQty - alreadyTransacted;
+                        }
+
+                    }
+                    else
+                    {
+
+                        var PossibleQty = SubVM.PossibleQty;
+                        var maxAllowedQty = original.Qty + PossibleQty.GetValueOrDefault();
+
+                        if (newQty > maxAllowedQty.GetValueOrDefault())
+                        {
+                            SubVM.Qty = maxAllowedQty.GetValueOrDefault();
+                            SubVM.BalQty = maxAllowedQty.GetValueOrDefault() - alreadyTransacted.GetValueOrDefault();
+                            await _js.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                        }
+                        else
+                        {
+                            SubVM.Qty = newQty;
+                            SubVM.BalQty = newQty - alreadyTransacted;
+                        }
+
+                        // SubVM.Qty = newQty;
+                        // SubVM.BalQty = newQty - alreadyTransacted;
+                    }
+                }
+                else
+                {
+                    var originalSub = await subConGRNService.GetProdReturnSubItemDetailByOutGoingSubIdAsync(SubVM.RefDcSubId.Value);
+
+                    if (originalSub == null) return;
+                    var alreadyTransacted = original.Qty - original.BalQty;
+
+                    var PossibleQty = originalSub.BalQty;
+                    var maxAllowedQty = original.Qty + PossibleQty.GetValueOrDefault();
+
+                    if (newQty > maxAllowedQty.GetValueOrDefault())
+                    {
+                        SubVM.Qty = maxAllowedQty.GetValueOrDefault();
+                        SubVM.BalQty = maxAllowedQty.GetValueOrDefault() - alreadyTransacted.GetValueOrDefault();
+                        await _js.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                    }
+                    else
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OnQtyChange failed for ReturnSubId: {SubVM?.GRNSubId}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Cancel And Shortclose
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if (!GRNId.HasValue || GRNId == 0)
+            {
+                await _js.ToastrError("Sobcontract GRN cancel is not allowed before saving the Sobcontract GRN.");
+                return;
+            }
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("Some Items Transaction Are Made!.. You Can't Cancel the Complete Sobcontract GRN");
+                return;
+            }
+
+
+            if (SubConGRNVMs.ShortClose)
+            {
+                await _js.ToastrError("Quotation is already short closed. You can't cancel it.");
+                return;
+            }
+            // If ANY item is already cancelled → stop GRN cancel
+            if (SubConGRNVMs.SubConGRNSubVMs.Any(s => s.ItemCancel))
+            {
+                await _js.ToastrWarning("GRN cannot be cancelled — one or more items are already cancelled.");
+                return;
+            }
+
+            if(SubConGRNVMs.Cancel)
+            {
+
+                var subs = await subConGRNService.GetSubcontractGRNSubByGRNIdAsync(SubConGRNVMs.GRNId);
+
+                if (subs == null || subs.Count == 0)
+                    return;
+
+                foreach (var sub in subs)
+                {
+                    if(sub.TransType =="In")
+                    {
+                        await subConGRNService.ValidateSubConDcoutBalanceBeforeRevertAsync(sub,SubConGRNVMs);
+                    }
+                }
+            }
+
+            if (!SubConGRNVMs.Cancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this GRN?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this GRN?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+            SubConGRNVMs= await subConGRNService.GetSubcontractGRNByGRNIdAsync(GRNId.Value);
+            await _js.ToastrWarning(ex.Message);
+            await logs.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Subcontract GRN.Cancel method");
+            await logs.LogDeveloperError(ex, "Error in Subcontract GRN  Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task AskToShortCloseAsync(SubConGRNVM subConGRNVMs)
+    {
+        try
+        {
+            if (subConGRNVMs == null)
+            {
+                await _js.ToastrError("Invalid Subcontract GRN  selected.");
+                return;
+            }
+
+            if (!GRNId.HasValue || GRNId == 0)
+            {
+                await _js.ToastrError("Subontract GRN Short Close is not allowed before saving the Subcontract GRN.");
+                return;
+            }
+
+            if (subConGRNVMs.GRNTally)
+            {
+                await _js.ToastrWarning("This Labour GRN is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (subConGRNVMs.Cancel)
+            {
+                await _js.ToastrWarning("This Labour GRN is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!subConGRNVMs.ShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Subcontract GRN?";
+                btnText = "Short Close";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Subcontract GRN?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while AskToShortCloseAsync Subcontract GRN.");
+            await logs.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+    #region
+    private async Task Loadpos()
+    {
+        if (SubConGRNVMs?.VendorCode != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                var selectedPoIds =Pos.Where(p => p.IsSelected).Select(p => p.PoId).ToList();
+                var selectedDcIds =DcOuts.Where(p => p.IsSelected).Select(p => p.DcId).ToList();
+
+
+                if (SubConGRNVMs.VendorCode > 0)
+                {
+                    if(!SubConGRNVMs.IsReturn)
+                    {
+                        PoData = await subConGRNService.GetPoDetailsByVendor(selectedPoIds,SubConGRNVMs.VendorCode.Value, SubConGRNVMs.AddStoreId);
+                    }
+                    else
+                    {
+
+                        PoData = await subConGRNService.LoadPoSubsByReturnMaterialPoIds(selectedPoIds,selectedDcIds, SubConGRNVMs.AddStoreId??0);
+                    }
+
+                }
+                else
+                {
+                    await _js.ToastrWarning("Select the Customer First");
+                    return;
+                }
+                IsPoModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await logs.LogDeveloperError(ex, "ShowPoDetails failed.");
+                await _js.ToastrError("Error fetching Show PoDetails details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnPoSelectedAsync(List<Dictionary<string, object>> selectedItems)
+
+    {
+        if (SubConGRNVMs.SubConGRNSubVMs == null)
+            SubConGRNVMs.SubConGRNSubVMs = new List<SubConGRNSubVM>();
+
+        int custid = SubConGRNVMs.VendorCode.Value;
+
+        if (SubConGRNVMs.AddStoreId == 0)
+        {
+            await _js.ToastrWarning("Please select Purchase Store");
+            return;
+        }
+        int storeissueid = SubConGRNVMs.AddStoreId.Value;
+
+        // var selectedStoreName = IssStores.FirstOrDefault(s => s.StoreId == storeid);
+        var selectedDcIds =DcOuts.Where(p => p.IsSelected).Select(p => p.DcId).ToList();
+
+        try
+        {
+
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .ToList();
+
+            decimal Price = 0, subdiscAmt = 0, qty = 0, totqty = 0,StockQty = 0;
+            int i = 0;
+
+            if (!SubConGRNVMs.IsReturn)
+            {
+
+                foreach (var item in selectedItems)
+                {
+                    Price = 0; subdiscAmt = 0; qty = 0;
+
+                    int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                        ? Convert.ToInt32(item["ItemId"])
+                        : 0;
+
+                    int? PoSubId = item.ContainsKey("PoSubId") && item["PoSubId"] != null
+                        ? Convert.ToInt32(item["PoSubId"])
+                        : (int?)null;
+
+                    int? LineNo = item.ContainsKey("LineNo") && item["LineNo"] != null
+                        ? Convert.ToInt32(item["LineNo"])
+                        : (int?)null;
+                   
+                        
+                    int? RefRcSubId = item.ContainsKey("RefRcSubId") && item["RefRcSubId"] != null
+                        ? Convert.ToInt32(item["RefRcSubId"])
+                        : (int?)null;
+
+                    int? categorycode = item.ContainsKey("CategoryCode") && item["CategoryCode"] != null
+                        ? Convert.ToInt32(item["CategoryCode"])
+                        : (int?)null;
+
+                   int? ProcessId= item.ContainsKey("ProcessId") && item["ProcessId"] != null
+                        ? Convert.ToInt32(item["ProcessId"])
+                        : (int?)null;
+
+                    if (item.TryGetValue("BalQty", out var QtyObj))
+                        decimal.TryParse(QtyObj?.ToString(), out qty);
+
+                    if (item.TryGetValue("UnitPrice", out var unitpriceObj))
+                        decimal.TryParse(unitpriceObj?.ToString(), out Price);
+
+                    if (item.TryGetValue("TotalQty", out var TotalQty))
+                        decimal.TryParse(TotalQty?.ToString(), out totqty);
+
+                    if (item.TryGetValue("Stock Qty", out var stkQtyObj))
+                        decimal.TryParse(stkQtyObj?.ToString(), out StockQty);
+
+                    string suffix = item.TryGetValue("Suffix", out var Suffix) ? Suffix?.ToString() : string.Empty;
+
+                    if (SubConGRNVMs.SubConGRNSubVMs.Any(x => x.ItemId == itemId && x.RefPoSubId == PoSubId))
+                    {
+                        continue;
+                    }
+
+                    var receivedData = await subConGRNService.GetSubConDcOutQtyByDcIdsAsync(selectedDcIds);
+
+                    var ReceivedLookup = receivedData.GroupBy(x => x.ItemId).ToDictionary(g => g.Key, g => g.Sum(x => x.BalQty ?? 0));
+
+
+                    selectedDCids = selectedDcIds;
+
+                    decimal possibleQty = 0;
+
+                    if (!SubConGRNVMs.IsManual)
+                    {
+                        if (categorycode == 3 || categorycode == 7)
+                        {
+                            var bomData = await subConGRNService.GetAssemblyItemsAsync(itemId);
+
+                            decimal? minPossible = null;
+
+                            foreach (var bom in bomData)
+                            {
+
+                                if (!ReceivedLookup.TryGetValue(bom.ItemId, out decimal receivedQty))
+                                    continue;
+
+                                if (bom.UtilQty <= 0)
+                                    continue;
+
+                                var possible = receivedQty / bom.UtilQty;
+
+                                if (minPossible == null || possible < minPossible)
+                                    minPossible = possible;
+                            }
+
+
+
+                            possibleQty = Math.Min(minPossible ?? 0, qty);
+                        }
+                        else if (categorycode == 2)
+                        {
+                            decimal weight = await subConGRNService.GetRawMaterialWeightAsync(itemId);
+
+                            var compData = await subConGRNService.GetRawMaterialItemsAsync(itemId);
+
+                            decimal? minPossible = null;
+
+                            foreach (var com in compData)
+                            {
+                                if (!ReceivedLookup.TryGetValue(com.ItemId, out decimal receivedQty))
+                                    continue;
+
+                                if (com.Weight <= 0)
+                                    continue;
+
+                                var possible = receivedQty / com.Weight;
+
+                                if (minPossible == null || possible < minPossible)
+                                    minPossible = possible;
+                            }
+                            possibleQty = Math.Min(minPossible ?? 0, qty);
+
+
+                        }
+
+                    }
+                    else
+                    {
+                        possibleQty = qty;
+
+                    }
+                   // var rcDetail = RcDetails.FirstOrDefault();
+                    var subVm = new SubConGRNSubVM();
+
+                    subVm.TransType = "In";
+                      
+                    subVm.ItemId = itemId;
+                    subVm.ItemCode = item.TryGetValue("ItemCode", out var itemCode) ? itemCode?.ToString() : string.Empty;
+                    subVm.ItemName = item.TryGetValue("ItemName", out var itemName) ? itemName?.ToString() : string.Empty;
+                   
+                    subVm.MeasureUnit = item.TryGetValue("UOM", out var uom) ? uom?.ToString() : string.Empty;
+                 
+                    subVm.Qty = possibleQty;
+                    subVm.BalQty = possibleQty;
+                    subVm.UnitPrice = Price;
+                    subVm.CostId = item.TryGetValue("CostCenterId", out var costId) && int.TryParse(costId?.ToString(), out var parsedCostId) && parsedCostId != 0 ? parsedCostId : (int?)null;
+                    subVm.ProjectNo = item.TryGetValue("ProjectNo", out var projectNo) ? projectNo?.ToString() : string.Empty;
+                    
+
+                    subVm.PossibleQty = possibleQty;
+                    subVm.RefPoSubId = PoSubId;
+                    subVm.RefRcSubId = RefRcSubId;
+
+                    subVm.RefPoNo = item.TryGetValue("PoNo", out var PONo) ? PONo?.ToString() + "" + (PONo == null ? "" : Suffix) : string.Empty;
+                   
+                    subVm.RefPoDate = item.TryGetValue("PODate", out var PODate) &&
+                       DateTime.TryParseExact(
+                           PODate?.ToString(),
+                           "dd/MM/yyyy",
+                           System.Globalization.CultureInfo.InvariantCulture,
+                           System.Globalization.DateTimeStyles.None,
+                           out var parsedPODate)
+                       ? parsedPODate
+                       : DateTime.Today;
+                    subVm.CategoryCode = categorycode ?? 0;
+
+                    subVm.RefRCNo = item.TryGetValue("RCNo", out var RCNo) ? RCNo?.ToString() + "" + (RCNo == null ? "" : Suffix) : string.Empty;
+                    subVm.RefRcDate = item.TryGetValue("RCDt", out var rcDateObj) &&
+                                      DateTime.TryParseExact(
+                                          rcDateObj?.ToString(),
+                                          "dd/MM/yyyy",
+                                          System.Globalization.CultureInfo.InvariantCulture,
+                                          System.Globalization.DateTimeStyles.None,
+                                          out var rcDate)
+                                      ? rcDate
+                         : DateTime.Today;
+                    subVm.ProcessId = ProcessId;
+
+                    subVm.ProcessName = item.TryGetValue("ProcessName", out var ProcessName) ? ProcessName?.ToString() : string.Empty;
+
+                    subVm.IsEditable = true;
+
+                    SubConGRNVMs.SubConGRNSubVMs.Add(subVm);
+
+                }
+
+            }
+            else
+            {
+                selectedDCids = selectedDcIds;
+            }
+
+            var receivedDatas = selectedDCids.Any() ? await subConGRNService.GetDcSubConOutQtyByDcIdsAsync(selectedDCids) : new List<SubConDcOutSubVM>();
+
+            var itemIdss = receivedDatas
+                        .Where(x => x.ItemId.HasValue)
+                            .Select(x => x.ItemId.Value)
+                            .Distinct()
+                            .ToList();
+
+            // If  Manual 
+            if(SubConGRNVMs.IsManual)
+            {
+                if (receivedDatas != null && receivedDatas.Any())
+                {
+
+                    List<SubConDcOutSubVM> receivedData;
+                    receivedData = await subConGRNService.GetSubConDcOutQtyByDcIdsAsync(selectedDcIds);
+
+                    var receivedLookup = receivedData
+                        .GroupBy(x => x.ItemId)
+                        .ToDictionary(g => g.Key, g => g.Sum(x => x.BalQty ?? 0));
+
+
+                    foreach (var item in selectedItems)
+                    {
+                        int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                            ? Convert.ToInt32(item["ItemId"])
+                            : 0;
+
+                        int? poSubId = item.ContainsKey("PoSubId") && item["PoSubId"] != null
+                            ? Convert.ToInt32(item["PoSubId"])
+                            : (int?)null;
+                        int? LineNo = item.ContainsKey("LineNo") && item["LineNo"] != null
+                            ? Convert.ToInt32(item["LineNo"])
+                            : (int?)null;
+
+                        int? categoryCode = item.ContainsKey("CategoryCode") && item["CategoryCode"] != null
+                            ? Convert.ToInt32(item["CategoryCode"])
+                            : (int?)null;
+
+
+                       int? RefRcSubId = item.ContainsKey("RefRcSubId") && item["RefRcSubId"] != null
+                        ? Convert.ToInt32(item["RefRcSubId"])
+                        : (int?)null;
+
+                        List<int> allowedItemIds = new();
+
+                        if (!SubConGRNVMs.IsReturn && RefRcSubId == null)
+                        {
+                            if (categoryCode == 3 || categoryCode == 7)
+                            {
+                                var bomData = await subConGRNService.GetAssemblyItemsAsync(itemId);
+
+                                if (bomData.Any())
+                                    allowedItemIds = bomData.Select(x => x.ItemId.Value).ToList();
+                            }
+                            else if (categoryCode == 2)
+                            {
+                                var compData = await subConGRNService.GetRawMaterialItemsAsync(itemId);
+
+                                if (compData.Any())
+                                    allowedItemIds = compData.Select(x => x.ItemId).ToList();
+
+                            }
+                        }
+                        else
+                        {
+                            allowedItemIds.Add(itemId);
+                        }
+
+                var filteredReceived = !allowedItemIds.Any()
+                    ? receivedDatas.ToList()   
+                    : receivedDatas
+                        .Where(r => r.ItemId.HasValue && allowedItemIds.Contains(r.ItemId.Value))
+                        .ToList();
+
+
+
+                foreach (var outItem in filteredReceived)
+                {
+
+                    if (SubConGRNVMs.SubConGRNSubVMs
+                        .Any(x => x.ItemId == outItem.ItemId && x.RefDcSubId == outItem.DcSubId))
+                        continue;
+
+                        var outVm = new SubConGRNSubVM
+                            {
+                                RefDcSubId = outItem.DcSubId,
+                                ItemId = outItem.ItemId ?? 0,
+                                ItemCode = outItem.ItemCode,
+                                ItemName = outItem.ItemName,
+                                MeasureUnit = outItem.MeasureUnit,
+                             
+                                UnitPrice = outItem.UnitPrice,
+
+                                ProjectNo = outItem.ProjectNo,
+                                RefPoSubId = outItem.RefPoSubId,
+                                IsEditable = false
+                            };
+
+                            if (!SubConGRNVMs.IsReturn)
+                            {
+                                    outVm.TransType = "Out";
+                            }
+                            else
+                            {
+                                 outVm.TransType = "In";
+                            }
+
+                            outVm.BalQty = outItem.BalQty ?? 0;
+                            outVm.Qty = outItem.BalQty;
+                            outVm.PossibleQty = outItem.BalQty;
+                        
+
+                    SubConGRNVMs.SubConGRNSubVMs.Add(outVm);
+                }
+            }
+        }
+
+    }
+
+    int slNo = 1;
+    foreach (var row in SubConGRNVMs.SubConGRNSubVMs)
+    {
+        row.SlNo = slNo++;
+    }
+
+    StateHasChanged();
+
+    }
+    catch (Exception ex)
+    {
+    await logs.LogDeveloperError(ex, "OnPoSelectedAsync failed.");
+    await _js.ToastrError("Error processing selected SCN Selected items.");
+    }
+}
+ private async Task OnPoCheckedChanged(PurchPoVM po,bool isChecked)
+ {
+     try  
+     {
+      po.IsSelected = isChecked;
+
+     var selectedPoIds = FilteredPos
+         .Where(p => p.IsSelected)
+         .Select(p => p.PoId)
+         .ToList();
+
+     if (selectedPoIds.Count > 0)
+     {
+         DcOuts = await subConGRNService.LoadDcOutNumbersPoWiseAsync(selectedPoIds,"PO",SubConGRNVMs.IsReturn);
+
+         DcOuts = DcOuts
+            .GroupBy(x => x.DcId)
+            .Select(g => g.First())
+            .ToList();
+     }
+     else
+     {
+         DcOuts.Clear();
+     }
+       await InvokeAsync(StateHasChanged);
+     }
+       catch (Exception ex)
+    {
+        await logs.LogDeveloperError(ex, "OnPoCheckedChanged failed.");
+        await _js.ToastrError("Error fetching Show OnPoCheckedChanged details.");
+    }
+
+ }
+
+ private async Task OnDCCheckedChanged(SubConDcOutVM dc,bool isChecked)
+ {
+     try
+     {
+      dc.IsSelected = isChecked;
+
+     var selectedGRNIds = FilteredDc
+         .Where(p => p.IsSelected)
+         .Select(p => p.DcId)
+         .ToList();
+
+     if (selectedGRNIds.Count > 0)
+     {
+         DcOuts = await subConGRNService.LoadDcOutNumbersPoWiseAsync(selectedGRNIds,"GRN",false);
+
+         DcOuts = DcOuts
+            .GroupBy(x => x.DcId)
+            .Select(g => g.First())
+            .ToList();
+     }
+     else
+     {
+         DcOuts.Clear();
+     }
+       await InvokeAsync(StateHasChanged);
+
+     }
+    catch (Exception ex)
+    {
+    await logs.LogDeveloperError(ex, "OnDCCheckedChanged failed.");
+    await _js.ToastrError("Error fetching Show OnDCCheckedChanged details.");
+    }
+
+ }
+    bool IsAllPoSelected = false;
+    bool IsAllGRNSelected = false;
+        public async Task ToggleAllPO(ChangeEventArgs e)
+        {
+            bool isChecked = (bool)e.Value;
+            IsAllPoSelected = isChecked;
+
+            if (SubConGRNVMs.IsWithoutPoDc)
+            {
+                foreach (var dc in FilteredDc)
+                {
+                    dc.IsSelected = isChecked;
+                    //await OnDCCheckedChanged(dc,isChecked);
+                }
+        
+            }
+            else
+            {
+                foreach (var po in FilteredPos)
+                {
+                     po.IsSelected = isChecked;
+                    // await OnPoCheckedChanged(po,isChecked);
+
+                }
+           
+            }
+        } 
+        public async Task ToggleAllGRN(ChangeEventArgs e)
+        {
+            bool isChecked = (bool)e.Value;
+            IsAllGRNSelected = isChecked;
+
+            foreach (var Dcs in FilteredDc)
+                Dcs.IsSelected = isChecked;
+        }
+
+    #endregion
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(GRNId.GetValueOrDefault(), "PurchaseGRN.frx", "GRNId", false, "PurchaseGRN", "Sp_Print_PurchaseGRN");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Subcontract GRN");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Subcontract GRN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

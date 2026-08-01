@@ -1,0 +1,354 @@
+﻿@page "/PurchPO/multi-vendor-create"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchOrSubConPoService
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchPoVM
+@inject PoSelectionService PoSelection
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IPurchPoService purchPoSevice
+@inject ILoggingService LoggingService
+@inject ICalculationService _calculationService
+
+<div class="container py-4">
+
+    <!-- Enhanced Header Card -->
+    <div class="card shadow-sm rounded-4 mb-4 border-0">
+    <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3" 
+         style="background: linear-gradient(90deg, #4e54c8, #8f94fb); color:white;">
+        <div class="d-flex align-items-center gap-3">
+            <i class="bi bi-cart-check-fill fs-2"></i>
+            <div>
+                <h2 class="mb-0 fw-bold">Multi-Vendor Purchase Orders</h2>
+                <small class="fw-light">Manage and create POs for selected vendors</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <a href="/rate-comparison" class="btn btn-secondary w-100">
+                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+            </a>
+        </div>
+    </div>
+</div>
+
+
+    @if (!PoSelection.SelectedItems.Any())
+    {
+        <div class="alert alert-warning shadow-sm rounded-4">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            No selected items found. Please select items from the rate comparison page.
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @{
+                // Define a set of card colors to cycle through
+                string[] cardColors = { "bg-primary text-white", "bg-success text-white", "bg-warning text-dark", "bg-info text-white", "bg-danger text-white" };
+                int colorIndex = 0;
+            }
+
+            @foreach (var g in PoSelection.GetVendorGroups())
+            {
+                var cardColor = cardColors[colorIndex % cardColors.Length];
+                colorIndex++;
+
+                <div class="col-12 col-md-6">
+                    <div class="card shadow-sm border-0 rounded-4 h-100 hover-shadow">
+                        <div class=@($"card-header {cardColor} rounded-top-4 d-flex justify-content-between align-items-center")>
+                            <div class="d-flex align-items-center gap-3">
+                                <i class="bi bi-building fs-4"></i>
+                                <div>
+                                    <h5 class="mb-0 fw-bold">@g.Value.First().VendorName</h5>
+                                    <small>Vendor Code: <span class="badge bg-light text-dark">@g.Key</span></small>
+                                </div>
+                            </div>
+                            <button class="btn btn-gradient btn-lg rounded-pill shadow-sm text-white fw-bold" 
+                                    @onclick="() => CreatePoForVendor(g.Key)">
+                                <i class="bi bi-plus-circle me-2"></i>Create PO
+                            </button>
+                        </div>
+
+                        <div class="card-body p-3">
+                            <table class="table table-hover table-sm mb-0 text-nowrap align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Enquiry</th>
+                                        <th>Item</th>
+                                        <th>QuoteNo</th>
+                                        <th>Qty</th>
+                                        <th class="text-end">Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in g.Value)
+                                    {
+                                        <tr>
+                                            <td>@item.EnquiryNo</td>
+                                            <td>@item.ItemCode</td>
+                                            <td>@item.QuoteNo</td>
+                                            <td>@item.Qty</td>
+                                            <td class="text-end fw-semibold text-success">@item.Rate.ToString("0.00")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="mt-4 text-end">
+
+              <button class="btn btn-gradient btn-lg rounded-pill shadow-sm text-white fw-bold" 
+                                   @onclick="CreateAllPos">
+                                <i class="bi bi-plus-circle me-2"></i>Create PO All
+              </button>
+
+         
+        </div>
+    }
+</div>
+
+<style>
+  
+    .hover-shadow:hover {
+        transform: translateY(-3px);
+        transition: all 0.2s ease-in-out;
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
+    }
+    table.table-sm th, table.table-sm td {
+        padding: 0.35rem 0.5rem;
+    }
+    .card-header i {
+        font-size: 1.5rem;
+    }
+
+    
+    .btn-gradient {
+        background: linear-gradient(90deg, #4e54c8, #8f94fb);
+        border: none;
+        transition: all 0.3s ease-in-out;
+    }
+
+    .btn-gradient:hover {
+        background: linear-gradient(90deg, #8f94fb, #4e54c8);
+        transform: translateY(-2px) scale(1.05);
+        box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.25);
+    }
+
+    .btn-gradient:active {
+        transform: translateY(0) scale(0.98);
+        box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.2);
+    }
+</style>
+
+@code {
+    private async Task CreatePoForVendor(int vendorCode)
+    { 
+        try
+        {
+                  var groups = PoSelection.GetVendorGroups();
+
+                    if (!groups.ContainsKey(vendorCode))
+                    {
+                        await JS.ToastrError("No items selected for this vendor.");
+                        return;
+                    }
+
+                    var vendorItems = groups[vendorCode];
+
+                    var itemsForVendor = vendorItems.Select(x => new PurchPoSubVM
+                    {
+                        RefQuoteSubId = x.QuoteSubId,
+                        RefQuoteNo = x.QuoteNo,
+                        RefQuoteDate = x.QuoteDate,
+                        ItemId = x.ItemId,
+                        ItemCode = x.ItemCode,
+                        ItemName = x.ItemName,
+                        Qty = x.Qty,
+                        BalQty = x.Qty,
+                        UnitPrice = x.Rate,
+                        MeasureUnit = x.UOM,
+                        HSNCode = x.HsnCode,
+                        DueDate = x.DueDate,
+                        IsEditable = true
+                    }).ToList();
+
+                    int slNo = 1;
+                    foreach (var row in itemsForVendor)
+                    {
+                        row.SlNo = slNo++;
+                    }
+                    var poVM = new PurchPoVM
+                    {
+                        VendorCode = vendorCode,
+                        PurchPoSubVMs = itemsForVendor,
+                        IsRevision = false,
+                        PoCancl = false,
+                        CreatedDate = DateTime.Now
+                    };
+                    await _calculationService.UpdateTotalsAsync(poVM);
+                     var vendor = await purchPoSevice.GetVendorByIdAsync(vendorCode);
+                        if (vendor != null)
+                            await ApplyVendorSelectionAsync(vendor , poVM );
+                     
+
+                    poVM.PONo = await purchPoSevice.GeneratePoNumberAsync();
+                    poVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+                
+                    await purchPoSevice.UpsertPoAsync(poVM);
+
+                    await JS.ToastrSuccess($"PO created for vendor {vendorCode} with {itemsForVendor.Count} items.");
+
+        
+                    PoSelection.SelectedItems.RemoveAll(x => x.VendorCode == vendorCode);
+        }
+        catch (Exception ex)
+        {
+             await JS.ToastrError("Failed to Create Purchase Order For Vendor");
+             await LoggingService.LogDeveloperError(ex, $"Create PoForVendor failed for VendorCode:{vendorCode}");
+        }
+     }
+     private async Task ApplyVendorSelectionAsync(VendorVM? vendor, PurchPoVM poVM)
+    {
+        try
+        {
+            poVM.VendorCode = vendor?.VendorCode ?? 0;
+            poVM.VendorName = vendor?.VendorName;
+            poVM.VendorAddress = vendor?.VendorAddress;
+            poVM.VendorGSTNO = vendor?.GSTNo;
+            poVM.VendorPhoneNo = vendor?.ContactNo;
+
+            if (vendor == null)
+            {
+                 var contactPersons = await purchPoSevice.GetContactPersonsVendorAsync(vendor.VendorCode);
+                 var consineeAddress = await purchPoSevice.GetConsigneeAddressesVendorAsync(vendor.VendorCode);
+                return;
+            }
+
+         // Apply GST logic
+            if (!vendor.TaxValidate)
+            {
+                var lastQuote = await purchPoSevice.GetLastPoAsync(vendor.VendorCode);
+                if (lastQuote != null)
+                {
+                    poVM.CGstRate = lastQuote.CGstRate;
+                    poVM.SGstRate = lastQuote.SGstRate;
+                    poVM.IGstRate = lastQuote.IGstRate;
+                }
+                else
+                {
+                    if (vendor.BusiType.Equals("Local", StringComparison.OrdinalIgnoreCase))
+                    {
+                        poVM.CGstRate = CommonConstants.GetGST(9);
+                        poVM.SGstRate = CommonConstants.GetGST(9);
+                        poVM.IGstRate = CommonConstants.GetIGST(0);
+                    }
+                    else
+                    {
+                        poVM.CGstRate = CommonConstants.GetGST(0);
+                        poVM.SGstRate = CommonConstants.GetGST(0);
+                        poVM.IGstRate = CommonConstants.GetIGST(18);
+                    }
+                }
+            }
+
+            // Currency
+            poVM.CurrId = vendor.CurrId ?? 1;
+            await ApplyCurrencyChange(poVM.CurrId.Value ,poVM);
+
+            // Totals update
+            await _calculationService.UpdateTotalsAsync(poVM);
+           
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {vendor?.VendorCode}");
+            await JS.ToastrError("Failed to apply customer selection. Please try again.");
+        }
+    }
+     private async Task ApplyCurrencyChange(int currencyId, PurchPoVM poVM)
+    {
+        var selectedCurrency = await purchPoSevice.GetCurrencyByIdAsync(currencyId);
+        if (selectedCurrency == null) return;
+
+        poVM.CurrName = selectedCurrency.CurrName;
+        poVM.Symbol = selectedCurrency.Symbol;
+        poVM.CurrId = selectedCurrency.CurrId;
+
+        if (currencyId > 1)
+            poVM.TodayVal = await purchPoSevice.GetLatestCurrencyValueAsync(currencyId) ?? 0m;
+    }
+
+    private async Task CreateAllPos()
+    {
+        try
+        {
+              var groups = PoSelection.GetVendorGroups();
+
+            foreach (var group in groups)
+            {
+                var itemsForVendor = group.Value.Select(x => new PurchPoSubVM
+                {
+                    RefQuoteSubId = x.QuoteSubId,
+                    RefQuoteNo = x.QuoteNo,
+                    RefQuoteDate = x.QuoteDate,
+                    ItemId = x.ItemId,
+                    ItemCode = x.ItemCode,
+                    ItemName = x.ItemName,
+                    Qty = x.Qty,
+                    BalQty = x.Qty,
+                    UnitPrice = x.Rate,
+                    MeasureUnit = x.UOM,
+                    HSNCode = x.HsnCode,
+                    DueDate = x.DueDate,
+                    IsEditable = true
+                }).ToList();
+
+                   int slNo = 1;
+                    foreach (var row in itemsForVendor)
+                    {
+                        row.SlNo = slNo++;
+                    }
+
+                var poVM = new PurchPoVM
+                {
+                    VendorCode = group.Key,
+                    PurchPoSubVMs = itemsForVendor,
+                    IsRevision = false,
+                    PoCancl = false,
+                    CreatedDate = DateTime.Now,
+                };
+
+                 var vendor = await purchPoSevice.GetVendorByIdAsync(group.Key);
+                        if (vendor != null)
+                            await ApplyVendorSelectionAsync(vendor , poVM );
+
+                await _calculationService.UpdateTotalsAsync(poVM);
+                poVM.PONo = await purchPoSevice.GeneratePoNumberAsync();
+                poVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+
+                await purchPoSevice.UpsertPoAsync(poVM);
+                await JS.ToastrSuccess($"PO created for vendor {group.Key} with {itemsForVendor.Count} items.");
+                
+            }
+
+            PoSelection.Clear();
+            await JS.ToastrSuccess("POs created for all vendors.");
+            Nav.NavigateTo("/rate-comparison");
+
+        }
+        catch (Exception ex)
+        {
+             await JS.ToastrError("Failed to initialize new po.");
+             await LoggingService.LogDeveloperError(ex, $"CreateAllPos failed for VendorCode:");
+            
+            
+        }
+
+      
+    }
+}

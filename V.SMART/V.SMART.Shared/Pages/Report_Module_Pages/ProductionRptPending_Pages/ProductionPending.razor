@@ -1,0 +1,2408 @@
+﻿@page "/ProductionPending"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.PoPendingModel
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel.LabourTrackViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject IProductionPendingService ProductionPendingService
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+
+
+<style>
+    /* =========================
+       COLOR THEME
+    ========================= */
+
+    :root {
+        --primary: #2563eb;
+        --primary-light: #eff6ff;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --dark: #1e293b;
+        --text: #475569;
+        --border: #e2e8f0;
+        --bg: #f8fafc;
+    }
+
+    /* PAGE */
+
+    .page-container {
+        background: var(--bg);
+        border-radius: 20px;
+        padding: 20px;
+    }
+
+    /* CARD */
+
+    .card {
+        background: #ffffff;
+        border: none;
+    }
+
+    /* HERO SECTION */
+/* 
+    .hero-section {
+        background: linear-gradient(135deg,#2563eb,#3b82f6);
+        color: white;
+        padding: 25px;
+        border-radius: 18px;
+        margin-bottom: 20px;
+        box-shadow: 0 10px 25px rgba(37,99,235,.15);
+    }
+
+        .hero-section h1 {
+            color: white;
+            font-weight: 700;
+        }
+
+        .hero-section p {
+            color: rgba(255,255,255,.9);
+        }
+
+    .header-badge {
+        background: rgba(255,255,255,.15);
+        padding: 10px 18px;
+        border-radius: 30px;
+        font-weight: 600;
+        color: white;
+        backdrop-filter: blur(10px);
+    } */
+
+    .hero-section {
+        background: linear-gradient(135deg, #4c1d95, #7c3aed, #0f766e);
+        padding: 30px 35px;
+        border-radius: 24px;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 28px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 18px 40px rgba(109, 40, 217, 0.25);
+    }
+
+        .hero-section::before {
+            content: "";
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 50%;
+            top: -120px;
+            right: -80px;
+        }
+
+        .hero-section h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+            font-family: Georgia, serif;
+            letter-spacing: 0.5px;
+        }
+
+        .hero-section p {
+            margin-top: 8px;
+            opacity: 0.92;
+            font-size: 15px;
+        }
+
+    .header-badge {
+        background: rgba(255,255,255,0.15);
+        padding: 12px 20px;
+        border-radius: 40px;
+        font-weight: 600;
+        border: 1px solid rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
+        z-index: 2;
+    }
+
+
+    /* FILTER CARD */
+
+    .filter-card {
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 20px;
+        border: 1px solid var(--border);
+        box-shadow: 0 4px 15px rgba(0,0,0,.05);
+        margin-bottom: 20px;
+    }
+
+    .filter-heading {
+        color: var(--primary);
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    /* FORM CONTROLS */
+
+    .form-control,
+    .form-select {
+        border-radius: 12px;
+        border: 1px solid #dbe3ee;
+        min-height: 45px;
+    }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 .2rem rgba(37,99,235,.15);
+        }
+
+    /* RADIO BUTTONS */
+
+    .radio-item {
+        background: #f8fafc;
+        padding: 10px 18px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        transition: .3s;
+        cursor: pointer;
+    }
+
+        .radio-item:hover {
+            background: #eff6ff;
+            border-color: #2563eb;
+        }
+
+    /* TABLE HEADER */
+
+    .table-header {
+        background: white;
+        padding: 15px;
+        border-radius: 15px;
+        border: 1px solid var(--border);
+        margin-bottom: 15px;
+    }
+
+        .table-header h6 {
+            color: var(--dark);
+            font-weight: 700;
+        }
+
+    /* SEARCH ICON */
+
+    .input-group-text {
+        background: var(--primary);
+        color: white;
+        border: none;
+    }
+
+    /* DETAIL CHECKBOX */
+
+    .custom-checkbox {
+        transform: scale(1.2);
+        cursor: pointer;
+    }
+
+    .form-check-label {
+        font-weight: 600;
+        color: var(--dark);
+    }
+
+    /* EXPORT BUTTON */
+
+    .custom-print-btn {
+        background: linear-gradient(135deg,#10b981,#059669);
+        color: white;
+        border: none;
+        border-radius: 15px;
+        padding: 10px 20px;
+        font-weight: 600;
+        transition: .3s;
+    }
+
+        .custom-print-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16,185,129,.25);
+        }
+
+    /* TABLE */
+
+    .custom-table {
+        border-radius: 15px;
+        overflow: hidden;
+        background: white;
+    }
+
+        .custom-table thead th {
+            background: linear-gradient(135deg,#1e40af,#2563eb);
+            color: white;
+            font-weight: 600;
+            text-align: center;
+            vertical-align: middle;
+            border: none;
+            white-space: nowrap;
+        }
+
+        .custom-table tbody td {
+            vertical-align: middle;
+            border-color: #edf2f7;
+        }
+
+        .custom-table tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        .custom-table tbody tr:hover {
+            background: #dbeafe;
+            transition: .2s;
+        }
+
+    /* SUMMARY CARD */
+
+    .summary-card {
+        background: linear-gradient(135deg,#ffffff,#f8fafc);
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 5px 20px rgba(0,0,0,.05);
+    }
+
+    .summary-icon {
+        width: 60px;
+        height: 60px;
+        margin: auto;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg,#2563eb,#60a5fa);
+        color: white;
+        font-size: 24px;
+    }
+
+    .summary-title {
+        margin-top: 15px;
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    .summary-value {
+        margin-top: 8px;
+        font-size: 30px;
+        font-weight: 700;
+        color: #2563eb;
+    }
+
+    /* NO RECORD */
+
+    .text-center.p-4 {
+        background: white;
+        border-radius: 15px;
+        color: #64748b;
+        font-weight: 600;
+    }
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+
+  
+
+    <div class="container-fluid px-2 px-md-4 mt-4">
+
+        <div class="card shadow-sm border-0 rounded-4">
+
+            <PageHeader TitleText="ProductionPending List"
+                        TitleIcon="bi bi-cash-stack"
+                        Breadcrumbs="@ProductionPendingBreadcrumbs" />
+
+            <div class="page-container">
+
+                <!-- PAGE TITLE -->
+                @*  <div class="page-title">
+                    Pending Statements
+                </div> *@
+
+                <div class="hero-section">
+
+                    <div>
+                        <h1>Production Pending</h1>
+                        <p>Track all  Production Pending with smart filtering & analytics</p>
+                    </div>
+
+                    <div class="header-badge">
+                        <i class="bi bi-lightning-charge-fill me-2"></i>
+                        Live Tracking
+                    </div>
+
+                </div>
+
+              
+
+                <div class="filter-card">
+
+                    <div class="top-filter-layout">
+
+                        <div class="row align-items-end g-3">
+
+                            <!-- From Date -->
+                            <div class="col-12 col-md-2">
+                                <div class="filter-item">
+                                    <label class="form-label">From Date</label>
+
+                                    <input type="date"
+                                           @bind="FromDate"
+                                           class="form-control" />
+                                </div>
+                            </div>
+
+                            <!-- To Date -->
+                            <div class="col-12 col-md-2">
+                                <div class="filter-item">
+                                    <label class="form-label">To Date</label>
+
+                                    <input type="date"
+                                           @bind="ToDate"
+                                           class="form-control" />
+                                </div>
+                            </div>
+
+                            <!-- RIGHT SIDE -->
+                            <div class="col-12 col-md-8">
+
+                                <div class="topic-section">
+
+                                    <div class="filter-heading">
+                                        Select Topic
+                                    </div>
+
+                                  
+
+                                    <InputRadioGroup TValue="string"
+                                                     Value="@SelectedType"
+                                                     ValueChanged="@OnPartyTypeChanged"
+                                                     ValueExpression="() => SelectedType">
+
+                                        <div class="radio-wrapper">
+
+                                            <label class="radio-item">
+                                                <InputRadio Value="@("Job Order")" />
+                                                <span>Job Order</span>
+                                            </label>
+
+                                            <label class="radio-item">
+                                                <InputRadio Value="@("Production Component")" />
+                                                <span>Production Component</span>
+                                            </label>
+
+
+
+                                            <label class="radio-item">
+                                                <InputRadio Value="@("Production Assembly")" />
+                                                <span>Production Assembly</span>
+                                            </label>
+
+
+                                        </div>
+                                        @if (SelectedType == "Production Assembly")
+                                        {
+                                            <div class="mt-3 component-dropdown">
+
+                                                <label class="form-label">
+                                                    Select Assembly Type
+                                                </label>
+
+                                                <InputSelect TValue="string"
+                                                             class="form-select"
+                                                             Value="@SelectedAssemblyType"
+                                                             ValueChanged="@(value => OnAssemblyTypeChanged(value))"
+                                                             ValueExpression="@(() => SelectedAssemblyType)">
+
+                                                 
+
+                                                    <option value="Production Assembly Issue">
+                                                        Production Assembly Issue
+                                                    </option>
+
+                                                    <option value="Production Return Assembly">
+                                                        Production Return Assembly
+                                                    </option>
+
+                                                    <option value="Production Return Assembly SCN">
+                                                        Production Return Assembly SCN
+                                                    </option>
+
+                                                </InputSelect>
+
+                                            </div>
+                                        }
+
+                                        @if (SelectedType == "Production Component")
+                                        {
+                                            <div class="mt-3 component-dropdown">
+
+                                                <label class="form-label">
+                                                    Select Component Type
+                                                </label>
+
+                                                <InputSelect TValue="string"
+                                                             class="form-select"
+                                                             Value="@SelectedComponentType"
+                                                             ValueChanged="@(value => OnComponentTypeChanged(value))"
+                                                             ValueExpression="@(() => SelectedComponentType)">
+
+                                                   
+
+                                                    <option value="Production Component Issue">
+                                                        Production Component Issue
+                                                    </option>
+
+                                                    <option value="Production Return Component">
+                                                        Production Return Component
+                                                    </option>
+
+                                                    <option value="Production Return SCN">
+                                                        Production Return SCN
+                                                    </option>
+
+                                                </InputSelect>
+
+                                            </div>
+                                        }
+
+                                    </InputRadioGroup>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+
+
+                <!-- TABLE -->
+
+                <div class="table-header d-flex align-items-center justify-content-between flex-wrap gap-3">
+
+                    
+
+                    <div class="row g-3 align-items-center">
+
+                        <div class="col-12 col-xl-3">
+                            <h6 class="mb-0">
+                                <i class="bi bi-receipt-cutoff me-2"></i>
+                                Production Pending List
+                            </h6>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="bi bi-search"></i>
+                                </span>
+
+                                <InputText class="form-control"
+                                           placeholder="Min 3 letters..."
+                                           @bind-Value="searchText"
+                                           @oninput="e => searchText = e.Value?.ToString()" />
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-xl-2">
+                            <ColumnMenu Columns="Columns"
+                                        ScreenName="@ScreenName"
+                                        UserId="@UserName"
+                                        MaxVisible="int.MaxValue"
+                                        OnChanged="HandleColumnChange" />
+                        </div>
+
+                        <div class="col-12 col-md-6 col-xl-2">
+                            <div class="form-check">
+                                <input class="form-check-input custom-checkbox"
+                                       type="checkbox"
+                                       id="detailViewCheck"
+                                       checked="@DetailsView"
+                                       @onchange="OnDetailViewChanged" />
+
+                                <label class="form-check-label"
+                                       for="detailViewCheck">
+                                    Detail View
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-xl-2">
+                            <button class="custom-print-btn"
+                                    @onclick="OnPrintPendingTrack">
+                                <i class="bi bi-download me-2"></i>
+                                Export Excel
+                            </button>
+                        </div>
+
+                    </div>
+
+
+                </div>
+
+              
+
+
+
+                    <div class="table-responsive">
+
+                        @if (productionPendingVMs.Any())
+                        {
+                        <table class="table table-bordered custom-table">
+
+                            <thead>
+                                <tr>
+
+                                    @if (SelectedType == "Job Order")
+                                    {
+
+
+                                        @if (IsVisible("SlNo"))
+                                        {
+                                            <th>Sl No</th>
+                                        }
+                                        @if (IsVisible("JobNo"))
+                                        {
+                                            <th>Job No</th>
+                                        }
+                                        @if (IsVisible("JobDate"))
+                                        {
+                                            <th>Job Date</th>
+                                        }
+                                        @if (IsVisible("CustName"))
+                                        {
+                                            <th>Customer Name</th>
+                                        }
+                                        @if (IsVisible("PONo"))
+                                        {
+                                            <th>RefPo No</th>
+                                        }
+                                        @if (IsVisible("PODate"))
+                                        {
+                                            <th>RefPo Date</th>
+                                        }
+                                        @if (IsVisible("AssyItemCode"))
+                                        {
+                                            <th>Assembly ItemCode</th>
+                                        }
+                                        @if (IsVisible("AssyItemName"))
+                                        {
+                                            <th>Assembly ItemName</th>
+                                        }
+                                        @if (IsVisible("JobOrderQty"))
+                                        {
+                                            <th>Joborder Qty</th>
+                                        }
+                                        @if (IsVisible("JobBalQty"))
+                                        {
+                                            <th>Joborder BQty</th>
+                                        }
+                                        @if (DetailsView)
+                                        {
+
+                                            @if (IsVisible("ItemCode"))
+                                            {
+                                                <th>Item Code</th>
+                                            }
+                                            @if (IsVisible("ItemName"))
+                                            {
+                                                <th>Item Name</th>
+                                            }
+                                            @if (IsVisible("UtilQty"))
+                                            {
+                                                <th>Util Qty</th>
+                                            }
+                                            @if (IsVisible("Qty"))
+                                            {
+                                                <th>Qty</th>
+                                            }
+                                            @if (IsVisible("BalQty"))
+                                            {
+                                                <th>Bal Qty</th>
+                                            }
+                                            @if (IsVisible("JobType"))
+                                            {
+                                                <th>Job Type</th>
+                                            }
+                                        }
+
+                                }
+
+                                    else if (
+
+                                            SelectedType == "Production Component" &&
+                                            (string.IsNullOrEmpty(SelectedComponentType)
+                                            || SelectedComponentType == "Production Component Issue")
+                                    )
+                                    {
+                                        @if (IsVisible("SlNo"))
+                                        {
+                                            <th>Sl No</th>
+                                        }
+                                        @if (IsVisible("IssueNo"))
+                                        {
+                                            <th>Issue No</th>
+                                        }
+                                        @if (IsVisible("IssueDate"))
+                                        {
+                                            <th>Issue Date</th>
+                                        }
+                                        @if (DetailsView)
+                                        {
+                                            @if (IsVisible("ItemCode"))
+                                            {
+                                                <th>Item Code</th>
+                                            }
+                                            @if (IsVisible("ItemName"))
+                                            {
+                                                <th>Item Name</th>
+                                            }
+                                            @if (IsVisible("PONo"))
+                                            {
+                                                <th>Ref PoNo</th>
+                                            }
+                                            @if (IsVisible("PODate"))
+                                            {
+                                                <th>Ref PoDate</th>
+                                            }
+                                            @if (IsVisible("Qty"))
+                                            {
+                                                <th>Issue Qty</th>
+                                            }
+                                            @if (IsVisible("BalQty"))
+                                            {
+                                                <th>Bal Qty</th>
+                                            }
+                                            @if (IsVisible("TransType"))
+                                            {
+                                                <th>TransType</th>
+                                            }
+
+
+                                        }
+                                    }
+
+                                    else if (
+                                    SelectedType == "Production Component" &&
+                                    SelectedComponentType == "Production Return Component"
+                                    )
+                                    {
+
+                                        @if (IsVisible("SlNo"))
+                                        {
+                                            <th>Sl No</th>
+                                        }
+                                        @if (IsVisible("ReturnNo"))
+                                        {
+                                            <th>ReturnNo</th>
+                                        }
+                                        @if (IsVisible("ReturnDate"))
+                                        {
+                                            <th>ReturnDate</th>
+                                        }
+                                        @if (IsVisible("RefPoNo"))
+                                        {
+                                            <th>RefPoNo</th>
+                                        }
+                                        @if (IsVisible("RefRcNo"))
+                                        {
+                                            <th>RefRcNo</th>
+                                        }
+                                        @if (IsVisible("RefIssNo"))
+                                        {
+                                            <th>RefIssNo</th>
+                                        }
+                                        @if (DetailsView)
+                                        {
+
+                                            @if (IsVisible("ItemCode"))
+                                            {
+                                                <th>ItemCode</th>
+                                            }
+                                            @if (IsVisible("ItemName"))
+                                            {
+                                                <th>ItemName</th>
+                                            }
+                                            @if (IsVisible("FROMSTORE"))
+                                            {
+                                                <th>FROMSTORE</th>
+                                            }
+                                            @if (IsVisible("Qty"))
+                                            {
+                                                <th>Qty</th>
+                                            }
+                                            @if (IsVisible("BalQty"))
+                                            {
+                                                <th>BalQty</th>
+                                            }
+                                        }
+                                    }
+
+                                    else if (
+                                    SelectedType == "Production Component" &&
+                                    SelectedComponentType == "Production Return SCN"
+                                    )
+                                    {
+                                        @if (IsVisible("SlNo"))
+                                        {
+                                            <th>Sl No</th>
+                                        }
+                                        @if (IsVisible("SCNNo"))
+                                        {
+                                            <th>SCNNo</th>
+                                        }
+                                        @if (IsVisible("SCNDate"))
+                                        {
+                                            <th>SCNDate</th>
+                                        }
+                                        @if (IsVisible("RefGrnNo"))
+                                        {
+                                            <th>RefGrnNo</th>
+                                        }
+                                        @if (IsVisible("RefRcNo"))
+                                        {
+                                            <th>RefRcNo</th>
+                                        }
+                                        @if (DetailsView)
+                                        {
+                                            @if (IsVisible("ItemCode"))
+                                            {
+                                                <th>ItemCode</th>
+                                            }
+                                            @if (IsVisible("ItemName"))
+                                            {
+                                                <th>ItemName</th>
+                                            }
+                                            @if (IsVisible("FROMSTORE"))
+                                            {
+                                                <th>FROMSTORE</th>
+                                            }
+                                            @if (IsVisible("TOSTORE"))
+                                            {
+                                                <th>TOSTORE</th>
+                                            }
+                                            @if (IsVisible("Qty"))
+                                            {
+                                                <th>Qty</th>
+                                            }
+                                            @if (IsVisible("RejQty"))
+                                            {
+                                                <th>RejQty</th>
+                                            }
+                                            @if (IsVisible("BalQty"))
+                                            {
+                                                <th>BalQty</th>
+                                            }
+                                        }
+                                    }
+
+                                    else if (
+                                    SelectedType == "Production Assembly" &&
+                                    (string.IsNullOrEmpty(SelectedAssemblyType)
+                                    || SelectedAssemblyType == "Production Assembly Issue")
+                                    )
+                                    {
+                                        @if (IsVisible("SlNo"))
+                                        {
+                                            <th>Sl No</th>
+                                        }
+                                        @if (IsVisible("IssueNo"))
+                                        {
+                                            <th>Issue No</th>
+                                        }
+                                        @if (IsVisible("IssueDate"))
+                                        {
+                                            <th>Issue Date</th>
+                                        }
+                                        @if (DetailsView)
+                                        {
+                                            @if (IsVisible("CustName"))
+                                            {
+                                                <th>Ref Customer</th>
+                                            }
+                                            @if (IsVisible("AssyItemCode"))
+                                            {
+                                                <th>Assembly Item Code</th>
+                                            }
+                                            @if (IsVisible("AssyItemName"))
+                                            {
+                                                <th>Assembly Item Name</th>
+                                            }
+                                            @if (IsVisible("ItemCode"))
+                                            {
+                                                <th>Item Code</th>
+                                            }
+                                            @if (IsVisible("ItemName"))
+                                            {
+                                                <th>Item Name</th>
+                                            }
+                                            @if (IsVisible("Qty"))
+                                            {
+                                                <th>Issue Qty</th>
+                                            }
+                                            @if (IsVisible("BalQty"))
+                                            {
+                                                <th>Bal Qty</th>
+                                            }
+                                            @if (IsVisible("JobNo"))
+                                            {
+                                                <th>Ref Job No</th>
+                                            }
+                                        }
+                                    }
+                                
+
+                                        else if (
+                                        SelectedType == "Production Assembly" &&
+                                        SelectedAssemblyType == "Production Return Assembly"
+                                        )
+                                        {
+
+                                            @if (IsVisible("SlNo"))
+                                            {
+                                                <th>Sl No</th>
+                                            }
+                                            @if (IsVisible("ReturnNo"))
+                                            {
+                                                <th>ReturnNo</th>
+                                            }
+                                            @if (IsVisible("ReturnDate"))
+                                            {
+                                                <th>ReturnDate</th>
+                                            }
+                                            @if (IsVisible("JobNo"))
+                                            {
+                                                <th>JobNo</th>
+                                            }
+                                            @if (IsVisible("RefIssueNo"))
+                                            {
+                                                <th>RefIssueNo</th>
+                                            }
+                                    @if (DetailsView)
+                                    {
+                                        @if (IsVisible("ItemCode"))
+                                        {
+                                            <th>ItemCode</th>
+                                        }
+                                        @if (IsVisible("ItemName"))
+                                        {
+                                            <th>ItemName</th>
+                                        }
+                                        @if (IsVisible("AddStore"))
+                                        {
+                                            <th>AddStore</th>
+                                        }
+                                        @if (IsVisible("Qty"))
+                                        {
+                                            <th>Qty</th>
+                                        }
+                                        @if (IsVisible("BalQty"))
+                                        {
+                                            <th>BalQty</th>
+                                        }
+                                        @if (IsVisible("ReturnBy"))
+                                        {
+                                            <th>ReturnBy</th>
+                                        }
+                                    }
+                                    }
+
+                                        else if (
+                                        SelectedType == "Production Assembly" &&
+                                        SelectedAssemblyType == "Production Return Assembly SCN"
+                                        )
+                                        {
+                                            @if (IsVisible("SlNo"))
+                                            {
+                                                <th>Sl No</th>
+                                            }
+                                            @if (IsVisible("ScnNo"))
+                                            {
+                                                <th>ScnNo</th>
+                                            }
+                                            @if (IsVisible("ScnDate"))
+                                            {
+                                                <th>ScnDate</th>
+                                            }
+                                            @if (IsVisible("RefReturnNo"))
+                                            {
+                                                <th>RefReturnNo</th>
+                                            }
+                                    @if (DetailsView)
+                                    {
+                                        @if (IsVisible("ItemCode"))
+                                        {
+                                            <th>ItemCode</th>
+                                        }
+                                        @if (IsVisible("ItemName"))
+                                        {
+                                            <th>ItemName</th>
+                                        }
+                                        @if (IsVisible("FROMSTORE"))
+                                        {
+                                            <th>FROMSTORE</th>
+                                        }
+                                        @if (IsVisible("TOSTORE"))
+                                        {
+                                            <th>TOSTORE</th>
+                                        }
+                                        @if (IsVisible("Qty"))
+                                        {
+                                            <th>Qty</th>
+                                        }
+                                        @if (IsVisible("RejQty"))
+                                        {
+                                            <th>RejQty</th>
+                                        }
+                                        @if (IsVisible("BalQty"))
+                                        {
+                                            <th>BalQty</th>
+                                        }
+                                }
+
+                            }
+                       
+
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+
+                                    @foreach (var item in productionPendingVMs)
+                                    {
+                                        <tr>
+
+                                            @if (SelectedType == "Job Order")
+                                            {
+                                                @if (IsVisible("SlNo"))
+                                                {
+                                                    <td>@item.SlNo</td>
+                                                }
+                                                @if (IsVisible("JobNo"))
+                                                {
+                                                    <td>@item.JobNo</td>
+                                                }
+                                                @if (IsVisible("JobDate"))
+                                                {
+                                                    <td>@item.JobDate</td>
+                                                }
+                                                @if (IsVisible("CustName"))
+                                                {
+                                                    <td>@item.CustName</td>
+                                                }
+                                                @if (IsVisible("PONo"))
+                                                {
+                                                    <td>@item.PONo</td>
+                                                }
+                                                @if (IsVisible("PODate"))
+                                                {
+                                                    <td>@item.PODate</td>
+                                                }
+                                                @if (IsVisible("AssyItemCode"))
+                                                {
+                                                    <td>@item.AssyItemCode</td>
+                                                }
+                                                @if (IsVisible("AssyItemName"))
+                                                {
+                                                    <td>@item.AssyItemName</td>
+                                                }
+                                                @if (IsVisible("JobOrderQty"))
+                                                {
+                                                    <td>@item.JobOrderQty</td>
+                                                }
+                                                @if (IsVisible("JobBalQty"))
+                                                {
+                                                    <td>@item.JobBalQty</td>
+                                                }
+                                            @if (DetailsView)
+                                            {
+                                                @if (IsVisible("ItemCode"))
+                                                {
+                                                    <td>@item.ItemCode</td>
+                                                }
+                                                @if (IsVisible("ItemName"))
+                                                {
+                                                    <td>@item.ItemName</td>
+                                                }
+                                                @if (IsVisible("UtilQty"))
+                                                {
+                                                    <td>@item.UtilQty</td>
+                                                }
+                                                @if (IsVisible("Qty"))
+                                                {
+                                                    <td>@item.Qty</td>
+                                                }
+                                                @if (IsVisible("BalQty"))
+                                                {
+                                                    <td>@item.BalQty</td>
+                                                }
+                                                @if (IsVisible("JobType"))
+                                                {
+                                                    <td>@item.JobType</td>
+                                                } 
+                                                }
+                                               
+                                            }
+
+                                            else if ( SelectedType == "Production Component" &&
+                                            (string.IsNullOrEmpty(SelectedComponentType)
+                                            || SelectedComponentType == "Production Component Issue")
+                                            )
+                                            {
+                                                @if (IsVisible("SlNo"))
+                                                {
+                                                    <td>@item.SlNo</td>
+                                                }
+                                                @if (IsVisible("IssueNo"))
+                                                {
+                                                    <td>@item.IssueNo</td>
+                                                }
+                                                @if (IsVisible("IssueDate"))
+                                                {
+                                                    <td>@item.IssueDate</td>
+                                                }
+
+                                            @if (DetailsView)
+                                            {
+                                                 @if (IsVisible("ItemCode"))
+                                                {
+                                                    <td>@item.ItemCode</td>
+                                                }
+                                                @if (IsVisible("ItemName"))
+                                                {
+                                                    <td>@item.ItemName</td>
+                                                }
+                                                @if (IsVisible("PONo"))
+                                                {
+                                                    <td>@item.PONo</td>
+                                                }
+                                                @if (IsVisible("PODate"))
+                                                {
+                                                    <td>@item.PODate</td>
+                                                }
+                                                @if (IsVisible("Qty"))
+                                                {
+                                                    <td>@item.Qty</td>
+                                                }
+                                                @if (IsVisible("BalQty"))
+                                                {
+                                                    <td>@item.BalQty</td>
+                                                }
+                                                @if (IsVisible("TransType"))
+                                                {
+                                                    <td>@item.TransType</td>
+                                                } 
+                                                }
+                                            }
+
+                                            else if (
+                                                    SelectedType == "Production Assembly" &&
+                                                    (string.IsNullOrEmpty(SelectedAssemblyType)
+                                                    || SelectedAssemblyType == "Production Assembly Issue")
+                                            )
+                                            {
+                                                @if (IsVisible("SlNo"))
+                                                {
+                                                    <td>@item.SlNo</td>
+                                                }
+                                                @if (IsVisible("IssueNo"))
+                                                {
+                                                    <td>@item.IssueNo</td>
+                                                }
+                                                @if (IsVisible("IssueDate"))
+                                                {
+                                                    <td>@item.IssueDate</td>
+                                                }
+                                            @if (DetailsView)
+                                            {
+                                                @if (IsVisible("CustName"))
+                                                {
+                                                    <td>@item.CustName</td>
+                                                }
+                                                @if (IsVisible("AssyItemCode"))
+                                                {
+                                                    <td>@item.AssyItemCode</td>
+                                                }
+                                                @if (IsVisible("AssyItemName"))
+                                                {
+                                                    <td>@item.AssyItemName</td>
+                                                }
+
+                                               
+                                                @if (IsVisible("ItemCode"))
+                                                {
+                                                    <td>@item.ItemCode</td>
+                                                }
+                                                @if (IsVisible("ItemName"))
+                                                {
+                                                    <td>@item.ItemName</td>
+                                                }
+                                                @if (IsVisible("Qty"))
+                                                {
+                                                    <td>@item.Qty</td>
+                                                }
+                                                @if (IsVisible("BalQty"))
+                                                {
+                                                    <td>@item.BalQty</td>
+                                                }
+                                                @if (IsVisible("JobNo"))
+                                                {
+                                                    <td>@item.JobNo</td>
+                                                } 
+                                                }
+                                            }
+
+                                            else if (
+                                            SelectedType == "Production Component" &&
+                                            SelectedComponentType == "Production Return Component"
+                                            )
+                                            {
+                                                @if (IsVisible("SlNo"))
+                                                {
+                                                    <td>@item.SlNo</td>
+                                                }
+
+                                                @if (IsVisible("ReturnNo"))
+                                                {
+                                                    <td>@item.ReturnNo</td>
+                                                }
+
+                                                @if (IsVisible("ReturnDate"))
+                                                {
+                                                    <td>@item.ReturnDate</td>
+                                                }
+
+                                                @if (IsVisible("RefPoNo"))
+                                                {
+                                                    <td>@item.RefPoNo</td>
+                                                }
+
+                                                @if (IsVisible("RefRcNo"))
+                                                {
+                                                    <td>@item.RefRcNo</td>
+                                                }
+
+                                                @if (IsVisible("RefIssNo"))
+                                                {
+                                                    <td>@item.RefIssNo</td>
+                                                }
+                                            @if (DetailsView)
+                                            {
+
+                                                @if (IsVisible("ItemCode"))
+                                                {
+                                                    <td>@item.ItemCode</td>
+                                                }
+
+                                                @if (IsVisible("ItemName"))
+                                                {
+                                                    <td>@item.ItemName</td>
+                                                }
+
+                                                @if (IsVisible("FROMSTORE"))
+                                                {
+                                                    <td>@item.FROMSTORE</td>
+                                                }
+
+                                                @if (IsVisible("Qty"))
+                                                {
+                                                    <td>@item.Qty</td>
+                                                }
+
+                                                @if (IsVisible("BalQty"))
+                                                {
+                                                    <td>@item.BalQty</td>
+                                                } 
+                                                }
+                                            }
+
+                                            else if (
+                                            SelectedType == "Production Component" &&
+                                            SelectedComponentType == "Production Return SCN"
+                                            )
+                                            {
+                                                @if (IsVisible("SlNo"))
+                                                {
+                                                    <td>@item.SlNo</td>
+                                                }
+
+                                                @if (IsVisible("SCNNo"))
+                                                {
+                                                    <td>@item.SCNNo</td>
+                                                }
+
+                                                @if (IsVisible("SCNDate"))
+                                                {
+                                                    <td>@item.ReturnDate</td>
+                                                }
+
+                                                @if (IsVisible("RefGrnNo"))
+                                                {
+                                                    <td>@item.RefGrnNo</td>
+                                                }
+
+                                                @if (IsVisible("RefRcNo"))
+                                                {
+                                                    <td>@item.RefRcNo</td>
+                                                }
+                                                @if (DetailsView)
+                                                {
+
+                                                @if (IsVisible("ItemCode"))
+                                                {
+                                                    <td>@item.ItemCode</td>
+                                                }
+
+                                                @if (IsVisible("ItemName"))
+                                                {
+                                                    <td>@item.ItemName</td>
+                                                }
+
+                                                @if (IsVisible("FROMSTORE"))
+                                                {
+                                                    <td>@item.FROMSTORE</td>
+                                                }
+
+                                                @if (IsVisible("TOSTORE"))
+                                                {
+                                                    <td>@item.TOSTORE</td>
+                                                }
+
+                                                @if (IsVisible("Qty"))
+                                                {
+                                                    <td>@item.Qty</td>
+                                                }
+
+                                                @if (IsVisible("RejQty"))
+                                                {
+                                                    <td>@item.RejQty</td>
+                                                }
+
+                                                @if (IsVisible("BalQty"))
+                                                {
+                                                    <td>@item.BalQty</td>
+                                                } 
+                                            }
+                                        }
+
+                                            else if (
+                                            SelectedType == "Production Assembly" &&
+                                            SelectedAssemblyType == "Production Return Assembly"
+                                            )
+                                            {
+                                                @if (IsVisible("SlNo"))
+                                                {
+                                                    <td>@item.SlNo</td>
+                                                }
+
+                                                @if (IsVisible("ReturnNo"))
+                                                {
+                                                    <td>@item.ReturnNo</td>
+                                                }
+
+                                                @if (IsVisible("ReturnDate"))
+                                                {
+                                                    <td>@item.ReturnDate</td>
+                                                }
+
+                                                @if (IsVisible("JobNo"))
+                                                {
+                                                    <td>@item.JobNo</td>
+                                                }
+
+                                                @if (IsVisible("RefIssueNo"))
+                                                {
+                                                    <td>@item.RefIssueNo</td>
+                                                }
+                                            @if (DetailsView)
+                                            {
+
+                                                @if (IsVisible("ItemCode"))
+                                                {
+                                                    <td>@item.ItemCode</td>
+                                                }
+
+                                                @if (IsVisible("ItemName"))
+                                                {
+                                                    <td>@item.ItemName</td>
+                                                }
+
+                                                @if (IsVisible("AddStore"))
+                                                {
+                                                    <td>@item.AddStore</td>
+                                                }
+
+                                                @if (IsVisible("Qty"))
+                                                {
+                                                    <td>@item.Qty</td>
+                                                }
+
+                                                @if (IsVisible("BalQty"))
+                                                {
+                                                    <td>@item.BalQty</td>
+                                                }
+
+                                                @if (IsVisible("ReturnBy"))
+                                                {
+                                                    <td>@item.ReturnBy</td>
+                                                } 
+                                                }
+                                            }
+
+                                            else if (
+                                            SelectedType == "Production Assembly" &&
+                                            SelectedAssemblyType == "Production Return Assembly SCN"
+                                            )
+                                            {
+                                                @if (IsVisible("SlNo"))
+                                                {
+                                                    <td>@item.SlNo</td>
+                                                }
+
+                                                @if (IsVisible("ScnNo"))
+                                                {
+                                                    <td>@item.SCNNo</td>
+                                                }
+
+                                                @if (IsVisible("ScnDate"))
+                                                {
+                                                    <td>@item.ReturnDate</td>
+                                                }
+
+                                                @if (IsVisible("RefReturnNo"))
+                                                {
+                                                    <td>@item.ReturnNo</td>
+                                                }
+                                            @if (DetailsView)
+                                            {
+                                                 @if (IsVisible("ItemCode"))
+                                                {
+                                                    <td>@item.ItemCode</td>
+                                                }
+
+                                                @if (IsVisible("ItemName"))
+                                                {
+                                                    <td>@item.ItemName</td>
+                                                }
+
+                                                @if (IsVisible("FROMSTORE"))
+                                                {
+                                                    <td>@item.FROMSTORE</td>
+                                                }
+
+                                                @if (IsVisible("TOSTORE"))
+                                                {
+                                                    <td>@item.TOSTORE</td>
+                                                }
+
+                                                @if (IsVisible("Qty"))
+                                                {
+                                                    <td>@item.Qty</td>
+                                                }
+
+                                                @if (IsVisible("RejQty"))
+                                                {
+                                                    <td>@item.RejQty</td>
+                                                }
+
+                                                @if (IsVisible("BalQty"))
+                                                {
+                                                    <td>@item.BalQty</td>
+                                                } 
+                                                }
+                                            }
+
+                                        </tr>
+                                    }
+
+                                </tbody>
+
+                            </table>
+                        }
+                        else
+                        {
+                            <div class="text-center p-4">
+                                No Records Found
+                            </div>
+                        }
+
+                    </div>
+
+                  
+
+                    <div class="summary-card">
+
+                        <div class="summary-icon vendors-icon">
+                            <i class="bi bi-clipboard-check"></i>
+                        </div>
+
+                    <div class="summary-title">
+                        Total Pending
+                    </div>
+
+                        <div class="summary-value">
+                            @(
+                                                SelectedType == "Job Order"
+                                                ? PendingStatementsList.Select(x => x.JobNo).Distinct().Count()
+
+                                                : SelectedType == "Production Component" &&
+                                                SelectedComponentType == "Production Component Issue"
+                                                ? PendingStatementsList.Select(x => x.IssueNo).Distinct().Count()
+
+                                                : SelectedType == "Production Assembly" &&
+                                                SelectedAssemblyType == "Production Assembly Issue"
+                                                ? PendingStatementsList.Select(x => x.IssueNo).Distinct().Count()
+
+                                               : SelectedType == "Production Assembly" &&
+                                                SelectedAssemblyType == "Production Return Assembly"
+                                                ? PendingStatementsList.Select(x => x.ReturnNo).Distinct().Count()
+
+                                                : SelectedType == "Production Assembly" &&
+                                                SelectedAssemblyType == "Production Return Assembly SCN"
+                                                ? PendingStatementsList.Select(x => x.ReturnNo).Distinct().Count()
+
+                                               : SelectedType == "Production Component" &&
+                                                SelectedComponentType == "Production Return Component"
+                                                ? PendingStatementsList.Select(x => x.ReturnNo).Distinct().Count()
+
+                                               : SelectedType == "Production Component" &&
+                                                SelectedComponentType == "Production Return SCN"
+                                                ? PendingStatementsList.Select(x => x.SCNNo).Distinct().Count()
+
+
+                                                : 0
+                                                )
+                        </div>
+
+                     </div>
+
+
+             </div>
+
+
+         </div>
+
+    </div>
+
+  
+
+  
+}
+
+@code {
+
+    protected override string ScreenName => "Production Pending Summary";
+
+    private List<ProductionPendingVM> PendingStatementsList = new();
+
+    private string SelectedComponentType { get; set; } = "";
+
+    private string SelectedAssemblyType { get; set; } = "";
+
+    private bool IsLoading { get; set; }
+
+
+    private string SelectedType { get; set; }
+
+    private bool isProcessing = false;
+
+    public List<GridColumn> Columns { get; set; }
+
+    private bool CanView = true;
+
+    public DateTime? FromDate { get; set; }
+
+    public DateTime? ToDate { get; set; }
+
+    public bool DetailsView { get; set; }
+
+    private string? UserName;
+
+
+    private string searchText;
+
+    private List<PageHeader.BreadcrumbItem> ProductionPendingBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Pending Report" },
+        new PageHeader.BreadcrumbItem { Text = "Production Pending", IsLast = true }
+    };
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+
+
+
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            // Today's Date
+            ToDate = DateTime.Today;
+
+            // One month back from today
+            FromDate = DateTime.Today.AddMonths(-1);
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error occurred while loading Paid Bills"
+            );
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    private bool IsVisible(string field)
+    {
+        return Columns?.FirstOrDefault(x => x.Field == field)?.IsVisible ?? true;
+    }
+
+    public async Task InitializeColumns(bool hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>();
+
+            if (SelectedType == "Job Order")
+            {
+                Columns.AddRange(new[]
+                {
+                new GridColumn{Title="Sl No",Field="SlNo",IsVisible=true},
+
+                new GridColumn{Title="Job No",Field="JobNo",IsVisible=true},
+
+                new GridColumn{Title="Job Date",Field="JobDate",IsVisible=true},
+
+                new GridColumn{Title="Customer Name",Field="CustName",IsVisible=true},
+
+                new GridColumn{Title="RefPo No",Field="PONo",IsVisible=true},
+
+                new GridColumn{Title="RefPo Date",Field="PODate",IsVisible=true},
+
+                new GridColumn{Title="Assembly ItemCode",Field="AssyItemCode",IsVisible=true},
+
+                new GridColumn{Title="Assembly ItemName",Field="AssyItemName",IsVisible=true},
+
+                new GridColumn{Title="Joborder Qty",Field="JobOrderQty",IsVisible=true},
+
+                new GridColumn{Title="Joborder BQty",Field="JobBalQty",IsVisible=true},
+
+                new GridColumn{Title="Item Code",Field="ItemCode",IsVisible=true},
+
+                new GridColumn{Title="Item Name",Field="ItemName",IsVisible=true},
+
+                new GridColumn{Title="Util Qty",Field="UtilQty",IsVisible=true},
+
+                new GridColumn{Title="Qty",Field="Qty",IsVisible=true},
+
+                new GridColumn{Title="Bal Qty",Field="BalQty",IsVisible=true},
+
+                new GridColumn{Title="Job Type",Field="JobType",IsVisible=true},
+            });
+            }
+
+            else if (
+                SelectedType == "Production Component" &&
+                (string.IsNullOrEmpty(SelectedComponentType)
+                || SelectedComponentType == "Production Component Issue")
+            )
+            {
+                Columns.AddRange(new[]
+                {
+                new GridColumn{Title="Sl No",Field="SlNo",IsVisible=true},
+
+                new GridColumn{Title="Issue No",Field="IssueNo",IsVisible=true},
+
+                new GridColumn{Title="Issue Date",Field="IssueDate",IsVisible=true},
+
+                new GridColumn{Title="Item Code",Field="ItemCode",IsVisible=true},
+
+                new GridColumn{Title="Item Name",Field="ItemName",IsVisible=true},
+
+                new GridColumn{Title="Ref Pono",Field="PONo",IsVisible=true},
+
+                new GridColumn{Title="Ref PoDate",Field="PODate",IsVisible=true},
+
+                new GridColumn{Title="Issue Qty",Field="Qty",IsVisible=true},
+
+                new GridColumn{Title="Bal Qty",Field="BalQty",IsVisible=true},
+
+                new GridColumn{Title="TransType",Field="TransType",IsVisible=true},
+            });
+            }
+
+
+            else if (SelectedComponentType == "Production Return Component")
+            {
+                Columns.AddRange(new[]
+                {
+                    new GridColumn { Title = "Sl No", Field = "SlNo", IsVisible = true },
+
+                    new GridColumn { Title = "Return No", Field = "ReturnNo", IsVisible = true },
+
+                    new GridColumn { Title = "Return Date", Field = "ReturnDate", IsVisible = true },
+
+                    new GridColumn { Title = "Ref Po No", Field = "RefPoNo", IsVisible = true },
+
+                    new GridColumn { Title = "Ref Rc No", Field = "RefRcNo", IsVisible = true },
+
+                    new GridColumn { Title = "Ref Iss No", Field = "RefIssNo", IsVisible = true },
+
+                    new GridColumn { Title = "Item Code", Field = "ItemCode", IsVisible = true },
+
+                    new GridColumn { Title = "Item Name", Field = "ItemName", IsVisible = true },
+
+                    new GridColumn { Title = "From Store", Field = "FROMSTORE", IsVisible = true },
+
+                    new GridColumn { Title = "Qty", Field = "Qty", IsVisible = true },
+
+                    new GridColumn { Title = "Bal Qty", Field = "BalQty", IsVisible = true }
+                });
+            }
+
+
+            else if (SelectedComponentType == "Production Return SCN")
+            {
+                Columns.AddRange(new[]
+                {
+                new GridColumn { Title = "Sl No", Field = "SlNo", IsVisible = true },
+
+                new GridColumn { Title = "SCN No", Field = "SCNNo", IsVisible = true },
+
+                new GridColumn { Title = "SCN Date", Field = "SCNDate", IsVisible = true },
+
+                new GridColumn { Title = "Ref Grn No", Field = "RefGrnNo", IsVisible = true },
+
+                new GridColumn { Title = "Ref Rc No", Field = "RefRcNo", IsVisible = true },
+
+                new GridColumn { Title = "Item Code", Field = "ItemCode", IsVisible = true },
+
+                new GridColumn { Title = "Item Name", Field = "ItemName", IsVisible = true },
+
+                new GridColumn { Title = "From Store", Field = "FROMSTORE", IsVisible = true },
+
+                new GridColumn { Title = "To Store", Field = "TOSTORE", IsVisible = true },
+
+                new GridColumn { Title = "Qty", Field = "Qty", IsVisible = true },
+
+                new GridColumn { Title = "Rej Qty", Field = "RejQty", IsVisible = true },
+
+                new GridColumn { Title = "Bal Qty", Field = "BalQty", IsVisible = true }
+            });
+            }
+
+            else if (
+              SelectedType == "Production Assembly" &&
+              (string.IsNullOrEmpty(SelectedAssemblyType)
+              || SelectedAssemblyType == "Production Assembly Issue")
+          )
+            {
+                Columns.AddRange(new[]
+                {
+                new GridColumn{Title="Sl No",Field="SlNo",IsVisible=true},
+
+                new GridColumn{Title="Issue No",Field="IssueNo",IsVisible=true},
+
+                new GridColumn{Title="Issue Date",Field="IssueDate",IsVisible=true},
+
+                new GridColumn{Title="Ref Customer",Field="CustName",IsVisible=true},
+
+                new GridColumn{Title="Assembly Item Code",Field="AssyItemCode",IsVisible=true},
+
+                new GridColumn{Title="Assembly Item Name",Field="AssyItemName",IsVisible=true},
+
+                new GridColumn{Title="Item Code",Field="ItemCode",IsVisible=true},
+
+                new GridColumn{Title="Item Name",Field="ItemName",IsVisible=true},
+
+                new GridColumn{Title="Issue Qty",Field="Qty",IsVisible=true},
+
+                new GridColumn{Title="Bal Qty",Field="BalQty",IsVisible=true},
+
+                new GridColumn{Title="Ref JobNo",Field="JobNo",IsVisible=true},
+            });
+
+            }
+
+
+
+
+            else if (SelectedAssemblyType == "Production Return Assembly")
+            {
+                Columns.AddRange(new[]
+                {
+                new GridColumn { Title = "Sl No", Field = "SlNo", IsVisible = true },
+
+                new GridColumn { Title = "Return No", Field = "ReturnNo", IsVisible = true },
+
+                new GridColumn { Title = "Return Date", Field = "ReturnDate", IsVisible = true },
+
+                new GridColumn { Title = "Job No", Field = "JobNo", IsVisible = true },
+
+                new GridColumn { Title = "Ref Issue No", Field = "RefIssueNo", IsVisible = true },
+
+                new GridColumn { Title = "Item Code", Field = "ItemCode", IsVisible = true },
+
+                new GridColumn { Title = "Item Name", Field = "ItemName", IsVisible = true },
+
+                new GridColumn { Title = "Add Store", Field = "AddStore", IsVisible = true },
+
+                new GridColumn { Title = "Qty", Field = "Qty", IsVisible = true },
+
+                new GridColumn { Title = "Bal Qty", Field = "BalQty", IsVisible = true },
+
+                new GridColumn { Title = "Return By", Field = "ReturnBy", IsVisible = true }
+            });
+            }
+            else if (SelectedAssemblyType == "Production Return Assembly SCN")
+            {
+                Columns.AddRange(new[]
+                {
+                new GridColumn { Title = "Sl No", Field = "SlNo", IsVisible = true },
+
+                new GridColumn { Title = "SCN No", Field = "ScnNo", IsVisible = true },
+
+                new GridColumn { Title = "SCN Date", Field = "ScnDate", IsVisible = true },
+
+                new GridColumn { Title = "Ref Return No", Field = "RefReturnNo", IsVisible = true },
+
+                new GridColumn { Title = "Item Code", Field = "ItemCode", IsVisible = true },
+
+                new GridColumn { Title = "Item Name", Field = "ItemName", IsVisible = true },
+
+                new GridColumn { Title = "From Store", Field = "FROMSTORE", IsVisible = true },
+
+                new GridColumn { Title = "To Store", Field = "TOSTORE", IsVisible = true },
+
+                new GridColumn { Title = "Qty", Field = "Qty", IsVisible = true },
+
+                new GridColumn { Title = "Rej Qty", Field = "RejQty", IsVisible = true },
+
+                new GridColumn { Title = "Bal Qty", Field = "BalQty", IsVisible = true }
+             });
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the SalesEnquiryList HandleColumnChange() Method");
+        }
+    }
+
+
+
+
+
+
+
+    private IEnumerable<ProductionPendingVM> productionPendingVMs
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+                return PendingStatementsList;
+
+            searchText = searchText.Trim();
+
+            return PendingStatementsList.Where(x =>
+
+                (x.CustName ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.ItemCode ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.ItemName ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.PONo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.JobNo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.IssueNo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.SCNNo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+                 (x.ReturnNo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+                (x.RefPoNo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+                (x.RefGrnNo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+                (x.RefPoNo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+                (x.RefRcNo ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.AssyItemCode ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.AssyItemName ?? string.Empty)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+            ).ToList();
+        }
+    }
+
+    private async Task OnDetailViewChanged()
+    {
+        try
+        {
+
+            IsLoading = true;
+            DetailsView = true;
+            string partyType = SelectedType;
+
+            if (SelectedType == "Production Component")
+            {
+                partyType = SelectedComponentType;
+            }
+            else if (SelectedType == "Production Assembly")
+            {
+                partyType = SelectedAssemblyType;
+            }
+
+
+            PendingStatementsList =
+              await ProductionPendingService.GetPendingStatements(
+                  DetailsView,
+                  partyType,
+                  FromDate,
+                  ToDate);
+
+            StateHasChanged();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+
+
+
+
+
+
+
+    private async Task OnPartyTypeChanged(string value)
+    {
+        SelectedType = value;
+        DetailsView = false;
+        await InvokeAsync(StateHasChanged);
+
+       
+        // Set default dropdown values
+        if (SelectedType == "Production Component")
+        {
+            SelectedComponentType = "Production Component Issue";
+        }
+        else if (SelectedType == "Production Assembly")
+        {
+            SelectedAssemblyType = "Production Assembly Issue";
+        }
+
+        isProcessing = true;
+
+        await InitializeColumns(true);
+
+        StateHasChanged();
+
+
+        try
+        {
+            string partyType = SelectedType;
+
+            if (SelectedType == "Production Component")
+            {
+                partyType = SelectedComponentType;
+            }
+            else if (SelectedType == "Production Assembly")
+            {
+                partyType = SelectedAssemblyType;
+            }
+
+            PendingStatementsList =
+                await ProductionPendingService.GetPendingStatements(
+                    DetailsView,
+                    partyType,
+                    FromDate,
+                    ToDate);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    private async Task OnAssemblyTypeChanged(string value)
+    {
+        SelectedAssemblyType = value;
+
+        await InitializeColumns(true);
+
+        PendingStatementsList =
+            await ProductionPendingService
+            .GetPendingStatements(
+                 DetailsView,
+                SelectedAssemblyType,
+                FromDate,
+                ToDate);
+
+        StateHasChanged();
+    }
+
+    private async Task OnComponentTypeChanged(string value)
+    {
+        SelectedComponentType = value;
+
+        await InitializeColumns(true);
+
+        PendingStatementsList =
+            await ProductionPendingService
+            .GetPendingStatements(
+                 DetailsView,
+                SelectedComponentType,
+                FromDate,
+                ToDate);
+
+        StateHasChanged();
+    }
+
+    private int TotalPendingCount =>
+    SelectedType == "Job Order"
+        ? PendingStatementsList.Select(x => x.JobNo).Distinct().Count()
+
+    : SelectedType == "Production Component" &&
+      SelectedComponentType == "Production Component Issue"
+        ? PendingStatementsList.Select(x => x.IssueNo).Distinct().Count()
+
+    : SelectedType == "Production Assembly" &&
+      SelectedAssemblyType == "Production Assembly Issue"
+        ? PendingStatementsList.Select(x => x.IssueNo).Distinct().Count()
+
+    : 0;
+   
+
+    private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            if (PendingStatementsList == null || !PendingStatementsList.Any())
+            {
+                await _JS.InvokeVoidAsync(
+                    "alert",
+                    "No data found to export.");
+                return;
+            }
+
+            string[] headers;
+            IEnumerable<object> exportData;
+
+            #region Job Order
+
+            if (SelectedType == "Job Order")
+            {
+                headers = new[]
+                {
+                "Sl No",
+                "Job No",
+                "Job Date",
+                "Customer Name",
+                "RefPo No",
+                "RefPo Date",
+                "Assembly ItemCode",
+                "Assembly ItemName",
+                "Joborder Qty",
+                "Joborder BQty",
+                "Item Code",
+                "Item Name",
+                "Util Qty",
+                "Qty",
+                "Bal Qty",
+                "Job Type"
+            };
+
+                exportData = PendingStatementsList.Select(x => new
+                {
+                    x.SlNo,
+                    x.JobNo,
+                    x.JobDate,
+                    x.CustName,
+                    x.PONo,
+                    x.PODate,
+                    x.AssyItemCode,
+                    x.AssyItemName,
+                    x.JobOrderQty,
+                    x.JobBalQty,
+                    x.ItemCode,
+                    x.ItemName,
+                    x.UtilQty,
+                    x.Qty,
+                    x.BalQty,
+                    x.JobType
+                }).Cast<object>().ToList();
+            }
+
+            #endregion
+
+            #region Production Component Issue
+
+            else if (
+                SelectedType == "Production Component" &&
+                (string.IsNullOrEmpty(SelectedComponentType)
+                || SelectedComponentType == "Production Component Issue")
+            )
+            {
+                headers = new[]
+                {
+                "Sl No",
+                "Issue No",
+                "Issue Date",
+                "Item Code",
+                "Item Name",
+                "Ref PoNo",
+                "Ref PoDate",
+                "Issue Qty",
+                "Bal Qty",
+                "TransType"
+            };
+
+                exportData = PendingStatementsList.Select(x => new
+                {
+                    x.SlNo,
+                    x.IssueNo,
+                    x.IssueDate,
+                    x.ItemCode,
+                    x.ItemName,
+                    RefPoNo = x.PONo,
+                    RefPoDate = x.PODate,
+                    IssueQty = x.Qty,
+                    x.BalQty,
+                    x.TransType
+                }).Cast<object>().ToList();
+            }
+
+            #endregion
+
+            #region Production Return Component
+
+            else if (SelectedComponentType == "Production Return Component")
+            {
+                headers = new[]
+                {
+                "Sl No",
+                "Return No",
+                "Return Date",
+                "Ref PoNo",
+                "Ref RcNo",
+                "Ref IssNo",
+                "Item Code",
+                "Item Name",
+                "From Store",
+                "Qty",
+                "Bal Qty"
+            };
+
+                exportData = PendingStatementsList.Select(x => new
+                {
+                    x.SlNo,
+                    x.ReturnNo,
+                    x.ReturnDate,
+                    x.RefPoNo,
+                    x.RefRcNo,
+                    x.RefIssNo,
+                    x.ItemCode,
+                    x.ItemName,
+                    x.FROMSTORE,
+                    x.Qty,
+                    x.BalQty
+                }).Cast<object>().ToList();
+            }
+
+            #endregion
+
+            #region Production Return SCN
+
+            else if (SelectedComponentType == "Production Return SCN")
+            {
+                headers = new[]
+                {
+                "Sl No",
+                "SCN No",
+                "SCN Date",
+                "Ref GrnNo",
+                "Ref RcNo",
+                "Item Code",
+                "Item Name",
+                "From Store",
+                "To Store",
+                "Qty",
+                "Rej Qty",
+                "Bal Qty"
+            };
+
+                exportData = PendingStatementsList.Select(x => new
+                {
+                    x.SlNo,
+                    SCNNo = x.SCNNo,
+                    SCNDate = x.ReturnDate,
+                    x.RefGrnNo,
+                    x.RefRcNo,
+                    x.ItemCode,
+                    x.ItemName,
+                    x.FROMSTORE,
+                    x.TOSTORE,
+                    x.Qty,
+                    x.RejQty,
+                    x.BalQty
+                }).Cast<object>().ToList();
+            }
+
+            #endregion
+
+            #region Production Assembly Issue
+
+            else if (
+                SelectedType == "Production Assembly" &&
+                (string.IsNullOrEmpty(SelectedAssemblyType)
+                || SelectedAssemblyType == "Production Assembly Issue")
+            )
+            {
+                headers = new[]
+                {
+                "Sl No",
+                "Issue No",
+                "Issue Date",
+                "Ref Customer",
+                "Assembly Item Code",
+                "Assembly Item Name",
+                "Item Code",
+                "Item Name",
+                "Issue Qty",
+                "Bal Qty",
+                "Ref Job No"
+            };
+
+                exportData = PendingStatementsList.Select(x => new
+                {
+                    x.SlNo,
+                    x.IssueNo,
+                    x.IssueDate,
+                    RefCustomer = x.CustName,
+                    x.AssyItemCode,
+                    x.AssyItemName,
+                    x.ItemCode,
+                    x.ItemName,
+                    IssueQty = x.Qty,
+                    x.BalQty,
+                    RefJobNo = x.JobNo
+                }).Cast<object>().ToList();
+            }
+
+            #endregion
+
+            #region Production Return Assembly
+
+            else if (SelectedAssemblyType == "Production Return Assembly")
+            {
+                headers = new[]
+                {
+                "Sl No",
+                "Return No",
+                "Return Date",
+                "Job No",
+                "Ref Issue No",
+                "Item Code",
+                "Item Name",
+                "Add Store",
+                "Qty",
+                "Bal Qty",
+                "Return By"
+            };
+
+                exportData = PendingStatementsList.Select(x => new
+                {
+                    x.SlNo,
+                    x.ReturnNo,
+                    x.ReturnDate,
+                    x.JobNo,
+                    x.RefIssueNo,
+                    x.ItemCode,
+                    x.ItemName,
+                    x.AddStore,
+                    x.Qty,
+                    x.BalQty,
+                    x.ReturnBy
+                }).Cast<object>().ToList();
+            }
+
+            #endregion
+
+            #region Production Return Assembly SCN
+
+            else if (SelectedAssemblyType == "Production Return Assembly SCN")
+            {
+                headers = new[]
+                {
+                "Sl No",
+                "SCN No",
+                "SCN Date",
+                "Ref Return No",
+                "Item Code",
+                "Item Name",
+                "From Store",
+                "To Store",
+                "Qty",
+                "Rej Qty",
+                "Bal Qty"
+            };
+
+                exportData = PendingStatementsList.Select(x => new
+                {
+                    x.SlNo,
+                    SCNNo = x.SCNNo,
+                    SCNDate = x.ReturnDate,
+                    RefReturnNo = x.ReturnNo,
+                    x.ItemCode,
+                    x.ItemName,
+                    x.FROMSTORE,
+                    x.TOSTORE,
+                    x.Qty,
+                    x.RejQty,
+                    x.BalQty
+                }).Cast<object>().ToList();
+            }
+
+            #endregion
+
+            else
+            {
+                return;
+            }
+
+            var fileBytes =
+                await excelTemplateService.CreateTemplateAsync(
+                    sheetName: "Production Pending",
+                    headers: headers,
+                    sampleData: exportData);
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            string fileName = SelectedType;
+
+            if (!string.IsNullOrWhiteSpace(SelectedComponentType))
+            {
+                fileName += "_" + SelectedComponentType;
+            }
+            else if (!string.IsNullOrWhiteSpace(SelectedAssemblyType))
+            {
+                fileName += "_" + SelectedAssemblyType;
+            }
+
+            fileName = fileName.Replace(" ", "_");
+
+            await _JS.InvokeVoidAsync(
+                "downloadExcelFile",
+                base64,
+                $"ProductionPending_{fileName}.xlsx");
+
+
+            // await _JS.InvokeVoidAsync(
+            //     "downloadExcelFile",
+            //     base64,
+            //     $"ProductionPending_{SelectedType}.xlsx");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+}

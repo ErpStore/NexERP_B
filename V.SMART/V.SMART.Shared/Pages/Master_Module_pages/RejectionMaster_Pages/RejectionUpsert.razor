@@ -1,0 +1,1031 @@
+﻿@page "/RejectionMaster"
+@using V.SMART.Shared.Data.Master.Rejection_Module
+
+@inherits BaseUserRightsComponent
+@inject CurrentUserService CurrentUserService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ILoggingService LoggingService
+@inject IRejectionMasterService rejectionMasterService
+@inject ExcelExportService ExcelExportService
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <PageHeader TitleText="@incomeTitle"
+                            TitleIcon="@incomeIcon"
+                            Breadcrumbs="@incomeBreadcrumbs" />
+
+                <div class="rejection-master-container">
+                    <!-- BATCH ACTION BAR -->
+                    @if (editedItems.Any())
+                    {
+                        <div class="alert alert-warning alert-dismissible fade show mb-3 py-2" role="alert">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div class="small">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    You have @editedItems.Count unsaved change(s)
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-success me-2" @onclick="SaveAllChangesAsync">
+                                        <i class="bi bi-check-circle me-1"></i> Save All Changes
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="CancelAllEdits">
+                                        <i class="bi bi-x-circle me-1"></i> Cancel All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- ADD NEW ROW BUTTON -->
+                    <div class="card shadow-sm border-0 rounded-3 p-3 bg-light mb-3">
+                        <div class="row g-3 align-items-end">
+
+                            <!-- Export -->
+                            <div class="col-12 col-sm-6 col-md-auto">
+                                <button type="button"
+                                        class="btn btn-success rounded-pill px-4 w-100"
+                                        @onclick="HandleExport">
+                                    <i class="bi bi-download me-1"></i>
+                                    Export Items
+                                </button>
+                            </div>
+
+                            <!-- Upload Excel -->
+                            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                <label class="form-label fw-semibold text-dark small mb-1">
+                                    <i class="bi bi-file-earmark-excel text-success me-2"></i>
+                                    Upload Excel File
+                                </label>
+
+                                <label class="btn btn-outline-success rounded-pill w-100">
+                                    <i class="bi bi-upload me-1"></i>
+                                    Browse Excel
+                                    <InputFile OnChange="OnFileSelected"
+                                               class="d-none"
+                                               accept=".xlsx,.xls,.xlsm" />
+                                </label>
+                            </div>
+
+                            <!-- Sheet Selection -->
+                            @if (SheetNames?.Any() == true)
+                            {
+                                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                    <label class="form-label fw-semibold text-dark small mb-1">
+                                        <i class="bi bi-table text-primary me-2"></i>
+                                        Select Sheet
+                                    </label>
+
+                                    <select class="form-select rounded-pill"
+                                            value="@SelectedSheet"
+                                            @onchange="OnSelectedSheetChanged">
+                                        <option value="">-- Choose Sheet --</option>
+
+                                        @foreach (var sheet in SheetNames)
+                                        {
+                                            <option value="@sheet">@sheet</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+
+                            <!-- Add -->
+                            <div class="col-12 col-sm-6 col-md-auto">
+                                <button type="button"
+                                        class="btn btn-primary rounded-pill px-4 w-100"
+                                        @onclick="AddNewRow">
+                                    <i class="bi bi-plus-lg me-1"></i>
+                                    Add New
+                                </button>
+                            </div>
+
+                            <!-- Save -->
+                            <div class="col-12 col-sm-6 col-md-auto">
+                                <button type="button"
+                                        class="btn btn-warning rounded-pill px-4 w-100"
+                                        @onclick="SaveAllChangesAsync"
+                                        disabled="@isProcessing">
+                                    <i class="bi bi-save me-1"></i>
+                                    @(isProcessing ? "Saving..." : "Save Changes")
+                                </button>
+                            </div>
+
+                            <!-- Refresh -->
+                            <div class="col-12 col-sm-6 col-md-auto">
+                                <button type="button"
+                                        class="btn btn-secondary rounded-pill px-4 w-100"
+                                        @onclick="RefreshData">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>
+                                    Refresh
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- EDITABLE GRID -->
+                    <div class="card shadow-sm border-0 rounded-3">
+                        <div class="card-header bg-white border-0 pt-3 px-3">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <h5 class="mb-0 fw-semibold small">
+                                    <i class="bi bi-table me-1"></i>Rejection List
+                                </h5>
+                                <div class="search-box" style="width: 250px;">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-transparent border-end-0">
+                                            <i class="bi bi-search small"></i>
+                                        </span>
+                                        <input type="text"
+                                               class="form-control form-control-sm border-start-0 ps-0"
+                                               placeholder="Search..."
+                                               @bind-value="searchTerm"
+                                               @bind-value:event="oninput"
+                                               @bind-value:after="ApplyFilter" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle mb-0">
+                                    <thead class="custom-blue sticky-top" style="z-index: 2;">
+                                        <tr>
+                                            <th style="width:60px;">ID</th>
+                                            <th style="width:150px;">Code <span class="text-danger">*</span></th>
+                                            <th>Description <span class="text-danger">*</span></th>
+                                            <th style="width:120px;">Status</th>
+                                            <th style="width:100px;" class="text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (filteredList.Any())
+                                        {
+                                            @foreach (var item in filteredList)
+                                            {
+                                                var isEdited = editedItems.ContainsKey(item.RejectionId);
+                                                <tr class="@(isEdited ? "table-warning" : "")">
+                                                    <td class="small fw-semibold text-center">
+                                                        @if (item.RejectionId == 0)
+                                                        {
+                                                            <span class="badge bg-info">New</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            @(filteredList.Where(x => x.RejectionId != 0).ToList().IndexOf(item) + 1)
+                                                                                }
+                                                    </td>
+                                                    <td>
+                                                        @if (item.IsEditing || item.RejectionId == 0)
+                                                        {
+                                                            <InputText class="form-control form-control-sm"
+                                                                       Value="@item.RejectionCode"
+                                                                       ValueChanged="@(value => OnCodeChanged(item, value))"
+                                                                       ValueExpression="@(() => item.RejectionCode)" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>@item.RejectionCode</span>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        @if (item.IsEditing || item.RejectionId == 0)
+                                                        {
+                                                            <InputTextArea class="form-control form-control-sm"
+                                                                           rows="2"
+                                                                           style="min-width:250px; resize:vertical;"
+                                                                           Value="@item.RejectionDescription"
+                                                                           ValueChanged="@(value => OnDescriptionChanged(item, value))"
+                                                                           ValueExpression="@(() => item.RejectionDescription)" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>@item.RejectionDescription</span>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        @if (item.IsEditing || item.RejectionId == 0)
+                                                        {
+                                                            <div class="form-check form-switch">
+                                                                <InputCheckbox class="form-check-input"
+                                                                               Value="item.IsActive"
+                                                                               ValueChanged="@(value => OnStatusChanged(item, value))"
+                                                                               ValueExpression="@(() => item.IsActive)" />
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">
+                                                                @(item.IsActive ? "Active" : "Inactive")
+                                                            </span>
+                                                        }
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <div class="btn-group btn-group-sm">
+
+                                                            @if (item.RejectionId == 0)
+                                                            {
+                                                                <button type="button" class="btn btn-outline-success"
+                                                                        @onclick="() => SaveNewRowAsync(item)">
+                                                                    <i class="bi bi-check-lg"></i>
+                                                                </button>
+
+                                                                <button type="button" class="btn btn-outline-danger"
+                                                                        @onclick="() => RemoveNewRow(item)">
+                                                                    <i class="bi bi-x-lg"></i>
+                                                                </button>
+                                                            }
+                                                            else if (item.IsEditing)
+                                                            {
+                                                                <button type="button" class="btn btn-outline-success"
+                                                                        @onclick="() => SaveEditedRowAsync(item)">
+                                                                    <i class="bi bi-check-lg"></i>
+                                                                </button>
+
+                                                                <button type="button" class="btn btn-outline-secondary"
+                                                                        @onclick="() => CancelEdit(item)">
+                                                                    <i class="bi bi-x-lg"></i>
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button type="button" class="btn btn-outline-primary"
+                                                                        @onclick="() => EditRow(item)">
+                                                                    <i class="bi bi-pencil"></i>
+                                                                </button>
+
+                                                                <button type="button" class="btn btn-outline-danger"
+                                                                        @onclick="() => ConfirmDelete(item)">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            }
+
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td colspan="5" class="text-center py-4">
+                                                    <i class="bi bi-inbox text-muted d-block mb-1"></i>
+                                                    <span class="small text-muted">No records found</span>
+                                                    @if (!string.IsNullOrEmpty(searchTerm))
+                                                    {
+                                                        <div class="mt-2">
+                                                            <button type="button" class="btn btn-sm btn-link" @onclick="ClearSearch">Clear search</button>
+                                                        </div>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="card-footer bg-white border-0 py-2 px-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    Showing @filteredList.Count of @rejectionList.Count
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .rejection-master-container {
+        padding: 1rem;
+    }
+    .form-check-input:checked {
+        background-color: #198754;
+        border-color: #198754;
+    }
+    .table-sm td, .table-sm th {
+        padding: 0.5rem;
+    }
+    .btn-group-sm .btn {
+        padding: 0.2rem 0.5rem;
+    }
+    .table-warning {
+        --bs-table-bg: rgba(255, 193, 7, 0.1);
+    }
+</style>
+
+@code {
+    protected override string ScreenName => "RejectionMaster";
+
+    // Models and lists
+    private List<RejectionMasterVM> rejectionList = new();
+    private List<RejectionMasterVM> filteredList = new();
+    private Dictionary<int, RejectionMasterVM> editedItems = new();
+    private string searchTerm = string.Empty;
+    private bool isProcessing = true;
+
+    // Modal & confirmation
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private RejectionMasterVM? rowToDelete;
+
+    private bool IsExportVisible = false;
+    private string SelectedSheet { get; set; } = "";
+    private List<string> SheetNames = new();
+    private IBrowserFile uploadedFile;
+    private List<string> headers = new();
+    List<Dictionary<string, object>> excelData = new List<Dictionary<string, object>>();
+
+    // Breadcrumbs & UI
+    private List<PageHeader.BreadcrumbItem> incomeBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "Rejection-Master", IsLast = true }
+    };
+    private string incomeIcon = "bi bi-graph-up-arrow";
+    private string incomeTitle => "Rejection Master";
+
+    private readonly List<string> expectedItemHeaders = new()
+    {
+        "RejectionCode","RejectionDescription"
+    };
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadRejections();
+            await ApplyFilter();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in RejectionMaster OnInitializedAsync");
+        }
+    }
+
+    private async Task LoadRejections()
+    {
+        rejectionList = await rejectionMasterService.GetAllAsync();
+        editedItems.Clear();
+    }
+
+    private async Task ApplyFilter()
+    {
+        filteredList = string.IsNullOrWhiteSpace(searchTerm)
+            ? rejectionList.ToList()
+            : rejectionList.Where(x =>
+                (x.RejectionCode?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.RejectionDescription?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+            ).ToList();
+    }
+
+    private void MarkAsEdited(RejectionMasterVM item)
+    {
+        if (item.RejectionId == 0)
+            return;
+
+        if (!editedItems.ContainsKey(item.RejectionId))
+        {
+            editedItems[item.RejectionId] = new RejectionMasterVM
+            {
+                RejectionId = item.RejectionId,
+                RejectionCode = item.RejectionCode,
+                RejectionDescription = item.RejectionDescription,
+                IsActive = item.IsActive
+            };
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task AddNewRow()
+    {
+        var newItem = new RejectionMasterVM
+        {
+            RejectionId = 0,
+            RejectionCode = "",
+            RejectionDescription = "",
+            IsActive = true
+        };
+        rejectionList.Insert(0, newItem);
+        await ApplyFilter();
+        StateHasChanged();
+    }
+
+    private async Task RemoveNewRow(RejectionMasterVM item)
+    {
+        rejectionList.Remove(item);
+        await ApplyFilter();
+        StateHasChanged();
+    }
+
+    private async Task SaveNewRowAsync(RejectionMasterVM newItem)
+    {
+        if (string.IsNullOrWhiteSpace(newItem.RejectionCode))
+        {
+            await _js.ToastrError("Rejection Code is required.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(newItem.RejectionDescription))
+        {
+            await _js.ToastrError("Description is required.");
+            return;
+        }
+
+        isProcessing = true;
+        try
+        {
+
+            var saved = await rejectionMasterService.Upsertrejection(newItem);
+            int index = rejectionList.FindIndex(x => x.RejectionId == 0 && x == newItem);
+            if (index >= 0)
+            {
+                rejectionList[index] = saved;
+            }
+            await ApplyFilter();
+            await _js.ToastrSuccess("New rejection code added successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error saving new rejection");
+            await _js.ToastrError("Failed to save new rejection.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task SaveAllChangesAsync()
+    {
+        isProcessing = true;
+
+        try
+        {
+            int savedCount = 0;
+
+
+            var newRows = rejectionList
+                .Where(x => x.RejectionId == 0)
+                .ToList();
+
+            foreach (var newItem in newRows)
+            {
+                if (string.IsNullOrWhiteSpace(newItem.RejectionCode))
+                {
+                    await _js.ToastrError("Rejection Code is required.");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(newItem.RejectionDescription))
+                {
+                    await _js.ToastrError("Rejection Description is required.");
+                    continue;
+                }
+
+                await rejectionMasterService.Upsertrejection(newItem);
+
+                savedCount++;
+            }
+
+
+            foreach (var edited in editedItems.Values)
+            {
+                var original = rejectionList
+                    .FirstOrDefault(x => x.RejectionId == edited.RejectionId);
+
+                if (original == null)
+                    continue;
+
+                original.RejectionCode = edited.RejectionCode;
+                original.RejectionDescription = edited.RejectionDescription;
+                original.IsActive = edited.IsActive;
+
+                await rejectionMasterService.Upsertrejection(original);
+
+                savedCount++;
+            }
+
+
+            editedItems.Clear();
+
+            await LoadRejections();
+
+            await ApplyFilter();
+
+            await _js.ToastrSuccess($"{savedCount} record(s) saved successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in batch save");
+
+            await _js.ToastrError("Failed to save changes.");
+        }
+        finally
+        {
+            isProcessing = false;
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task CancelAllEdits()
+    {
+
+        foreach (var edited in editedItems.Values)
+        {
+            var target = rejectionList.First(x => x.RejectionId == edited.RejectionId);
+            target.RejectionCode = edited.RejectionCode;
+            target.RejectionDescription = edited.RejectionDescription;
+            target.IsActive = edited.IsActive;
+        }
+        editedItems.Clear();
+        await ApplyFilter();
+        StateHasChanged();
+        _js.ToastrInfo("All changes have been discarded.");
+    }
+
+
+    private async Task ConfirmDelete(RejectionMasterVM item)
+    {
+        rowToDelete = item;
+
+        string? Istrans=await rejectionMasterService.CheckRejectionUsageAsync(item.RejectionId);
+
+        if (!string.IsNullOrEmpty(Istrans))
+        {
+            await _js.ToastrWarning($"Cannot delete. Rejection is used in {Istrans}.");
+        }
+
+
+        ModalTitle = "Are you sure you want to delete this Rejection?";
+        btnColor = "btn-danger";
+        btnText = "Yes! Delete";
+        confirmation = "Delete";
+        showCancelReasonBox = false;
+
+        _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            isProcessing = true;
+
+            switch (confirmation)
+            {
+                case "Export":
+                    await ExportToExcel(isConfirmed);
+                    break;
+                case "Delete":
+                    if (!isConfirmed || rowToDelete == null) return;
+
+                    bool Delete = await rejectionMasterService.DeleteAsync(rowToDelete.RejectionId);
+                    rejectionList.RemoveAll(x => x.RejectionId == rowToDelete.RejectionId);
+                    editedItems.Remove(rowToDelete.RejectionId);
+                    if (Delete)
+                    {
+                        await LoadRejections();
+                        await ApplyFilter();
+                        await _js.ToastrSuccess($"{rowToDelete.RejectionCode} deleted successfully.");
+                    }
+
+                    break;
+            }
+
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error deleting rejection");
+            await _js.ToastrError("Failed to delete. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConfirmDeleteRowAsync(bool isConfirmed)
+    {
+        if (!isConfirmed || rowToDelete == null) return;
+
+        isProcessing = true;
+        try
+        {
+            await rejectionMasterService.DeleteAsync(rowToDelete.RejectionId);
+            rejectionList.RemoveAll(x => x.RejectionId == rowToDelete.RejectionId);
+            editedItems.Remove(rowToDelete.RejectionId);
+            await ApplyFilter();
+            await _js.ToastrSuccess($"{rowToDelete.RejectionCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error deleting rejection");
+            await _js.ToastrError("Failed to delete. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+ 
+    private async Task ClearSearch()
+    {
+        searchTerm = string.Empty;
+        await ApplyFilter();
+    }
+
+    private void stopPropagation(MouseEventArgs e) { }
+    private void OnCodeChanged(RejectionMasterVM item, string? value)
+    {
+        item.RejectionCode = value ?? "";
+        MarkAsEdited(item);
+    }
+
+    private void OnDescriptionChanged(RejectionMasterVM item, string? value)
+    {
+        item.RejectionDescription = value ?? "";
+        MarkAsEdited(item);
+    }
+
+    private void OnStatusChanged(RejectionMasterVM item, bool value)
+    {
+        item.IsActive = value;
+        MarkAsEdited(item);
+    }
+    private void EditRow(RejectionMasterVM item)
+    {
+        item.IsEditing = true;
+    }
+    private async Task CancelEdit(RejectionMasterVM item)
+    {
+        item.IsEditing = false;
+
+        await LoadRejections();
+
+       await ApplyFilter();
+
+        StateHasChanged();
+    }
+    private async Task SaveEditedRowAsync(RejectionMasterVM item)
+    {
+        if (string.IsNullOrWhiteSpace(item.RejectionCode))
+        {
+            await _js.ToastrError("Rejection Code is required.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(item.RejectionDescription))
+        {
+            await _js.ToastrError("Description is required.");
+            return;
+        }
+
+        isProcessing = true;
+
+        try
+        {
+            await rejectionMasterService.Upsertrejection(item);
+
+            item.IsEditing = false;
+
+            await _js.ToastrSuccess("Updated successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Update Error");
+
+            await _js.ToastrError("Update failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private void HandleExport()
+    {
+        ModalTitle = "Are you sure you want to export data to Excel?";
+
+        btnColor = "btn btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+            var bytes = ExcelExportService.ExportListToExcel( rejectionList, "Rejections" );
+
+            var base64 = Convert.ToBase64String(bytes);
+
+            await _js.DownloadExcelAsync(base64, "Rejections.xlsx");
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Item Rate Updation ExportToExcel() Method");
+            await _js.ToastrError("Error While ExportToExcel!..");
+
+        }
+    }
+
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            if (e.File != null)
+            {
+                uploadedFile = e.File;
+
+              
+                SelectedSheet = null;
+                SheetNames = new List<string>();
+                rejectionList.Clear();
+                excelData.Clear();
+
+              
+                await LoadSheetNamesAsync(uploadedFile);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnFileSelected event");
+            await _js.ToastrError("Error While File Selecting!..");
+
+        }
+    }
+
+    private async Task LoadSheetNamesAsync(IBrowserFile file)
+    {
+        using var stream = file.OpenReadStream(10_000_000);
+        using var memoryStream = new MemoryStream();
+        await stream.CopyToAsync(memoryStream);
+        memoryStream.Position = 0;
+
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+        using var reader = ExcelReaderFactory.CreateReader(memoryStream);
+        var result = reader.AsDataSet();
+
+        SheetNames = result.Tables.Cast<DataTable>().Select(t => t.TableName).ToList();
+
+        if (!SheetNames.Any())
+        {
+            await _js.ToastrWarning("No sheets found in the uploaded file.");
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnSelectedSheetChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var selected = e.Value?.ToString();
+            if (string.IsNullOrWhiteSpace(selected))
+            {
+                await _js.ToastrError("Please select a valid sheet.");
+                await ApplyFilter();
+                return;
+            }
+
+            SelectedSheet = selected;
+
+            if (uploadedFile != null && !string.IsNullOrEmpty(SelectedSheet))
+            {
+                await LoadSheetDataAsync(uploadedFile, SelectedSheet);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnSelectedSheetChanged event");
+            await _js.ToastrError("Error While Selecting the Sheet");
+        }
+    }
+
+    private async Task LoadSheetDataAsync(IBrowserFile file, string sheetName)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream(10_000_000);
+
+            using var memoryStream = new MemoryStream();
+
+            await stream.CopyToAsync(memoryStream);
+
+            memoryStream.Position = 0;
+
+            System.Text.Encoding.RegisterProvider(
+                System.Text.CodePagesEncodingProvider.Instance);
+
+            using var reader = ExcelReaderFactory.CreateReader(memoryStream);
+
+            var result = reader.AsDataSet();
+
+            var table = result.Tables[sheetName];
+
+            if (table == null || table.Rows.Count == 0)
+            {
+                await _js.InvokeVoidAsync(
+                    "alert",
+                    "Selected sheet is empty or not found.");
+
+                return;
+            }
+
+       
+            excelData.Clear();
+
+       
+            headers = table.Rows[0]
+                .ItemArray
+                .Select(x => x?.ToString()?.Trim() ?? "")
+                .ToList();
+
+        
+            var missingHeaders = expectedItemHeaders
+                .Except(headers, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (missingHeaders.Any())
+            {
+                await _js.ToastrError(
+                    $"Missing headers: {string.Join(", ", missingHeaders)}");
+
+                return;
+            }
+
+        
+            for (int row = 1; row < table.Rows.Count; row++)
+            {
+                var rowDict = new Dictionary<string, object>();
+
+                for (int col = 0; col < table.Columns.Count; col++)
+                {
+                    string header = headers[col];
+
+                    string value = table.Rows[row][col]
+                        ?.ToString()
+                        ?.Trim();
+
+                    if (decimal.TryParse(value, out var decimalValue))
+                        rowDict[header] = decimalValue;
+                    else
+                        rowDict[header] = value;
+                }
+
+                excelData.Add(rowDict);
+            }
+
+         
+       
+            foreach (var row in excelData)
+            {
+                var item = new RejectionMasterVM
+                {
+                    RejectionId =
+                        row.ContainsKey("RejectionId") &&
+                        int.TryParse(
+                            row["RejectionId"]?.ToString(),
+                            out var itemId)
+                        ? itemId
+                        : 0,
+
+                    RejectionCode =
+                        row.ContainsKey("RejectionCode")
+                        ? row["RejectionCode"]?.ToString()
+                        : string.Empty,
+
+                    RejectionDescription =
+                        row.ContainsKey("RejectionDescription")
+                        ? row["RejectionDescription"]?.ToString()
+                        : string.Empty
+                };
+
+                var existing = filteredList.FirstOrDefault(x =>
+                    x.RejectionCode?.Trim().ToLower() ==
+                    item.RejectionCode?.Trim().ToLower());
+
+                if (existing != null)
+                {
+                    
+                    existing.RejectionCode = item.RejectionCode;
+                    existing.RejectionDescription =
+                        item.RejectionDescription;
+
+                    existing.RejectionId =
+                        item.RejectionId;
+
+                    if (!editedItems.ContainsKey(existing.RejectionId))
+                    {
+                        editedItems[existing.RejectionId] = new RejectionMasterVM
+                        {
+                            RejectionId = existing.RejectionId,
+                            RejectionCode = existing.RejectionCode,
+                            RejectionDescription = existing.RejectionDescription,
+                            IsActive = existing.IsActive
+                        };
+                    }
+                    rejectionList.Add(item);
+                }
+                else
+                {
+                    
+                    rejectionList.Add(item);
+                }
+            }
+            filteredList = rejectionList.ToList();
+            await _js.ToastrSuccess(
+                "Excel data merged successfully");
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error in LoadSheetDataAsync event");
+
+            await _js.ToastrError(
+                "Error While Loading Selected Sheet data");
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        try
+        {
+            await LoadRejections(); // Load existing data from database
+            await ApplyFilter();
+
+            SelectedSheet = string.Empty;
+            SheetNames?.Clear();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error while refreshing rejection data");
+        }
+    }
+}

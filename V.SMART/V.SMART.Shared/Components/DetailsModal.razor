@@ -1,0 +1,259 @@
+﻿@* DetailsModal.razor *@
+
+@inject ExcelExportService ExcelExportService
+@inject ILoggingService LoggingService
+@inject IJSRuntime _JS
+
+
+<div class="modal fade @(IsVisible ? "show" : "")" tabindex="-1"
+     role="dialog"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false"
+     style="display:@(IsVisible ? "block" : "none"); background-color: rgba(0,0,0,0.5);">
+
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl mx-auto" role="document">
+
+        <div class="modal-content">
+
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">@Title</h5>
+                <button type="button" class="btn-close" @onclick="Close"></button>
+            </div>
+
+            <div class="modal-body p-2 d-flex flex-column">
+
+                <input type="text" class="form-control mb-2" placeholder="Search..."
+                       @bind="SearchTerm" @bind:event="oninput" />
+
+                @if (HeaderContent is not null)
+                {
+                    <div class="p-2 border-bottom">
+                        @HeaderContent
+                    </div>
+                }
+                <!-- Table wrapper for both horizontal and vertical scroll -->
+                <div class="table-responsive" style="max-height:60vh;">
+                    <table class="table table-bordered table-hover mb-0" style="min-width:800px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th class="text-center" style="width:50px;">
+                                    <input type="checkbox" checked="@IsAllSelected" @onchange="ToggleSelectAll" />
+                                </th>
+                                @foreach (var col in Columns.Where(c => HiddenColumns == null || !HiddenColumns.Contains(c)))
+                                {
+                                    <th style="min-width:120px;">@col</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (FilteredData != null && FilteredData.Any())
+                            {
+                                @foreach (var row in FilteredData)
+                                {
+                                    <tr>
+                                        <td class="text-center">
+                                            <input type="checkbox" checked="@row.Selected"
+                                                   @onchange="e => OnRowSelectionChanged(row, e)" />
+                                        </td>
+                                        @foreach (var field in ColumnFields.Where(f =>
+                                            {
+                                                var index = ColumnFields.IndexOf(f);
+                                                return HiddenColumns == null || !HiddenColumns.Contains(Columns[index]);
+                                            }))
+                                        {
+                                            <td style="@GetCellStyle(row.Data, field)">
+                                                @(row.Data.ContainsKey(field) ? row.Data[field] : "")
+                                            </td>
+
+                                        }
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+
+                                <tr>
+                                    <td colspan="@((Columns?.Count(c => HiddenColumns == null || !HiddenColumns.Contains(c)) ?? 0) + 1)">
+                                        <div class="d-flex justify-content-center align-items-center py-3 text-muted">
+                                            No data found.
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="ConfirmSelection">Update</button>
+                <button class="btn btn-success text-white" @onclick="ExportToExcel">Print</button>
+                <button class="btn btn-secondary" @onclick="Close">Close</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Details";
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    [Parameter] public List<string> Columns { get; set; } = new();
+    [Parameter] public List<string> ColumnFields { get; set; } = new();
+    [Parameter] public List<string>? HiddenColumns { get; set; }
+
+
+
+    [Parameter] public List<Dictionary<string, object>>? Data { get; set; }
+
+    [Parameter] public EventCallback<List<Dictionary<string, object>>> OnSelectedItems { get; set; }
+
+    [Parameter] public RenderFragment? HeaderContent { get; set; }
+
+    private List<DictionaryRow> WrappedData { get; set; } = new();
+    private string SearchTerm { get; set; } = string.Empty;
+    private int selectionCounter = 0;
+
+    private IEnumerable<DictionaryRow> FilteredData =>
+        string.IsNullOrWhiteSpace(SearchTerm)
+            ? WrappedData
+            : WrappedData.Where(r => ColumnFields.Any(f => r.Data.ContainsKey(f) &&
+                                                          r.Data[f]?.ToString()?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) == true));
+
+    protected override void OnParametersSet()
+    {
+        if (Data != null)
+        {
+            WrappedData = Data.Select(d => new DictionaryRow
+            {
+                Data = d,
+                Selected = d.ContainsKey("Selected") && d["Selected"] is bool b && b
+            }).ToList();
+        }
+    }
+
+    private void Close()
+    {
+        IsVisible = false;
+        IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task ConfirmSelection()
+    {
+        try
+        {
+            if (WrappedData != null)
+            {
+                var selectedItems = WrappedData
+                    .Where(w => w.Selected)
+                    .OrderBy(w => w.SelectionOrder)
+                    .Select(w => w.Data)
+                    .ToList();
+
+                if (selectedItems == null)
+                    throw new InvalidOperationException("Please select  Dc from the list."); ;
+
+                await OnSelectedItems.InvokeAsync(selectedItems);
+            }
+
+            Close();
+
+        }
+        catch(InvalidOperationException ex)
+        {
+            throw;
+        }
+    }
+
+    private class DictionaryRow
+    {
+        public Dictionary<string, object> Data { get; set; } = new();
+        public bool Selected { get; set; } = false;
+        public int? SelectionOrder { get; set; }
+    }
+
+    // ------------------ Select All logic (Filtered Rows Only) ------------------
+    private bool IsAllSelected => FilteredData.Any() && FilteredData.All(r => r.Selected);
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool value = (bool)e.Value;
+        foreach (var row in FilteredData)
+        {
+            row.Selected = value;
+            if (value)
+            {
+                selectionCounter++;
+                row.SelectionOrder = selectionCounter;
+            }
+            else
+            {
+                row.SelectionOrder = null;
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void OnRowSelectionChanged(DictionaryRow row, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        row.Selected = isChecked;
+
+        if (isChecked)
+        {
+            selectionCounter++;
+            row.SelectionOrder = selectionCounter;  // 👈 assign order
+        }
+        else
+        {
+            row.SelectionOrder = null; // 👈 remove order if unchecked
+        }
+
+        StateHasChanged();
+    }
+
+    private string GetCellStyle(Dictionary<string, object> data, string field)
+    {
+        bool isNew = data.ContainsKey("IsNewItem") && (bool)data["IsNewItem"];
+        bool isQtyChanged = data.ContainsKey("IsQtyChanged") && (bool)data["IsQtyChanged"];
+
+        if (field == "ItemCode" && isNew)
+            return "background-color:yellow; font-weight:bold;";
+
+        if (field == "UtilQty" && isQtyChanged)
+            return "background-color:#ff7b7b; font-weight:bold;";
+
+        return "";
+    }
+
+    private async Task ExportToExcel()
+    {
+        try
+        {
+  
+            if (FilteredData == null || FilteredData.Any()==false) return;
+
+            var exportData = FilteredData.Select(r => r.Data).ToList();
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, Title, $"{Title} List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.DownloadExcelAsync(base64, $"{Title}.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (MfgPo)");
+            await _JS.ToastrError("Error while exporting MfgPo!");
+        }
+        finally
+        {
+            
+        }
+    }
+
+
+}

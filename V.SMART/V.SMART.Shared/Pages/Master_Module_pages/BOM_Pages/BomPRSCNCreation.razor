@@ -1,0 +1,826 @@
+﻿@page "/bomPRScn"
+
+@inherits BaseUserRightsComponent
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.MasterService.InventoryService
+@using MudBlazor
+
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IAssemblyDefService _assyDefService
+
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="BOM - PR / SCN Creation"
+                        TitleIcon="bi bi-diagram-3-fill"
+                        Breadcrumbs="@bomBreadcrumbs" />
+
+            <div class="card-body">
+                <EditForm Model="@bomRows" OnValidSubmit="@(() => UpsertBOM(activeAction))">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row">
+                        <!-- =================== Assembly Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">
+                                        <i class="bi bi-gear-wide-connected me-1"></i> Assembly Details
+                                    </span>
+                                </div>
+
+                                <!-- Body -->
+                                <div class="card-body">
+
+                                    <div class="row mb-2">
+                                        <label class="col-12 col-sm-3 col-form-label text-dark">
+                                            <small>Assembly Name</small>
+                                        </label>
+
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="ItemVM"
+                                                Value="selectedAssembly"
+                                                ValueChanged="@(async item => await OnAssemblyChanged(item))"
+                                                ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                SearchFunc="SearchAssyItems"
+                                                Dense="true"
+                                                Variant="Variant.Outlined"
+                                                Placeholder="Search Assembly"
+                                                MaxItems="50"
+                                                Class="w-100 autocomplete-sm" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Sub Assembly 1 -->
+                                    @if (SubAssyList.Any())
+                                    {
+                                        <div class="row mb-2">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Sub Assembly 1</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select class="form-select form-select-sm rounded-3 w-100" 
+                                                    value="@SelectedSubAssyId" @onchange="OnSubAssyChange">
+                                                    <option value="">-- Select Sub Assembly 1 --</option>
+                                                    @foreach (var sub in SubAssyList)
+                                                    {
+                                                        <option value="@sub.ItemId">@sub.ItemCode</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Sub Assembly 2 -->
+                                    @if (SubAssyList2.Any())
+                                    {
+                                        <div class="row mb-2">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Sub Assembly 2</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select class="form-select form-select-sm rounded-3 w-100" 
+                                                    value="@SelectedSubAssyId2" @onchange="OnSubAssyChange2">
+                                                    <option value="">-- Select Sub Assembly 2 --</option>
+                                                    @foreach (var sub in SubAssyList2)
+                                                    {
+                                                        <option value="@sub.ItemId">@sub.ItemCode</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                    }
+                                    <!-- Sub Assembly 3 -->
+                                    @if (SubAssyList3.Any())
+                                    {
+                                        <div class="row mb-2">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Sub Assembly 3</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select class="form-select form-select-sm rounded-3 w-100"
+                                                    value="@SelectedSubAssyId3" @onchange="OnSubAssyChange3">
+                                                    <option value="">-- Select Sub Assembly 3 --</option>
+                                                    @foreach (var sub in SubAssyList3)
+                                                    {
+                                                        <option value="@sub.ItemId">@sub.ItemCode</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="col-12 col-md-6">
+
+                        </div>
+                    </div>
+
+
+                    <!-- BOM Table -->
+                    <div class="table-responsive mt-3" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
+                        <table class="table table-bordered table-sm align-middle text-center mb-0"
+                               style="table-layout: fixed; min-width: 1200px;">
+                            <thead class="custom-blue sticky-top">
+                                <tr>
+                                    <th style="width: 50px;">
+                                        <!-- Select All Checkbox -->
+                                        <div class="form-check d-flex justify-content-center align-items-center">
+                                            <input type="checkbox"
+                                                   checked="@isAllSelected"
+                                                   @onchange="ToggleSelectAll"
+                                                   class="form-check-input border border-2 shadow-sm focus-ring focus-ring-primary fs-5" />
+                                        </div>
+                                    </th>
+                                    <th style="width: 60px;">Sl No.</th>
+                                    <th style="width: 140px;">Item Code</th>
+                                    <th style="width: 220px;">Item Name</th>
+                                    <th style="width: 70px;">UOM</th>
+                                    <th style="width: 100px;">Utility Qty</th>
+                                    <th style="width: 100px;">Balance Qty</th>
+                                    <th style="width: 110px;">Required Qty</th>
+                                    <th style="width: 80px;">Cancel</th>
+                                    <th style="width: 150px;">Stock Converted Qty</th>
+                                    <th style="width: 130px;">PR Converted Qty</th>
+                                    <th style="width: 200px;">Remarks</th>
+                                </tr>
+                            </thead>
+
+                            <tbody class="custom-size">
+                                @if (bomRows?.Any() == true)
+                                {
+                                    @foreach (var row in bomRows)
+                                    {
+                                        bool isDisabled = row.Cancel;
+
+                                        <tr class="@(row.Cancel ? "table-secondary text-muted" : row.IsSelected ? "table-warning" : "")">
+                                            <td>
+                                                <div class="form-check d-flex justify-content-center align-items-center">
+                                                    <input type="checkbox"
+                                                           class="form-check-input border border-2 shadow-sm focus-ring focus-ring-primary fs-5"
+                                                           checked="@row.IsSelected"
+                                                           disabled="@isDisabled"
+                                                           @onchange="@(e => OnItemSelectedChanged(row, e))" />
+                                                </div>
+                                            </td>
+
+                                            <td>@row.SlNo</td>
+                                            <td>@row.PartItemCode</td>
+                                            <td class="text-start">@row.PartItemName</td>
+                                            <td>@row.UOM</td>
+                                            <td>@row.UtilQty</td>
+                                             <td class="fw-semibold text-danger">
+                                                @row.BalQty
+                                            </td>
+
+                                            <td>
+                                                <input type="number"
+                                                       class="form-control form-control-sm text-end"
+                                                       min="0"
+                                                       max="@row.BalQty"
+                                                       @bind="row.ReqQty"
+                                                       @bind:event="oninput"
+                                                       @onchange="@(e => OnReqQtyChanged(row, e))"
+                                                       disabled="@isDisabled" />
+                                                <ValidationMessage For="@(() => row.ReqQty)" />
+                                            </td>
+
+                                            <td class="text-center align-middle">
+                                                <div class="form-check form-switch d-flex justify-content-center">
+                                                    <!-- Only Cancel remains active -->
+                                                    <InputCheckbox @bind-Value="row.Cancel"
+                                                                   @bind-Value:event="onchange"
+                                                                   ValueChanged="@(async (value) => await OnItemCancelChanged(row))"
+                                                                   class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                </div>
+                                            </td>
+
+                                            <td class="fw-semibold text-success">
+                                                @row.StockConvertedQty
+                                            </td>
+                                            <td class="fw-semibold text-success">
+                                                @row.PRConvertedQty
+                                            </td>
+
+                                            <td>
+                                                <input type="text"
+                                                       class="form-control form-control-sm text-start"
+                                                       @bind="row.Remarks"
+                                                       disabled="@isDisabled" />
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="12" class="text-center text-muted">No records found.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="row g-2 mt-3 mb-2">
+
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                <button type="submit" class="btn btn-success w-100"
+                                    disabled="@isProcessing" 
+                                    @onclick="@(() => SetAction("ConvertPR"))">
+                                    <i class="bi bi-arrow-left-right me-1"></i> Convert PR 
+                                </button>
+                            </div>
+
+                            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                <button type="submit" class="btn btn-primary w-100" 
+                                    disabled="@isProcessing" 
+                                    @onclick="@(() => SetAction("AddStock"))"> 
+                                    <i class="bi bi-box-seam me-1"></i> 
+                                    Add Stock 
+                                </button>
+                            </div>
+                        }
+
+                        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                            <SmartBackButton Url="/bomList" />
+                        </div>
+
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+
+@code {
+
+    protected override string ScreenName => "BOM";
+
+    private bool isProcessing = true;
+
+    private string? activeAction;
+
+    private AssemblyDefVM assemblyDef = new();
+    private List<AssemblyDefVM> bomRows = new();
+
+    private AssemblyDefVM? rowToCancel = null;
+
+    private ItemVM? selectedAssembly;
+    private int? SelectedSubAssyId;
+    private int? SelectedSubAssyId2;
+    private int? SelectedSubAssyId3;
+
+    private List<ItemVM> SubAssyList = new();
+    private List<ItemVM> SubAssyList2 = new();
+    private List<ItemVM> SubAssyList3 = new();
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private bool isAllSelected = false;
+
+    private List<PageHeader.BreadcrumbItem> bomBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "BOM-PR/SCN", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            assemblyDef = new AssemblyDefVM();
+            bomRows.Clear();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error on OnInitializedAsync ");
+        }
+    }
+
+    private void SetAction(string actionType)
+    {
+        activeAction = actionType;
+    }
+
+    #region Select / Deselect All
+
+    private async Task ToggleSelectAll(ChangeEventArgs e)
+    {
+        if (e?.Value is bool value)
+        {
+            isAllSelected = value;
+
+            if (bomRows is not null)
+            {
+                foreach (var row in bomRows)
+                {
+                    if (!row.Cancel)
+                    {
+                        row.IsSelected = value;
+                    }
+                }
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnItemSelectedChanged(AssemblyDefVM row, ChangeEventArgs e)
+    {
+        if (e?.Value is bool value)
+        {
+            row.IsSelected = value;
+            isAllSelected = bomRows.All(x => x.IsSelected);
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Assembly / SubAssembly Selection
+
+    private async Task OnAssemblyChanged(ItemVM? item)
+    {
+        if (item == null) return;
+
+        try
+        {
+            isProcessing = true;
+
+            assemblyDef.AssmblyID = item.ItemId;
+            assemblyDef.AssemblyItemCode = item.ItemCode;
+            assemblyDef.AssemblyItemName = item.ItemName;
+            selectedAssembly = item;
+
+            bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(item.ItemId);
+            SubAssyList = await _assyDefService.GetAllSubAssembliesByAssyIdAsync(item.ItemId);
+
+            SubAssyList2.Clear();
+            SubAssyList3.Clear();
+
+            await _js.ToastrSuccess($"Assembly '{item.ItemCode}' loaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error in OnAssemblyChanged for Assembly ID: {item?.ItemId}");
+            await _js.ToastrError("Failed to load assembly details. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSubAssyChange(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (int.TryParse(e.Value?.ToString(), out int id))
+            {
+                SelectedSubAssyId = id;
+                SubAssyList2 = await _assyDefService.GetAllSubAssembliesByAssyIdAsync(id);
+                SubAssyList3.Clear();
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(id);
+
+                await _js.ToastrInfo("Sub Assembly level 1 loaded successfully.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error in OnSubAssyChange for SubAssy ID: {SelectedSubAssyId}");
+            await _js.ToastrError("Failed to load sub-assembly level 1 data.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSubAssyChange2(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (int.TryParse(e.Value?.ToString(), out int id))
+            {
+                SelectedSubAssyId2 = id;
+                SubAssyList3 = await _assyDefService.GetAllSubAssembliesByAssyIdAsync(id);
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(id);
+
+                await _js.ToastrInfo("Sub Assembly level 2 loaded successfully.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error in OnSubAssyChange2 for SubAssy ID: {SelectedSubAssyId2}");
+            await _js.ToastrError("Failed to load sub-assembly level 2 data.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSubAssyChange3(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (int.TryParse(e.Value?.ToString(), out int id))
+            {
+                SelectedSubAssyId3 = id;
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(id);
+
+                await _js.ToastrInfo("Sub Assembly level 3 loaded successfully.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error in OnSubAssyChange3 for SubAssy ID: {SelectedSubAssyId3}");
+            await _js.ToastrError("Failed to load sub-assembly level 3 data.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<IEnumerable<ItemVM>> SearchAssyItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        return await _assyDefService.SearchOnlyAssyItemsAsync(value.Trim());
+    }
+
+    #endregion
+
+    #region OrRequired Qty change
+
+    private async Task OnReqQtyChanged(AssemblyDefVM row, ChangeEventArgs e)
+    {
+        try
+        {
+            if (decimal.TryParse(e.Value?.ToString(), out decimal newValue))
+            {
+                if (newValue > row.BalQty)
+                {
+                    row.ReqQty = row.BalQty.GetValueOrDefault();
+                }
+                else if (newValue < 0)
+                {
+                    row.ReqQty = 0;
+                }
+                else
+                {
+                    row.ReqQty = newValue;
+                }
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnReqQtyChanged");
+            await _js.ToastrError("An error occurred while updating Requested Quantity.");
+        }
+    }
+
+
+    #endregion
+
+    #region  Convert PR / SCN
+
+    private async Task UpsertBOM(string? actionType)
+    {
+        try
+        {
+            isProcessing = true;
+
+            if(assemblyDef.AssmblyID.GetValueOrDefault() == 0)
+            {
+                await _js.ToastrWarning("Assembly Selection is Required.");
+                return;
+            }
+
+            if (bomRows == null || !bomRows.Any(r => r.IsSelected))
+            {
+                await _js.ToastrWarning("At least one row must be selected to Add Stock or Convert PR.");
+                return;
+            }
+
+            var invalidRows = bomRows
+                .Where(r => r.IsSelected && (r.ReqQty.GetValueOrDefault() <= 0.001m))
+                .ToList();
+
+            if (invalidRows.Any())
+            {
+                await _js.ToastrWarning("Required Qty should be greater than 0.001 to Convert PR or Add Stock.");
+                return;
+            }
+
+            confirmation = actionType switch
+            {
+                "ConvertPR" => "ConvertPR",
+                "AddStock" => "AddStock",
+                _ => string.Empty
+            };
+
+            if (string.IsNullOrEmpty(confirmation))
+            {
+                await _js.ToastrWarning("Unknown action requested.");
+                return;
+            }
+
+            if (actionType == "ConvertPR")
+            {
+                ModalTitle = "Are you sure you want to Convert the selected items to PR?";
+                btnColor = "btn-success";
+                btnText = "Yes! Convert";
+            }
+            else if (actionType == "AddStock")
+            {
+                ModalTitle = "Are you sure you want to Add Stock for the selected items?";
+                btnColor = "btn-primary";
+                btnText = "Yes! Add Stock";
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task ConvertToPR()
+    {
+        try
+        {
+            isProcessing = true;
+            await _assyDefService.ConvertBOMToPRAsync(assemblyDef.AssmblyID.Value, bomRows);
+            await _js.ToastrSuccess("Selected BOM items converted to PR successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+             //_navigationManager.NavigateTo("/materialRequisitionList");
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ConvertToPR failed.");
+            await _js.ToastrError("Failed to create PR.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task AddToStock()
+    {
+        try
+        {
+            isProcessing = true;
+            await _assyDefService.AddStockFromBOM(assemblyDef.AssmblyID.GetValueOrDefault(),SelectedSubAssyId,SelectedSubAssyId2,
+                                                  SelectedSubAssyId3,bomRows);
+            await _js.ToastrSuccess("Selected BOM items Added Stock successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+           // _navigationManager.NavigateTo("/");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "AddToStock failed.");
+            await _js.ToastrError("Failed to Add Stock");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Item Cancel / Revert
+
+    private async Task OnItemCancelChanged(AssemblyDefVM subitem)
+    {
+        try
+        {
+            if ((subitem.UtilQty.GetValueOrDefault()) != (subitem.BalQty.GetValueOrDefault()))
+            {
+                await _js.ToastrError("Item cannot be cancelled — some transactions have been made on it.");
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.Cancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                }
+                rowToCancel = subitem;
+
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Item.Cancel method");
+            await _logs.LogDeveloperError(ex, "Error in Item Cancel in BOM");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelItem(AssemblyDefVM rowToCancel)
+    {
+        if (rowToCancel == null) return;
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            rowToCancel.Cancel = !rowToCancel.Cancel;
+
+            await _assyDefService.UpdateItemCancelAsync(rowToCancel);
+
+            var action = rowToCancel.Cancel
+                ? $"Item Cancelled Assembly Code: {rowToCancel.AssemblyItemCode}  canceled Child Item :{rowToCancel.PartItemCode}"
+                : $"Item Reverted Assembly Cade : {rowToCancel.AssemblyItemCode} canceled Child Item :{rowToCancel.PartItemCode}";
+
+            await _logs.LogUserAction(
+                UserName: username,
+                Machine: machine,
+                IP_Address: ip,
+                screen: "Bill of Material",
+                action: action,
+                additionalInfo: $"Assembly Code: {rowToCancel.AssemblyItemCode} And child Item Code:{rowToCancel.PartItemCode}"
+            );
+
+            if (rowToCancel.AssmblyID.HasValue)
+            {
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(rowToCancel.AssmblyID.Value);
+            }
+            else
+            {
+                // Handle the case when AssmblyID is null
+                // For example:
+                bomRows = new List<AssemblyDefVM>();
+            }
+
+
+            var toastMessage = rowToCancel.Cancel
+                ? "Item cancelled successfully."
+                : "Item has been reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+            rowToCancel = null;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            rowToCancel = null;
+            await _js.ToastrError("An error occurred while cancelling/reverting the Item.");
+            await _logs.LogDeveloperError(ex, $"Item Cancel/Reverse failed for Assembly/Part Code: {rowToCancel.AssemblyItemCode}");
+        }
+        finally
+        {
+            rowToCancel = null;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Modal handlers
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "ItemCancel":
+                    await CancelItem(rowToCancel);
+                    break;
+
+                case "ConvertPR":
+                    await ConvertToPR();
+                    break;
+
+                case "AddStock":
+                    await AddToStock();
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+
+            // Reset selections after successful action
+            assemblyDef = new();
+            selectedAssembly = null;
+            SubAssyList = new();
+            SelectedSubAssyId = null;
+            SubAssyList2 = new();
+            SelectedSubAssyId2 = null;
+            SubAssyList3= new();
+            SelectedSubAssyId3 = null;
+            bomRows?.Clear();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+
+    #endregion
+}
+

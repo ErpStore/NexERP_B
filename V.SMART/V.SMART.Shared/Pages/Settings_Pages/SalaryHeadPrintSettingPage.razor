@@ -1,0 +1,380 @@
+﻿@page "/print-salaryHeadSettings"
+
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ISalaryHeadPrintSettingService salaryHeadPrintSettingService
+@inject ILoggingService _logs
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <PageHeader TitleText="Print Management"
+                            TitleIcon="bi bi-printer text-primary"
+                            Breadcrumbs="@salaryPrintHead" />
+
+                <div class="card-body">
+                    <EditForm Model="@SalaryHeadPrint" OnValidSubmit="UpsertPrintSettings">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+
+                        <div class="row">
+
+                            <!-- Earnings -->
+                            <div class="col-md-4">
+                                <div class="card shadow-sm">
+                                    <div class="card-header text-white" style="background-color : #00B2CA;">
+                                        Earnings
+                                    </div>
+
+                                    <div class="card-body p-2">
+                                        <table class="table table-sm table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>Field Name</th>
+                                                    <th>Rename Field</th>
+                                                    <th>Print</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var item in SalaryHeadPrint.Where(x => x.Type == 1))
+                                                {
+                                                    <tr>
+                                                        <td>@item.FieldName</td>
+
+                                                        <td>
+                                                            <InputText class="form-control form-control-sm"
+                                                                       @bind-Value="item.PrintName" />
+                                                        </td>
+
+                                                        <td class="text-center">
+                                                            <InputCheckbox @bind-Value="item.IsPrint" />
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Deductions -->
+                            <div class="col-md-4">
+                                <div class="card shadow-sm">
+                                    <div class="card-header text-white" style="background-color:#778873">
+                                        Deductions
+                                    </div>
+
+                                    <div class="card-body p-2">
+                                        <table class="table table-sm table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>Field Name</th>
+                                                    <th>Rename Field</th>
+                                                    <th>Print</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var item in SalaryHeadPrint.Where(x => x.Type == 2))
+                                                {
+                                                    <tr>
+                                                        <td>@item.FieldName</td>
+
+                                                        <td>
+                                                            <InputText class="form-control form-control-sm"
+                                                                       @bind-Value="item.PrintName" />
+                                                        </td>
+
+                                                        <td class="text-center">
+                                                            <InputCheckbox @bind-Value="item.IsPrint" />
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Employee Info -->
+                            <div class="col-md-4">
+                                <div class="card shadow-sm">
+                                    <div class="card-header text-white" style="background-color:#1A312C">
+                                        Employee Info
+                                    </div>
+
+                                    <div class="card-body p-2">
+                                        <table class="table table-sm table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>Field Name</th>
+                                                    <th>Rename Field</th>
+                                                    <th>Print</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var item in SalaryHeadPrint.Where(x => x.Type == 3))
+                                                {
+                                                    <tr>
+                                                        <td>@item.FieldName</td>
+
+                                                        <td>
+                                                            <InputText class="form-control form-control-sm"
+                                                                       @bind-Value="item.PrintName" />
+                                                        </td>
+
+                                                        <td class="text-center">
+                                                            <InputCheckbox @bind-Value="item.IsPrint" />
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-success">
+                                    Save
+                                </button>
+                            </div>
+
+
+                            <div class="col-auto">
+                                <a href="/generalSettings" class="btn btn-secondary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                                </a>
+                            </div>
+                        </div>
+                       
+
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Salary Head Print Setting";
+    private bool isProcessing = true;
+
+    private List<SalaryHeadPrintSetting> SalaryHeadPrint = new();
+   
+    // private List<SalaryHeadPrintSetting> EarningsList = new();
+    // private List<SalaryHeadPrintSetting> DeductionList = new();
+    // private List<SalaryHeadPrintSetting> EmployeeInfoList = new();
+
+    private string? selectedScreenName;
+
+    private string searchText = "";
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> salaryPrintHead = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Settings" },
+        new PageHeader.BreadcrumbItem { Text = "Salary Head Print Setting", IsLast = true }
+    };
+
+    // // Filtered list for currently selected screen
+    // private IEnumerable<SalaryHeadPrintSetting> filteredSettings =>
+    //     string.IsNullOrEmpty(selectedScreenName)
+    //         ? Enumerable.Empty<SalaryHeadPrintSetting>()
+    //         : SalaryHeadPrint;
+
+
+    private List<SalaryHeadPrintSetting> GetDefaultSalaryHeads()
+    {
+        return new List<SalaryHeadPrintSetting>
+        {
+            // Earnings (Type = 1)
+            new() { FieldName = "Basic", PrintName = "Basic", IsPrint = true, Type = 1 },
+            new() { FieldName = "DA", PrintName = "DA", IsPrint = true, Type = 1 },
+            new() { FieldName = "Miscellaneous", PrintName = "Miscellaneous", IsPrint = true, Type = 1 },
+            new() { FieldName = "Others", PrintName = "Others", IsPrint = true, Type = 1 },
+            new() { FieldName = "Attendance Bonus", PrintName = "Attendance Bonus", IsPrint = true, Type = 1 },
+            new() { FieldName = "HRA", PrintName = "HRA", IsPrint = true, Type = 1 },
+            new() { FieldName = "TA", PrintName = "TA", IsPrint = true, Type = 1 },
+            new() { FieldName = "Special Allow", PrintName = "Special Allow", IsPrint = true, Type = 1 },
+            new() { FieldName = "LTA", PrintName = "LTA", IsPrint = true, Type = 1 },
+            new() { FieldName = "MR", PrintName = "MR", IsPrint = true, Type = 1 },
+            new() { FieldName = "EA", PrintName = "EA", IsPrint = true, Type = 1 },
+            new() { FieldName = "OT", PrintName = "OT", IsPrint = true, Type = 1 },
+            new() { FieldName = "Total Gross", PrintName = "Total Gross", IsPrint = true, Type = 1},
+            
+            // Deductions (Type = 2)
+            new() { FieldName = "ESI", PrintName = "ESI", IsPrint = true, Type = 2 },
+            new() { FieldName = "PF", PrintName = "PF", IsPrint = true, Type = 2 },
+            new() { FieldName = "PT", PrintName = "PT", IsPrint = true, Type = 2 },
+            new() { FieldName = "TDS", PrintName = "TDS", IsPrint = true, Type = 2 },
+            new() { FieldName = "Society", PrintName = "Society", IsPrint = true, Type = 2 },
+            new() { FieldName = "Insurance", PrintName = "Insurance", IsPrint = true, Type = 2 },
+            new() { FieldName = "Salary Advance", PrintName = "Salary Advance", IsPrint = true, Type = 2 },
+            new() { FieldName = "Fines", PrintName = "Fines", IsPrint = true, Type = 2 },
+            new() { FieldName = "Damage Loss", PrintName = "Damage Loss", IsPrint = true, Type = 2 },
+            new() { FieldName = "Loan Deduction", PrintName = "Other Deduction", IsPrint = true, Type = 2 },
+            new() { FieldName = "Loan Balance Amount in Rs.", PrintName = "Loan Balance Amount in Rs.", IsPrint = true, Type = 2 },
+           new() { FieldName = "Total Deductions", PrintName = "Total Deductions", IsPrint = true, Type = 2},
+            
+
+            // Employee Info (Type = 3)
+            new() { FieldName = "Employees", PrintName = "Employees", IsPrint = true, Type = 3 },
+            new() { FieldName = "Department", PrintName = "Department", IsPrint = true, Type = 3 },
+            new() { FieldName = "Working Days", PrintName = "Working Days", IsPrint = true, Type = 3 },
+            new() { FieldName = "Pyable Days", PrintName = "Pyable Days", IsPrint = true, Type = 3 },
+            new() { FieldName = "Present Days", PrintName = "Present Days", IsPrint = true, Type = 3 },
+            new() { FieldName = "Absent Days", PrintName = "Absent Days", IsPrint = true, Type = 3},
+            new() { FieldName = "Leave Days", PrintName = "Leave Days", IsPrint = true, Type = 3 },
+            new() { FieldName = "Holidays", PrintName = "Holidays", IsPrint = true, Type = 3},
+            new() { FieldName = "OT", PrintName = "OT", IsPrint = true, Type = 3},
+            new() { FieldName = "Net Pay", PrintName = "Net Pay", IsPrint = true, Type = 3 },
+            new() { FieldName = "Actual Gross", PrintName = "Actual Gross", IsPrint = true, Type = 3 },
+            new() { FieldName = "Paid Amount", PrintName = "Paid Amount", IsPrint = true, Type = 3 },
+            new() { FieldName = "Old Balance", PrintName = "Old Balance", IsPrint = true, Type = 3 },
+            
+        };
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadSalaryHeadSettings();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnInitializedAsync of PrintManagement");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private string GetLabel(string fieldName)
+    {
+        return SalaryHeadPrint
+            .FirstOrDefault(x => x.FieldName == fieldName)?.PrintName
+            ?? fieldName;
+    }
+
+    // private async Task LoadSalaryHeadSettings()
+    // {
+    //     SalaryHeadPrint = GetDefaultSalaryHeads();
+
+    //     // EarningsList = SalaryHeadPrint.Where(x => x.Type == 1).ToList();
+    //     // DeductionList = SalaryHeadPrint.Where(x => x.Type == 2).ToList();
+    //     // EmployeeInfoList = SalaryHeadPrint.Where(x => x.Type == 3).ToList();
+    // }
+    private async Task LoadSalaryHeadSettings()
+    {
+        var dbData = await salaryHeadPrintSettingService.GetAllAsync();
+
+        var defaults = GetDefaultSalaryHeads();
+
+        foreach (var item in defaults)
+        {
+            var dbItem = dbData.FirstOrDefault(x =>
+                x.FieldName == item.FieldName &&
+                x.Type == item.Type);
+
+            if (dbItem != null)
+            {
+                item.Id = dbItem.Id;
+                item.PrintName = dbItem.PrintName;
+                item.IsPrint = dbItem.IsPrint;
+            }
+        }
+
+        SalaryHeadPrint = defaults;
+    }
+
+    #region Upsert / Validation
+    // // private async Task UpsertPrintSettings()
+    // // {
+    // //     isProcessing = true;
+    // //     try
+    // //     {
+            
+
+
+    // //         // await salaryHeadPrintSettingService.UpsertSalaryPrintHeadSettingAsync(allRows);
+
+    // //         await _js.ToastrSuccess("Settings Saved Successfully");
+    // //     }
+    // //     catch (Exception ex)
+    // //     {
+    // //         await _logs.LogDeveloperError(ex, "SaveSalaryHeadSettings");
+    // //         await _js.ToastrError("Error while saving");
+    // //     }
+    // //     finally
+    // //     {
+    // //         isProcessing = false;
+    // //     }
+    // // }
+
+    private async Task UpsertPrintSettings()
+    {
+        isProcessing = true;
+
+        try
+        {
+            await salaryHeadPrintSettingService.UpsertSalaryPrintHeadSettingAsync(SalaryHeadPrint);
+
+            await _js.ToastrSuccess("Settings Saved Successfully");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "SaveSalaryHeadSettings");
+            await _js.ToastrError("Error while saving");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+}

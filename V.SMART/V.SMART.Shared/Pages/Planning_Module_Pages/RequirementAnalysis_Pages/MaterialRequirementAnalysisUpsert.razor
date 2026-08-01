@@ -1,0 +1,1557 @@
+﻿@page "/materialReqAnalysis"
+
+@using V.SMART.Shared.Data.OutSourcing
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.PlanningViewModel.MaterialReqAnalysisVM
+@using MudBlazor
+@inherits BaseUserRightsComponent
+
+@inject IMaterialReqAnalysisService _mraService
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IExcelTemplateService excelTemplateService
+
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Create Material Requirement Analysis"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@MaterialReqFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <div class="row g-3 mb-2">
+
+                    <!-- =================== Customer Information Card =================== -->
+
+                    <div class="col-12 col-lg-4 mb-2">
+                        <div class="card h-100 shadow-sm">
+                            <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                <span class="fw-bold fs-6">Customer Information</span>
+                            </div>
+
+                            <div class="card-body">
+                                <!-- Customer Autocomplete -->
+                                <div class="mb-2 row">
+                                    <div class="col-12 col-sm-12">
+
+                                        <!-- Autocomplete Search -->
+                                        <MudAutocomplete T="CustomerVM"
+                                                         Label="Choose an existing Customer"
+                                                         Value="SearchCustomer"
+                                                         ValueChanged="OnCustomerSelected"
+                                                         ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                         SearchFunc="SearchCustomers"
+                                                         Dense="true"
+                                                         Variant="Variant.Outlined"
+                                                         Adornment="Adornment.Start"
+                                                         Placeholder="Search Customer (min 3 letters)"
+                                                         Clearable="true"
+                                                         Class="w-100" />
+                                        
+                                        <!-- Selected Customers -->
+                                        <MudChipSet T="CustomerVM" MultiSelection="true" Class="mt-2">
+                                            @foreach (var cust in SelectedCustomers)
+                                            {
+                                                <MudChip T="CustomerVM" Closeable="true" OnClose="() => RemoveCustomer(cust)">
+                                                    @cust.CustName
+                                                </MudChip>
+                                            }
+                                        </MudChipSet>
+
+
+                                    </div>
+                                </div>
+
+
+                                <!-- Pending PO Numbers -->
+                                @if (pendingPOs?.Any() == true)
+                                {
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold text-dark">
+                                            Select Purchase Orders <span class="text-danger">*</span>
+                                        </label>
+
+                                        <div class="d-flex align-items-center gap-2">
+
+                                            <!-- Search Box -->
+                                            <input type="text"
+                                                   class="form-control form-control-sm"
+                                                   placeholder="Search PO..."
+                                                   style="width: 220px;"
+                                                   @bind="searchPOText"
+                                                   @bind:event="oninput" />
+
+                                            <!-- Select All Checkbox -->
+                                            <div class="form-check mb-0">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@IsAllSelected"
+                                                       @onchange="ToggleSelectAllPo" />
+
+                                                <label class="form-check-label">
+                                                    Select All
+                                                </label>
+                                            </div>
+
+                                        </div>
+
+
+                                        <div class="border rounded p-2 bg-white shadow-sm d-flex flex-wrap gap-2" style="max-height: 160px; overflow-y: auto;">
+                                            @foreach (var po in pendingPOs
+                                                                                .Where(x => string.IsNullOrWhiteSpace(searchPOText) ||
+                                                                                x.PONo.Contains(searchPOText, StringComparison.OrdinalIgnoreCase)))
+                                            {
+                                                bool isSelected = selectedPOIds.Contains(po.PoId);
+
+                                                <span @onclick="() => OnPOCheckedChanged(po.PoId)"
+                                                      style="cursor: pointer;"
+                                                      class="badge rounded-pill px-3 py-2 @(isSelected ? "bg-success text-white" : "bg-secondary-subtle text-dark border")">
+
+                                                    @po.PONo
+
+                                                    @if (isSelected)
+                                                    {
+                                                        <i class="bi bi-check ms-1"></i>
+                                                    }
+                                                </span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- =================== PO Items List =================== -->
+                    <div class="col-12 col-lg-8 mb-2">
+                        @if (poItems?.Any() == true)
+                        {
+                            <div class="card shadow-sm">
+                                @* <div class="card-header bg-info-subtle text-dark d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold">PO Item Details</span>
+                                    <div>
+                                        <input type="checkbox" value="@selectAllItems" @onchange="ToggleSelectAll" />
+                                        <label class="ms-1"><small>Select All</small></label>
+                                    </div>
+                                </div> *@
+                                <div class="card-header bg-info-subtle text-dark d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold">PO Item Details</span>
+
+                                    <div class="d-flex align-items-center gap-2">
+
+                                        <!-- Select All Checkbox -->
+                                        <div>
+                                            <input type="checkbox" @onchange="ToggleSelectAll" />
+                                            <label class="ms-1"><small>Select All</small></label>
+                                        </div>
+
+                                        <!-- NEW: Select All Type -->
+                                        <select class="form-select form-select-sm"
+                                                style="width:150px"
+                                                @bind="selectedAllType"
+                                                @bind:after="ApplyTypeToAll">
+
+                                            <option value="">All Type</option>
+                                            @foreach (var type in TypeList)
+                                            {
+                                                <option value="@type">@type</option>
+                                            }
+                                        </select>
+
+                                    </div>
+                                </div>
+
+                                @*   <div class="table-responsive" style="overflow-x:auto;">
+                                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1200px;">
+                                        <thead class="custom-blue"> *@
+
+                                <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                    <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                                        <thead class="custom-blue text-center align-middle sticky-top">
+                                            <tr>
+                                                <th style="width: 70px;">Select</th>
+                                                <th style="width: 150px;">Item Type</th>
+                                                <th style="width: 120px;">Category</th>
+                                                <th class="d-none">ItemId</th>
+                                                <th style="width: 150px;">Item Code</th>
+                                                <th style="width: 150px;">Item Name</th>
+                                                <th style="width: 150px;">Customer</th>
+                                                <th class="d-none">RefPoSubId</th>
+                                                <th class="d-none">RefPoId</th>
+                                                <th style="width: 120px;">Ref PoNo</th>
+                                                <th class="d-none">Ref PoDate</th>
+                                                <th style="width: 80px;">PO Qty</th>
+                                                <th style="width: 80px;">Bal. Qty</th>
+                                                <th style="width: 100px;">Required Qty</th>
+                                                <th style="width: 80px;">Stock Qty</th>
+                                                <th style="width: 100px;">Cost-Center</th>
+                                                <th style="width: 120px;">CustomerMaterial</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody class="custom-size">
+                                            @foreach (var item in poItems)
+                                            {
+                                                <tr class="@(item.IsSelected ? "table-warning" : "")">
+
+                                                    <td style="vertical-align: middle;">
+                                                        <div class="d-flex justify-content-center align-items-center h-100">
+                                                            <input type="checkbox"
+                                                                   checked="@item.IsSelected"
+                                                                   @onchange="(e) => OnItemSelectionChanged(e, item)" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <select class="form-select" @bind="item.Type">
+                                                            <option value="" disabled selected>Select Type</option>
+                                                            @foreach (var type in TypeList)
+                                                            {
+                                                                <option value="@type">@type</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td>@item.CategoryName</td>
+                                                    <td class="d-none">@item.ItemId</td>
+                                                    <td>@item.ItemCode</td>
+                                                    <td>@item.ItemName</td>
+                                                    <td>@item.custName</td>
+                                                    <td class="d-none">@item.RefPoSubId</td>
+                                                    <td class="d-none">@item.RefPoId</td>
+                                                    <td>@item.RefPoNo</td>
+                                                    <td class="d-none">@item.RefPoDate</td>
+                                                    <td>@item.POQty</td>
+                                                    <td>@item.IndentBalQty</td>
+
+                                                    <!-- Editable Required Qty -->
+                                                    <td>
+                                                        <input type="number"
+                                                               class="form-control text-center"
+                                                               min="0"
+                                                               step="any"
+                                                               max="@item.IndentBalQty"
+                                                               @bind="item.RequiredQty"
+                                                               @bind:event="oninput"
+                                                               @bind:after='() => ValidateRequiredQty(item)' />
+                                                    </td>
+
+                                                    <td class="text-danger fw-bold">@item.StockQty</td>
+                                                    <td>@item.ProjectNo</td>
+
+                                                    <td>
+                                                        <span class="badge @(item.IsLabourMaterial ? "bg-warning text-dark" : "bg-secondary")">
+                                                            @item.MaterialType
+                                                        </span>
+                                                    </td>
+
+                                                </tr>
+                                            }
+                                        </tbody>
+
+                                    </table>
+                                </div>
+
+                                <div class="card-footer text-end">
+                                    <button class="btn btn-sm btn-primary" @onclick="UpdateAllSelectedItemsNew">
+                                        <i class="bi bi-arrow-repeat me-1"></i> Update All Selected
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- =================== Sub Items (BOM Hierarchy) =================== -->
+                    <div class="col-12 mb-2">
+                        @if (mrapoSubItems?.Any() == true)
+                        {
+                            <div class="card shadow-sm">
+
+                                <div class="card-header bg-info-subtle text-dark">
+                                    <span class="fw-bold">Item Details (BOM Analysis)</span>
+                                </div>
+
+                                <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                    <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:2410px; white-space:nowrap;">
+
+                                        <thead class="custom-blue text-center align-middle sticky-top">
+                                            <tr>
+                                                <th class="d-none">Assy Item ID</th>
+                                                <th class="d-none">Cust Id</th>
+                                                <th style="width: 20px;">Sl No.</th>
+
+                                                <th style="width: 200px;">Customer Name</th>
+                                                <th style="width: 270px;">Assy/Item Code</th>
+                                                <th style="width: 250px;">Item Name</th>
+                                                <th class="d-none">RefPoId</th>
+                                                <th style="width: 180px;">Ref PoNO</th>
+                                                <th style="width: 120px;">Ref PoDate</th>
+                                                <th class="d-none">Ref PO Sub ID</th>
+                                                <th style="width: 140px;">Assy Util. Qty</th>
+                                                <th style="width: 120px;">Required Qty</th>
+                                                <th style="width: 100px;">Stock Qty</th>
+                                                <th style="width: 100px;">Diff Qty</th>
+                                                <th class="d-none">RM Item ID</th>
+                                                <th style="width: 150px;">RM Code</th>
+                                                <th style="width: 140px;">RM Util. Qty</th>
+                                                <th style="width: 100px;">RM Req Qty</th>
+                                                <th style="width: 100px;">RM Stock Qty</th>
+                                                <th style="width: 100px;">RM Diff Qty</th>
+                                                <th style="width: 120px;">Type</th>
+                                                <th style="width: 120px;">Cost-Center</th>
+                                                <th style="width: 120px;">MaterialType</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody class="custom-size">
+                                            @{
+                                                slno = 1;
+                                            }
+
+                                            @foreach (var item in mrapoSubItems)
+                                            {
+
+                                    @functions
+                                    {
+                                        string FormatQty(decimal? qty) => qty?.ToString("F3") ?? "";
+                                    }
+
+                                    <tr>
+                                        <td class="d-none">@item.AssyCompItemId</td>
+                                        <td class="d-none">@item.CustId</td>
+                                        <td>@slno</td>
+                                        <td>@item.CustName</td>
+                                        <td>@item.AssyCompCode</td>
+                                        <td>@item.AssyCompName</td>
+                                        <td class="d-none">@item.RefPoId</td>
+                                        <td>@item.RefPoNo</td>
+                                        <td>@item.RefPoDate.ToString("dd/MM/yyyy")</td>
+                                        <td class="d-none">@item.RefPoSubId</td>
+                                        <td>@FormatQty(item.AssyCompUtilityQty)</td>
+                                        <td>@FormatQty(item.AssyCompReqQty)</td>
+                                        @* <td class="text-danger fw-bold">@FormatQty(item.AssyCompStokQty)</td>
+                                                    <td>@FormatQty(item.AssyCompDiffQty)</td> *@
+                                        <td class="fw-bold @(item.AssyCompStokQty > 0 ? "text-success" : "text-danger")">
+                                            @FormatQty(item.AssyCompStokQty)
+                                        </td>
+
+                                        <td class="fw-bold @(item.AssyCompDiffQty > 0 ? "bg-danger text-white" : "bg-success text-white")">
+                                            @FormatQty(item.AssyCompDiffQty)
+                                        </td>
+
+                                        <td class="d-none">@item.RMItemId</td>
+                                        <td>@item.RMItemCode</td>
+                                        <td>@FormatQty(item.RMUtilityQty)</td>
+                                        <td>@FormatQty(item.RMReqQty)</td>
+                                        <td class="text-danger fw-bold">@FormatQty(item.RMStockQty)</td>
+                                        <td>@FormatQty(item.RMDiffQty)</td>
+                                        <td>@item.Type</td>
+                                        <td>@item.ProjectNo</td>
+                                        <td>
+                                            <span class="badge @(item.IsLabourMaterial ? "bg-warning text-dark" : "bg-secondary")">
+                                                @item.MaterialType
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    slno++;
+                                                                        }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                                        }
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex flex-column flex-md-row flex-wrap gap-2 gap-md-3 justify-content-end align-items-start align-items-md-center mb-3">
+
+                    @if (mrapoSubItems?.Any() == true)
+                    {
+                        <!-- Radio Filters -->
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="itemFilter" id="radioPending" value="Pending"
+                                       @onchange="FilterChanged" checked="@(selectedFilter == "Pending")">
+                                <label class="form-check-label @(selectedFilter == "Pending" ? "text-success fw-bold" : "")" for="radioPending">
+                                    Only Pending Items
+                                </label>
+                            </div>
+
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="itemFilter" id="radioDeficit" value="Deficit"
+                                       @onchange="FilterChanged" checked="@(selectedFilter == "Deficit")">
+                                <label class="form-check-label @(selectedFilter == "Deficit" ? "text-danger fw-bold" : "")" for="radioDeficit">
+                                    Only Deficit Items
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="itemFilter" id="radioCustomer" value="In-House"
+                                       @onchange="FilterChanged" checked="@(selectedFilter == "In-House")">
+                                <label class="form-check-label @(selectedFilter == "In-House" ? "text-warning fw-bold" : "")" for="radioCustomer">
+                                    Only In-House Material
+                                </label>
+                            </div>
+
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-primary" id="btnAutoIndent" @onclick="AutoIndentAsync">
+                                <i class="bi bi-diagram-3"></i> Auto Indent
+                            </button>
+
+                            <button class="btn btn-success" id="btnPRPrint" @onclick="ExportBOMToExcel">
+                                <i class="bi bi-printer"></i> Print
+                            </button>
+                        </div>
+                    }
+
+                    <div class="d-flex justify-content-end p-3">
+                        <SmartBackButton Url="/" />
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+
+@code {
+    protected override string ScreenName => "Material Requirement Analysis";
+
+    private bool isProcessing = false;
+    private int slno = 0;
+
+    private CustomerVM? SearchCustomer;
+    private List<CustomerVM> SelectedCustomers = new();
+    private List<CustomerVM> CustomerList = new();
+
+    private List<MfgPo> pendingPOs = new();
+    private List<int> selectedPOIds = new();
+    private List<MRAPoItems> poItems = new();
+    private List<MRAPoSubItemsVM> mrapoSubItems = new();
+
+    private Dictionary<int, decimal> _runningItemStock = new();   // Items / Components
+    private Dictionary<int, decimal> _runningCompStock = new();   // BOM Components
+    private Dictionary<int, decimal> _runningRMStock = new();
+
+    private string searchPOText = string.Empty;
+
+    private bool IsAllSelected =>
+       pendingPOs.Any() &&
+       pendingPOs.All(x => selectedPOIds.Contains(x.PoId));
+
+    private string selectedFilter = "Deficit"; // Set a default value
+
+    private bool selectAllItems = false;
+    public List<string> TypeList { get; set; } = new() { "Manufacturing", "Purchase" };
+
+    private List<PageHeader.BreadcrumbItem> MaterialReqFormBreadcrumbs = new()
+    {
+        new() { Text = "Planning" },
+        new() { Text = "Material Requirement Analysis", IsLast = true }
+    };
+
+    #region === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private bool IsItemROLenable { get; set; } = false;
+    private string selectedAllType = null;
+
+    #endregion
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        isProcessing = true;
+        try
+        {
+            await LoadRightsAsync();
+            IsItemROLenable = await _mraService.IsItemROlDisplayEnabledAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            CustomerList = await _mraService.GetAllActiveCustomersAsync();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+            await _js.ToastrError("Error during initialization.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleSelectAllPo(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            mrapoSubItems.Clear();
+
+            bool isChecked = (bool)e.Value;
+
+            if (isChecked)
+            {
+                selectedPOIds = pendingPOs
+                    .Select(x => x.PoId)
+                    .ToList();
+            }
+            else
+            {
+                selectedPOIds.Clear();
+            }
+
+            if (selectedPOIds.Any())
+            {
+                poItems = await _mraService.GetPOItemsAsync(selectedPOIds);
+            }
+            else
+            {
+                poItems.Clear();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in ToggleSelectAll");
+            await _js.ToastrError("Failed to load PO Items");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task FilterChanged(ChangeEventArgs e)
+    {
+        selectedFilter = e.Value.ToString();
+
+        await UpdateAllSelectedItemsNew();
+        switch (selectedFilter)
+        {
+            case "In-House":
+
+                mrapoSubItems = mrapoSubItems
+                    .Where(x => !x.IsLabourMaterial)
+                    .ToList();
+                break;
+
+                // case "Pending":
+                //     mrapoSubItems = mrapoSubItems
+                //         .Where(x => x.AssyCompReqQty > x.AssyCompUtilityQty)
+                //         .ToList();
+                //     break;
+
+                // case "Deficit":
+                //     mrapoSubItems = mrapoSubItems
+                //         .Where(x => x.AssyCompDiffQty > 0 && !x.IsLabourMaterial)
+                //         .ToList();
+                break;
+
+            default:
+                mrapoSubItems = mrapoSubItems.ToList();
+                break;
+        }
+        StateHasChanged();
+    }
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return CustomerList;
+
+        try
+        {
+            var result = CustomerList.Where(c =>
+                c.CustName.Contains(value, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(c.GSTNo) &&
+                 c.GSTNo.Contains(value, StringComparison.OrdinalIgnoreCase)));
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchCustomers failed for: {value}");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    //23062026
+    // private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    // {
+    //     if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+    //         return Enumerable.Empty<CustomerVM>();
+
+    //     try
+    //     {
+    //         return await _mraService.SearchCustomersAsync(value);
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         await _logs.LogDeveloperError(ex, $"SearchCustomers failed for: {value}");
+    //         return Enumerable.Empty<CustomerVM>();
+    //     }
+
+    // }
+
+    private async Task RemoveCustomer(CustomerVM customer)
+    {
+        SelectedCustomers.Remove(customer);
+        await LoadPendingPOs();
+    }
+
+
+    private async Task OnCustomerSelected(CustomerVM? customer)
+    {
+        if (customer == null)
+            return;
+
+        // Prevent duplicate selection
+        if (!SelectedCustomers.Any(c => c.CustId == customer.CustId))
+        {
+            SelectedCustomers.Add(customer);
+            await LoadPendingPOs();
+        }
+
+        // Clear search box
+        SearchCustomer = null;
+    }
+
+    private async Task LoadPendingPOs()
+    {
+        try
+        {
+            isProcessing = true;
+            poItems.Clear();
+            selectedPOIds.Clear();
+
+            var custIds = SelectedCustomers.Select(c => c.CustId).ToList();
+
+            if (custIds.Any())
+                pendingPOs = await _mraService.GetPendingPOsByCustomersAsync(custIds);
+            else
+                pendingPOs.Clear();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in LoadPendingPOs");
+            await _js.ToastrError("Error while loading POs");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    private async Task OnPOCheckedChanged(int poId)
+    {
+        try
+        {
+            isProcessing = true;
+
+            mrapoSubItems.Clear();
+
+            if (selectedPOIds.Contains(poId))
+            {
+                selectedPOIds.Remove(poId);
+            }
+            else
+            {
+                selectedPOIds.Add(poId);
+            }
+
+            if (selectedPOIds.Any())
+            {
+                poItems = await _mraService.GetPOItemsAsync(selectedPOIds);
+            }
+            else
+            {
+                poItems.Clear();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnPOCheckedChanged");
+            await _js.ToastrError("Failed to load PO Items");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        selectAllItems = (bool)e.Value!;
+        foreach (var item in poItems)
+        {
+            item.IsSelected = selectAllItems;
+        }
+    }
+
+    private void OnItemSelectionChanged(ChangeEventArgs e, MRAPoItems item)
+    {
+        item.IsSelected = (bool?)e.Value == true;
+    }
+
+    private void ValidateRequiredQty(MRAPoItems item)
+    {
+        if (item.RequiredQty < 0)
+            item.RequiredQty = 0;
+
+        if (item.RequiredQty > item.IndentBalQty)
+            item.RequiredQty = item.IndentBalQty;
+    }
+    private async Task UpdateAllSelectedItems()
+    {
+        try
+        {
+            isProcessing = true;
+            mrapoSubItems.Clear();
+
+            var invalidItems = poItems.Where(p => p.IsSelected
+                                && (p.RequiredQty <= 0 || string.IsNullOrWhiteSpace(p.ItemCode) ||
+                                string.IsNullOrWhiteSpace(p.Type) || string.IsNullOrWhiteSpace(p.CategoryName))).ToList();
+
+            if (invalidItems.Any())
+            {
+                foreach (var item in invalidItems)
+                {
+                    await _js.ToastrWarning($"Item '{item.ItemCode ?? "(No Code)"}' skipped — RequiredQty, ItemCode, Type, or Category is missing/invalid.");
+                }
+                return;
+            }
+
+            var validItems = poItems.Where(p => p.IsSelected).ToList();
+
+            if (!validItems.Any())
+            {
+                await _js.ToastrWarning("No items selected.");
+                return;
+            }
+
+            // ✅ Initialize running stock with ALL items (PO + BOM + RM)
+            // ** important Getting Stock  **
+            await InitializeRunningStockAsync(validItems);
+
+            var allSubItems = new List<MRAPoSubItemsVM>();
+
+            foreach (var item in validItems)
+            {
+                var type = item.Type?.ToLower();
+                var category = item.CategoryName?.ToLower();
+
+                if (string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(category))
+                {
+                    await _js.ToastrWarning($"Item '{item.ItemCode}' skipped — Type or Category missing.");
+                    continue;
+                }
+
+                if (type == "manufacturing" && category == "assembly")
+                    await AddAssemblyBOMItems(item, allSubItems);
+                else if (type == "manufacturing" && category == "component")
+                    await AddComponentWithRawMaterials(item, allSubItems);
+                else if ((type == "purchase" && category == "component") || (type == "purchase" && category == "assembly"))
+                    AddSingleItemRunningStock(item, allSubItems);
+
+            }
+
+            mrapoSubItems = allSubItems;
+
+            await _js.ToastrSuccess("MRA items generated successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in UpdateAllSelectedItems");
+            await _js.ToastrError("Error while updating selected items.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+
+    private async Task InitializeRunningStockAsync(List<MRAPoItems> items)
+    {
+        var allItemIds = await CollectAllItemIdsAsync(items);
+
+        var stockDB = await _mraService.GetStockForItemsAsync(allItemIds.ToList(), null);
+
+        _runningItemStock = new Dictionary<int, decimal>(stockDB);
+    }
+
+    private async Task<HashSet<int>> CollectAllItemIdsAsync(List<MRAPoItems> items)
+    {
+        var allIds = new HashSet<int>();
+
+        foreach (var item in items)
+        {
+            allIds.Add(item.ItemId);
+
+            // BOM Components
+            var bomItems = await _mraService.GetBOMHierarchyAsync(item.ItemId) ?? new List<BOMItem>();
+
+            foreach (var comp in bomItems)
+            {
+                allIds.Add(comp.ItemID);
+
+                var rmList = await _mraService.GetRawMaterialsForComponentAsync(comp.ItemID) ?? new List<CompMasterVM>();
+
+                foreach (var rmId in rmList.Where(r => r.RMId.HasValue).Select(r => r.RMId.Value))
+                {
+                    allIds.Add(rmId);
+                }
+            }
+
+            // Component → RM
+            var rmDirect = await _mraService.GetRawMaterialsForComponentAsync(item.ItemId);
+            if (rmDirect != null)
+            {
+                foreach (var rm in rmDirect.Where(r => r.RMId.HasValue))
+                    allIds.Add(rm.RMId.Value);
+            }
+        }
+
+        return allIds;
+    }
+
+
+
+
+    private void AddSingleItemRunningStock(MRAPoItems item, List<MRAPoSubItemsVM> subItems)
+    {
+        if (!_runningItemStock.TryGetValue(item.ItemId, out var stock))
+            stock = 0;
+
+        var reqQty = item.RequiredQty ?? 0;
+        var originalStock = stock;
+
+        var diffQty = Math.Max(0, reqQty - originalStock);
+
+        // ✅ Reduce global stock
+        _runningItemStock[item.ItemId] = Math.Max(0, stock - reqQty);
+
+        subItems.Add(new MRAPoSubItemsVM
+        {
+            CustId = item.CustId.Value,
+            CustName = item.custName,
+
+            RefPoSubId = item.RefPoSubId,
+            RefPoId = item.RefPoId,
+            RefPoNo = item.RefPoNo,
+            RefPoDate = item.RefPoDate,
+
+            AssyCompItemId = item.ItemId,
+            AssyCompCode = item.ItemCode,
+            AssyCompName = item.ItemName,
+            AssyCompUtilityQty = 1,
+            AssyCompReqQty = reqQty,
+            AssyCompStokQty = originalStock,
+            AssyCompDiffQty = diffQty,
+
+            Type = item.Type,
+            CostId = item.CostId,
+            ProjectNo = item.ProjectNo,
+            IsLabourMaterial = item.IsLabourMaterial
+
+        });
+    }
+
+
+
+
+    private async Task AddAssemblyBOMItems(MRAPoItems parentItem, List<MRAPoSubItemsVM> subItems)
+    {
+        var bomItems = await _mraService.GetBOMHierarchyAsync(parentItem.ItemId);
+
+        if (bomItems == null || !bomItems.Any())
+        {
+            await _js.ToastrWarning($"No BOM found for item '{parentItem.ItemCode}'.");
+            return;
+        }
+
+        foreach (var comp in bomItems)
+        {
+            if (!_runningItemStock.TryGetValue(comp.ItemID, out var stock))
+                stock = 0;
+
+            var reqQty = comp.UtilQty * (parentItem.RequiredQty ?? 0);
+            var originalStock = stock;
+
+            var diffQty = Math.Max(0, reqQty - originalStock);
+
+            // ✅ Reduce global stock
+            _runningItemStock[comp.ItemID] = Math.Max(0, stock - reqQty);
+
+            var rmList = await _mraService.GetRawMaterialsForComponentAsync(comp.ItemID);
+
+            if (rmList != null && rmList.Any())
+            {
+                await AddRawMaterialsForBOM(parentItem, comp, reqQty, rmList, subItems);
+            }
+            else
+            {
+                subItems.Add(new MRAPoSubItemsVM
+                {
+                    CustId = parentItem.CustId.Value,
+                    CustName = parentItem.custName,
+
+                    RefPoSubId = parentItem.RefPoSubId,
+                    RefPoId = parentItem.RefPoId,
+                    RefPoNo = parentItem.RefPoNo,
+                    RefPoDate = parentItem.RefPoDate,
+
+                    AssyCompItemId = comp.ItemID,
+                    AssyCompCode = comp.ItemCode,
+                    AssyCompName = comp.ItemName,
+                    AssyCompUtilityQty = comp.UtilQty,
+                    AssyCompReqQty = reqQty,
+                    AssyCompStokQty = originalStock,
+                    AssyCompDiffQty = diffQty,
+
+                    Type = parentItem.Type,
+                    CostId = parentItem.CostId,
+                    ProjectNo = parentItem.ProjectNo,
+                    IsLabourMaterial = comp.IsLabourMaterial
+
+                });
+            }
+        }
+    }
+
+
+
+
+    private async Task AddRawMaterialsForBOM(
+    MRAPoItems parentItem,
+    BOMItem comp,
+    decimal compReqQty,
+    List<CompMasterVM> rmList,
+    List<MRAPoSubItemsVM> subItems)
+    {
+        foreach (var rm in rmList)
+        {
+            if (!rm.RMId.HasValue) continue;
+
+            if (!_runningItemStock.TryGetValue(rm.RMId.Value, out var stock))
+                stock = 0;
+
+            var reqQty = rm.Weight * compReqQty;
+            var originalStock = stock;
+
+            var diffQty = Math.Max(0, reqQty - originalStock);
+
+            // ✅ Reduce global stock
+            _runningItemStock[rm.RMId.Value] = Math.Max(0, stock - reqQty);
+
+            subItems.Add(new MRAPoSubItemsVM
+            {
+                CustId = parentItem.CustId.Value,
+                CustName = parentItem.custName,
+
+                RefPoSubId = parentItem.RefPoSubId,
+                RefPoId = parentItem.RefPoId,
+                RefPoNo = parentItem.RefPoNo,
+                RefPoDate = parentItem.RefPoDate,
+
+                AssyCompItemId = comp.ItemID,
+                AssyCompCode = comp.ItemCode,
+                AssyCompName = comp.ItemName,
+                AssyCompUtilityQty = comp.UtilQty,
+                AssyCompReqQty = compReqQty,
+
+                RMItemId = rm.RMId,
+                RMItemCode = rm.RMCode,
+                RMUtilityQty = rm.Weight,
+                RMReqQty = reqQty,
+                RMStockQty = originalStock,
+                RMDiffQty = diffQty,
+
+                Type = parentItem.Type,
+                CostId = parentItem.CostId,
+                ProjectNo = parentItem.ProjectNo,
+                IsLabourMaterial = comp.IsLabourMaterial
+
+            });
+        }
+    }
+
+
+
+    private async Task AddComponentWithRawMaterials(MRAPoItems item, List<MRAPoSubItemsVM> subItems)
+    {
+        if (!_runningItemStock.TryGetValue(item.ItemId, out var stock))
+            stock = 0;
+
+        var reqQty = item.RequiredQty ?? 0;
+        var originalStock = stock;
+
+        var diffQty = Math.Max(0, reqQty - originalStock);
+
+        _runningItemStock[item.ItemId] = Math.Max(0, stock - reqQty);
+
+        var rmList = await _mraService.GetRawMaterialsForComponentAsync(item.ItemId);
+
+        if (rmList == null || !rmList.Any())
+        {
+            AddSingleItemRunningStock(item, subItems);
+            return;
+        }
+
+        foreach (var rm in rmList)
+        {
+            if (!rm.RMId.HasValue) continue;
+
+            if (!_runningItemStock.TryGetValue(rm.RMId.Value, out var rmStock))
+                rmStock = 0;
+
+            var rmReqQty = rm.Weight * reqQty;
+            var originalRmStock = rmStock;
+
+            var rmDiff = Math.Max(0, rmReqQty - originalRmStock);
+
+            _runningItemStock[rm.RMId.Value] = Math.Max(0, rmStock - rmReqQty);
+
+            subItems.Add(new MRAPoSubItemsVM
+            {
+                CustId = item.CustId.Value,
+                CustName = item.custName,
+
+                RefPoSubId = item.RefPoSubId,
+                RefPoId = item.RefPoId,
+                RefPoNo = item.RefPoNo,
+                RefPoDate = item.RefPoDate,
+
+                AssyCompItemId = item.ItemId,
+                AssyCompCode = item.ItemCode,
+                AssyCompName = item.ItemName,
+                AssyCompUtilityQty = 1,
+                AssyCompReqQty = reqQty,
+                AssyCompStokQty = originalStock,
+                AssyCompDiffQty = diffQty,
+
+                RMItemId = rm.RMId,
+                RMItemCode = rm.RMCode,
+                RMUtilityQty = rm.Weight,
+                RMReqQty = rmReqQty,
+                RMStockQty = originalRmStock,
+                RMDiffQty = rmDiff,
+
+                Type = item.Type,
+                CostId = item.CostId,
+                ProjectNo = item.ProjectNo,
+                IsLabourMaterial = item.IsLabourMaterial
+            });
+        }
+    }
+
+
+
+    private async Task AutoIndentAsync()
+    {
+        try
+        {
+
+            ModalTitle = "Are you sure you want Convert the PR/Indent?";
+            btnColor = "btn-primary";
+            btnText = "Yes, Create";
+            confirmation = "Create";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error generating AutoIndentAsync");
+            await _js.ToastrError("Error generating Material Requisition");
+        }
+    }
+
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Create")
+                await ConfirmCreate_Click(isConfirmed);
+            else
+                await _js.ToastrWarning("Unknown confirmation action.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    private async Task ConfirmCreate_Click(bool isConfirmed)
+    {
+        try
+        {
+            isProcessing = true;
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            var materialReq = await _mraService.AutoGenerateMaterialReqAsync(
+                selectedFilter,
+                poItems,
+                mrapoSubItems);
+
+            if (mrapoSubItems.Sum(x => x.RMDiffQty) > 0)
+            {
+                await _js.ToastrSuccess($"Material Requisition {materialReq.MReqNo}/{materialReq.Suffix} generated successfully.");
+            }
+            else if (mrapoSubItems.Sum(x => x.AssyCompDiffQty) > 0)
+            {
+                await _js.ToastrSuccess($"Material Requisition {materialReq.MReqNo}/{materialReq.Suffix} generated successfully.");
+            }
+
+            _navigationManager.NavigateTo("/materialRequisitionList");
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error while generating the material requisition / Indent");
+            await _js.ToastrError("Failed to create material requisition / Indent.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task ExportBOMToExcel()
+    {
+        if (mrapoSubItems == null || !mrapoSubItems.Any())
+            return;
+
+        var headers = mrapoSubItems.First().GetType()
+                         .GetProperties()
+                         .Select(p => p.Name)
+                         .ToArray();
+
+        // Call your service
+        var fileBytes = await excelTemplateService.CreateTemplateAsync(
+            sheetName: "PRData",
+            headers: headers,
+            sampleData: mrapoSubItems
+        );
+
+        var base64 = Convert.ToBase64String(fileBytes);
+        await _js.InvokeVoidAsync("downloadExcelFile", base64, "PRData.xlsx");
+    }
+    private void ApplyTypeToAll()
+    {
+        if (!string.IsNullOrEmpty(selectedAllType))
+        {
+            foreach (var item in poItems)
+            {
+                item.Type = selectedAllType;
+            }
+        }
+    }
+
+
+    /// /////new
+    /// /////new
+    public   async Task UpdateAllSelectedItemsNew()
+    {
+        try
+        {
+            isProcessing = true;
+            mrapoSubItems.Clear();
+
+
+            var invalidItems = poItems.Where(p => p.IsSelected
+                && (p.RequiredQty <= 0 || string.IsNullOrWhiteSpace(p.ItemCode) ||
+                    string.IsNullOrWhiteSpace(p.Type) || string.IsNullOrWhiteSpace(p.CategoryName))).ToList();
+
+            if (invalidItems.Any())
+            {
+                foreach (var item in invalidItems)
+                    await _js.ToastrWarning($"Item '{item.ItemCode ?? "(No Code)"}' skipped — RequiredQty, ItemCode, Type, or Category is missing/invalid.");
+                return;
+            }
+
+            var validItems = poItems.Where(p => p.IsSelected).ToList();
+            if (!validItems.Any())
+            {
+                await _js.ToastrWarning("No items selected.");
+                return;
+            }
+
+            var preloaded = await PreloadAllDataAsync(validItems);
+
+            var allItemIds = preloaded.AllItemIds;
+            var stockDB = await _mraService.GetStockForItemsAsync(allItemIds.ToList(), null);
+            _runningItemStock = new Dictionary<int, decimal>(stockDB);
+
+
+            var allSubItems = new List<MRAPoSubItemsVM>();
+            foreach (var item in validItems)
+            {
+                var type = item.Type?.ToLower();
+                var category = item.CategoryName?.ToLower();
+
+                if (string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(category))
+                {
+                    await _js.ToastrWarning($"Item '{item.ItemCode}' skipped — Type or Category missing.");
+                    continue;
+                }
+
+                if (type == "manufacturing" && category == "assembly")
+                    AddAssemblyBOMItems(item, allSubItems, preloaded);
+                else if (type == "manufacturing" && category == "component")
+                    AddComponentWithRawMaterials(item, allSubItems, preloaded);
+                else if ((type == "purchase" && category == "component") || (type == "purchase" && category == "assembly"))
+                    AddSingleItemRunningStock(item, allSubItems);
+            }
+
+            mrapoSubItems = allSubItems;
+            await _js.ToastrSuccess("MRA items generated successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in UpdateAllSelectedItems");
+            await _js.ToastrError("Error while updating selected items.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task<PreloadedData> PreloadAllDataAsync(List<MRAPoItems> items)
+    {
+        var bomByParent = new Dictionary<int, List<BOMItem>>();
+        var rmByComponent = new Dictionary<int, List<CompMasterVM>>();
+        var allItemIds = new HashSet<int>();
+
+        var queue = new Queue<int>(
+            items.Select(x => x.ItemId).Distinct());
+
+        while (queue.Count > 0)
+        {
+            int parentId = queue.Dequeue();
+
+            if (allItemIds.Contains(parentId))
+                continue;
+
+            allItemIds.Add(parentId);
+
+
+            var children =
+                await _mraService.GetDirectBOMItemsAsync(parentId)
+                ?? new List<BOMItem>();
+
+            bomByParent[parentId] = children;
+
+            foreach (var child in children)
+            {
+                if (!allItemIds.Contains(child.ItemID))
+                {
+                    queue.Enqueue(child.ItemID);
+                }
+            }
+
+
+            var rmData =
+                await _mraService.GetRawMaterialsForComponentsBatchAsync(
+                    new List<int> { parentId });
+
+            if (rmData.TryGetValue(parentId, out var rms))
+            {
+                rmByComponent[parentId] = rms;
+
+                foreach (var rm in rms.Where(x => x.RMId.HasValue))
+                {
+                    int rmId = rm.RMId.Value;
+
+
+                    if (!allItemIds.Contains(rmId))
+                    {
+                        queue.Enqueue(rmId);
+                    }
+                }
+            }
+        }
+
+        return new PreloadedData
+        {
+            AllItemIds = allItemIds,
+            BOMByParentId = bomByParent,
+            RawMaterialsByComponentId = rmByComponent
+        };
+    }
+    private void AddAssemblyBOMItems(
+     MRAPoItems parentItem,
+     List<MRAPoSubItemsVM> subItems,
+     PreloadedData preloaded)
+    {
+        ProcessAssemblyRecursive(
+            sourceItem: parentItem,
+            currentItemId: parentItem.ItemId,
+            currentQty: parentItem.RequiredQty ?? 0,
+            cumulativeUtilQty: 1,
+            subItems: subItems,
+            preloaded: preloaded);
+    }
+
+    private void AddComponentWithRawMaterials(MRAPoItems item, List<MRAPoSubItemsVM> subItems, PreloadedData preloaded)
+    {
+        if (!_runningItemStock.TryGetValue(item.ItemId, out var stock))
+            stock = 0;
+
+        var reqQty = item.RequiredQty ?? 0;
+        var originalStock = stock;
+        var diffQty = Math.Max(0, reqQty - originalStock);
+        _runningItemStock[item.ItemId] = Math.Max(0, stock - reqQty);
+
+        if (!preloaded.RawMaterialsByComponentId.TryGetValue(item.ItemId, out var rmList) || rmList == null || !rmList.Any())
+        {
+            AddSingleItemRunningStock(item, subItems);
+            return;
+        }
+
+        foreach (var rm in rmList)
+        {
+            if (!rm.RMId.HasValue) continue;
+
+            if (!_runningItemStock.TryGetValue(rm.RMId.Value, out var rmStock))
+                rmStock = 0;
+
+            var rmReqQty = rm.Weight * reqQty;
+            var originalRmStock = rmStock;
+            var rmDiff = Math.Max(0, rmReqQty - originalRmStock);
+            _runningItemStock[rm.RMId.Value] = Math.Max(0, rmStock - rmReqQty);
+
+            subItems.Add(new MRAPoSubItemsVM
+            {
+                CustId = item.CustId.Value,
+                CustName = item.custName,
+                RefPoSubId = item.RefPoSubId,
+                RefPoId = item.RefPoId,
+                RefPoNo = item.RefPoNo,
+                RefPoDate = item.RefPoDate,
+                AssyCompItemId = item.ItemId,
+                AssyCompCode = item.ItemCode,
+                AssyCompName = item.ItemName,
+                AssyCompUtilityQty = 1,
+                AssyCompReqQty = reqQty,
+                AssyCompStokQty = originalStock,
+                AssyCompDiffQty = diffQty,
+                RMItemId = rm.RMId,
+                RMItemCode = rm.RMCode,
+                RMUtilityQty = rm.Weight,
+                RMReqQty = rmReqQty,
+                RMStockQty = originalRmStock,
+                RMDiffQty = rmDiff,
+                Type = item.Type,
+                CostId = item.CostId,
+                ProjectNo = item.ProjectNo,
+                IsLabourMaterial = item.IsLabourMaterial
+            });
+        }
+    }
+
+    private class PreloadedData
+    {
+        public HashSet<int> AllItemIds { get; set; }
+        public Dictionary<int, List<BOMItem>> BOMByParentId { get; set; }
+        public Dictionary<int, List<CompMasterVM>> RawMaterialsByComponentId { get; set; }
+    }
+    private void ProcessAssemblyRecursive(
+      MRAPoItems sourceItem,
+      int currentItemId,
+      decimal currentQty,
+      decimal cumulativeUtilQty,
+      List<MRAPoSubItemsVM> subItems,
+      PreloadedData preloaded)
+    {
+        if (!preloaded.BOMByParentId.TryGetValue(
+            currentItemId,
+            out var children))
+            return;
+
+        foreach (var child in children)
+        {
+            decimal childQty = currentQty * child.UtilQty;
+
+            decimal effectiveUtilQty =
+                cumulativeUtilQty * child.UtilQty;
+
+            bool hasChildBom =
+                preloaded.BOMByParentId.TryGetValue(
+                    child.ItemID,
+                    out var nextLevelChildren)
+                && nextLevelChildren.Any();
+
+            // Has child BOM => Assembly/SubAssembly
+            if (hasChildBom)
+            {
+                ProcessAssemblyRecursive(
+                    sourceItem,
+                    child.ItemID,
+                    childQty,
+                    effectiveUtilQty,
+                    subItems,
+                    preloaded);
+
+                continue;
+            }
+
+            // Leaf Component
+            if (!_runningItemStock.TryGetValue(
+                child.ItemID,
+                out var compStock))
+            {
+                compStock = 0;
+            }
+
+            decimal originalCompStock = compStock;
+
+            decimal compDiffQty =
+                Math.Max(0, childQty - compStock);
+
+            _runningItemStock[child.ItemID] =
+                Math.Max(0, compStock - childQty);
+
+            // First RM only
+            CompMasterVM? rm = null;
+
+            if (preloaded.RawMaterialsByComponentId.TryGetValue(
+                child.ItemID,
+                out var rmList))
+            {
+                rm = rmList
+                    .FirstOrDefault(x => x.RMId.HasValue);
+            }
+
+            decimal rmStock = 0;
+            decimal rmReqQty = 0;
+            decimal rmDiffQty = 0;
+
+            if (rm?.RMId != null)
+            {
+                _runningItemStock.TryGetValue(
+                    rm.RMId.Value,
+                    out rmStock);
+
+                rmReqQty =
+                    childQty * rm.Weight;
+
+                rmDiffQty =
+                    Math.Max(0, rmReqQty - rmStock);
+
+                _runningItemStock[rm.RMId.Value] =
+                    Math.Max(0, rmStock - rmReqQty);
+            }
+
+            subItems.Add(new MRAPoSubItemsVM
+            {
+                CustId = sourceItem.CustId ?? 0,
+                CustName = sourceItem.custName,
+
+                RefPoSubId = sourceItem.RefPoSubId,
+                RefPoId = sourceItem.RefPoId,
+                RefPoNo = sourceItem.RefPoNo,
+                RefPoDate = sourceItem.RefPoDate,
+
+                AssyCompItemId = child.ItemID,
+                AssyCompCode = child.ItemCode,
+                AssyCompName = child.ItemName,
+
+                AssyCompUtilityQty = effectiveUtilQty,
+                AssyCompReqQty = childQty,
+
+                AssyCompStokQty = originalCompStock,
+                AssyCompDiffQty = compDiffQty,
+
+                RMItemId = rm?.RMId,
+                RMItemCode = rm?.RMCode,
+
+                RMUtilityQty = rm?.Weight ?? 0,
+                RMReqQty = rmReqQty,
+
+                RMStockQty = rmStock,
+                RMDiffQty = rmDiffQty,
+
+                Type = sourceItem.Type,
+                CostId = sourceItem.CostId,
+                ProjectNo = sourceItem.ProjectNo,
+                IsLabourMaterial = child.IsLabourMaterial
+            });
+        }
+    }
+    ///
+
+    ///
+}

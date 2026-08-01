@@ -1,0 +1,292 @@
+﻿@page "/DcSubConIncoming/details/{GRNId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.ISubContractGRNService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.SubContractViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject NavigationManager _navigation
+@inject ISubConGRNService subConGRNService
+@inject ReportService reportService
+@inject ILoggingService LoggingService
+
+@inject ILoggingService logs
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+            <!-- Company Details Section -->
+            <MyCompanyDetails />
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">Goods Recieved Note Details</h4>
+            </div>
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <!-- Vendor & Document Details Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Supplier Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(SubConGRNVMs?.VendorName) ? SubConGRNVMs.VendorName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(SubConGRNVMs?.VendorAddress) ? SubConGRNVMs.VendorAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(SubConGRNVMs?.VendorGstNo) ? SubConGRNVMs.VendorGstNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(SubConGRNVMs?.VendorContactNo) ? SubConGRNVMs.VendorContactNo : "N/A")</td></tr>
+
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Document Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Document Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>GRN No</strong></td>
+                                        <td>@(SubConGRNVMs != null ? $"{SubConGRNVMs.GRNNo}{SubConGRNVMs.Suffix}" : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>GRN Date</strong></td>
+                                        <td>@(SubConGRNVMs?.GRNDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Party DC No.</strong></td>
+                                        <td>@(SubConGRNVMs?.PartyDC.ToString() ?? "N/A")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Party Dc Dt.</strong></td>
+                                        <td>@(SubConGRNVMs?.PartyDCDate?.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Added Store Name.</strong></td>
+                                        <td>@(SubConGRNVMs?.StoreName?.ToString() ?? "N/A")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- DC Items Section -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                    Purchase GRN Items
+                </div>
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>Transaction Type</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>UOM</th>
+
+                                <th>Return Qty</th>
+                                <th>Unit Price</th>
+                                <th>Basic Amount</th>
+                                <th>Ref Dc No.</th>
+                                <th>Ref Dc Dt.</th>
+                                <th>Cost Center</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (SubConGRNVMs?.SubConGRNSubVMs != null && SubConGRNVMs.SubConGRNSubVMs.Any())
+                            {
+                                @foreach (var item in SubConGRNVMs.SubConGRNSubVMs)
+                                {
+                                    <tr>
+                                        <td>@item.SlNo</td>
+                                        <td>@item.TransType</td>
+                                        <td>@(item.ItemCode ?? "—")</td>
+                                        <td>@(item.ItemName ?? "—")</td>
+                                        <td>@item.MeasureUnit</td>
+                                        <td>@FormatDecimal(item.Qty)</td>
+                                        <td>@FormatDecimal(item.UnitPrice)</td>
+                                        <td>@FormatDecimal(item.Qty * item.UnitPrice)</td>
+                                        <td>@item.RefDcNo</td>
+                                        <td>@item.RefDCDate</td>
+                                        <td>@item.ProjectNo</td>
+                                        <td>@item.Remarks</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="13" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Actions -->
+
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="/subConGrnList" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+                <a href="@($"/DcSubConIncoming/update/{GRNId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+            </div>
+
+
+        </div>
+    }
+}
+
+@code
+{
+    protected override string ScreenName => "Sub-Contrect GRN";
+
+    [Parameter]
+    public int GRNId { get; set; }
+    string? pdfBase64;
+    private bool isProcessing { get; set; } = true;
+    private SubConGRNVM SubConGRNVMs { get; set; } = new SubConGRNVM();
+
+    private VendorVM VendorVMs { get; set; } = new VendorVM();
+
+    private List<SubConGRNSubVM> refPos = new();
+    private string refPoNosDisplay = "N/A";
+    private string refPoDatesDisplay = "N/A";
+    private int Decimalplaces { get; set; } = 2;
+
+    private string FormatDecimal(decimal? value)
+    {
+        try
+        {
+            if (!value.HasValue) return "0";
+
+            return Math.Round(value.Value, Decimalplaces)
+                       .ToString($"N{Decimalplaces}");
+        }
+        catch
+        {
+            return "0";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadGRNDetails();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Faild in OnInitializedAsync purchase GRN");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadGRNDetails()
+    {
+        try
+        {
+            if (GRNId > 0)
+            {
+                var grn = await subConGRNService.GetSubcontractGRNByGRNIdAsync(GRNId);
+                if (grn != null)
+                {
+                    SubConGRNVMs = grn;
+                }
+
+                Decimalplaces = await subConGRNService.GetDecimalPlacesAsync();
+
+
+
+                /// refPos = await _grnService.GetDistinctRefPoByDcIdAsync(MfgDcVMs.DcId);
+
+                if (refPos.Any())
+                {
+                    // Only join the existing items, no extra commas
+                    refPoNosDisplay = string.Join(", ", refPos.Select(e => e.RefPoNo).Where(n => !string.IsNullOrEmpty(n)));
+                    refPoDatesDisplay = string.Join(", ", refPos
+                        .Select(e => e.RefPoDate.HasValue ? e.RefPoDate.Value.ToString("dd/MM/yyyy") : null)
+                        .Where(d => !string.IsNullOrEmpty(d)));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadDcDetails Purchase GRN");
+            await _js.ToastrError("An unexpected error occurred while Loading LoadDcDetails in Purchase GRN.");
+        }
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(GRNId, "PurchaseGRN.frx", "GRNId", false, "PurchaseGRN", "Sp_Print_PurchaseGRN");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Subcontract GRN");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Subcontract GRN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

@@ -1,0 +1,461 @@
+﻿@page "/DcSubConIncomingInvoice/details/{InvId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchase_Invoice_Service
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.ISubContractInvoiceService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchaseInvoiceVM
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.SubContractViewModel
+
+@inherits BaseUserRightsComponent
+@inject ISubConInvService subConInvService
+@inject IJSRuntime _JS
+@inject ReportService reportService
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }else
+    {
+        <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <!-- Company Details Section -->
+            <div class="row align-items-center mb-4 g-4">
+                <div class="col-12 col-lg-3 text-center">
+                    @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                    {
+                        <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid rounded-3" style="max-height:120px;" />
+                    }
+                </div>
+                <div class="col-12 col-lg-9 text-lg-start text-center">
+                    <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                    <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+                    <p class="text-muted mb-0"><strong>GST No:</strong> @(company?.GSTIN ?? "N/A")</p>
+                </div>
+            </div>
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <!-- Customer & Document Details Section -->
+            <div class="row g-3 mb-4">
+                <!-- Customer Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Vendor Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.VendorName) ? SubConInvVMs.VendorName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.VendorAddress) ? SubConInvVMs.VendorAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.VendorGSTNo) ? SubConInvVMs.VendorGSTNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.VendorContactNo) ? SubConInvVMs.VendorContactNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.KindOfAttention) ? SubConInvVMs.KindOfAttention : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Document Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Purchase Inv No</strong></td>
+                                        <td>@(SubConInvVMs != null ? $"{SubConInvVMs.InvNo}{SubConInvVMs.Suffix}" : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Purchase Inv Date</strong></td>
+                                        <td>@(SubConInvVMs?.InvDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Currency</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(SubConInvVMs?.CurrName) ? SubConInvVMs.CurrName : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Ref SCN No.</strong></td>
+                                        <td>@refSCNNosDisplay</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Ref SCN Dt.</strong></td>
+                                        <td>@refSCNDatesDisplay</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Consignee & Other Terms Section -->
+            <div class="row g-3 mb-4">
+                <!-- Consignee Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Consignee Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            @if (SubConInvVMs.IsSameAsShipping)
+                            {
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.VendorName) ? SubConInvVMs.VendorName : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.VendorAddress) ? SubConInvVMs.VendorAddress : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.VendorGSTNo) ? SubConInvVMs.VendorGSTNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.VendorContactNo) ? SubConInvVMs.VendorContactNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.KindOfAttention) ? SubConInvVMs.KindOfAttention : "N/A")</td></tr>
+                                    </tbody>
+                                </table>
+                            }
+                            else
+                            {
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.ShippingName) ? SubConInvVMs.ShippingName : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.ShippingAddress) ? SubConInvVMs.ShippingAddress : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.ShippingGSTNo) ? SubConInvVMs.ShippingGSTNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(SubConInvVMs?.ShippingContactNo) ? SubConInvVMs.ShippingContactNo : "N/A")</td></tr>
+                                    </tbody>
+                                </table>
+                            }
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment, Delivery, and Other Terms -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            TDS, and Other Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>TDS Amount(In ₹) </strong></td>
+                                        <td>@(SubConInvVMs.TDSAmount)</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Remarks</strong></td>
+                                        <td>@(SubConInvVMs?.MainRemark ?? "N/A")</td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Quotation Items Section -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                    Purchase Invoice Items
+                </div>
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>UOM</th>
+                                <th>HSN</th>
+                                <th>Qty</th>
+                                <th>Unit Price</th>
+                                <th>Discount</th>
+                                <th>Basic Amount</th>
+                                @if (VendorVMs.TaxValidate == false)
+                                {
+                                    @if (VendorVMs.BusiType == "Local")
+                                    {
+                                        <th>CGST</th>
+                                        <th>SGST</th>
+                                    }
+                                    else if (VendorVMs.BusiType == "InterState")
+                                    {
+                                        <th>IGST</th>
+                                    }
+                                }
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (SubConInvVMs?.SubConInvSubVMs != null && SubConInvVMs.SubConInvSubVMs.Any())
+                            {
+                                @foreach (var item in SubConInvVMs.SubConInvSubVMs)
+                                {
+                                    <tr>
+                                        <td>@item.SlNo</td>
+                                        <td>@(item.ItemCode ?? "—")</td>
+                                        <td>@(item.ItemName ?? "—")</td>
+                                        <td>@item.MeasureUnit</td>
+                                        <td>@item.HsnCode</td>
+                                        <td>@FormatDecimal(item.Qty)</td>
+                                        <td>@FormatDecimal(item.UnitPrice)</td>
+                                        <td>@FormatDecimal(item.LineDiscountAmount)</td>
+                                        <td>@FormatDecimal(item.LineBasicAmount)</td>
+
+                                        @if (VendorVMs.TaxValidate == false)
+                                        {
+                                            @if (VendorVMs.BusiType == "Local")
+                                            {
+                                                <td class="text-end">@FormatDecimal(item.LineCGSTAmount)</td>
+                                                <td class="text-end">@FormatDecimal(item.LineSGSTAmount)</td>
+                                            }
+                                            else if (VendorVMs.BusiType == "InterState")
+                                            {
+                                                <td class="text-end">@FormatDecimal(item.LineIGSTAmount)</td>
+                                            }
+                                        }
+
+                                        <td>@item.Remarks</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="13" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Due Date & Tax Totals Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                </div>
+
+                <!-- Tax Totals -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-success-subtle text-success-emphasis fw-semibold p-2 small">
+                            Totals & Taxes
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary">Total Gross Amount</td><td class="text-end">@FormatDecimal(SubConInvVMs.TotalLineGross)</td></tr>
+                                    <tr><td class="text-secondary">Total Discount</td><td class="text-end">@FormatDecimal(SubConInvVMs.DiscountAmount)</td></tr>
+                                    <tr><td class="text-secondary">Total Basic Amount</td><td class="text-end">@FormatDecimal(SubConInvVMs.TotalLineBasicAmount)</td></tr>
+                                    <tr><td class="text-secondary">Freight Charges</td><td class="text-end">@FormatDecimal(SubConInvVMs.FreightCharges)</td></tr>
+                                    <tr><td class="text-secondary">Packing Charges</td><td class="text-end">@FormatDecimal(SubConInvVMs.PackingCharges)</td></tr>
+                                    <tr><td class="text-secondary">Insurance Charges</td><td class="text-end">@FormatDecimal(SubConInvVMs.InsuranceCharges)</td></tr>
+                                    <tr><td class="text-secondary">Total Taxable</td><td class="text-end">@FormatDecimal(SubConInvVMs.TotalTaxable)</td></tr>
+                                    @if (VendorVMs.TaxValidate == false)
+                                    {
+                                        @if (VendorVMs.BusiType == "Local")
+                                        {
+                                            <tr><td class="text-secondary">Total CGST</td><td class="text-end">@FormatDecimal(SubConInvVMs.TotalCGSTAmount)</td></tr>
+                                            <tr><td class="text-secondary">Total SGST</td><td class="text-end">@FormatDecimal(SubConInvVMs.TotalSGSTAmount)</td></tr>
+                                        }
+                                        else if (VendorVMs.BusiType == "InterState")
+                                        {
+                                            <tr><td class="text-secondary">Total IGST</td><td class="text-end">@FormatDecimal(SubConInvVMs.TotalIGSTAmount)</td></tr>
+                                        }
+                                    }
+                                    <tr><td class="text-secondary">TCS</td><td class="text-end">@FormatDecimal(SubConInvVMs.TCSAmount)</td></tr>
+                                    <tr><td class="text-secondary">Other Charges</td><td class="text-end">@FormatDecimal(SubConInvVMs.OtherCharges)</td></tr>
+                                    <tr><td class="text-secondary">Round Off</td><td class="text-end">@FormatDecimal(SubConInvVMs.RoundOff)</td></tr>
+                                    <tr class="fw-bold fs-6 text-primary">
+                                        <td>Grand Total</td>
+                                        <td class="text-end">@FormatDecimal(SubConInvVMs.GrandTotal)</td>
+                                    </tr>
+
+                                    @if (SubConInvVMs.CurrId > 1)
+                                    {
+                                        <tr>
+                                            <td colspan="2" class="text-end">
+                                                <small class="text-muted d-block">
+                                                    Today's value: @SubConInvVMs.TodayVal
+                                                </small>
+                                                <small class="fw-bold text-success d-block">
+                                                    Converted Value in Rs: @((SubConInvVMs.GrandTotal * SubConInvVMs.TodayVal).ToString("0.00"))
+                                                </small>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <!-- Due Date & Terms and Conditions -->
+                <div class="col-md-12">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-warning-subtle text-warning-emphasis fw-semibold p-2 small">
+                            Total Amount in Words
+                        </div>
+                        <div class="card-body p-2 small">
+                            <p class="mb-0">
+                                @if (SubConInvVMs.CurrId > 1 && SubConInvVMs.TodayVal > 0)
+                                {
+                                    <small class="fw-bold text-success d-block">
+                                        Converted Value in Rs:
+                                        @NumberToWordsHelper.ConvertNumberToWords(SubConInvVMs.GrandTotal * SubConInvVMs.TodayVal)
+                                    </small>
+                                }
+                                else
+                                {
+                                    <strong>@NumberToWordsHelper.ConvertNumberToWords(SubConInvVMs.GrandTotal)</strong>
+                                }
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="/purchaseInvoiceList" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+                <a href="@($"/DcSubConIncomingInvoice/update/{InvId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+            </div>
+        </div>
+        
+    }
+    
+}
+
+
+@code {
+    [Parameter]
+    public int InvId { get; set; }
+    protected override string ScreenName => "Sub-Contract Invoice";
+    string? pdfBase64;
+    private bool isProcessing { get; set; } = true;
+    private SubConInvVM SubConInvVMs { get; set; } = new SubConInvVM();
+    private VendorVM VendorVMs { get; set; } = new VendorVM();
+
+    private Companydetails company { get; set; } = new Companydetails();
+    private List<SubConInvSubVM> refSCNs = new();
+    private int Decimalplaces { get; set; } = 2;
+
+    private string refSCNNosDisplay = "N/A";
+    private string refSCNDatesDisplay = "N/A";
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+
+    //Sub-Contract Invoice
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+
+            }
+            company = await subConInvService.GetCompanyDetailsAsync();
+            await LoadPurchaseInvoice();
+            
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    private async Task LoadPurchaseInvoice()
+    {
+        if (InvId > 0)
+        {
+            var purchaseInv = await subConInvService.GetPurchaseInvoiceByIdAsync(InvId);
+            if (purchaseInv != null)
+            {
+                SubConInvVMs = purchaseInv;
+
+                foreach (var dcSub in SubConInvVMs.SubConInvSubVMs.Where(q => q.ItemId > 0))
+                {
+
+                    //AccT+RejQt+RewQty
+                    dcSub.Qty = SubConInvVMs.IsAcptRejRewQtyRequired ? (dcSub.Qty + dcSub.RejectQty + dcSub.ReworkQty) : dcSub.Qty;
+
+                }
+            }
+
+            Decimalplaces = await subConInvService.GetDecimalPlacesAsync();
+            VendorVMs = await subConInvService.GetVendorByIdAsync(SubConInvVMs.VendorCode.Value);
+
+            refSCNs = await subConInvService.GetDistinctRefSCNByPurchaseInvIdAsync(SubConInvVMs.InvId);
+
+            if (refSCNs.Any())
+            {
+                // Only join the existing items, no extra commas
+                refSCNNosDisplay = string.Join(", ", refSCNs.Select(e => e.RefSCNNo).Where(n => !string.IsNullOrEmpty(n)));
+                refSCNDatesDisplay = string.Join(", ", refSCNs
+                    .Select(e => e.RefSCNDate.HasValue ? e.RefSCNDate.Value.ToString("dd/MM/yyyy") : null)
+                    .Where(d => !string.IsNullOrEmpty(d)));
+            }
+        }
+    }
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(InvId, "PurchaseInvoice.frx", "InvId", SubConInvVMs.InvCancel, ScreenName, "Sp_Print_PurchaseInvoice");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf PurchaseInvoice");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in PurchaseInvoice.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

@@ -1,0 +1,2181 @@
+﻿@page "/productionLog/create"
+@page "/productionLog/create/{IsProduction:bool}"
+@page "/productionLog/update/{LogId:int}"
+@page "/productionLog/update/{LogId:int}/{IsProduction:bool}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IProductionService
+@using V.SMART.Shared.Data.Planning.ComponentRouteCard
+@using V.SMART.Shared.Data.Production.DailyProductionLog
+@using V.SMART.Shared.ViewModels.PlanningViewModel.RouteCardViewModel
+@using V.SMART.Shared.ViewModels.ProductionViewModel.ProductionLogViewModel
+@using V.SMART.Shared.ViewModels.ProductionViewModel.ProductionSCNAssyViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@implements IAsyncDisposable
+
+@inject ICalculationService _calculationService
+@inject IProductionLogService productionLogService
+@inject ILoggingService logs
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+
+    @if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+
+    @if (ActiveModal == "ProductionStopage")
+    {
+        <div class="table-responsive" style="overflow-x:auto;">
+            <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 800px;">
+                <thead class="custom-blue">
+                    <tr>
+                        <th style="width:160px;">Stop Type</th>
+                        <th style="width:120px;">Efficiency (%)</th>
+                        <th class="d-none" style="width:300px;">Definition</th>
+                        <th style="width:150px;">Time Spent (Minutes)</th>
+                        <th style="width:120px;">Action</th>
+                    </tr>
+                </thead>
+
+                <tbody class="custom-size">
+                    @foreach (var row in ProductionLogVMs.ProductionLogSubVMs)
+                    {
+                        <tr>
+                            <td>
+                                <select class="form-select form-select-sm"
+                                        @bind="row.LogSettingId"
+                                        @bind:event="onchange"
+                                        @bind:after="() => UpdateStopageRow(row)">
+
+                                    <option value="">-- Select Stop Type --</option>
+
+                                    @foreach (var s in productionLogSettings)
+                                    {
+                                        <option value="@s.Id">@s.ProdStopType</option>
+                                    }
+                                </select>
+                            </td>
+
+                            <td>
+                                <input class="form-control form-control-sm"
+                                       type="number"
+                                       @bind="row.EfficienctyPerc" readonly />
+                            </td>
+
+                            <td class="d-none">
+                                <InputTextArea class="form-control form-control-sm"
+                                               @bind-Value="row.Defination"
+                                               readonly>
+                                </InputTextArea>
+                            </td>
+
+                            <td>
+
+                                <input class="form-control form-control-sm"
+                                       type="number"
+                                       @bind="row.StopageTime"
+                                       @bind:event="oninput"
+                                       @onchange="@(e => OnStoppageTimeChanges(e, row))" />
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-danger"
+                                        @onclick="@(() => RemoveStopageRow(row))">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-3">
+            <button class="btn btn-sm btn-primary" @onclick="AddStopageRow">
+                Add Stopage
+            </button>
+        </div>
+
+    }
+
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+
+            @if (!IsProduction)
+            {
+                <PageHeader TitleText="@(ProductionLogVMs.LogId > 0 ? "Start Production Log" : "End Production Log")"
+                            TitleIcon="bi bi-tag"
+                            Breadcrumbs="@dailyLogBreadcrumbs" />
+            }
+
+
+            <div class="card-body bg-light">
+                <EditForm Model="ProductionLogVMs" OnValidSubmit="UpsertProdLog">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <!-- Manufacturing / Labour Toggle -->
+                        <div class="col-12 col-md-6">
+                        </div>
+
+                        <!-- Correspondence Status -->
+                        <div class="col-12 col-md-6 d-flex justify-content-end align-items-center">
+                            @if (ProductionLogVMs.LogId > 0 && !string.IsNullOrWhiteSpace(ProductionLogVMs.LogNo))
+                            {
+                                <CorrespondenceStatus ReferenceType="Production SCN Assembly"
+                                                      ReferenceId="@Convert.ToInt32(ProductionLogVMs.LogId)"
+                                                      ReferenceTypeName="@ProductionLogVMs.LogNo" />
+                            }
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <!-- =================== Production SCN Details =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Route Card Details</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- RC No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Route Card No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+
+                                            @if (!LogId.HasValue || LogId == 0)
+                                            {
+                                                <!-- New -->
+                                                <select class="form-select form-select-sm rounded-3 w-100"
+                                                        value="@ProductionLogVMs.RCId"
+                                                        @onchange="OnRcChanged">
+                                                    <option value="">-- Select Route Card --</option>
+                                                    @foreach (var rc in routeCardVMs)
+                                                    {
+                                                        <option value="@rc.RCId">@rc.RCNo</option>
+                                                    }
+                                                </select>
+                                            }
+                                            else
+                                            {
+                                                <!-- Edit/View -->
+                                                <input type="text"
+                                                       class="form-control form-control-sm rounded-3"
+                                                       value="@ProductionLogVMs.RCNo"
+                                                       readonly />
+                                            }
+
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Process</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+
+                                            @if (!LogId.HasValue || LogId == 0)
+                                            {
+                                                <select class="form-select form-select-sm rounded-3 w-100"
+                                                        value="@ProductionLogVMs.ProcessId"
+                                                        @onchange=OnProcessChanged>
+                                                    <option value="">-- Select Process --</option>
+                                                    @foreach (var p in processes)
+                                                    {
+                                                        <option value="@p.ProcessId">@p.ProcessName</option>
+                                                    }
+                                                </select>
+                                            }
+                                            else
+                                            {
+                                                <input type="text"
+                                                       class="form-control form-control-sm rounded-3"
+                                                       value="@ProductionLogVMs.ProcessName"
+                                                       readonly />
+                                            }
+
+                                        </div>
+                                    </div>
+
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>RouteCard Qty</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <input type="number" class="form-control form-control-sm rounded-3 w-100"
+                                                       step="any" value="@ProductionLogVMs.RCQty" disabled />
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Customer</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       value="@ProductionLogVMs.CustomerName" readonly />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Machine</small>
+                                        </label>
+
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100">
+                                                <select class="form-select form-select-sm"
+                                                        value="@ProductionLogVMs.MachineId"
+                                                        @onchange="e => OnMachineChanged(e, ProductionLogVMs)">
+                                                    <option value="">-- Select Machine --</option>
+
+                                                    @foreach (var machine in MachineList)
+                                                    {
+                                                        <option value="@machine.MachineId">
+                                                            @machine.MachineName
+                                                        </option>
+                                                    }
+                                                </select>
+
+                                                <button type="button"
+                                                        class="btn btn-primary btn-sm rounded-end-3"
+                                                        @onclick="ShowMachineStatus">
+                                                    Machine Status
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Operator Name <span class="text-danger">*</span></small>
+                                        </label>
+
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm"
+                                                    value="@ProductionLogVMs.Operator"
+                                                    @onchange="e => OnUserChanged(e, ProductionLogVMs)"
+                                                    required>
+                                                <option value="">-- Select Operator --</option>
+
+                                                @foreach (var user in Users)
+                                                {
+                                                    <option value="@user">@user</option>
+                                                }
+                                            </select>
+
+                                            <ValidationMessage For="@(() => ProductionLogVMs.Operator)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Production Log Details -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Production Log Details</span>
+                                </div>
+
+                                <div class="card-body">
+                                    <!-- Log No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark"><small>Log No.</small></label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                           placeholder="Log No."
+                                                           maxlength="30"
+                                                           @bind-Value="ProductionLogVMs.LogNo"
+                                                           readonly />
+                                                <span class="input-group-text rounded-3">@ProductionLogVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => ProductionLogVMs.LogNo)" />
+                                            <ValidationMessage For="@(() => ProductionLogVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Log Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark"><small>Log Date</small></label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="ProductionLogVMs.LogDate" />
+                                            <ValidationMessage For="@(() => ProductionLogVMs.LogDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Shift -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark"><small>Select Shift</small></label>
+                                        <div class="col-12 col-sm-9">
+                                            @if (LogId == 0)
+                                            {
+                                                <select class="form-select form-select-sm rounded-3 w-100"
+                                                        value="@ProductionLogVMs.ShiftId"
+                                                        @onchange="OnShiftChanged">
+                                                    <option value="">--Select shift--</option>
+                                                    @foreach (var shift in shifts)
+                                                    {
+                                                        <option value="@shift.ShiftId">@shift.ShiftName</option>
+                                                    }
+                                                </select>
+                                            }
+                                            else
+                                            {
+                                                <input type="text" class="form-control form-control-sm rounded-3"
+                                                       value="@ProductionLogVMs.ShiftName" readonly />
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <!-- Start / End Time -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark"><small>Start Time</small></label>
+                                        <div class="col-12 col-sm-3">
+                                            <input type="time"
+                                                   class="form-control form-control-sm rounded-3"
+                                                   value="@ProductionLogVMs.StartTime?.ToString("HH:mm")"
+                                                   @onchange="OnStartTimeChanged" />
+                                            <ValidationMessage For="@(() => ProductionLogVMs.StartTime)" />
+                                        </div>
+
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark"><small>End Time</small></label>
+                                        <div class="col-12 col-sm-3">
+                                            <input type="time"
+                                                   class="form-control form-control-sm rounded-3"
+                                                   value="@ProductionLogVMs.EndTime?.ToString("HH:mm")"
+                                                   @onchange="OnEndTimeChanged" />
+                                            <ValidationMessage For="@(() => ProductionLogVMs.EndTime)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Total Time Display -->
+                                    <div class="mb-2 row justify-content-center">
+                                        <div class="col-12 text-center">
+                                            <label class="fw-bold text-dark fs-6">
+                                                Total Time :
+                                                <span class="text-primary ms-1">
+                                                    @ProductionLogVMs.TotalTime.ToString(@"hh\:mm")
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Production Details -->
+                        <div class="col-12 mb-2">
+                            <div class="card h-100 shadow-sm">
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Production Details</span>
+                                    <button type="button" class="btn btn-danger btn-sm ms-auto"
+                                            @onclick='() => OpenModal("ProductionStopage")'>
+                                        Production Stopage
+                                    </button>
+                                </div>
+
+                                <div class="card-body">
+                                    <div class="row g-3">
+
+                                        <!-- Shift Timings Message -->
+                                        <div class="col-12">
+                                            <div class="alert alert-success py-2 text-center fw-semibold">
+                                                In Your Shift Timings from :
+                                                <strong>@ProductionLogVMs.ShiftStartTime?.ToString("HH:mm:ss")</strong>
+                                                to
+                                                <strong>@ProductionLogVMs.ShiftEndTime?.ToString("HH:mm:ss")</strong>
+                                                <br />
+                                                Possible Production Quantity :
+                                                <strong>@ProductionLogVMs.Possible</strong>
+                                            </div>
+                                        </div>
+
+                                        <!-- Item Issued -->
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Item Code - Iss.</label>
+                                            <input class="form-control form-control-sm" value="@ProductionLogVMs.ItemOutCode" disabled />
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Qty Iss.</label>
+                                            <input class="form-control form-control-sm"
+                                                   value="@ProductionLogVMs.QtyOut.ToString("0.###")"
+                                                   disabled />
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Issue Store</label>
+                                            @*     <InputSelect class="form-select form-select-sm" @bind-Value="ProductionLogVMs.IssueStoreId">
+                                                <option value="">-- Select --</option>
+                                                @foreach (var s in IssueStores)
+                                                {
+                                                    <option value="@s.StoreId">@s.StoreName</option>
+                                                }
+                                            </InputSelect> *@
+
+                                            <InputSelect class="form-select form-select-sm"
+                                                         @bind-Value="ProductionLogVMs.IssueStoreId"
+                                                         @bind-Value:after="OnIssueStorechange">
+                                                <option value="">-- Select --</option>
+                                                @foreach (var s in IssueStores)
+                                                {
+                                                    <option value="@s.StoreId">@s.StoreName</option>
+                                                }
+                                            </InputSelect>
+
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">RM/Component Stock Qty</label>
+                                            <input class="form-control form-control-sm fw-bold text-danger bg-light border-danger"
+                                                   value="@ProductionLogVMs.RMStock"
+                                                   step="any"
+                                                   disabled />
+                                        </div>
+
+                                        <!-- Item Produced -->
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Item Code - In</label>
+                                            <input class="form-control form-control-sm" value="@ProductionLogVMs.ItemInCode" disabled />
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Input Qty</label>
+                                            <input type="number"
+                                                   class="form-control form-control-sm"
+                                                   placeholder="Qty"
+                                                   title="Enter Input Quantity"
+                                                   @bind="ProductionLogVMs.InputQty"
+                                                   @bind:event="oninput"
+                                                   @onchange="@(e => OnQtyChange(e, ProductionLogVMs))"
+                                                   min="0"
+                                                   max="@ProductionLogVMs.MaxAllowedQty"
+                                                   step="any"
+                                                   readonly="@(ProductionLogVMs.LogId > 0)" />
+                                            <ValidationMessage For="@(() => ProductionLogVMs.InputQty)" />
+                                        </div>
+
+
+                                        <!-- Stores / Cost / Process -->
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Return Store</label>
+                                            <InputSelect class="form-select form-select-sm" @bind-Value="ProductionLogVMs.AddStoreId">
+                                                <option value="">-- Select --</option>
+                                                @foreach (var s in AddStores)
+                                                {
+                                                    <option value="@s.StoreId">@s.StoreName</option>
+                                                }
+                                            </InputSelect>
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">CostCentre No.</label>
+                                            <input class="form-control form-control-sm" value="@ProductionLogVMs.CostCenterName" readonly />
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Process</label>
+                                            <input class="form-control form-control-sm" value="@ProductionLogVMs.ProcessName" readonly />
+                                        </div>
+
+                                        <!-- Cycle / Setting / Idle -->
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Cycle Time</label>
+                                            <input class="form-control form-control-sm" value="@ProductionLogVMs.CycleTime?.ToString(@"hh\:mm\:ss")" disabled />
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Setting Time</label>
+                                            <input class="form-control form-control-sm" value="@ProductionLogVMs.SettingTime?.ToString(@"hh\:mm\:ss")" disabled />
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">M/C Idle Time (Min)</label>
+                                            <input class="form-control form-control-sm bg-light" value="@ProductionLogVMs.MachineIdleTime" disabled />
+                                        </div>
+
+                                        <div class="col-12"><hr class="my-2" /></div>
+
+
+                                        <!-- Efficiency / Target -->
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Expected Qty</label>
+                                            <input class="form-control form-control-sm text-danger fw-bold"
+                                                   @bind="ProductionLogVMs.ExpectedQty"
+                                                   disabled />
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Target Qty (Total)</label>
+                                            <input class="form-control form-control-sm text-success fw-bold"
+                                                   @bind="ProductionLogVMs.TargetQtyForTotalHours"
+                                                   disabled />
+                                        </div>
+
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Efficiency %</label>
+                                            <input class="form-control form-control-sm fw-bold"
+                                                   @bind="ProductionLogVMs.EfficiencyPercent" readonly />
+                                        </div>
+
+
+                                        <!-- Bonus -->
+
+                                        <div class="col-sm-3">
+                                            <label class="form-label small fw-semibold">Bonus Efficiency %</label>
+                                            <input type="text" class="form-control form-control-sm bg-success-subtle" @bind="ProductionLogVMs.BonusEfficiencyPercent" readonly />
+                                        </div>
+
+                                        @if (ProductionLogVMs.LogId > 0)
+                                        {
+                                            <div class="col-12">
+                                                <hr class="my-2" />
+                                            </div>
+
+                                            <!-- Accepted / Rejected / Rework / Return -->
+                                            <div class="row mb-2 align-items-center">
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Accepted Qty
+                                                </label>
+                                                <div class="col-md-2">
+                                                    <input type="number"
+                                                           class="form-control form-control-sm fw-bold text-success" step="any"
+                                                           @bind="ProductionLogVMs.AccQty"
+                                                           @bind:event="oninput"
+                                                           @onchange="@(e => OnResultQtyChanged(e, ProductionLogVMs))" />
+                                                </div>
+
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Ins No.
+                                                </label>
+                                                <div class="col-md-2">
+                                                    <input type="text"
+                                                           class="form-control form-control-sm"
+                                                           @bind-value="ProductionLogVMs.InspectNo" readonly />
+                                                </div>
+                                            </div>
+
+                                            <div class="row mb-2 align-items-center">
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Rejected Qty
+                                                </label>
+
+                                                <div class="col-md-2">
+                                                    <input type="number"
+                                                           class="form-control form-control-sm fw-bold text-danger" step="any"
+                                                           @bind="ProductionLogVMs.RejQty"
+                                                           @bind:event="oninput"
+                                                           @onchange="@(e => OnResultQtyChanged(e, ProductionLogVMs))" />
+
+                                                </div>
+
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Rejected Reason
+                                                </label>
+
+                                                <div class="col-md-2">
+                                                    <InputTextArea class="form-control form-control-sm fw-bold"
+                                                                   rows="1"
+                                                                   @bind-Value="ProductionLogVMs.RejReason" />
+                                                </div>
+                                            </div>
+
+                                            <div class="row mb-2 align-items-center">
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Rework Qty
+                                                </label>
+
+                                                <div class="col-md-2">
+                                                    <input type="number"
+                                                           class="form-control form-control-sm fw-bold text-warning" step="any"
+                                                           @bind="ProductionLogVMs.RewQty"
+                                                           @bind:event="oninput"
+                                                           @onchange="@(e => OnResultQtyChanged(e, ProductionLogVMs))" />
+
+                                                </div>
+
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Rework Process
+                                                </label>
+
+                                                <div class="col-md-2">
+
+                                                    @*07062026  <input type="text"
+                                                        class="form-control form-control-sm fw-bold"
+                                                        @bind="ProductionLogVMs.RewProcessName" /> *@
+
+
+                                                    <select class="form-control form-control-sm"
+                                                            @bind="ProductionLogVMs.RewProcessId"
+                                                            @bind:after="OnRewProcessChanged"
+                                                            disabled="@(ProductionLogVMs.RewQty <= 0)">
+
+                                                        <option value="0">--Select Process--</option>
+
+                                                        @foreach (var process in Process)
+                                                        {
+                                                            <option value="@process.ProcessId">
+                                                                @process.Process.ProcessName
+                                                            </option>
+                                                        }
+                                                    </select>
+
+                                                </div>
+
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Rework Reason
+                                                </label>
+
+                                                <div class="col-md-2">
+                                                    <InputTextArea class="form-control form-control-sm fw-bold"
+                                                                   rows="1"
+                                                                   @bind-Value="ProductionLogVMs.RewReason" />
+                                                </div>
+                                            </div>
+
+                                            <div class="row mb-2 align-items-center">
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Return Qty
+                                                </label>
+
+                                                <div class="col-md-2">
+                                                    <input type="number"
+                                                           class="form-control form-control-sm fw-bold text-success"
+                                                           @bind="ProductionLogVMs.ReturnQty" readonly />
+                                                </div>
+
+                                                <label class="col-md-2 col-form-label small fw-semibold">
+                                                    Return Reason
+                                                </label>
+
+                                                <div class="col-md-2">
+                                                    <InputTextArea class="form-control form-control-sm fw-bold"
+                                                                   rows="1"
+                                                                   @bind-Value="ProductionLogVMs.ReturnReason" />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--Action Buttons -->
+                        @if (CanCreate || CanEdit)
+                        {
+                            @if (ExistingTxnQty == 0m)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit"
+                                            class="btn btn-primary w-100 rounded-3"
+                                            disabled="@isProcessing">
+                                        <i class="bi @(ProductionLogVMs.LogId > 0 ? "bi-stop-fill" : "bi-play-fill") me-1"></i>
+                                        @(ProductionLogVMs.LogId > 0 ? "End" : "Start")
+                                    </button>
+                                </div>
+                            }
+                        }
+                        @if (!IsProduction)
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/productionLogList" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <a href="@($"/productionLogList/{true}")"
+                                   class="btn btn-secondary w-100 rounded-3">
+                                    <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                                </a>
+                            </div>
+                        }
+
+
+                    </div>
+
+                </EditForm>
+            </div>
+
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Daily Production Log";
+
+    [Parameter] public int? LogId { get; set; }
+
+    [Parameter]
+    public bool IsProduction { get; set; }
+
+    private int screenCode { get; set; }
+
+    private bool isProcessing = true;
+    private ProductionLogVM ProductionLogVMs { get; set; } = new();
+
+    public List<Machine> MachineList { get; set; } = new();
+
+    private List<RouteCardVM> routeCardVMs = new();
+    private List<Process> processes = new();
+    private List<ShiftAllocation> shifts = new();
+    public List<string> Users { get; set; } = new();
+    private List<ProductionLogSetting> productionLogSettings { get; set; }
+
+    private List<Store> IssueStores = new();
+    private List<Store> AddStores = new();
+
+    private decimal ExistingTxnQty = 0m;
+    private int prodReturnPendingCount = 0;
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private bool isReworkProcess { get; set; } = false;
+
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private DotNetObjectReference<ProductionLogUpsert>? objRef;
+
+    private List<PageHeader.BreadcrumbItem> dailyLogBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Production" },
+        new PageHeader.BreadcrumbItem { Text = "Daily Production Log", IsLast = true }
+    };
+
+    //07072026
+    public List<RouteCardSub> Process { get; set; } = new();
+    //-----------------------------------------------
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string GetEfficiencyClass(decimal eff) =>
+       eff >= 100 ? "form-control form-control-sm fw-bold bg-success-subtle" : "form-control form-control-sm fw-bold bg-warning-subtle";
+
+    private string GetBonusClass(bool isBonus) =>
+        isBonus ? "form-control form-control-sm fw-bold bg-success-subtle" : "form-control form-control-sm fw-bold bg-light";
+
+    #endregion
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            Users = await productionLogService.GetAllUsersAsync();
+            screenCode = await productionLogService.GetScreenCodeByScreenNameAsync(ScreenName);
+            IssueStores = await productionLogService.GetAllIssueStoresAsync();
+            AddStores = await productionLogService.GetAllAddStoresAsync();
+            MachineList = await productionLogService.GetAllActiveMachinesAsync();
+            prodReturnPendingCount = await productionLogService.GetReturnPendingCountAsync();
+
+            if (LogId.HasValue)
+            {
+                await LoadExistingProdLog(LogId.Value);
+            }
+            else
+            {
+                await InitializeNewProductionLog();
+            }
+
+            // Consider this as important Flag before changes
+            ExistingTxnQty = ProductionLogVMs.AccQty + ProductionLogVMs.RejQty + ProductionLogVMs.RewQty + ProductionLogVMs.ReturnQty;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingProdLog(int scnId)
+    {
+        try
+        {
+            ProductionLogVMs = await productionLogService.GetProductionLogByLogIdAsync(LogId.Value, screenCode);
+
+            if (ProductionLogVMs == null)
+            {
+                await _js.ToastrWarning("Production SCN not found.");
+                return;
+            }
+
+            // IsSomeItemsTransMade = await productionLogService.CheckIfTransactionsMadeAsync(ProductionLogVMs
+            //                         .Where(s => s.ItemId.HasValue)
+            //                         .Select(s => s.ItemId!.Value)
+            //                         .ToList(),
+            //                     ProductionLogVMs.AddStoreId ?? 0,
+            //                     screenCode,
+            //                     ProductionLogVMs.ProductionSCNAssySubVMs
+            //                         .Select(s => s.SCNSubId)
+            //                         .ToList());
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing Production Daily Log.");
+            await logs.LogDeveloperError(ex, $"LoadExistingProdLog failed for logId: {LogId}");
+        }
+    }
+
+    private async Task InitializeNewProductionLog()
+    {
+        try
+        {
+            DateTime now = DateTime.Now;
+            TimeOnly currentTime = TimeOnly.FromDateTime(now);
+
+            ProductionLogVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(now);
+            ProductionLogVMs.LogNo = await productionLogService.GetLogNumberAsync(ProductionLogVMs.Suffix);
+
+            routeCardVMs = await productionLogService.GetPendingRouteCardsAsync();
+            shifts = (await productionLogService.GetAllShiftAsync()).ToList();
+            MachineList = await productionLogService.GetAllActiveMachinesAsync();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new Production Log.");
+            await logs.LogDeveloperError(ex, $"InitializeNewProductionLog failed");
+        }
+    }
+
+    #endregion
+
+    // #region Shift Management
+
+    private void OnShiftChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out int shiftId))
+            return;
+
+        var shift = shifts.FirstOrDefault(x => x.ShiftId == shiftId);
+        if (shift == null)
+            return;
+
+        ProductionLogVMs.ShiftId = shift.ShiftId;
+        ProductionLogVMs.ShiftName = shift.ShiftName;
+
+        // Reset times when shift changes
+        ProductionLogVMs.StartTime = null;
+        ProductionLogVMs.EndTime = null;
+        ProductionLogVMs.TargetQtyForTotalHours = 0;
+    }
+
+
+    private void OnStartTimeChanged(ChangeEventArgs e)
+    {
+        if (!TimeOnly.TryParse(e.Value?.ToString(), out var startTime))
+            return;
+
+        var shift = shifts.FirstOrDefault(x => x.ShiftId == ProductionLogVMs.ShiftId);
+        if (shift == null)
+            return;
+
+        // Validate start time inside shift
+        bool validStart = shift.ShiftStartTime < shift.ShiftEndTime
+            ? startTime >= shift.ShiftStartTime && startTime <= shift.ShiftEndTime
+            : startTime >= shift.ShiftStartTime || startTime <= shift.ShiftEndTime;
+
+        if (!validStart)
+        {
+            ProductionLogVMs.StartTime = null;
+            return;
+        }
+
+        ProductionLogVMs.StartTime = startTime;
+    }
+
+
+    private async Task OnEndTimeChanged(ChangeEventArgs e)
+    {
+        if (!TimeOnly.TryParse(e.Value?.ToString(), out var endTime))
+            return;
+
+        if (ProductionLogVMs.StartTime == null)
+            return;
+
+        var shift = shifts.FirstOrDefault(x => x.ShiftId == ProductionLogVMs.ShiftId);
+        if (shift == null)
+            return;
+
+        if (endTime < ProductionLogVMs.StartTime)
+            return;
+
+        bool validEnd = shift.ShiftStartTime < shift.ShiftEndTime
+            ? endTime <= shift.ShiftEndTime
+            : endTime <= shift.ShiftEndTime || endTime >= shift.ShiftStartTime;
+
+        if (!validEnd)
+            return;
+
+        ProductionLogVMs.EndTime = endTime;
+
+        // Recalculate production metrics
+        await CalculateProductionPerformance();
+    }
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Attachments" => "Attached Drawings",
+                "ProductionStopage" => "Production Stopage",
+                _ => "Modal"
+            };
+
+            if (ActiveModal == "ProductionStopage")
+            {
+                productionLogSettings =
+                    await productionLogService.GetAllActiveProdLogSettingsAsync();
+
+                if (!ProductionLogVMs.IsStoppageLoaded)
+                {
+                    if (ProductionLogVMs.LogId > 0)
+                    {
+                        ProductionLogVMs.ProductionLogSubVMs =
+                            await productionLogService.GetProductionLogSubByLogId(
+                                ProductionLogVMs.LogId, screenCode);
+                    }
+                    else
+                    {
+                        ProductionLogVMs.ProductionLogSubVMs = new();
+                    }
+
+                    ProductionLogVMs.IsStoppageLoaded = true;
+                }
+            }
+
+
+            isModalVisible = true;
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await productionLogService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Production Assembly SCN Operations
+
+    private async Task UpsertProdLog()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var existinglogDetails = await productionLogService.GetProductionLogByLogIdAsync(ProductionLogVMs.LogId, screenCode);
+
+            if (existinglogDetails != null)
+            {
+                var totalTxnQty = existinglogDetails.AccQty + existinglogDetails.RejQty + existinglogDetails.RewQty;
+
+                if (totalTxnQty > 0)
+                {
+                    await _js.ToastrWarning("Some transactions have already been made for this log. Changes are not allowed.");
+                    return;
+                }
+
+                if (ProductionLogVMs.IsQcRequired && (ProductionLogVMs.InspectNo == null || ProductionLogVMs.InspectNo == ""))
+                {
+                    await _js.ToastrWarning("Inspection is Mandatory for this Process");
+                    return;
+                }
+            }
+
+
+            //07072026--Rework-----------
+            if (ProductionLogVMs.RewQty > 0 && ProductionLogVMs.RewProcessId <= 0)
+            {
+                await _js.ToastrWarning("Please select the Rework Process from \nwhere it should start again!!!");
+                return;
+            }
+
+            //-------------------------
+            // Save
+
+
+            var isNewProdLog = ProductionLogVMs.LogId == 0;
+
+            try
+            {
+                await productionLogService.UpsertproductionLogAsync(ProductionLogVMs, screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewProdLog)
+                await _js.ToastrSuccess("Production Log Started successfully.");
+            else
+                await _js.ToastrSuccess("Production Log Ended successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+            if (!IsProduction)
+            {
+                _navigationManager.NavigateTo("/productionLogList");
+            }
+            else
+            {
+                _navigationManager.NavigateTo("/productionLogList/true");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "UpsertProdLog failed.");
+            await _js.ToastrError("Error saving Production Log.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task<bool> ValidateProdSCNLineAsync(ProductionSCNAssySubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            // Qty vs Enquiry / Already Transacted validation
+            if (line.SCNSubId == 0 && line.RefReturnSubId > 0)
+            {
+                var returnBalQty = await productionLogService.GetProdReturnItemBalQtyFromReturnSubId(line.RefReturnSubId.Value);
+                if (line.AccQty + line.RejQty + line.RewQty > returnBalQty)
+                {
+                    line.AccQty = returnBalQty;
+                    line.RejQty = 0;
+                    line.RewQty = 0;
+                    line.BalQty = returnBalQty;
+                    await _js.ToastrWarning($"Qty cannot exceed Production Return Balance Qty ({returnBalQty}).");
+                    return false;
+                }
+            }
+            else if (line.SCNSubId > 0)
+            {
+                var original = await productionLogService.GetProdScnSubItemDetailByScnSubIdAsync(line.SCNSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty ?? 0m;
+                    decimal origQty = original.AccQty ?? 0m;
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.AccQty < alreadyTransacted)
+                    {
+                        line.AccQty = alreadyTransacted;
+                        line.BalQty = 0m;
+                        await _js.ToastrWarning($"AccQty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = line.AccQty.GetValueOrDefault() - origQty;
+                        line.BalQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "ValidateQuoteLineAsync failed.");
+            await _js.ToastrError("Error validating quotation line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+    #region Machine Status
+
+    private async Task ShowMachineStatus()
+    {
+        // Open popup / load data / call API — anything you want
+        Console.WriteLine("Machine Status Clicked");
+    }
+
+    #endregion
+
+    #region On Machine Changed
+
+    private void OnMachineChanged(ChangeEventArgs e, ProductionLogVM row)
+    {
+        if (e.Value == null)
+            return;
+
+        int machineId = Convert.ToInt32(e.Value);
+
+        var machine = MachineList.FirstOrDefault(x => x.MachineId == machineId);
+
+        row.MachineId = machineId;
+        row.MachineName = machine?.MachineName;
+    }
+
+    #endregion
+
+    #region On User Changed
+    private void OnUserChanged(ChangeEventArgs e, ProductionLogVM row)
+    {
+        if (e?.Value == null)
+            return;
+
+        row.Operator = e.Value.ToString();
+    }
+
+    #endregion
+
+
+    #region Add / Remove / Auto Update Production Stopage
+
+    private void AddStopageRow()
+    {
+        ProductionLogVMs.ProductionLogSubVMs.Add(new ProductionLogSubVM
+        {
+            LogId = ProductionLogVMs.LogId
+            //StopageTime = 0
+        });
+    }
+
+    private void RemoveStopageRow(ProductionLogSubVM row)
+    {
+        ProductionLogVMs.ProductionLogSubVMs.Remove(row);
+    }
+
+    private async Task UpdateStopageRow(ProductionLogSubVM row)
+    {
+        var setting = productionLogSettings.FirstOrDefault(x => x.Id == row.LogSettingId);
+        if (setting != null)
+        {
+            row.ProuctionStopType = setting.ProdStopType;
+            row.EfficienctyPerc = setting.EfficiencyPerc;
+            row.Defination = setting.Definition;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    #endregion
+
+    #region RcChanged
+
+    private async Task OnRcChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out int rcId))
+            return;
+
+        try
+        {
+
+            ResetRcProcessFields();
+
+            ProductionLogVMs.RCId = rcId;
+            ProductionLogVMs.RCNo = routeCardVMs.FirstOrDefault(r => r.RCId == rcId)?.RCNo;
+
+            // =====================================================
+            // LOAD NEXT VALID PROCESS HIERARCHY
+            // =====================================================
+            processes = await productionLogService.LoadNextHierarchyAsync(rcId);
+
+            if (processes == null || processes.Count == 0)
+            {
+                await _js.ToastrWarning("No pending process available for this Route Card.");
+                return;
+            }
+            else if (processes == null || processes.Count == 1)
+            {
+                var firstProcess = processes.First();
+
+                ProductionLogVMs.ProcessId = firstProcess.ProcessId;
+
+                //08072026---------------------------------------------
+                isReworkProcess = await productionLogService.GetIsReworkProcessAsync(ProductionLogVMs.RCId.Value, firstProcess.ProcessId);
+                ///-----------------------------------------------------
+
+                await LoadRcProcessDataAsync(rcId, firstProcess.ProcessId, isReworkProcess);
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(
+                ex,
+                $"Error in OnRcChanged | RCId: {rcId}");
+
+            await _js.ToastrError("Failed to load Route Card process data.");
+        }
+    }
+
+
+    private async Task ResetRcProcessFields()
+    {
+        ProductionLogVMs.RCId = null;
+        ProductionLogVMs.ProcessId = null;
+        ProductionLogVMs.RCProcessId = null;
+
+        await ResetProcessOnlyFields();
+    }
+
+    private async Task ResetProcessOnlyFields()
+    {
+        ProductionLogVMs.ProcessId = null;
+        ProductionLogVMs.ProcessName = null;
+
+        ProductionLogVMs.ItemIdIn = null;
+        ProductionLogVMs.ItemIdOut = null;
+        ProductionLogVMs.ItemInCode = null;
+        ProductionLogVMs.ItemOutCode = null;
+
+        ProductionLogVMs.InputQty = 0;
+        ProductionLogVMs.QtyOut = 0;
+
+        ProductionLogVMs.AccQty = 0;
+        ProductionLogVMs.RejQty = 0;
+        ProductionLogVMs.RewQty = 0;
+        ProductionLogVMs.ReturnQty = 0;
+
+        ProductionLogVMs.CycleTime = null;
+        ProductionLogVMs.SettingTime = null;
+
+        ProductionLogVMs.TargetQtyForTotalHours = 0;
+        ProductionLogVMs.ExpectedQty = 0;
+        ProductionLogVMs.Possible = 0;
+
+        ProductionLogVMs.EfficiencyPercent = 0;
+        ProductionLogVMs.BonusEfficiencyPercent = 0;
+
+        ProductionLogVMs.RMStock = 0;
+
+        ProductionLogVMs.ProductionLogSubVMs?.Clear();
+    }
+
+
+
+
+    private async Task OnProcessChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out int processId))
+            return;
+
+        if (ProductionLogVMs.RCId == null)
+        {
+            await _js.ToastrWarning("Please select Route Card first.");
+            return;
+        }
+
+        try
+        {
+            // =====================================================
+            // RESET PROCESS-SPECIFIC FIELDS ONLY
+            // =====================================================
+
+            await ResetProcessOnlyFields();
+
+            ProductionLogVMs.ProcessId = processId;
+
+
+            //08072026-----------------------
+            isReworkProcess = await productionLogService.GetIsReworkProcessAsync(ProductionLogVMs.RCId.Value, processId);
+            //--------------------------------
+
+            await LoadRcProcessDataAsync(ProductionLogVMs.RCId.Value, processId, isReworkProcess);
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"Error in OnProcessChanged | RCId: {ProductionLogVMs.RCId}, ProcessId: {processId}");
+            await _js.ToastrError("Failed to load process data.");
+        }
+    }
+
+
+    private async Task LoadRcProcessDataAsync(int rcId, int processId, bool isReworkProcess)
+    {
+        // =============================
+        // CHECK EXISTING PRODUCTION LOG
+        // =============================
+        var existingLog = await productionLogService.GetActiveProductionLogAsync(rcId, processId, screenCode);
+
+        if (existingLog != null)
+        {
+            ProductionLogVMs = existingLog;
+            return;
+        }
+
+        // =============================
+        // LOAD STORE MAPPING
+        // =============================
+        var issueStore = await productionLogService.GetMappedStoreForFormAsync("ProdLogIssueForm");
+
+        var returnStore = await productionLogService.GetMappedStoreForFormAsync("ProdLogReturnForm");
+
+        ProductionLogVMs.IssueStoreId = isReworkProcess ? 7 : (issueStore.StoreId > 0 ? issueStore.StoreId : null);
+        ProductionLogVMs.IssueStoreName = isReworkProcess ? "REWORK STORE" : issueStore.StoreName;
+
+        ProductionLogVMs.AddStoreId = returnStore.StoreId > 0 ? returnStore.StoreId : null;
+        ProductionLogVMs.AddStoreName = returnStore.StoreName;
+
+        // =============================
+        // LOAD RC PROCESS DATA
+        // =============================
+        var rcData = await productionLogService.GetRCProcessDetailsByRcIdAndProcessId(rcId, processId, ProductionLogVMs.IssueStoreId.Value, screenCode);
+
+        if (rcData == null)
+            return;
+
+        if (rcData.IsBOM)
+        {
+            await _js.ToastrWarning("This process is allocated as BOM. Please perform this operation in Production Component, not in Daily Production Log.");
+            await ResetProcessOnlyFields();
+            return;
+        }
+
+        // =============================
+        // BASIC MAPPING
+        // =============================
+        ProductionLogVMs.ProcessId = rcData.ProcessId;
+        ProductionLogVMs.ProcessName = rcData.ProcessName;
+        ProductionLogVMs.RCProcessId = rcData.RCProcessId;
+
+        ProductionLogVMs.ProcessCost = rcData.ProcessCost;
+        ProductionLogVMs.RCQty = rcData.RCQty;
+
+        ProductionLogVMs.MachineId = rcData.MachineId;
+        ProductionLogVMs.MachineName = rcData.MachineName;
+
+        ProductionLogVMs.Operator = rcData.Operator;
+
+        ProductionLogVMs.CustId = rcData.CustId;
+        ProductionLogVMs.CustomerName = rcData.CustomerName;
+
+        ProductionLogVMs.ItemIdIn = rcData.ItemIdIn;
+        ProductionLogVMs.ItemInCode = rcData.ItemInCode;
+
+        ProductionLogVMs.ItemIdOut = rcData.ItemIdOut;
+        ProductionLogVMs.ItemOutCode = rcData.ItemOutCode;
+
+        //Important: Max Allowed Qty is based on RC Qty
+        ProductionLogVMs.MaxAllowedQty = rcData.InputQty;
+
+        ProductionLogVMs.InputQty = rcData.InputQty;
+        ProductionLogVMs.QtyOut = rcData.QtyOut;
+        ProductionLogVMs.QtyOutPerUnit = rcData.QtyOutPerUnit;
+
+        //Stock
+        ProductionLogVMs.RMStock = rcData.RMStock;
+
+        ProductionLogVMs.CycleTime = rcData.CycleTime;
+        ProductionLogVMs.SettingTime = rcData.SettingTime;
+
+        ProductionLogVMs.AccQty = rcData.AccQty;
+        ProductionLogVMs.RejQty = rcData.RejQty;
+        ProductionLogVMs.RewQty = rcData.RewQty;
+        ProductionLogVMs.ReturnQty = rcData.ReturnQty;
+
+        ProductionLogVMs.CostId = rcData.CostId;
+        ProductionLogVMs.CostCenterName = rcData.CostCenterName;
+
+        //QC
+        ProductionLogVMs.IsQcRequired = rcData.IsQcRequired;
+
+
+        // =============================
+        // VALIDATE & AUTO-ADJUST QTY
+        // =============================
+        await ValidateAndAdjustQtyAsync(ProductionLogVMs);
+
+        // =============================
+        // AUTO SHIFT + TIME
+        // =============================
+        await AutoSelectShiftAndTime();
+
+        // =============================
+        // POSSIBLE QTY
+        // =============================
+        ProductionLogVMs.Possible = CalculatePossibleQty(
+        ProductionLogVMs.StartTime,     // This is not a Shift-Starting Time Actual Prduction Start time is taking Here
+        ProductionLogVMs.ShiftEndTime,
+        ProductionLogVMs.CycleTime,
+        ProductionLogVMs.SettingTime);
+
+        // =============================
+        // FINAL CALCULATION
+        // =============================
+        await CalculateProductionPerformance();
+    }
+
+    public static decimal CalculatePossibleQty(TimeOnly? shiftStart, TimeOnly? shiftEnd, TimeSpan? cycleTime, TimeSpan? settingTime)
+    {
+        if (shiftStart == null ||
+            shiftEnd == null ||
+            cycleTime == null ||
+            cycleTime.Value.TotalMinutes <= 0)
+            return 0;
+
+        double totalMinutes =
+            ProductionTimeHelper.GetTotalMinutes(
+                shiftStart.Value,
+                shiftEnd.Value);
+
+        double effectiveMinutes =
+            totalMinutes - (settingTime?.TotalMinutes ?? 0);
+
+        if (effectiveMinutes <= 0)
+            return 0;
+
+        return Math.Floor(
+            (decimal)(effectiveMinutes / cycleTime.Value.TotalMinutes));
+    }
+
+
+    public static class ProductionTimeHelper
+    {
+        public static double GetTotalMinutes(TimeOnly start, TimeOnly end)
+        {
+            var startSpan = start.ToTimeSpan();
+            var endSpan = end.ToTimeSpan();
+
+            // Handle night shift crossing midnight
+            if (endSpan < startSpan)
+                endSpan = endSpan.Add(TimeSpan.FromDays(1));
+
+            return (endSpan - startSpan).TotalMinutes;
+        }
+    }
+
+
+    private async Task AutoSelectShiftAndTime()
+    {
+        var now = TimeOnly.FromDateTime(DateTime.Now);
+        shifts = await productionLogService.GetAllShiftAsync();
+
+        foreach (var shift in shifts)
+        {
+            bool isNightShift = shift.ShiftStartTime > shift.ShiftEndTime;
+
+            bool isInShift = isNightShift
+                ? (now >= shift.ShiftStartTime || now <= shift.ShiftEndTime)
+                : (now >= shift.ShiftStartTime && now <= shift.ShiftEndTime);
+
+            if (!isInShift)
+                continue;
+
+            ProductionLogVMs.ShiftId = shift.ShiftId;
+            ProductionLogVMs.ShiftName = shift.ShiftName;
+
+            ProductionLogVMs.StartTime = now;
+            ProductionLogVMs.ShiftStartTime = now;
+            ProductionLogVMs.ShiftEndTime = shift.ShiftEndTime;
+
+            // ============================
+            // END TIME CALCULATION
+            // ============================
+            double cycleMinutes = ProductionLogVMs.CycleTime?.TotalMinutes ?? 0;
+            double settingMinutes = ProductionLogVMs.SettingTime?.TotalMinutes ?? 0;
+            decimal qty = ProductionLogVMs.RCQty;
+
+            double requiredMinutes = (double)qty * cycleMinutes + settingMinutes;
+
+            var calculatedEnd = now.AddMinutes(requiredMinutes);
+
+            // Clamp to shift end
+            ProductionLogVMs.EndTime = IsTimeWithinShift(calculatedEnd, shift) ? calculatedEnd : shift.ShiftEndTime;
+            break;
+        }
+    }
+
+    private async Task OnEndTimeChanged(TimeOnly endTime)
+    {
+        ProductionLogVMs.EndTime = endTime;
+        await CalculateProductionPerformance();
+    }
+
+    private bool IsTimeWithinShift(TimeOnly time, ShiftAllocation shift)
+    {
+        bool isNightShift = shift.ShiftStartTime > shift.ShiftEndTime;
+
+        return isNightShift ? (time >= shift.ShiftStartTime || time <= shift.ShiftEndTime) : (time >= shift.ShiftStartTime && time <= shift.ShiftEndTime);
+    }
+
+
+    private async Task CalculateProductionPerformance()
+    {
+        try
+        {
+            // ============================
+            // BASIC VALIDATION
+            // ============================
+            if (ProductionLogVMs.StartTime == null ||
+                ProductionLogVMs.EndTime == null ||
+                ProductionLogVMs.CycleTime == null ||
+                ProductionLogVMs.CycleTime.Value.TotalMinutes <= 0)
+                return;
+
+            ProductionLogVMs.SettingTime ??= TimeSpan.Zero;
+
+            // ============================
+            // TOTAL SHIFT MINUTES
+            // ============================
+            double totalShiftMinutes =
+                ProductionTimeHelper.GetTotalMinutes(
+                    ProductionLogVMs.StartTime.Value,
+                    ProductionLogVMs.EndTime.Value);
+
+            if (totalShiftMinutes <= 0)
+                return;
+
+            double cycleMinutes = ProductionLogVMs.CycleTime.Value.TotalMinutes;
+            double settingMinutes = ProductionLogVMs.SettingTime.Value.TotalMinutes;
+
+            // ============================
+            // IDEAL AVAILABLE TIME
+            // ============================
+            double idealMinutes =
+                Math.Max(0, totalShiftMinutes - settingMinutes);
+
+            // ============================
+            // TARGET QTY (NO STOPPAGES)
+            // ============================
+            ProductionLogVMs.TargetQtyForTotalHours =
+                Math.Floor((decimal)(idealMinutes / cycleMinutes));
+
+            // ============================
+            // STOPPAGE LOSS
+            // ============================
+            double totalLossMinutes = 0;
+            double bonusEfficiency = 0;
+
+            foreach (var s in ProductionLogVMs.ProductionLogSubVMs)
+            {
+                double stoppage = s.StopageTime.GetValueOrDefault();
+                double efficiency = s.EfficienctyPerc.GetValueOrDefault();
+
+                if (stoppage <= 0 || efficiency <= 0)
+                    continue;
+
+                double lossMinutes = stoppage * (efficiency / 100.0);
+                totalLossMinutes += lossMinutes;
+
+                bonusEfficiency +=
+                    (stoppage / idealMinutes) * efficiency;
+            }
+
+            totalLossMinutes =
+                Math.Min(totalLossMinutes, idealMinutes);
+
+            // ============================
+            // EFFECTIVE WORKING TIME
+            // ============================
+            double effectiveMinutes =
+                idealMinutes - totalLossMinutes;
+
+            ProductionLogVMs.EffectiveWorkingMinutes =
+                Math.Round((decimal)effectiveMinutes, 2);
+
+            // ============================
+            // EXPECTED QTY
+            // ============================
+            ProductionLogVMs.ExpectedQty =
+                Math.Floor((decimal)(effectiveMinutes / cycleMinutes));
+
+            // ============================
+            // NET PRODUCED QTY
+            // ============================
+            decimal netQty =
+                Math.Max(0,
+                    ProductionLogVMs.AccQty - ProductionLogVMs.RejQty);
+
+            // ============================
+            // WORK EFFICIENCY %
+            // ============================
+            ProductionLogVMs.EfficiencyPercent =
+                ProductionLogVMs.ExpectedQty <= 0
+                    ? 0
+                    : Math.Round(
+                        (netQty / ProductionLogVMs.ExpectedQty) * 100, 2);
+
+            // ============================
+            // BONUS EFFICIENCY %
+            // ============================
+            ProductionLogVMs.BonusEfficiencyPercent =
+                Math.Round((decimal)bonusEfficiency, 2);
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"Error in CalculateProductionPerformance | LogNo: {ProductionLogVMs?.LogNo}");
+            await _js.ToastrError("Error calculating production performance.");
+        }
+    }
+
+    #endregion
+
+
+    #region Input Qty Changed
+
+    private async Task OnQtyChange(ChangeEventArgs e, ProductionLogVM vm)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var inputQty))
+                return;
+
+            vm.InputQty = inputQty;
+
+            await ValidateAndAdjustQtyAsync(vm);
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OnQtyChange failed for LogNo: {ProductionLogVMs?.LogNo}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    private async Task ValidateAndAdjustQtyAsync(ProductionLogVM vm)
+    {
+        decimal inputQty = vm.InputQty;
+        decimal maxAllowedQty = vm.MaxAllowedQty;
+        decimal qtyPerUnit = vm.QtyOutPerUnit;
+        decimal rmStockQty = vm.RMStock;
+
+        // =============================
+        // RM STOCK ZERO CHECK
+        // =============================
+        if (rmStockQty <= 0 && qtyPerUnit > 0)
+        {
+            vm.InputQty = 0;
+            vm.QtyOut = 0;
+
+            await _js.ToastrWarning("Material stock does not exist.");
+            return;
+        }
+
+        // =============================
+        // RC QTY VALIDATION
+        // =============================
+        if (inputQty > maxAllowedQty)
+        {
+            inputQty = maxAllowedQty;
+            await _js.ToastrWarning($"Input Qty cannot be greater than Max Allowed Qty ({maxAllowedQty})."
+            );
+        }
+        else if (inputQty < 0)
+        {
+            inputQty = 0;
+            await _js.ToastrWarning("Input Qty cannot be negative.");
+        }
+
+        // =============================
+        // QTY OUT CALCULATION
+        // =============================
+        decimal qtyOut = inputQty * qtyPerUnit;
+
+        // =============================
+        // RM STOCK VALIDATION
+        // =============================
+        if (qtyOut > rmStockQty && qtyPerUnit > 0)
+        {
+            decimal allowedInputQty =
+                Math.Floor(rmStockQty / qtyPerUnit);
+
+            inputQty = allowedInputQty;
+            qtyOut = allowedInputQty * qtyPerUnit;
+
+            await _js.ToastrWarning($"Insufficient RM Stock. Input Qty auto-adjusted to {allowedInputQty}.");
+        }
+
+        vm.InputQty = inputQty;
+        vm.QtyOut = qtyOut;
+    }
+
+
+
+    #endregion
+
+    #region Accecpt / Reject / Rework Qty Changes
+
+    private async Task OnResultQtyChanged(ChangeEventArgs e, ProductionLogVM vM)
+    {
+        try
+        {
+            if (vM == null)
+                return;
+
+            var inputQty = vM.InputQty;
+            bool adjusted = false;
+
+            // =========================
+            // NORMALIZE NEGATIVES
+            // =========================
+            if (vM.AccQty < 0) { vM.AccQty = 0; adjusted = true; }
+            if (vM.RejQty < 0) { vM.RejQty = 0; adjusted = true; }
+            if (vM.RewQty < 0) { vM.RewQty = 0; adjusted = true; }
+
+            // =========================
+            // INDIVIDUAL LIMIT
+            // =========================
+            if (vM.AccQty > inputQty) { vM.AccQty = inputQty; adjusted = true; }
+            if (vM.RejQty > inputQty) { vM.RejQty = inputQty; adjusted = true; }
+            if (vM.RewQty > inputQty) { vM.RewQty = inputQty; adjusted = true; }
+
+            // =========================
+            // TOTAL LIMIT
+            // =========================
+            var total = vM.AccQty + vM.RejQty + vM.RewQty;
+
+            if (total > inputQty)
+            {
+                var excess = total - inputQty;
+                adjusted = true;
+
+                // Priority: Rework → Reject → Accept
+                if (vM.RewQty >= excess)
+                    vM.RewQty -= excess;
+                else if (vM.RejQty >= excess)
+                    vM.RejQty -= excess;
+                else
+                    vM.AccQty -= excess;
+            }
+
+            // =========================
+            // AUTO RETURN QTY
+            // =========================
+            vM.ReturnQty = inputQty - (vM.AccQty + vM.RejQty + vM.RewQty);
+            if (vM.ReturnQty < 0)
+            {
+                vM.ReturnQty = 0;
+                adjusted = true;
+            }
+
+            // =========================
+            // TOASTER (ONLY IF ADJUSTED)
+            // =========================
+            if (adjusted)
+            {
+                await _js.ToastrInfo("Accepted + Rejected + Rework quantity cannot exceed Input quantity. Values were auto-adjusted.");
+            }
+
+            //07072026
+            if (vM.RewQty > 0)
+            {
+                await ReworkProcess();
+            }
+            //---------------------------
+
+            //Production Performance calculation
+            await CalculateProductionPerformance();
+
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Error while validating Production Result Quantities");
+            await _js.ToastrError("Something went wrong while calculating quantities. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region OnStopage Time changes
+
+    private async Task OnStoppageTimeChanges(ChangeEventArgs e, ProductionLogSubVM subVM)
+    {
+        try
+        {
+            if (subVM == null)
+                return;
+
+            if (subVM.StopageTime < 0)
+                subVM.StopageTime = 0;
+
+            await CalculateProductionPerformance();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Error while updating Stoppage Time");
+            await _js.ToastrError("Unable to recalculate production performance.");
+        }
+    }
+
+
+    #endregion
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsProduction)
+        {
+            objRef = DotNetObjectReference.Create(this);
+
+            await _js.InvokeVoidAsync("idleTimer.start", objRef, 1);
+        }
+    }
+
+
+    [JSInvokable]
+    public void LogoutUser()
+    {
+        // Clear session if needed
+        if (IsProduction)
+        {
+            _navigationManager.NavigateTo("/login", true);
+        }
+
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        objRef?.Dispose();
+    }
+
+    #region Rework Process Handling
+
+    //-----07072026-----------
+    private async Task ReworkProcess()
+    {
+        try
+        {
+            int rcId = ProductionLogVMs.RCId ?? 0;
+            int itemIdIn = ProductionLogVMs.ItemIdIn ?? 0;
+            int processId = ProductionLogVMs.ProcessId ?? 0;
+
+            if (rcId <= 0 || itemIdIn <= 0 || processId <= 0)
+            {
+                Process = new List<RouteCardSub>();
+                return;
+            }
+
+            Process = await productionLogService.GetReworkProcessesAsync(itemIdIn, rcId, processId);
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            Process = new List<RouteCardSub>();
+
+            await logs.LogDeveloperError(ex, "Error while ReworkProcess");
+            await _js.ToastrError("Unable to load rework processes.");
+        }
+
+    }
+    private async Task OnRewProcessChanged()
+    {
+        if (ProductionLogVMs.RewProcessId <= 0) return;
+
+        var selectedProcess = Process
+            .FirstOrDefault(x => x.ProcessId == ProductionLogVMs.RewProcessId);
+
+        ProductionLogVMs.RCPSubId = selectedProcess?.RCSubId ?? 0;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnIssueStorechange()
+    {
+        try
+        {
+            int.TryParse(ProductionLogVMs.IssueStoreId.ToString(), out int IssueStoreId);
+
+            if (IssueStoreId <= 0)
+                return;
+
+            var rcData = await productionLogService.GetRCProcessDetailsByRcIdAndProcessId(ProductionLogVMs.RCId.Value, ProductionLogVMs.ProcessId.Value, IssueStoreId, screenCode);
+
+
+            if (rcData == null)
+                return;
+
+            if (rcData == null)
+                return;
+
+            if (rcData.IsBOM)
+            {
+                await _js.ToastrWarning("This process is allocated as BOM. Please perform this operation in Production Component, not in Daily Production Log.");
+                await ResetProcessOnlyFields();
+                return;
+            }
+
+            // =============================
+            // BASIC MAPPING
+            // =============================
+            ProductionLogVMs.ProcessId = rcData.ProcessId;
+            ProductionLogVMs.ProcessName = rcData.ProcessName;
+            ProductionLogVMs.RCProcessId = rcData.RCProcessId;
+
+            ProductionLogVMs.ProcessCost = rcData.ProcessCost;
+            ProductionLogVMs.RCQty = rcData.RCQty;
+
+            ProductionLogVMs.MachineId = rcData.MachineId;
+            ProductionLogVMs.MachineName = rcData.MachineName;
+
+            ProductionLogVMs.Operator = rcData.Operator;
+
+            ProductionLogVMs.CustId = rcData.CustId;
+            ProductionLogVMs.CustomerName = rcData.CustomerName;
+
+            ProductionLogVMs.ItemIdIn = rcData.ItemIdIn;
+            ProductionLogVMs.ItemInCode = rcData.ItemInCode;
+
+            ProductionLogVMs.ItemIdOut = rcData.ItemIdOut;
+            ProductionLogVMs.ItemOutCode = rcData.ItemOutCode;
+
+            //Important: Max Allowed Qty is based on RC Qty
+            ProductionLogVMs.MaxAllowedQty = rcData.InputQty;
+
+            ProductionLogVMs.InputQty = rcData.InputQty;
+            ProductionLogVMs.QtyOut = rcData.QtyOut;
+            ProductionLogVMs.QtyOutPerUnit = rcData.QtyOutPerUnit;
+
+            //Stock
+            ProductionLogVMs.RMStock = rcData.RMStock;
+
+            ProductionLogVMs.CycleTime = rcData.CycleTime;
+            ProductionLogVMs.SettingTime = rcData.SettingTime;
+
+            ProductionLogVMs.AccQty = rcData.AccQty;
+            ProductionLogVMs.RejQty = rcData.RejQty;
+            ProductionLogVMs.RewQty = rcData.RewQty;
+            ProductionLogVMs.ReturnQty = rcData.ReturnQty;
+
+            ProductionLogVMs.CostId = rcData.CostId;
+            ProductionLogVMs.CostCenterName = rcData.CostCenterName;
+
+            //QC
+            ProductionLogVMs.IsQcRequired = rcData.IsQcRequired;
+
+
+            // =============================
+            // VALIDATE & AUTO-ADJUST QTY
+            // =============================
+            await ValidateAndAdjustQtyAsync(ProductionLogVMs);
+
+            // =============================
+            // AUTO SHIFT + TIME
+            // =============================
+            await AutoSelectShiftAndTime();
+
+            // =============================
+            // POSSIBLE QTY
+            // =============================
+            ProductionLogVMs.Possible = CalculatePossibleQty(
+            ProductionLogVMs.StartTime,     // This is not a Shift-Starting Time Actual Prduction Start time is taking Here
+            ProductionLogVMs.ShiftEndTime,
+            ProductionLogVMs.CycleTime,
+            ProductionLogVMs.SettingTime);
+
+            // =============================
+            // FINAL CALCULATION
+            // =============================
+            await CalculateProductionPerformance();
+
+
+
+
+            int rcSubId = routeCardVMs.SelectMany(r => r.RouteCardSubVMs).Where(s => s.RCId == ProductionLogVMs.RCId && s.ProcessId == ProductionLogVMs.ProcessId).Select(s => s.RCSubId).FirstOrDefault();
+
+            if (rcSubId <= 0) return;
+
+            ProductionLogVMs.RMStock = await productionLogService.GetAvailableStockByItemIdAndRcAndScreenAsync(ProductionLogVMs.ItemIdIn.GetValueOrDefault(), IssueStoreId, rcSubId);
+
+
+
+
+
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+    }
+    //------------------------------------------------------------------------------------------------------------
+    #endregion
+}

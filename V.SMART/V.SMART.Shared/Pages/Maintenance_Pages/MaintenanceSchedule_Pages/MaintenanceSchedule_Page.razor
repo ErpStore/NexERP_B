@@ -1,0 +1,813 @@
+﻿@page "/MaintenanceSchedule"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMaintenanceService
+@using V.SMART.Shared.BusinessLayer.BusinessService.MaintenanceService
+@using V.SMART.Shared.Data.Maintenance.MaintenanceSchedule
+@using V.SMART.Shared.ViewModels.MaintenanceViewModel.MaintenanceScheduleVM
+@using Microsoft.IdentityModel.Tokens
+
+@inherits BaseUserRightsComponent
+
+@inject ICommonService _commonservice
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IMaintenanceScheduleService _MaintenanceScheduleService
+@inject IExcelTemplateService excelTemplateService
+
+
+<BsModal OnModalConfirmation="ConfirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Row?">
+</BsModal>
+
+<style>
+    /* Sticky Header */
+    table thead th {
+        position: sticky;
+    }
+
+    /* Sticky Last Column (both th and td) */
+    table th:last-child,
+    table td:last-child {
+        position: sticky;
+        right: 0;
+        background-color: white;
+        z-index: 5;
+    }
+
+    /* Ensure last header cell stays above */
+    table thead th:last-child {
+        z-index: 15;
+    }
+
+    /* Table cell font size */
+    table td {
+        font-size: 12px;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/V.SMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@MaintenanceSchedTitle"
+                            TitleIcon="@MaintenanceSchedIcon"
+                            Breadcrumbs="@MaintenanceScheduleBreadcrumbs" />
+                <div class="card-body px-0">
+                    <div class="row mb-3 px-3">
+                        <div class="col-md-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input value="@ListNameFilter"
+                                       @oninput="OnSearchChanged"
+                                       class="form-control"
+                                       placeholder="Search by name, day, or description..." />
+                            </div>
+                        </div>
+                    </div>
+
+                    <EditForm Model="@MaintenanceScheduleList">
+                        <DataAnnotationsValidator />
+                        <div class="mt-2 my-3 mx-3">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-sm align-middle text-center" style="table-layout: fixed; width: 100%;">
+                                    <thead class="custom-blue">
+                                        <tr>
+                                            <th class="text-center" style="width: 150px;">Machine Name</th>
+                                            <th class="text-center" style="width: 120px;">Maintenance Type</th>
+                                            <th class="text-center" style="width: 120px;">Schedule Day</th>
+                                            <th class="text-center" style="width: 200px;">Description</th>
+                                            <th class="text-center" style="width: 100px;">Document No.</th>
+                                            <th class="text-center" style="width: 80px;">Revision No.</th>
+                                            <th class="text-center" style="width: 120px;">Revision Date</th>
+                                            <th class="text-center" style="width: 100px;">Actions</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        @foreach (var list in MaintenanceScheduleList)
+                                        {
+                                            <tr>
+                                                <!-- Machine Name -->
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputSelect class="form-select form-select-sm" @bind-Value="list.MachineId">
+                                                            <option value="0">Select Machine --</option>
+                                                            @foreach (var machine in MachineList)
+                                                            {
+                                                                <option value="@machine.MachineId">@machine.MachineName</option>
+                                                            }
+                                                        </InputSelect>
+                                                        <ValidationMessage For="@(() => list.MachineId)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="d-block text-truncate">@MachineList.FirstOrDefault(m => m.MachineId == list.MachineId)?.MachineName</span>
+                                                    }
+                                                </td>
+
+                                                <!-- Maintenance Type -->
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputSelect class="form-select form-select-sm"
+                                                                     @bind-Value="list.MaintenanceId">
+                                                            <option value="0">select Type</option>
+                                                            @foreach (var type in MaintenancetypeList)
+                                                            {
+                                                                <option value="@type.Id">@type.Name</option>
+                                                            }
+                                                        </InputSelect>
+                                                        <ValidationMessage For="@(() => list.MaintenanceId)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="d-block text-truncate">
+                                                            @(MaintenancetypeList
+                                                                                                        .FirstOrDefault(x => x.Id == list.MaintenanceId)
+                                                                                                        ?.Name ?? "-")
+                                        </span>
+
+                                                                                }
+                                                </td>
+
+                                                <!-- Schedule Day -->
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+
+                                                        <!-- Schedule day select (dependent dropdown) -->
+                                                        <InputSelect class="form-select form-select-sm" @bind-Value="list.ScheduleDay">
+
+                                                            @if (list.MaintenanceId == 1)
+                                                            {
+                                                                <option value="Every day">Every day</option>
+                                                                if (list.MaintenanceId == 1)
+                                                                {
+                                                                    list.ScheduleDay = "Every day";
+                                                                }
+                                                            }
+                                                            @if (list.MaintenanceId == 2)
+                                                            {
+                                                                <option value="">-- Select Schedule Day --</option>
+                                                                @foreach (var day in WeeklyList)
+                                                                {
+                                                                    <option value="@day">@day</option>
+                                                                }
+                                                            }
+                                                            @if (list.MaintenanceId == 3)
+                                                            {
+                                                                <option value="">-- Select Schedule Day --</option>
+                                                                @foreach (var day in FortnightlyList)
+                                                                {
+                                                                    <option value="@day">@day</option>
+                                                                }
+                                                            }
+                                                            @if (list.MaintenanceId == 4)
+                                                            {
+                                                                <option value="">-- Select Schedule Day --</option>
+                                                                @foreach (var day in MonthlyList)
+                                                                {
+                                                                    <option value="@day">@day</option>
+                                                                }
+                                                            }
+
+                                                            @if (list.MaintenanceId == 5)
+                                                            {
+                                                                <option value="">-- Select Schedule Day --</option>
+                                                                @foreach (var day in QuarterlyList)
+                                                                {
+                                                                    <option value="@day">@day</option>
+                                                                }
+                                                            }
+                                                            @if (list.MaintenanceId == 6)
+                                                            {
+                                                                <option value="">-- Select Schedule Day --</option>
+                                                                @foreach (var day in BiAnnualList)
+                                                                {
+                                                                    <option value="@day">@day</option>
+                                                                }
+                                                            }
+                                                            @if (list.MaintenanceId == 7)
+                                                            {
+                                                                <option value="">-- Select Schedule Day --</option>
+                                                                @foreach (var day in AnnualList)
+                                                                {
+                                                                    <option value="@day">@day</option>
+                                                                }
+                                                            }
+
+
+                                                        </InputSelect>
+
+                                                        <ValidationMessage For="@(() => list.ScheduleDay)" />
+                                                    }
+                                                    else
+                                                    {
+
+                                                        <span class="d-block text-truncate">
+                                                            @list.ScheduleDay
+                                                        </span>
+                                                    }
+                                                </td>
+
+
+                                                <!-- Description -->
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputTextArea class="form-control form-control-sm" rows="1" @bind-Value="list.Description" />
+                                                        <ValidationMessage For="@(() => list.Description)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="d-block text-truncate">@list.Description</span>
+                                                    }
+                                                </td>
+
+                                                <!-- Document No -->
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputText class="form-control form-control-sm" @bind-Value="list.DocNo" />
+                                                        <ValidationMessage For="@(() => list.DocNo)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@list.DocNo</span>
+                                                    }
+                                                </td>
+
+                                                <!-- Revision No -->
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputNumber class="form-control form-control-sm" @bind-Value="list.RevisionNo" />
+                                                        <ValidationMessage For="@(() => list.RevisionNo)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@list.RevisionNo</span>
+                                                    }
+                                                </td>
+
+                                                <!-- Revision Date -->
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputDate TValue="DateTime" class="form-control form-control-sm" @bind-Value="list.RevisionDate" />
+                                                        <ValidationMessage For="@(() => list.RevisionDate)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@list.RevisionDate.ToString("dd/MM/yyyy")</span>
+                                                    }
+                                                </td>
+
+                                                <!-- Actions -->
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-outline-success me-1" @onclick="() => ValidateAndSaveRow(list)">
+                                                            <i class="bi bi-check-lg"></i>
+                                                        </button>
+
+                                                    }
+                                                    else
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-info me-1" @onclick="() => EditRow(list)">
+                                                            <i class="bi bi-pencil-square"></i>
+                                                        </button>
+                                                    }
+                                                    <button type="button" class="btn btn-sm btn-danger" @onclick="() => DeleteRow(list)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Add New Row Button -->
+                            <div class="row mb-3">
+                                <div class="col-12 col-lg-2 mb-2">
+                                    <button type="button" class="btn btn-success w-100" @onclick="AddNewRow">
+                                        <i class="bi bi-plus-square me-1"></i> Add New Schedule
+                                    </button>
+                                </div>
+                                <div class="col-12 col-lg-1 mb-2 ms-lg-auto">
+                                    <button type="button" class="btn btn-success w-100" @onclick="PrintMaintenanceSchedule">
+                                        Print
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    #region Variables Declaration
+    protected override string ScreenName => "MaintenanceSchedule";
+    private bool isProcessing = true;
+    private List<MaintenanceScheduleVM> MaintenanceScheduleList = new();
+    private List<Machine> MachineList = new();
+    private MaintenanceScheduleVM? _itemToDelete;
+    private string? ListNameFilter;
+    private Timer? debounceTimer;
+    private string MaintenanceSchedIcon = "bi bi-calendar-event";
+    private string MaintenanceSchedTitle = "Maintenance Schedule";
+    private List<PageHeader.BreadcrumbItem> MaintenanceScheduleBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Maintenance" },
+        new PageHeader.BreadcrumbItem { Text = "Maintenance Schedule",IsLast=true }
+
+    };
+    #endregion
+
+    #region Common Lists Used
+    // Replace 'SelectedListItems' with 'SelectedListItem' and define the class if missing
+    private List<ScheduleNameVM> MaintenancetypeList = MaintenanceTypeHelper.GetMaintenanceTypes().ToList();
+
+    private List<String> WeeklyList = new()
+    {
+        "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+    };
+
+    private List<String> FortnightlyList = new()
+    {
+        "Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7",
+        "Day 8", "Day 9", "Day 10", "Day 11", "Day 12", "Day 13", "Day 14"
+    };
+
+    private List<String> MonthlyList = new()
+    {
+        "Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "Day 8", "Day 9", "Day 10",
+        "Day 11", "Day 12", "Day 13", "Day 14", "Day 15", "Day 16", "Day 17", "Day 18", "Day 19", "Day 20",
+        "Day 21", "Day 22", "Day 23", "Day 24", "Day 25", "Day 26", "Day 27", "Day 28", "Day 29", "Day 30",
+        "Day 31"
+    };
+
+    private List<String> QuarterlyList = new()
+    {
+        "January", "February", "March"
+    };
+
+    private List<String> BiAnnualList = new()
+    {
+        "January", "February", "March", "April", "May", "June"
+    };
+
+    private List<String> AnnualList = new()
+    {
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    };
+
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            MachineList = await _commonservice.GetAllMachineAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadMaintenanceScheduleList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region LoadMaintenanceScheduleList
+
+    private async Task LoadMaintenanceScheduleList()
+    {
+        try
+        {
+            var list = await _MaintenanceScheduleService.GetAllMaintenanceVMsAsync();
+            MaintenanceScheduleList = list ?? new();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadMaintenanceList()");
+            await _js.ToastrError("An error occurred while loading the Maintenance list.");
+        }
+    }
+    #endregion
+
+    #region Searching Method
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            ListNameFilter = e.Value?.ToString();
+
+            if (string.IsNullOrEmpty(ListNameFilter))
+            {
+                await LoadMaintenanceScheduleList();
+                StateHasChanged();
+                return;
+            }
+            else
+            {
+                MaintenanceScheduleList = MaintenanceScheduleList
+                    .Where(item =>
+                        (!string.IsNullOrEmpty(item.MachineName) &&
+                            item.MachineName.Contains(ListNameFilter, StringComparison.OrdinalIgnoreCase)) ||
+
+                        (!string.IsNullOrEmpty(item.ScheduleDay) &&
+                            item.ScheduleDay.Contains(ListNameFilter, StringComparison.OrdinalIgnoreCase)) ||
+
+                        (!string.IsNullOrEmpty(item.Description) &&
+                            item.Description.Contains(ListNameFilter, StringComparison.OrdinalIgnoreCase)) ||
+
+                        (!string.IsNullOrEmpty(item.DocNo) &&
+                            item.DocNo.Contains(ListNameFilter, StringComparison.OrdinalIgnoreCase)) ||
+
+                        (MaintenancetypeList
+                            .FirstOrDefault(m => m.Id == item.MaintenanceId)?
+                            .Name?
+                            .Contains(ListNameFilter, StringComparison.OrdinalIgnoreCase) == true)
+                    )
+                    .ToList();
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnSearchChanged()");
+            await _js.ToastrError("Error OnSearchChanged failed.");
+        }
+
+    }
+    #endregion
+
+    #region Adding New Row
+
+    private async Task AddNewRow()
+    {
+        try
+        {
+            // Prevent adding multiple editable rows
+            if (MaintenanceScheduleList.Any(x => x.IsEditable))
+            {
+                await _js.ToastrWarning("Please save or cancel the current row before adding a new one.");
+                return;
+            }
+
+            // Optional: ensure all existing rows have valid MachineId before adding new
+            if (MaintenanceScheduleList.Any(x => x.MachineId == 0))
+            {
+                await _js.ToastrWarning("Please select Machine Name for all existing rows before adding a new one.");
+                return;
+            }
+
+            // Create new blank editable row
+            MaintenanceScheduleList.Add(new MaintenanceScheduleVM
+            {
+                IsEditable = true,
+                MachineId = 0,
+                MaintenanceId = 0,
+                ScheduleDay = "",
+                Description = "",
+                DocNo = await _MaintenanceScheduleService.GenerateDocumentNo(),
+                MachineName = "",
+                MaintenanceName = "",
+                RevisionNo = 0,
+                RevisionDate = DateTime.Now,
+                CreatedBy = await _userService.GetUsernameAsync(),
+                CreatedDate = DateTime.Now
+            });
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in AddingRow()");
+            await _js.ToastrError("Error Adding failed.");
+
+        }
+    }
+    #endregion
+
+    #region EditingRow
+    private async Task EditRow(MaintenanceScheduleVM list)
+    {
+        try
+        {
+            if (list == null)
+                return;
+
+            foreach (var item in MaintenanceScheduleList)
+            {
+                item.IsEditable = false;
+            }
+
+            list.IsEditable = true;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in EditRow()");
+            await _js.ToastrError("Error editing failed.");
+        }
+    }
+
+    #endregion
+
+    #region ValidateAndSaveRow
+    private async Task ValidateAndSaveRow(MaintenanceScheduleVM list)
+    {
+        try
+        {
+            // Validation
+            if (list.MachineId == 0)
+            {
+                await _js.ToastrError("Please select Machine Name.");
+                return;
+            }
+            if (list.MaintenanceId == 0)
+            {
+                await _js.ToastrError("Please select Maintenance Type.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(list.ScheduleDay))
+            {
+                await _js.ToastrError("Please select Schedule Type.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(list.Description))
+            {
+                await _js.ToastrError("Please enter Description.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(list.DocNo))
+            {
+                await _js.ToastrError("Please enter Document No.");
+                return;
+            }
+
+            // Assign audit info
+            var username = await _userService.GetUsernameAsync();
+
+            // Get existing records once
+            var existing = await _MaintenanceScheduleService.GetAllMaintenanceVMsAsync();
+
+            bool duplicateSchedule;
+
+            if (list.ScheduleId == 0) // Create
+            {
+                duplicateSchedule = existing.Any(x =>
+                    x.MachineId == list.MachineId);
+            }
+            else // Update
+            {
+                duplicateSchedule = existing.Any(x =>
+                    x.MachineId == list.MachineId &&
+                    x.ScheduleId != list.ScheduleId);
+            }
+
+            if (duplicateSchedule)
+            {
+                await _js.ToastrWarning("Machine already has a schedule.");
+                return;
+            }
+
+            string docNo = list.DocNo?.Trim();
+
+            if (list.ScheduleId == 0) // CREATE
+            {
+                // DocNo duplicate check
+                bool duplicateDocNo = existing.Any(x =>
+                    x.DocNo != null && x.DocNo.Equals(docNo, StringComparison.OrdinalIgnoreCase));
+
+                if (duplicateDocNo)
+                {
+                    await _js.ToastrWarning("A record with the same Document No already exists!");
+                    return;
+                }
+
+                list.CreatedBy = username;
+                list.CreatedDate = DateTime.Now;
+
+                await _MaintenanceScheduleService.CreateMaintenanceSchedule(list);
+
+            }
+            else // UPDATE
+            {
+                // DocNo duplicate check EXCLUDING current record
+                bool duplicateDocNo = existing.Any(x =>
+                    x.ScheduleId != list.ScheduleId &&
+                    x.DocNo != null &&
+                    x.DocNo.Equals(docNo, StringComparison.OrdinalIgnoreCase));
+
+                if (duplicateDocNo)
+                {
+                    await _js.ToastrWarning("A record with the same Document No already exists!");
+                    return;
+                }
+
+                list.ModifiedBy = username;
+                list.ModifiedDate = DateTime.Now;
+
+                await _MaintenanceScheduleService.UpdateMaintenanceScheduleAsync(list);
+            }
+            await LoadMaintenanceScheduleList();
+            StateHasChanged();
+
+            // Logging
+            await LoggingService.LogUserAction(
+                UserName: username,
+                Machine: _userService.MachineName,
+                IP_Address: _userService.IpAddress,
+                screen: "Maintenance Schedule",
+                action: list.MachineId == 0
+                    ? $"Created Maintenance Schedule for Machine ID: {list.MachineId}"
+                    : $"Updated Maintenance Schedule for Machine ID: {list.MachineId}"
+            );
+
+            list.IsEditable = false;
+            bool isNewRecord = list.ScheduleId == 0;
+            if (isNewRecord)
+            {
+                await _js.ToastrSuccess("Saved successfully.");
+            }
+            else
+            {
+                await _js.ToastrSuccess("Modified successfully.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ValidateAndSaveRow()");
+            await _js.ToastrError("Save failed.");
+        }
+    }
+    #endregion
+
+    #region DeletingCode
+
+    private async Task DeleteRow(MaintenanceScheduleVM list)
+    {
+        try
+        {
+            _itemToDelete = list;
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in DeleteRow()");
+            await _js.ToastrError("Delete failed.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || _itemToDelete == null)
+                return;
+            // If the record exists in database
+            if (_itemToDelete.ScheduleId > 0)
+            {
+
+                if (await _MaintenanceScheduleService.DeleteMaintenanceScheduleAsync(_itemToDelete.ScheduleId))
+                {
+                    // Log the delete action
+                    await LoggingService.LogUserAction(
+                        UserName: await _userService.GetUsernameAsync(),
+                        Machine: _userService.MachineName,
+                        IP_Address: _userService.IpAddress,
+                        screen: "Maintenance Schedule",
+                        action: $"Deleted Maintenance Schedule for Machine ID: {_itemToDelete.MachineId}"
+                    );
+
+                    await _js.ToastrSuccess("Deleted successfully.");
+                }
+                else
+                {
+                    await _js.ToastrError("Delete failed.");
+                    return;
+                }
+            }
+            // Remove from local list to update UI
+            MaintenanceScheduleList.Remove(_itemToDelete);
+            _itemToDelete = null;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ConfirmDelete_Click()");
+            await _js.ToastrError("Delete failed.");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+    #endregion
+
+
+    private async Task PrintMaintenanceSchedule()
+    {
+        try
+        {
+            if (MaintenanceScheduleList == null || !MaintenanceScheduleList.Any())
+            {
+                await _js.InvokeVoidAsync(
+                    "alert",
+                    "No Maintenance Schedule found."
+                );
+                return;
+            }
+
+            // Excel Headers
+            string[] headers =
+            {"Machine Name","Maintenance Type","Schedule Day","Description","Document No","Revision No","Revision Date"};
+
+            // Excel Data Mapping
+            var exportData = MaintenanceScheduleList
+                .Select(x => new
+                {
+                    MachineName = MachineList
+                        .FirstOrDefault(m => m.MachineId == x.MachineId)
+                        ?.MachineName ?? "",
+
+                    MaintenanceType = MaintenancetypeList
+                        .FirstOrDefault(t => t.Id == x.MaintenanceId)
+                        ?.Name ?? "",
+
+                    x.ScheduleDay,
+                    x.Description,
+                    x.DocNo,
+                    x.RevisionNo,
+                    RevisionDate = x.RevisionDate.ToString("dd/MM/yyyy")
+                })
+                .ToList();
+
+            // Generate Excel
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(sheetName: "Maintenance Schedule", headers: headers, sampleData: exportData);
+
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                await _js.InvokeVoidAsync("alert", "Failed to generate Excel file.");
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            // Download Excel
+            await _js.InvokeVoidAsync("downloadExcelFile", base64, "Maintenance Schedule.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while exporting Maintenance Schedule Excel");
+            await _js.InvokeVoidAsync("alert", "Error occurred while exporting Excel.");
+        }
+    }
+}
+

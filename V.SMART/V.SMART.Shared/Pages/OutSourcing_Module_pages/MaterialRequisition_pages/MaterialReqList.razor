@@ -1,0 +1,978 @@
+﻿@page "/materialRequisitionList"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchOrSubConEnquiryService
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+
+@inject IMaterialReqService materialReqService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+
+@inject ExcelExportService ExcelExportService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true"
+            Screen="@ScreenName"
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="Material Requisition List"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@PRBreadcrumbs" />
+
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-center mb-3">
+
+                    <div class="col-12 col-md-2">
+                        <ColumnMenu Columns="Columns" ScreenName="@ScreenName" UserId="@UserName"  MaxVisible="int.MaxValue" OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                      <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                 value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+
+                            <option value="">All</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Short Closed">Short Closed</option>
+
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-2 ms-md-auto text-end">
+                              <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewPR">
+                                <i class="bi bi-plus-square me-1"></i> Add New PR
+                            </button>
+                         
+                        </div>
+                    }
+
+                </div>
+                @if (MaterialReqVMs.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid Items="MaterialReqVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    @switch (col.Field)
+                                    {
+                                        case "MreqId":
+                                            <PropertyColumn Title="Request ID" Property="@(c => c.MreqId)" Sortable="true" />
+                                            break;
+
+                                        case "IsPurchOrSubCon":
+                                            <TemplateColumn Title="Request Type" Context="c">
+                                                @if (c.IsPurchOrSubCon)
+                                                {
+                                                    <span style="color: green; font-weight:600;">Purchase</span>
+                                                }
+                                                else
+                                                {
+                                                    <span style="color: orange; font-weight:600;">SubContract</span>
+                                                }
+                                            </TemplateColumn>
+                                            break;
+
+                                        case "IsManual":
+                                            <TemplateColumn Title="General Request" Context="c">
+                                                @if (c.IsManual)
+                                                {
+                                                    <span class="badge bg-info">Manual</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">Auto</span>
+                                                }
+                                            </TemplateColumn>
+                                            break;
+
+                                        case "MReqNo":
+                                            <PropertyColumn Title="MR/PR No." Property="@(c => $"{c.MReqNo}{c.Suffix}")" Sortable="true" />
+                                            break;
+
+                                        case "MreqDate":
+                                            <PropertyColumn Title="MR/PR Date" Property="@(c => c.MreqDate)" Format="dd/MM/yyyy" Sortable="true" />
+                                            break;
+
+                                        case "MreqDateNow":
+                                            <PropertyColumn Title="MR Date (System)" Property="@(c => c.MreqDateNow)" Format="dd/MM/yyyy" />
+                                            break;
+
+                                        case "NoOfItems":
+                                            <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" Sortable="true" />
+                                            break;
+
+                                        case "Department":
+                                            <PropertyColumn Title="Department" Property="@(c => c.Department)" Sortable="true" />
+                                            break;
+
+                                        case "LevelStatus":
+                                            <TemplateColumn Title="Level Status" Context="c">
+                                                @{
+                                                    string levelText = "-";
+                                                    if (c.IsLevel3) levelText = "Level 3";
+                                                    else if (c.IsLevel2) levelText = "Level 2";
+                                                    else if (c.IsLevel1) levelText = "Level 1";
+                                                }
+                                                <span class="badge bg-primary">@levelText</span>
+                                            </TemplateColumn>
+                                            break;
+
+                                        case "Level1Sign":
+                                            <PropertyColumn Title="L1 Approved By" Property="@(c => c.Level1Sign)" />
+                                            break;
+
+                                        case "Level2Sign":
+                                            <PropertyColumn Title="L2 Approved By" Property="@(c => c.Level2Sign)" />
+                                            break;
+
+                                        case "Level3Sign":
+                                            <PropertyColumn Title="L3 Approved By" Property="@(c => c.Level3Sign)" />
+                                            break;
+
+                                        case "LastApproved":
+                                            <PropertyColumn Title="Last Approved" Property="@(c => c.LastApproved)" />
+                                            break;
+
+                                        case "ApprovedDate":
+                                            <PropertyColumn Title="Approved Date" Property="@(c => c.ApprovedDate)" Format="dd/MM/yyyy" />
+                                            break;
+
+                                        case "ApprovalStatus":
+                                            <TemplateColumn Title="Approval Status" Context="c">
+                                                @if (c.IsAuthorized)
+                                                {
+                                                    <span class="badge text-bg-success bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                        <i class="bi bi-check-circle me-1"></i> Authorized
+                                                    </span>
+                                                }
+                                                else if (c.IsRejected)
+                                                {
+                                                    <span class="badge text-bg-danger bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                        <i class="bi bi-x-circle me-1"></i> Rejected
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge text-bg-warning bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                        <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                    </span>
+                                                }
+                                            </TemplateColumn>
+                                            break;
+
+
+                                        case "RejectReason":
+                                            <PropertyColumn Title="Reject Reason" Property="@(c => c.RejectReason)" />
+                                            break;
+
+                                        case "KindAttn":
+                                            <PropertyColumn Title="Kind Attention" Property="@(c => c.KindAttn)" />
+                                            break;
+
+                                        case "MainRemark":
+                                            <PropertyColumn Title="Main Remark" Property="@(c => c.MainRemark)" />
+                                            break;
+
+                                        case "Status":
+                                            <TemplateColumn Title="PR Status" Context="c">
+                                                @if (c.MreqCancel)
+                                                {
+                                                    <span class="badge text-bg-danger bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                        <i class="bi bi-x-circle me-1"></i> Cancelled
+                                                    </span>
+                                                }
+                                                else if (c.ShortClose)
+                                                {
+                                                    <span class="badge text-bg-secondary bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                        <i class="bi bi-slash-circle me-1"></i> Short Closed
+                                                    </span>
+                                                }
+                                                else if (c.PRTally)
+                                                {
+                                                    <span class="badge text-bg-success bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                        <i class="bi bi-check-circle me-1"></i> Completed
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge text-bg-warning bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                        <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                    </span>
+                                                }
+                                            </TemplateColumn>
+                                            break;
+
+                                        case "CancelReason":
+                                            <PropertyColumn Title="Cancel Reason" Property="@(c => c.CancelReason)" />
+                                            break;
+
+                                        case "CancelDate":
+                                            <PropertyColumn Title="Cancel Date" Property="@(c => c.CancelDate)" Format="dd/MM/yyyy" />
+                                            break;
+
+                                        case "CancelBy":
+                                            <PropertyColumn Title="Cancel By" Property="@(c => c.CancelBy)" />
+                                            break;
+
+                                        case "CreatedBy":
+                                            <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" Sortable="true" />
+                                            break;
+
+                                        case "CreatedDate":
+                                            <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                                            break;
+
+                                        case "ModifiedBy":
+                                            <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" Sortable="true" />
+                                            break;
+
+                                        case "ModifiedDate":
+                                            <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" />
+                                            break;
+                                    }
+                                }
+
+                            }
+
+                            <!-- Actions -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"materialRequisition/update/{c.MreqId}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Material Request">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"materialRequisition/details/{c.MreqId}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View Request">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => HandleDelete(c.MreqId)"
+                                                title="Delete Request">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5"
+                                        @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export PR's
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Material Requisition List available.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Material Requisition";
+    private bool isProcessing = true;
+    private string searchText = string.Empty;
+    private string? UserName;
+    private int DeletePRId = 0;
+    private string selectedStatus = string.Empty;
+
+    private int totalItems;
+    private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+    private IEnumerable<MaterialReqVM> MaterialReqVMs = new List<MaterialReqVM>();
+
+    [Parameter,SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    private void AddNewPR()
+    {
+        _navigation.NavigateTo("/materialRequisition/create");
+    }
+
+    private List<PageHeader.BreadcrumbItem> PRBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Out-Sourcing" },
+        new PageHeader.BreadcrumbItem { Text = "Material Requisition", IsLast = true }
+    };
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await  InitializeColumns(IsHidden);
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+
+            await LoadAllPRs();
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+            if (saved?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Material Requisition List OnInitializedAsync() method");
+        }
+    }
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "Request ID", Field = "MreqId", IsVisible = false },
+
+                new() { Title = "Request Type (Purchase/SubCon)", Field = "IsPurchOrSubCon", IsVisible = true },
+                new() { Title = "General Request", Field = "IsManual", IsVisible = false },
+
+                new() { Title = "MR/PR No.", Field = "MReqNo", IsVisible = true },
+
+                new() { Title = "MR/PR Date", Field = "MreqDate", IsVisible = true },
+                new() { Title = "MR Date (System)", Field = "MreqDateNow", IsVisible = false },
+
+                new() { Title = "No. of Items", Field = "NoOfItems", IsVisible = true },
+
+                new() { Title = "Department", Field = "Department", IsVisible = true },
+
+                new() { Title = "Level Status", Field = "LevelStatus", IsVisible = false },
+
+                new() { Title = "L1 Approved By", Field = "Level1Sign", IsVisible = false },
+                new() { Title = "L2 Approved By", Field = "Level2Sign", IsVisible = false },
+                new() { Title = "L3 Approved By", Field = "Level3Sign", IsVisible = false },
+
+
+                new() { Title = "Approval Status", Field = "ApprovalStatus", IsVisible = true },
+                new() { Title = "Reject Reason", Field = "RejectReason", IsVisible = false },
+
+                new() { Title = "Last Approved", Field = "LastApproved", IsVisible = false },
+                new() { Title = "Approved Date", Field = "ApprovedDate", IsVisible = false },
+
+                new() { Title = "Kind Attention", Field = "KindAttn", IsVisible = false },
+
+                new() { Title = "Main Remark", Field = "MainRemark", IsVisible = false },
+
+                new() { Title = "PR Status", Field = "Status", IsVisible = false },
+
+                new() { Title = "Cancel Reason", Field = "CancelReason", IsVisible = false },
+                new() { Title = "Cancel Date", Field = "CancelDate", IsVisible = false },
+                new() { Title = "Cancel By", Field = "CancelBy", IsVisible = false },
+
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false }
+            };
+
+
+            if (!Hidden)
+            {
+
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the MaterialReqList InitializeColumns() method");
+            await _JS.ToastrError("An error occurred while handling the MaterialReqList InitializeColumns() method");
+        }
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (isConfirmed && DeletePRId > 0)
+            {
+
+                isProcessing = true;
+
+                bool success = await materialReqService.DeleteMreqByMreqIdAsync(DeletePRId);
+                if (success)
+                {
+                    await _JS.ToastrSuccess("Material Requisition Deleted successfully.");
+                    await LoadAllPRs();
+                }
+                else
+                {
+                    await _JS.ToastrError("Materail Requisition Delete failed.");
+                }
+                isProcessing = false;
+                DeletePRId = 0;
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the MaterailRequisitionList confirmDelete_Click() method");
+            await _JS.ToastrError("An error occurred while handling the MaterailRequisitionList confirmDelete_Click() method");
+        }
+    }
+
+    private async Task HandleDelete(int mreqId)
+    { 
+        try
+        {
+            var (canDelete, message) = await materialReqService.CanDeleteMaterialReqAsync(mreqId);
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeletePRId = mreqId;
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+
+            ModalTitle = "Are you sure you want to delete this PR/Indent";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for MreqId: {mreqId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the MaterialReqList HandleColumnChange() Method");
+            await _JS.ToastrError("An error occurred while handling the MaterialReqList HandleColumnChange() event");
+        }
+    }
+
+    private async Task LoadAllPRs()
+    {
+        try
+        {
+            var result = await materialReqService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            MaterialReqVMs = result.mreqVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading PR Details in MaterialReqList");
+            await _JS.ToastrError("Failed to load PR Details.");
+        }
+    }
+
+
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllPRs();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in MaterailReqList");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllPRs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in MaterailReqList");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllPRs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in MaterailReqList");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllPRs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in MaterailreqList");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllPRs();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in MaterailReqList");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllPRs();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing MaterialReqList page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region MODAL HANDLERS
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+    #endregion
+
+
+    #region Search order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "";
+
+        // Update filters
+        if (string.IsNullOrWhiteSpace(selectedStatus))
+            SearchFilters.Remove("Status");
+        else
+            SearchFilters["Status"] = selectedStatus;
+
+
+        currentPage = 1;
+        await LoadAllPRs();
+    }
+
+    #endregion 
+
+    #region SEARCH FILTERS
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllPRs();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in MaterialReqList");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+            {
+                await ConfirmDelete_Click(isConfirmed);
+
+            }else if(confirmation == "Export")
+            {
+                await ExportToExcel(isConfirmed);
+            }
+
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+           
+            var deleted = await materialReqService.DeleteMreqByMreqIdAsync(DeletePRId);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("PR/Indent deleted successfully.");
+                await LoadAllPRs();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("PR/Indent could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting MreqId: {DeletePRId}");
+            await _JS.ToastrError("Failed to delete Sales Quotation.");
+        }
+        finally
+        {
+            DeletePRId = 0;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    private async Task HandleExport()
+    {
+        selectedStatus = selectedStatus == "" ? "All" : selectedStatus;
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+
+            var exportData = await materialReqService.GetMreqReqPendingList(selectedStatus);
+
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "MreqReq", "Purchase Indent Pending List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.DownloadExcelAsync(base64, "IndentExport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (Indent)");
+            await _JS.ToastrError("Error while exporting Indent!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

@@ -1,0 +1,245 @@
+﻿@page "/income"
+@using Microsoft.EntityFrameworkCore.Metadata
+
+@inherits BaseUserRightsComponent
+@inject IUnitOfWork _unitOfWork
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject ILoggingService loggingService
+@inject CurrentUserService CurrentUserService
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this income?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Card Header -->
+            <PageHeader TitleText="@incomeTitle"
+                        TitleIcon="@incomeIcon"
+                        Breadcrumbs="@incomeBreadcrumbs" />
+
+
+            <div class="card-body">
+
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-12 col-md-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <InputText type="text"
+                                       class="form-control border-start-0"
+                                       placeholder="Search by IncomeName,IncomeDesc,IncomeType,CreatedBy"
+                                       @bind-Value="searchText"
+                                       @oninput="e => searchText = e.Value?.ToString()" />
+                        </div>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-md-2 ms-md-auto text-end">
+                            <a href="Income/create"
+                               class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                               title="Add a new Income">
+                                <i class="bi bi-plus-square me-1"></i>  Add New Income
+                            </a>
+                        </div>
+                    }
+                </div>
+
+                @if (FilteredIncome.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid Items="FilteredIncome.AsQueryable()" Class="quickgrid table table-secondary text-lg-center table-bordered">
+                            <PropertyColumn Title="Income Code" Property="@(c => c.IncomeCode)" Sortable="true" />
+                            <PropertyColumn Title="Income Name" Property="@(c => c.IncomeName)" Sortable="true" />
+                            <PropertyColumn Title="Description" Property="@(c => c.IncomeDesc)" Sortable="true" />
+                            <PropertyColumn Title="Income Type" Property="@(c => c.IncomeType)" Sortable="true" />
+                            <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" Sortable="true" />
+                            <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" Sortable="true" />
+                            @* <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" Sortable="true" />
+                            <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" Sortable="true" /> *@
+
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit && !c.IsDefault)
+                                    {
+                                        <a href="@($"Income/update/{c.IncomeCode}")" class="btn btn-sm btn-outline-primary" title="Edit this Income">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete && !c.IsDefault)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDelete(c.IncomeCode)" title="Delete this Income">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </QuickGrid>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center">No Incomes available.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Income";
+    private bool isProcessing { get; set; } = true;
+    private int DeleteIncomeId { get; set; } = 0;
+    private IEnumerable<Income> income { get; set; } = new List<Income>();
+    private string searchText = string.Empty;
+
+    private IEnumerable<Income> FilteredIncome =>
+    string.IsNullOrWhiteSpace(searchText)
+        ? income
+        : income.Where(e =>
+            string.IsNullOrWhiteSpace(searchText) ||
+            (e.IncomeName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (e.IncomeDesc?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (e.IncomeType?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (e.CreatedBy?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    private List<PageHeader.BreadcrumbItem> incomeBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Account" },
+        new PageHeader.BreadcrumbItem { Text = "Income", IsLast = true }
+    };
+
+    private string incomeIcon = "bi bi-cash-coin text-success";
+    private string incomeTitle = "Income List";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadIncomes();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occured while handling the Income OnInitializedAsync Method()");
+        }
+
+    }
+
+    private async Task LoadIncomes()
+    {
+        try
+        {
+            income = (await _unitOfWork.Incomes.GetAllAsync()).ToList();
+
+            
+            if (!income.Any())
+            {
+                var defaultIncomes = new List<Income>
+                    {
+                        new Income { IncomeName = "SALES", IsDefault = true },
+                        new Income { IncomeName = "LABOUR WORK", IsDefault = true },
+                        new Income { IncomeName = "SERVICE BILL(OUT)", IsDefault = true },
+                        new Income { IncomeName = "PERFORMA ADVANCE", IsDefault=true },
+                        new Income { IncomeName = "SALES + LABOUR", IsDefault = true }
+                    };
+
+                foreach (var e in defaultIncomes)
+                    await _unitOfWork.Incomes.CreateAsync(e);
+
+                await _unitOfWork.SaveAsync();
+
+
+                income = (await _unitOfWork.Incomes.GetAllAsync()).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An errror occured while handling the  Income LoadIncomes Method()");
+
+        }
+    }
+
+    private async Task HandleDelete(int id)
+    {
+        try
+        {
+            DeleteIncomeId = id;
+
+            var existing = await _unitOfWork.Incomes.GetAsync(id);
+            await loggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress,
+                   screen: "IncomeList", action: $"Income Deleted successfully. {(await _unitOfWork.Incomes.GetAsync(DeleteIncomeId))?.IncomeName ?? "Unknown"}",
+                   additionalInfo: $"Income:{(await _unitOfWork.Incomes.GetAsync(DeleteIncomeId))?.IncomeName ?? "Unknown"}");
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occured while handling the Income HandleDelete() method ");
+
+        }
+
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && DeleteIncomeId != 0)
+            {
+                isProcessing = true;
+
+                var deleted = await _unitOfWork.Incomes.DeleteAsync(DeleteIncomeId);
+                if (deleted)
+                {
+
+                    await loggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress,
+                    screen: "IncomeList", action: $"Income Deleted successfully. {(await _unitOfWork.Incomes.GetAsync(DeleteIncomeId))?.IncomeName ?? "Unknown"}",
+                    additionalInfo: $"Income:{(await _unitOfWork.Incomes.GetAsync(DeleteIncomeId))?.IncomeName ?? "Unknown"}");
+                    await _unitOfWork.SaveAsync();
+                    await _js.ToastrSuccess("Income deleted successfully.");
+
+                }
+                else
+                {
+                    await _js.ToastrError("Error encountered while deleting Income.");
+
+                }
+
+                await LoadIncomes();
+                isProcessing = false;
+            }
+
+            DeleteIncomeId = 0;
+
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occured while handling the Income ConfirmDelete() method");
+
+        }
+
+    }
+}

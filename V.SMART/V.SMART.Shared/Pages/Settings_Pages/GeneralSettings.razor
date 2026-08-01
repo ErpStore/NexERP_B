@@ -1,0 +1,225 @@
+﻿@page "/generalSettings"
+
+@inherits BaseUserRightsComponent
+
+@inject ICategoryService categoryService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ILoggingService _logs
+
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="900px" OnClose="CloseModal">
+    
+    @if (ActiveModal == "Eway")
+    {
+        <EwaySettingModel isDcListDetailsModelVisible=true CompanyId=1  OnClose="CloseModal" />
+    }
+
+</MasterModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="General Settings"
+                        TitleIcon="bi bi-gear-fill"
+                        Breadcrumbs="@gnrlSettingsFormBreadcrumbs" />
+
+            <div class="card-body">
+                <div class="row g-3 justify-content-center">
+
+                    <!-- Store Map Button -->
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center shadow-sm h-100 border-0 settings-card"
+                             style="cursor:pointer"
+                             @onclick="@(() => _navigationManager.NavigateTo("/store-map"))">
+                            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                <i class="bi bi-map-fill fs-1 text-success mb-2"></i>
+                                <span class="fw-semibold">Store Map</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Print Management Button -->
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center shadow-sm h-100 border-0 settings-card"
+                             style="cursor:pointer"
+                             @onclick="@(() => _navigationManager.NavigateTo("/print-management"))">
+                            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                <i class="bi bi-printer-fill fs-1 text-primary mb-2"></i>
+                                <span class="fw-semibold">Print Management</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Production Log Settings -->
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center shadow-sm h-100 border-0 settings-card"
+                             style="cursor:pointer"
+                             @onclick="@(() => _navigationManager.NavigateTo("/production-log-settings"))">
+                            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                <i class="bi bi-journal-code fs-1 text-info mb-2"></i>
+                                <span class="fw-semibold">Production Log Settings</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Inspection Settings -->
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center shadow-sm h-100 border-0 settings-card"
+                             style="cursor:pointer"
+                             @onclick="@(() => _navigationManager.NavigateTo("/InspectionSettings"))">
+                            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                <i class="bi bi-clipboard2-check-fill fs-1 text-warning mb-2"></i>
+                                <span class="fw-semibold">Inspection</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- E-way Settings -->
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center shadow-sm h-100 border-0 settings-card"
+                             style="cursor:pointer"
+                             @onclick='() => OpenModal("Eway")'>
+                            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                <i class="bi bi-truck fs-1 text-primary mb-2"></i>
+                                <span class="fw-semibold">E-Way Settings</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- More Settings Button -->
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center shadow-sm h-100 border-0 settings-card"
+                             style="cursor:pointer"
+                             @onclick="@(() => _navigationManager.NavigateTo("/"))">
+                            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                <i class="bi bi-sliders fs-1 text-primary mb-2"></i>
+                                <span class="fw-semibold">More Settings</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!---Biometric Excel->
+                    <div class="col-6 col-md-3">
+                        <NavLink href="/biometric-excel" class="text-decoration-none">
+
+                            <div class="card text-center shadow-sm h-100 border-0 settings-card">
+
+                                <div class="card-body d-flex flex-column justify-content-center align-items-center">
+
+                                    <i class="bi bi-people-fill fs-1 text-success mb-2"></i>
+
+                                    <span class="fw-semibold">Biometric Excel Upload Setting</span>
+                                </div>
+                            </div>
+                        </NavLink>
+                    </div>
+
+                    <!--HRMaster-->
+                     <div class="col-6 col-md-3">
+                        <NavLink href="/hr-masterr" class="text-decoration-none">
+
+                            <div class="card text-center shadow-sm h-100 border-0 settings-card">
+
+                                <div class="card-body d-flex flex-column justify-content-center align-items-center">
+
+                                    <i class="bi bi-people-fill fs-1 text-success mb-2"></i>
+
+                                    <span class="fw-semibold">HR Master</span>
+                                </div>
+                            </div>
+                        </NavLink>
+                    </div>
+
+                    <!-- SalaryPrint Settings -->
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center shadow-sm h-100 border-0 settings-card"
+                             style="cursor:pointer"
+                             @onclick="@(() => _navigationManager.NavigateTo("/print-salaryHeadSettings"))">
+                            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                <i class="bi bi-printer-fill fs-1 text-primary mb-2"></i>
+                                <span class="fw-semibold">Salary HeadPrint Settings</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "General Settings";
+
+    private Category Category { get; set; } = new();
+    private bool isProcessing = true;
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private List<PageHeader.BreadcrumbItem> gnrlSettingsFormBreadcrumbs = new()
+    {
+        new() { Text = "Master" },
+        new() { Text = "Settings" },
+        new() { Text = "General Settings", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        isProcessing = false;
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Eway" => "E-Way Settings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+}

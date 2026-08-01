@@ -1,0 +1,228 @@
+﻿@page "/factor/create"
+@page "/factor/update/{Id:int}"
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@factorEntryTitle"
+                            TitleIcon="@factorEntryIcon"
+                            Breadcrumbs="@factorEntryBreadcrumbs" />
+
+
+                <div class="card-body">
+                    <EditForm Model="Factor" OnValidSubmit="UpsertFactor">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+
+                            @if (Factor != null && Factor.Id > 0 && !string.IsNullOrWhiteSpace(Factor.Factors))
+                            {
+                                <CorrespondenceStatus ReferenceType="Factors"
+                                                      ReferenceId="@Factor.Id"
+                                                      ReferenceTypeName="@Factor.Factors" />
+                            }
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Factor.Factors"
+                                                      Id="FactorName"
+                                                      Placeholder="Factor Name"
+                                                      CssClass="form-control" />
+                                    <label for="FactorName">Factor Name</label>
+                                    <ValidationMessage For="@(() => Factor.Factors)" />
+                                </div>
+                            </div>
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(Id == 0 || Id == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/factorlist" />
+                            </div>
+                        </div>
+
+                        @if (Id > 0)
+                        {
+                            <div class="mt-4 small text-muted">
+                                <p><strong>Created By:</strong> @Factor.CreatedBy</p>
+                                <p><strong>Created Date:</strong> @Factor.CreatedDate?.ToString("g")</p>
+                                <p><strong>Modified By:</strong> @Factor.ModifiedBy</p>
+                                <p><strong>Modified Date:</strong> @Factor.ModifiedDate?.ToString("g")</p>
+                            </div>
+                        }
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+@code {
+    protected override string ScreenName => "Factors";
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool isProcessing = true;
+    private Factor Factor { get; set; } = new();
+    private string currentUser = "";
+
+    private List<PageHeader.BreadcrumbItem> factorEntryBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "Factors", IsLast = true }
+    };
+
+    private string factorEntryIcon = "bi bi-person-workspace";
+    private string factorEntryTitle => (Id == 0 || Id == null ? "Create" : "Update") + " Factor";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await GetCurrentUser();
+            await loadfactors();
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() Method for Factors");
+        }
+    }
+
+    private async Task GetCurrentUser()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                currentUser = user.Identity.Name;
+            }
+        }
+        catch (Exception ex)
+        {
+            currentUser = "";
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the GetCurrentUser() Method for Factors");
+        }
+    }
+
+    private async Task loadfactors()
+    {
+        try
+        {
+            if (Id > 0)
+            {
+                var existing = await _unitOfWork.Factors.GetAsync(Id.Value);
+                if (existing != null)
+                {
+                    Factor = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the loadfactors() Method for Factors");
+        }
+    }
+
+    private async Task UpsertFactor()
+    {
+        try
+        {
+            isProcessing = true;
+
+            bool isDuplicate = await _unitOfWork.Factors.ExistsByNameAsync("Factors", Factor.Factors?.Trim(), "Id", Factor.Id == 0 ? null : Factor.Id);
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Factor name already exists.");
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Stores", action: $"User tried to create an existing  Factors. {Factor.Factors}",
+                additionalInfo: $"FactorName: {Factor.Factors}");
+                isProcessing = false;
+                return;
+            }
+
+            var now = DateTime.Now;
+
+            Factor.Factors = Factor.Factors?.Trim();
+
+            if (Factor.Id == 0)
+            {
+                Factor.CreatedBy = currentUser;
+                Factor.CreatedDate = now;
+
+                await _unitOfWork.Factors.CreateAsync(Factor);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress, 
+                screen: "Stores", action: $"User Created a new record for Factors. {Factor.Factors}",
+                additionalInfo: $"FactorName: {Factor.Factors}");
+                await _js.ToastrSuccess("Factor Created Successfully");
+            }
+            else
+            {
+                Factor.ModifiedBy = currentUser;
+                Factor.ModifiedDate = now;
+
+                await _unitOfWork.Factors.UpdateAsync(Factor);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress, 
+                screen: "Stores", action: $"User Modified a record for Factors. {Factor.Factors}",
+                additionalInfo: $"FactorName: {Factor.Factors}");
+                await _js.ToastrSuccess("Factor Updated Successfully");
+            }
+
+            isProcessing = false;
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/factorlist");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertFactor() Method for Factors");
+
+        }
+    }
+}

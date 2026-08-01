@@ -1,0 +1,266 @@
+﻿@page "/currency/create"
+@page "/currency/update/{CurrId:int}"
+@using V.SMART.Shared.Data.Master.Accounts
+
+@inherits BaseUserRightsComponent
+
+
+@inject CurrentUserService CurrentUserService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                @if (!IsModal)
+                {
+                    <PageHeader TitleText="@(CurrId == 0 || CurrId == null ? "Create Currency" : "Update Currency")"
+                                TitleIcon="bi bi-cash-coin"
+                                Breadcrumbs="@currencyBreadcrumbs" />
+                }
+
+                <div class="card-body">
+                    <EditForm Model="Currency" OnValidSubmit="UpsertCurrency">
+                        <ValidationSummary />
+                        <DataAnnotationsValidator />
+
+                        <div class="row g-3">
+
+                            @if (Currency != null && Currency.CurrId > 0 && !string.IsNullOrWhiteSpace(Currency.CurrName))
+                            {
+                                <CorrespondenceStatus ReferenceType="Currencies"
+                                                      ReferenceId="@Currency.CurrId"
+                                                      ReferenceTypeName="@Currency.CurrName" />
+                            }
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Currency.CurrName" class="form-control" id="CurrencyName" placeholder="Currency Name" CssClass="form-control" />
+                                    <label for="CurrencyName">Currency Name</label>
+                                    <ValidationMessage for="@(() => Currency.CurrName)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Currency.CurrSub" class="form-control" id="PatCurrency" placeholder="PatCurrency Name" CssClass="form-control" />
+                                    <label for="PatCurrency">PatCurrency Name</label>
+                                    <ValidationMessage for="@(() => Currency.CurrSub)" />
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Currency.Symbol"
+                                               class="form-control"
+                                               id="Symbol"
+                                               placeholder="Currency Symbol"
+                                               CssClass="form-control"
+                                               maxlength="1" />
+                                    <label for="Symbol">Symbol</label>
+                                    <ValidationMessage for="@(() => Currency.Symbol)" />
+                                </div>
+                            </div>
+
+                            @if (Currency.CurrId > 0)
+                            {
+                                <div class="row g-3 mt-2">
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="Currency.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                            <label for="CreatedBy">Created By</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <input class="form-control" id="CreatedDate" value="@Currency.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                            <label for="CreatedDate">Created Date</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="Currency.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                            <label for="ModifiedBy">Modified By</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <input class="form-control" id="ModifiedDate" value="@Currency.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                            <label for="ModifiedDate">Modified Date</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(CurrId == 0 || CurrId == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            @if (!IsModal)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <SmartBackButton Url="/currency" />
+                                </div>
+                            }
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    //User Rights
+    protected override string ScreenName => "Currency";
+
+    [Parameter] public int? CurrId { get; set; }
+
+    [Parameter] public bool IsModal { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool isProcessing = true;
+
+    private Currency Currency { get; set; } = new Currency();
+
+    private List<PageHeader.BreadcrumbItem> currencyBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Account" },
+        new PageHeader.BreadcrumbItem { Text = "Currency", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadCurrency();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Currency OnInitializedAsync() Method");
+        }
+    }
+
+    private async Task LoadCurrency()
+    {
+        try
+        {
+            if (CurrId > 0)
+            {
+                var existing = await _unitOfWork.Currencyis.GetAsync(CurrId.Value);
+                if (existing != null)
+                {
+                    Currency = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Currency LoadCurrency() Method");
+        }
+    }
+    private async Task UpsertCurrency()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (Currency.IsSystemDefined)
+            {
+                await _js.ToastrWarning("You cannot modify a system-defined Currency.");
+                isProcessing = false;
+                await LoggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress, screen: "Currency", action: $"You cannot modify a system-defined Currency {Currency.CurrName}",
+                additionalInfo: $"CurrencyName: {Currency.CurrName}");
+                return;
+            }
+
+            // Check if a category with the same name already exists
+            bool isDuplicate = await _unitOfWork.Currencyis
+                .ExistsByNameAsync("CurrName", Currency.CurrName, "CurrId", Currency.CurrId == 0 ? null : Currency.CurrId);
+
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Currency name already exists.");
+                isProcessing = false;
+                await LoggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress, screen: "Currency", action: $"Currency name already exists. {Currency.CurrName}",
+                additionalInfo: $"CurrencyName: {Currency.CurrName}");
+                return;
+            }
+
+            if (Currency.CurrId == 0)
+            {
+                Currency.CreatedBy = await CurrentUserService.GetUsernameAsync();
+                Currency.CreatedDate = DateTime.Now;
+                await _unitOfWork.Currencyis.CreateAsync(Currency);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress, screen: "Currency", action: $"Currency Created Successfully {Currency.CurrName}",
+                additionalInfo: $"CurrencyName: {Currency.CurrName}");
+                await _js.ToastrSuccess("Currency Created Successfully");
+            }
+            else
+            {
+                Currency.ModifiedBy = await CurrentUserService.GetUsernameAsync();
+                Currency.ModifiedDate = DateTime.Now;
+
+                await _unitOfWork.Currencyis.UpdateAsync(Currency);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress, screen: "Currency", action: $"Currency Updated Successfully {Currency.CurrName}",
+                additionalInfo: $"CurrencyName: {Currency.CurrName}");
+                await _js.ToastrSuccess("Currency Updated Successfully");
+            }
+
+            isProcessing = false;
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            if (IsModal)
+            {
+                await OnSaved.InvokeAsync();
+            }
+            else
+            {
+                _navigationManager.NavigateTo("/currency");
+            }
+           
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Currency CurrencyUpsert() Method");
+        }
+    }
+}

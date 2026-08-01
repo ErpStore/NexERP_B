@@ -1,0 +1,1377 @@
+﻿@page "/master-upload"
+
+@using System.Data
+@using ExcelDataReader
+@using OfficeOpenXml;
+@using OfficeOpenXml.Drawing;
+@using System.Drawing;
+@using System.IO;
+@using System.Collections.Generic;
+@using System.Threading.Tasks;
+
+@using V.SMART.Shared.Data.Master.Accounts
+@using V.SMART.Shared.Data.Master.General
+@using V.SMART.Shared.Data.Master.Inventory
+@using V.SMART.Shared.Data.Utilities.Correspondence
+@using V.SMART.Shared.Repository.IRepository.IMasterRepository.IAccountsRepository
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.VisualBasic
+
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService _currentUserService
+@inject ILoggingService _loggingService
+@inject IUnitOfWork _unitOfWork
+@inject IFileUploadService corresFile
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IExcelTemplateService _excelTemplateService
+
+<BsModal OnModalConfirmation="confirmUpsert_Click"
+         ButtonBootstrapStyle="btn-success"
+         ButtonText="Save"
+         Title="Are you sure you want to save this Masterupload?">
+</BsModal>
+
+<style>
+    table th, table td {
+        font-size: 13px;
+        padding: 6px;
+        word-wrap: break-word;
+    }
+
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    .table th {
+        white-space: nowrap;
+    }
+
+    th:first-child, td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Card Header -->
+            <PageHeader TitleText="Master Upload"
+                        TitleIcon="bi bi-upload text-primary"
+                        Breadcrumbs="@masterUploadBreadcrumbs" />
+
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="mb-2 fw-bold">Upload Type</div>
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="uploadType" value="Item"
+                                       @onchange="@(() => OnUploadTypeChanged("Item"))"
+                                       checked="@(uploadType == "Item")" />
+                                <label class="form-check-label text-success"><i class="bi bi-box me-1"></i>Item</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="uploadType" value="Customer"
+                                       @onchange="@(() => OnUploadTypeChanged("Customer"))"
+                                       checked="@(uploadType == "Customer")" />
+                                <label class="form-check-label text-primary"><i class="bi bi-person me-1"></i>Customer</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="uploadType" value="Vendor"
+                                       @onchange="@(() => OnUploadTypeChanged("Vendor"))"
+                                       checked="@(uploadType == "Vendor")" />
+                                <label class="form-check-label text-warning"><i class="bi bi-truck me-1"></i>Vendor</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="uploadType" value="Staff"
+                                       @onchange="@(() => OnUploadTypeChanged("Staff"))"
+                                       checked="@(uploadType == "Staff")" />
+                                <label class="form-check-label text-info"><i class="bi bi-person me-1"></i>Staff</label>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="col-md-6">
+                        <div class="mb-2 fw-bold">Upload File</div>
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            @if (!string.IsNullOrWhiteSpace(uploadType))
+                            {
+                                <label class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-upload"></i> Choose File
+                                    <InputFile OnChange="HandleFileSelected" class="d-none" accept=".xlsx,.xls,.xlsm" />
+                                </label>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-secondary btn-sm" disabled>
+                                    <i class="bi bi-upload me-2"></i> Choose File
+                                    <span class="text-muted small">(xlsx / xls/ xlsm)</span>
+                                </button>
+                                <span class="text-danger small">Please choose upload type first.</span>
+                            }
+
+                            <span class="text-muted small">@SelectedFileName</span>
+
+                            @if (SheetNames?.Count > 0)
+                            {
+                                <select class="form-select form-select-sm w-auto" @onchange="OnSelectedSheetChanged">
+                                    <option disabled value="">--Select Sheet--</option>
+                                    @foreach (var sheet in SheetNames)
+                                    {
+                                        <option value="@sheet" selected="@(sheet == SelectedSheet)">
+                                            @sheet
+                                        </option>
+                                    }
+                                </select>
+                            }
+                        </div>
+                    </div>
+
+                </div>
+                <hr />
+                <div class="text-muted mb-2">Selected Upload Type: <strong>@uploadType</strong></div>
+
+                @if (excelData.Count > 0)
+                {
+                    <div class="table-responsive" style="max-height: 400px;">
+                        <table class="table table-bordered table-striped table-sm text-center" style="table-layout: fixed; width: 100%;">
+                            <thead class="table-primary" style="position: sticky; top: 0; z-index: 1;">
+                                @switch (uploadType)
+                                {
+                                    case "Customer":
+
+                                        <tr>
+                                            <th style="width: 200px; font-size: 13px;">CustomerName</th>
+                                            <th style="width: 250px; font-size: 13px;">CustomerAddress</th>
+                                            <th style="width: 150px; font-size: 13px;">BusinessType</th>
+                                            <th style="width: 150px; font-size: 13px;">GST No.</th>
+                                            <th style="width: 150px; font-size: 13px;">StateName</th>
+                                            <th style="width: 100px; font-size: 13px;">PinCode</th>
+                                            <th style="width: 150px; font-size: 13px;">Currency Name</th>
+                                            <th style="width: 150px; font-size: 13px;">Location</th>
+                                            <th style="width: 100px; font-size: 13px;">Distance</th>
+                                            <th style="width: 180px; font-size: 13px;">Customer SupplyType</th>
+                                            <th style="width: 150px; font-size: 13px;">VenderCode</th>
+                                            <th style="width: 150px; font-size: 13px;">Contact No.</th>
+                                            <th style="width: 150px; font-size: 13px;">Opening Balance</th>
+                                            <th style="width: 180px; font-size: 13px;">Email</th>
+                                            <th style="width: 180px; font-size: 13px;">Remark</th>
+                                            <th style="width: 120px; font-size: 13px;">Scope</th>
+                                            <th style="width: 200px; font-size: 13px;">BankDetails</th>
+                                        </tr>
+                                        break;
+                                    case "Vendor":
+                                        <tr>
+                                            <th style="width: 200px; font-size: 13px;">VendorName/SupplierName</th>
+                                            <th style="width: 250px; font-size: 13px;">Vendor/Supplier Address</th>
+                                            <th style="width: 150px; font-size: 13px;">BusinessType</th>
+                                            <th style="width: 150px; font-size: 13px;">GST No.</th>
+                                            <th style="width: 150px; font-size: 13px;">StateName</th>
+                                            <th style="width: 100px; font-size: 13px;">PinCode</th>
+                                            <th style="width: 150px; font-size: 13px;">Location</th>
+                                            <th style="width: 100px; font-size: 13px;">Distance</th>
+                                            <th style="width: 150px; font-size: 13px;">Currency</th>
+                                            <th style="width: 150px; font-size: 13px;">Contact No.</th>
+                                            <th style="width: 150px; font-size: 13px;">Opening Balance</th>
+                                            <th style="width: 180px; font-size: 13px;">Email</th>
+                                            <th style="width: 150px; font-size: 13px;">Bank Name</th>
+                                            <th style="width: 180px; font-size: 13px;">Bank Account No.</th>
+                                            <th style="width: 180px; font-size: 13px;">Bank IFSC Code</th>
+                                            <th style="width: 180px; font-size: 13px;">Bank Branch Name</th>
+                                            <th style="width: 150px; font-size: 13px;">Remarks</th>
+                                            <th style="width: 150px; font-size: 13px;">Country</th>
+                                            <th style="width: 150px; font-size: 13px;">Tax Validatation</th>
+                                            <th style="width: 200px; font-size: 13px;">TermsAndCondition</th>
+                                        </tr>
+                                        break;
+                                    case "Item":
+                                        <tr>
+                                            <th style="width: 180px; font-size: 13px;">Item Code / Part No.</th>
+                                            <th style="width: 250px; font-size: 13px;">Item Descriptions</th>
+                                            <th style="width: 150px; font-size: 13px;">Type</th>
+                                            <th style="width: 150px; font-size: 13px;">Category</th>
+                                            <th style="width: 150px; font-size: 13px;">MeasureUnit</th>
+                                            <th style="width: 150px; font-size: 13px;">PurchaseUnit</th>
+                                            <th style="width: 150px; font-size: 13px;">HSN Code</th>
+                                            <th style="width: 120px; font-size: 13px;">Rate</th>
+                                            <th style="width: 150px; font-size: 13px;">Alternative Rate</th>
+                                            <th style="width: 150px; font-size: 13px;">SAC Code</th>
+                                            <th style="width: 150px; font-size: 13px;">Shapes</th>
+                                            <th style="width: 150px; font-size: 13px;">Material</th>
+                                            <th style="width: 150px; font-size: 13px;">Mtl.Grade</th>
+                                            <th style="width: 120px; font-size: 13px;">Density</th>
+                                            <th style="width: 120px; font-size: 13px;">Outer Dia</th>
+                                            <th style="width: 120px; font-size: 13px;">Length</th>
+                                            <th style="width: 120px; font-size: 13px;">Inner Dia</th>
+                                            <th style="width: 120px; font-size: 13px;">Width</th>
+                                            <th style="width: 120px; font-size: 13px;">Thickness</th>
+                                            <th style="width: 120px; font-size: 13px;">Height</th>
+                                            <th style="width: 150px; font-size: 13px;">WallThickness</th>
+                                            <th style="width: 120px; font-size: 13px;">RM Wt.</th>
+                                            <th style="width: 200px; font-size: 13px;">Specification</th>
+                                            <th style="width: 200px; font-size: 13px;">Remark</th>
+                                            <th style="width: 150px; font-size: 13px;">Make</th>
+                                            <th style="width: 150px; font-size: 13px;">Total Area</th>
+                                            <th style="width: 150px; font-size: 13px;">Drawing</th>
+                                        </tr>
+                                        break;
+                                    case "Staff":
+                                        <tr>
+                                            <th style="width: 200px; font-size: 13px;">EmployeeID</th>
+                                            <th style="width: 250px; font-size: 13px;">StaffName</th>
+                                            <th style="width: 150px; font-size: 13px;">Gender</th>
+                                            <th style="width: 150px; font-size: 13px;">Date Of Birth</th>
+                                            <th style="width: 100px; font-size: 13px;">Designation</th>
+                                            <th style="width: 150px; font-size: 13px;">Department</th>
+                                            <th style="width: 100px; font-size: 13px;">DOJ</th>
+                                            <th style="width: 150px; font-size: 13px;">PhoneNo</th>
+                                            <th style="width: 150px; font-size: 13px;">PresentAddr</th>
+                                            <th style="width: 150px; font-size: 13px;">RelationType</th>
+                                            <th style="width: 150px; font-size: 13px;">RelationName</th>
+                                            <th style="width: 180px; font-size: 13px;">City</th>
+                                            <th style="width: 150px; font-size: 13px;">Reporting To</th>
+                                            <th style="width: 150px; font-size: 13px;">Status</th>
+                                            <th style="width: 180px; font-size: 13px;">Email</th>
+                                            <th style="width: 180px; font-size: 13px;">BloodGroup</th>
+                                        </tr>
+                                        break;
+                                }
+                            </thead>
+
+                            <tbody>
+                                @if (processedRows != null && processedRows.Any())
+                                {
+                                    foreach (var row in processedRows)
+                                    {
+                                        <tr>
+                                            @foreach (var header in headers)
+                                            {
+                                                var error = row.Errors.FirstOrDefault(e =>
+                                                e.StartsWith(header + "|", StringComparison.OrdinalIgnoreCase));
+
+                                                var value = row.Data.ContainsKey(Clean(header))
+                                                ? row.Data[Clean(header)]
+                                                : "";
+                                                if (header != "Drawing Image")
+                                                {
+                                                    <td style="font-size:13px;" class="@(error != null ? "table-danger" : "")">
+                                                        <div>@value</div>
+
+                                                        @if (error != null)
+                                                        {
+                                                            <div style="color:red;font-size:11px;">
+                                                                @error.Split('|')[1]
+                                                            </div>
+                                                        }
+                                                    </td>
+                                                }
+                                                else
+                                                {
+                                                    <td>
+                                                        @{
+                                                            var itemcode = row.Data.ContainsKey(Clean("Item Code / Part No.")) ? row.Data[Clean("Item Code / Part No.")] : "";
+                                                            var img = itemImagesMap.ContainsKey(itemcode) ? itemImagesMap[itemcode] : null;
+                                                            @if (img != null)
+                                                            {
+                                                                var base64 = Convert.ToBase64String(img);
+                                                                var src = $"data:image/png;base64,{base64}";
+
+                                                                <img src="@src" style="width:50px;height:50px;margin:2px;" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <div style="font-size:11px;">No image found</div>
+                                                            }
+                                                        }
+                                                    </td>
+                                                }
+                                            }
+
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="@headers.Count" class="text-center text-muted">
+                                            No data available.
+                                        </td>
+                                    </tr>
+                                }
+
+                            </tbody>
+                        </table>
+                    </div>
+
+                }
+                <div class="d-flex justify-content-end mb-3">
+                    <div class="d-flex flex-column align-items-end">
+                        <label class="fw-bold mb-2">Download Sample Template</label>
+                        <a class="btn btn-outline-success btn-sm"
+                           href="_content/V.SMART.Shared/templates/MasterTemplate.xlsm"
+                           download="MasterTemplate.xlsm">
+                            <i class="bi bi-download"></i> Download Excel Template
+                        </a>
+                    </div>
+                </div>
+                <div class="alert alert-info shadow-sm mt-2 mb-3">
+                    <h5 class="fw-bold"><i class="bi bi-info-circle-fill text-primary me-2"></i>Master Upload Instructions</h5>
+                    <ul class="mb-0">
+                        <li>Download the correct <strong>template</strong> file before uploading.</li>
+                        <li>Only Excel files (<code>.xlsm</code>, <code>.xlsx</code>) are allowed.</li>
+                        <li>Do not change the column headers in the template.</li>
+                        <li>Fill in required data and save the file locally.</li>
+                        <li>First, select the <strong>Upload Type</strong>, (Customer / Item / Vendor).</li>
+                        <li>Choose the appropriate <strong>Excel file</strong> based on the selected <strong>Upload Type</strong> (Customer / Item / Vendor).</li>
+                        <li>Ensure all mandatory fields are filled. Rows with missing lookup values (e.g., Currency, Category) will be skipped.</li>
+                        <li>Check the preview and errors (if any) before final save.</li>
+                    </ul>
+                </div>
+
+                <button class="btn btn-sm btn-primary px-3 py-1 mt-3" @onclick="@(() => HandleUpsert())" disabled="@(processedRows.Any(r => r.Errors?.Any() == true))">
+                    <i class="bi bi-floppy2-fill me-1"></i> Save ( @excelData.Count record@(excelData.Count == 1 ? "" : "s") )
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+
+    protected override string ScreenName => "Master Upload";
+    private bool isProcessing = true;
+    private List<string> SheetNames = new();
+    private string SelectedSheet;
+    private string uploadType = "";
+    private List<string> headers = new();
+    private List<List<string>> excelData = new();
+    private string SelectedFileName = "No file chosen";
+
+    private Customer Customer { get; set; } = new Customer();
+    private Vendor Vendor { get; set; } = new Vendor();
+    private Currency Currency { get; set; } = new Currency();
+
+
+
+    private int errorsCount = 0;
+
+    private Item Item { get; set; } = new Item();
+    private List<Customer> CustomerList = new();
+    private List<ExcelRowData> processedRows = new();
+    private IBrowserFile uploadedFile;
+
+
+    //Drawing Image Upload files
+    //Sathish
+    Dictionary<string, byte[]> itemImagesMap = new Dictionary<string, byte[]>();
+    private List<Item> UploadedItems = new List<Item>();
+    private string createdBy = "";
+
+    private List<PageHeader.BreadcrumbItem> masterUploadBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "General" },
+        new PageHeader.BreadcrumbItem { Text = "Master Upload", IsLast = true }
+    };
+
+    private string Clean(string value)
+    {
+        return value?.ToLower()
+            .Replace(" ", "")
+            .Replace(".", "")
+            .Replace(",", "")
+            .Replace("/", "") ?? "";
+    }
+
+    private Dictionary<string, string> CustomerPropertyHeaderMap = new()
+    {
+        { "CustName", "CustomerName" },
+        { "CustAddr", "CustomerAddress" },
+        { "BusiType", "BusinessType" },
+        { "GSTNo", "GST No." },
+        { "StateName", "StateName" },
+        { "PinCode", "PinCode" },
+        { "Location", "Location" },
+        { "Distance", "Distance" },
+        { "SupTyp", "Customer SupplyType" },
+        { "VendorCode", "VendorCode" },
+        { "ContactNo", "Contact No." },
+        { "OpenBal", "Opening Balance" },
+        { "Email", "Email" },
+        { "Remark", "Remark" },
+        { "Scope", "Scope" },
+        { "BankDetails", "BankDetails" }
+    };
+    private Dictionary<string, string> VendorPropertyHeaderMap = new()
+    {
+        { "VendorName", "VendorName/SupplierName" },
+        { "VendorAddress", "Vendor/Supplier Address" },
+        { "BusiType", "BusinessType" },
+        { "GSTNo", "GST No." },
+        { "StateName", "StateName" },
+        { "PinCode", "PinCode" },
+        { "Location", "Location" },
+        { "Distance", "Distance" },
+        { "CurrencyName", "Currency Name" },
+        { "ContactNo", "Contact No." },
+        { "OpenBal", "Opening Balance" },
+        { "Email", "Email" },
+        { "BankName", "Bank Name" },
+        { "BankAccountNo", "Bank Account No." },
+        { "BankIFSCCode", "Bank IFSC Code" },
+        { "BankBranchName", "Bank Branch Name" },
+        { "Remarks", "Remarks" },
+        { "Country", "Country" },
+        { "TaxValidate", "Tax Validatation" },
+        { "TermsAndCondition", "TermsAndCondition" }
+    };
+    private Dictionary<string, string> ItemPropertyHeaderMap = new()
+    {
+        { "ItemCode", "Item Code / Part No." },
+        { "ItemName", "Item Descriptions" },
+        { "BtOtorMfg", "Type" },
+        { "CategoryCode", "Category" },
+        { "MeasureUnit", "MeasureUnit" },
+        { "PurchaseUnit", "PurchaseUnit" },
+        { "HSNCode", "HSN Code" },
+        { "Rate", "Rate" },
+        { "AltRate", "Alternative Rate" },
+        { "SACCode", "SAC Code" },
+        { "Shapes", "Shapes" },
+        { "Material", "Material" },
+        { "Density", "Density" },
+        { "OuterDia", "Outer Dia" },
+        { "Length", "Length" },
+        { "InnerDia", "Inner Dia" },
+        { "Width", "Width" },
+        { "Thickness", "Thickness" },
+        { "Height", "Height" },
+        { "WallThickness", "WallThickness" },
+        { "Weight", "RM Wt." },
+        { "Specification", "Specification" },
+        { "Remarks", "Remark" },
+        { "Make", "Make" }
+    };
+    private Dictionary<string, string> StaffPropertyHeaderMap = new() //sbm
+     {
+        { "StaffRefId", "EmployeeID" },
+        { "StaffName", "StaffName" },
+        { "Gender", "Gender" },
+        { "DOB", "Date Of Birth" },
+        { "Designation", "Designation" },
+        { "Department", "Department" },
+        { "DOJ", "DOJ" },
+        { "PhoneNo", "PhoneNo" },
+        { "PresentAddr", "PresentAddr" },
+        { "RelationType", "RelationType" },
+        { "RelationName", "RelationName" },
+        { "City", "City" },
+        { "Reporting", "Reporting To" },
+        { "Status", "Status" },
+        { "Gmail", "Email" },
+        { "BloodGroup", "BloodGroup" },
+      };
+
+    private async Task OnSelectedSheetChanged(ChangeEventArgs e)
+    {
+        try
+        {
+
+            SelectedSheet = e.Value?.ToString();
+
+            if (!uploadType.StartsWith(SelectedSheet, StringComparison.OrdinalIgnoreCase))
+            {
+                await _js.ToastrError("Upload type and selected sheet name mismatched");
+                return;
+            }
+
+            if (uploadedFile != null && !string.IsNullOrEmpty(SelectedSheet))
+            {
+                await ProcessExcelUploadAsync(uploadedFile);
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await _loggingService.LogDeveloperError(ex, "Error in MasterUpload on  OnSelectedSheetChanged event");
+        }
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, "Error in MasterUpload OnInitializedAsync");
+        }
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            uploadedFile = e.File;
+            if (uploadedFile != null)
+            {
+                SelectedFileName = uploadedFile.Name;
+                await ProcessExcelUploadAsync(uploadedFile);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, "Error in MasterUpload HandleFileSelected");
+            await _js.ToastrError("An unexpected error occurred while uploading the file.");
+        }
+    }
+
+    private decimal ConvertToDecimal(string input)
+    {
+        return decimal.TryParse(input, out var value) ? value : 0;
+    }
+
+    private int? ConvertToNullableInt(string input)
+    {
+        return int.TryParse(input, out var value) ? value : (int?)null;
+    }
+
+    private async Task HandleUpsert()
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+
+            await _loggingService.LogDeveloperError(ex, "Error in MasterUpload HandleUpsert event changed");
+        }
+    }
+
+    private async Task confirmUpsert_Click(bool isConfirmed)
+    {
+        try
+        {
+
+            isProcessing = true;
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed)
+            {
+                switch (uploadType)
+                {
+                    case "Customer":
+                        await _unitOfWork.SaveAsync();
+
+                        await _loggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress, screen: "Master Upload", action: $"Customer Master Uploaded",
+                        additionalInfo: $"Customer Master Uploaded");
+                        await _js.ToastrSuccess("Customer records saved successfully");
+                        _navigationManager.NavigateTo("/customer");
+                        break;
+
+                    case "Item":
+                        await _unitOfWork.SaveAsync();
+
+                        //Sathish
+                        foreach (var item in UploadedItems)
+                        {
+                            // Try get the tuple (RelativePath, FullPath) from dictionary
+                            // Check if Excel has an image for this item
+                            if (itemImagesMap.TryGetValue(item.ItemCode, out var imageBytes))
+                            {
+                                // Save to server folder or DB
+                                var (relativePath, fullpath) = await corresFile.SaveFileAsync(imageBytes, $"{item.ItemCode}.png", "Item", "Drawing");
+                                var correspondence = new Correspondence
+                                {
+                                    FileName = $"{item.ItemCode}.png",
+                                    FilePath = relativePath,
+                                    FileSize = imageBytes.Length.ToString(),
+                                    FileType = ".png",
+                                    UploadedOn = DateTime.Now,
+                                    UploadedBy = createdBy,
+                                    ReferenceType = "Item",
+                                    ReferenceTypeName = item.ItemCode,
+                                    ReferenceId = item.ItemId,
+                                    DocumentType = "Drawing",
+                                    Remarks = "Uploaded from Excel",
+                                    Image = imageBytes
+                                };
+
+                                await _unitOfWork.Correspondances.CreateAsync(correspondence);
+                            }
+                        }
+                        await _unitOfWork.SaveAsync();
+                        await _loggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress, screen: "Master Upload", action: $"Item Master Uploaded",
+                        additionalInfo: $"Item Master Uploaded");
+                        await _js.ToastrSuccess("Item records saved successfully");
+                        _navigationManager.NavigateTo("/itemList");
+                        break;
+
+                    case "Vendor":
+                        await _unitOfWork.SaveAsync();
+                        await _loggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress, screen: "Master Upload", action: $"Vendor Master Uploaded",
+                        additionalInfo: $"Vendor Master Uploaded");
+                        await _js.ToastrSuccess("Vendor records saved successfully");
+                        _navigationManager.NavigateTo("/vendor");
+                        break;
+
+                    case "Staff": 
+                        await _unitOfWork.SaveAsync();
+                        await _loggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress, screen: "Master Upload", action: $"Staff Master Uploaded",
+                        additionalInfo: $"Staff Master Uploaded");
+                        await _js.ToastrSuccess("Staff records saved successfully");
+                        _navigationManager.NavigateTo("/Staff");
+                        break;
+                }
+
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await _loggingService.LogDeveloperError(ex, "Error in MasterUpload confirmUpsert_Click event changed");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void OnUploadTypeChanged(string type)
+    {
+
+        uploadType = type;
+        LoadDataForType(uploadType);
+    }
+
+    private async Task LoadDataForType(string type)
+    {
+
+        try
+        {
+            excelData.Clear();
+            processedRows.Clear();
+            switch (type)
+            {
+
+                case "Item":
+
+
+                    if (uploadType == SelectedSheet)
+                    {
+                        SelectedSheet = "";
+                        await ProcessExcelUploadAsync(uploadedFile);
+                        await OnSelectedSheetChanged(new ChangeEventArgs { Value = SelectedSheet });
+                    }
+                    break;
+
+                case "Customer":
+                    if (uploadType == SelectedSheet)
+                    {
+                        SelectedSheet = "";
+                        await ProcessExcelUploadAsync(uploadedFile);
+                        await OnSelectedSheetChanged(new ChangeEventArgs { Value = SelectedSheet });
+                    }
+                    break;
+
+                case "Vendor":
+                    if (uploadType == SelectedSheet)
+                    {
+                        SelectedSheet = "";
+                        await ProcessExcelUploadAsync(uploadedFile);
+                        await OnSelectedSheetChanged(new ChangeEventArgs { Value = SelectedSheet });
+                    }
+                    break;
+                case "Staff": //sbm
+                    if (uploadType == SelectedSheet)
+                    {
+                        SelectedSheet = "";
+                        await ProcessExcelUploadAsync(uploadedFile);
+                        await OnSelectedSheetChanged(new ChangeEventArgs { Value = SelectedSheet });
+                    }
+                    break;
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await _loggingService.LogDeveloperError(ex, "Error in MasterUpload LoadDataForType Method changed");
+        }
+    }
+
+    private string GetValue(string columnName, List<string> rowData, Dictionary<string, int> columnIndex)
+    {
+        var key = Clean(columnName);
+
+        if (columnIndex.TryGetValue(key, out int index))
+        {
+            if (index < rowData.Count)
+                return rowData[index]?.Trim() ?? "";
+        }
+
+        return "";
+    }
+
+    private async Task ProcessExcelUploadAsync(IBrowserFile file)
+    {
+        try
+        {
+            if (file != null)
+            {
+                SelectedFileName = file.Name;
+
+                using var stream = file.OpenReadStream(10_000_000);
+                using var memoryStream = new MemoryStream();
+                await stream.CopyToAsync(memoryStream);
+                memoryStream.Position = 0;
+
+                System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+                using var reader = ExcelReaderFactory.CreateReader(memoryStream);
+                var result = reader.AsDataSet();
+
+                // Filter out Sheet1 and Sheet2
+                SheetNames = result.Tables
+                    .Cast<DataTable>()
+                    .Select(t => t.TableName)
+                    .Where(name => !string.Equals(name, "Sheet1", StringComparison.OrdinalIgnoreCase) &&
+                                   !string.Equals(name, "Sheet2", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                // Auto-select sheet based on uploadType if none selected
+                if (string.IsNullOrEmpty(SelectedSheet))
+                {
+                    SelectedSheet = uploadType?.ToLower() switch
+                    {
+                        "customer" => SheetNames.FirstOrDefault(s => s.ToLower().Contains("customer")),
+                        "item" => SheetNames.FirstOrDefault(s => s.ToLower().Contains("item")),
+                        "vendor" => SheetNames.FirstOrDefault(s => s.ToLower().Contains("vendor")),
+                        _ => null
+                    };
+                }
+
+                if (string.IsNullOrEmpty(SelectedSheet))
+                {
+                    await _js.ToastrError("No matching sheet found for selected upload type.");
+                    return;
+                }
+
+                var table = result.Tables[SelectedSheet];
+
+                headers = table.Rows[0].ItemArray.Select(x => x?.ToString()?.Trim() ?? "").ToList();
+
+                Dictionary<string, int> columnIndex = headers.Select((name, index) => new { name, index })
+                .ToDictionary(x => Clean(x.name), x => x.index);
+
+                var normalizedHeaders = headers.Select(Clean).ToList();
+
+                List<string> missingHeaders = uploadType switch
+                {
+                    "Customer" => CustomerPropertyHeaderMap
+                                    .Where(h => !normalizedHeaders.Contains(Clean(h.Value))) // use .Value here
+                                    .Select(h => h.Value) // return the header name
+                                    .ToList(),
+
+                    "Item" => ItemPropertyHeaderMap
+                                    .Where(h => !normalizedHeaders.Contains(Clean(h.Value)))
+                                    .Select(h => h.Value)
+                                    .ToList(),
+
+                    "Vendor" => VendorPropertyHeaderMap
+                                    .Where(h => !normalizedHeaders.Contains(Clean(h.Value)))
+                                    .Select(h => h.Value)
+                                    .ToList(),
+                    "Staff" => StaffPropertyHeaderMap
+                                    .Where(h => !normalizedHeaders.Contains(Clean(h.Value)))
+                                    .Select(h => h.Value)
+                                    .ToList(),
+
+                    _ => new List<string>()
+                };
+
+
+                if (missingHeaders.Any())
+                {
+                    await _js.ToastrError($"Missing {uploadType} headers: {string.Join(", ", missingHeaders)}");
+                    return;
+                }
+
+                excelData.Clear();
+                processedRows.Clear();
+
+                for (int i = 1; i < table.Rows.Count; i++)
+                {
+                    var row = table.Rows[i];
+                    var rowData = row.ItemArray.Select(x => x?.ToString() ?? "").ToList();
+                    excelData.Add(rowData);
+                }
+                if (excelData != null && excelData.Count > 0)
+                {
+                    int rowIndex = 0;
+                    string createdBy = await _userService.GetUsernameAsync();
+                    bool isDuplicate = false;
+                    string gst = "", CurrName = "", type = "", hsn = "", catCode = "", sac = "";
+                    int? rmId = null;
+
+                    //Sathish
+                    if (uploadType == "Item")
+                    {
+                        using var stream1 = file.OpenReadStream(50 * 1024 * 1024); // 50MB
+                        using var memoryStream1 = new MemoryStream();
+                        await stream1.CopyToAsync(memoryStream1);   // ✅ async copy
+                        memoryStream1.Position = 0;                // ✅ VERY IMPORTANT
+                        itemImagesMap = await _excelTemplateService.ExtractImagesFromExcelAsync(memoryStream1, SelectedSheet);
+                    }
+
+                    foreach (var data in excelData)
+                    {
+                        var row = new ExcelRowData { RowIndex = rowIndex };
+                        // Extract values from data and store for debugging/highlighting
+                        foreach (var key in columnIndex.Keys)
+                            row.Data[key] = GetValue(key, data, columnIndex);
+
+                        switch (uploadType)
+                        {
+
+                            case "Customer":
+
+                                //GetCurrency and CurrId
+                                CurrName = GetValue("Currency Name", data, columnIndex);
+                                gst = GetValue("GST No.", data, columnIndex);
+                                Currency existingCurrency = await EnsureCurrencyExists(CurrName.Trim());
+
+                                async Task<Currency> EnsureCurrencyExists(string CurrName)
+                                {
+                                    if (string.IsNullOrWhiteSpace(CurrName))
+                                        return null;
+
+                                    var currency = await _unitOfWork.Currencyis.FirstOrDefaultAsync(r => r.CurrName == CurrName);
+
+                                    if (currency == null)
+                                    {
+                                        currency = new Currency { CurrName = CurrName, CurrSub = ".", Symbol = "*" };
+                                        await _unitOfWork.Currencyis.CreateAsync(currency);
+                                        await _unitOfWork.SaveAsync();
+                                        await _loggingService.LogUserAction(UserName: await _currentUserService.GetUsernameAsync(),
+                                                Machine: _userService.MachineName,
+                                                IP_Address: _userService.IpAddress,
+                                                screen: "Master Upload",
+                                                action: $"While Uploading Created Currency",
+                                                additionalInfo: $"CurrencuName: {CurrName}");
+                                    }
+
+                                    return currency;
+                                }
+
+                                //Get StateName and StatId
+                                string StateName = GetValue("StateName", data, columnIndex);
+                                State existingState = await EnsureStateExists(StateName.Trim());
+
+                                async Task<State> EnsureStateExists(string statename)
+                                {
+                                    if (string.IsNullOrWhiteSpace(statename.Trim()))
+                                        return null;
+
+                                    var state = await _unitOfWork.States.FirstOrDefaultAsync(s => s.StateName == statename.Trim());
+
+                                    if (state == null)
+                                    {
+                                        state = new State { StateName = statename.Trim() };
+                                        await _unitOfWork.States.CreateAsync(state);
+                                        await _unitOfWork.SaveAsync();
+                                        await _loggingService.LogUserAction(UserName: await _currentUserService.GetUsernameAsync(),
+                                                Machine: _userService.MachineName,
+                                                IP_Address: _userService.IpAddress,
+                                                screen: "Master Upload",
+                                                action: $"While Uploading Created StateName",
+                                                additionalInfo: $"StateName: {statename}");
+                                    }
+
+                                    return state;
+                                }
+
+                                var customer = new Customer
+                                {
+                                    CustName = GetValue("CustomerName", data, columnIndex).Trim(),
+                                    CustAddr = GetValue("CustomerAddress", data, columnIndex),
+                                    BusiType = GetValue("BusinessType", data, columnIndex),
+                                    GSTNo = gst,
+                                    StateName = existingState.StateName,
+                                    StateId = existingState?.StateCode ?? 0,
+                                    PinCode = GetValue("PinCode", data, columnIndex),
+                                    CurrId = existingCurrency?.CurrId ?? 1,
+                                    Location = GetValue("Location", data, columnIndex),
+                                    Distance = float.TryParse(GetValue("Distance", data, columnIndex), out float dist) ? dist : 0f,
+                                    SupTyp = GetValue("Customer SupplyType", data, columnIndex),
+                                    PANNo = !string.IsNullOrWhiteSpace(gst) && gst.Length == 15 ? gst.Substring(2, 10) : "",
+                                    VendorCode = GetValue("VendorCode", data, columnIndex),
+                                    ContactNo = GetValue("Contact No.", data, columnIndex),
+                                    OpenBal = decimal.TryParse(GetValue("Opening Balance", data, columnIndex), out var ob) ? ob : 0m,
+                                    Email = string.IsNullOrWhiteSpace(GetValue("Email", data, columnIndex)) ? "xyz@gmail.com" : GetValue("Email", data, columnIndex),
+                                    Remark = GetValue("Remark", data, columnIndex),
+                                    Scope = GetValue("Scope", data, columnIndex),
+                                    BankDetails = GetValue("BankDetails", data, columnIndex),
+                                    CreatedBy = createdBy,
+                                    CreatedDate = DateTime.Now,
+                                };
+
+
+                                var validationContext = new ValidationContext(customer);
+                                var results = new List<ValidationResult>();
+
+                                if (!Validator.TryValidateObject(customer, validationContext, results, true))
+                                {
+                                    foreach (var error in results)
+                                    {
+                                        var member = error.MemberNames.FirstOrDefault();
+
+                                        if (member != null && CustomerPropertyHeaderMap.ContainsKey(member))
+                                        {
+                                            var header = CustomerPropertyHeaderMap[member];
+                                            row.Errors.Add($"{header}|{error.ErrorMessage}");
+                                        }
+                                        else
+                                        {
+                                            row.Errors.Add(error.ErrorMessage);
+                                        }
+                                    }
+                                }
+
+                                processedRows.Add(row);
+
+                                if (row.Errors.Any())
+                                    continue;
+
+                                isDuplicate = await _unitOfWork.Customers.ExistsByNameAsync("CustName", GetValue("CustomerName", data, columnIndex).Trim(), "CustId", null);
+                                if (isDuplicate)
+                                {
+                                    continue;
+                                }
+
+                                await _unitOfWork.Customers.CreateAsync(customer);
+                                break;
+
+                            case "Item":
+
+                                type = GetValue("Type", data, columnIndex);
+                                catCode = GetValue("Category", data, columnIndex);
+                                hsn = GetValue("HSN Code", data, columnIndex);
+                                sac = GetValue("SAC Code", data, columnIndex).ToString();
+
+
+                                var existingCategory = await EnsureCategoryExists(catCode.Trim());
+                                var existingHSN = await EnsureHsnExists(hsn.Trim());
+                                var existingSAC = await EnsureHsnExists(sac.Trim());
+
+                                var rawMaterialName = GetValue("Material", data, columnIndex);
+
+                                if (!string.IsNullOrEmpty(rawMaterialName))
+                                {
+                                    var existingRawMat = await EnsureRawMaterialExists(rawMaterialName.Trim());
+                                    rmId = existingRawMat.RMId;
+                                }
+                                else
+                                {
+                                    rmId = null;
+                                }
+
+
+                                async Task<Category> EnsureCategoryExists(string Category)
+                                {
+                                    if (string.IsNullOrWhiteSpace(Category))
+                                        return null;
+
+                                    var cate = await _unitOfWork.Categories.FirstOrDefaultAsync(s => s.CategoryName == Category.Trim());
+
+                                    if (cate == null)
+                                    {
+                                        cate = new Category { CategoryName = Category.Trim() };
+                                        await _unitOfWork.Categories.CreateAsync(cate);
+                                        await _unitOfWork.SaveAsync(); // Save changes
+                                        await _loggingService.LogUserAction(UserName: await _currentUserService.GetUsernameAsync(),
+                                                    Machine: _userService.MachineName,
+                                                    IP_Address: _userService.IpAddress,
+                                                    screen: "Master Upload",
+                                                    action: $"While Uploading Created Category",
+                                                    additionalInfo: $"CategoryName: {Category.Trim()}");
+                                    }
+
+                                    return cate;
+                                }
+                                async Task<HSNMaster> EnsureHsnExists(string HSN)
+                                {
+                                    if (string.IsNullOrWhiteSpace(HSN))
+                                        return null;
+
+                                    var code = await _unitOfWork.HSNMasters.FirstOrDefaultAsync(s => s.HSNcode == HSN.Trim());
+
+                                    if (code == null && !string.IsNullOrWhiteSpace(HSN))
+                                    {
+                                        var trimmedHsn = HSN.Trim();
+
+                                        code = new HSNMaster
+                                        {
+
+                                            HSNcode = trimmedHsn,
+                                            HSNCategoryCode = trimmedHsn.Substring(0, 2),
+                                            Required = false,
+                                            HSNCategory = ""
+                                        };
+
+                                        await _unitOfWork.HSNMasters.CreateAsync(code);
+                                        await _unitOfWork.SaveAsync();   // Save changes to DB
+
+                                        var userName = await _currentUserService.GetUsernameAsync();
+
+                                        await _loggingService.LogUserAction(
+                                            UserName: userName,
+                                            Machine: _userService.MachineName,
+                                            IP_Address: _userService.IpAddress,
+                                            screen: "Master Upload",
+                                            action: "Created HSN Code while uploading",
+                                            additionalInfo: $"HSN Code: {trimmedHsn}"
+                                        );
+                                    }
+                                    return code;
+                                }
+
+                                async Task<RawMaterial> EnsureRawMaterialExists(string rawMat)
+                                {
+                                    if (string.IsNullOrWhiteSpace(rawMat))
+                                        return null;
+
+                                    var raw = await _unitOfWork.RawMaterial.FirstOrDefaultAsync(s => s.RMName == rawMat.Trim());
+
+                                    if (raw == null)
+                                    {
+                                        raw = new RawMaterial
+                                        {
+                                            RMName = rawMat.Trim(),
+                                            Grade = GetValue("Mtl.Grade", data, columnIndex)
+                                        };
+                                        await _unitOfWork.RawMaterial.CreateAsync(raw);
+                                        await _unitOfWork.SaveAsync(); // Save changes
+                                        await _loggingService.LogUserAction(UserName: await _currentUserService.GetUsernameAsync(),
+                                               Machine: _userService.MachineName,
+                                               IP_Address: _userService.IpAddress,
+                                               screen: "Master Upload",
+                                               action: $"While Uploading Created RawMaterial",
+                                               additionalInfo: $"Rawmaterial: {rawMat}");
+                                    }
+
+                                    return raw;
+                                }
+
+
+                                var uom = string.IsNullOrWhiteSpace(GetValue("MeasureUnit", data, columnIndex)) ? "NOS" : GetValue("MeasureUnit", data, columnIndex).Split('-')[0];
+                                var punit = string.IsNullOrWhiteSpace(GetValue("PurchaseUnit", data, columnIndex)) ? "NOS" : GetValue("PurchaseUnit", data, columnIndex).Split('-')[0];
+
+                                var item = new Item
+                                {
+                                    ItemCode = GetValue("Item Code / Part No.", data, columnIndex).Trim(),
+                                    ItemName = GetValue("Item Descriptions", data, columnIndex),
+                                    BtOtorMfg = type == "Mfg-Manufacturing" ? "Mfg" : "BtOt",
+                                    CategoryCode = existingCategory?.CategoryCode ?? 0,
+                                    MeasureUnit = uom,
+                                    PurchaseUnit = punit,
+                                    HSNCode = existingHSN?.HSNcode ?? "",
+                                    IsServcL = existingHSN?.HSNcode?.StartsWith("99") == true ? "Y" : "N",
+                                    IsServcS = existingSAC?.HSNcode?.StartsWith("99") == true ? "Y" : "N",
+                                    Rate = decimal.TryParse(GetValue("Rate", data, columnIndex), out decimal rate) ? rate : 1,
+                                    AltRate = decimal.TryParse(GetValue("Alternative Rate", data, columnIndex), out decimal altrate) ? altrate : 0,
+                                    SACCode = existingSAC?.HSNcode ?? "",
+                                    Shape = GetValue("Shapes", data, columnIndex),
+                                    RmId = rmId,
+                                    Density = decimal.TryParse(GetValue("Density", data, columnIndex), out decimal density) ? density : 0,
+                                    OuterDia = decimal.TryParse(GetValue("Outer Dia", data, columnIndex), out decimal odia) ? odia : 0,
+                                    Length = decimal.TryParse(GetValue("Length", data, columnIndex), out decimal len) ? len : 0,
+                                    InnerDia = decimal.TryParse(GetValue("Inner Dia", data, columnIndex), out decimal idia) ? idia : 0,
+                                    Width = decimal.TryParse(GetValue("Width", data, columnIndex), out decimal width) ? width : 0,
+                                    Thickness = decimal.TryParse(GetValue("Thickness", data, columnIndex), out decimal thick) ? thick : 0,
+                                    Height = decimal.TryParse(GetValue("Height", data, columnIndex), out decimal height) ? height : 0,
+                                    WallThickness = decimal.TryParse(GetValue("WallThickness", data, columnIndex), out decimal wall) ? wall : 0,
+                                    Weight = decimal.TryParse(GetValue("RM Wt.", data, columnIndex), out decimal weight) ? weight : 0,
+                                    Specification = GetValue("Specification", data, columnIndex),
+                                    Remarks = GetValue("Remark", data, columnIndex),
+                                    Make = GetValue("Make", data, columnIndex),
+                                    CreatedDate = DateTime.Now,
+                                    CreatedBy = createdBy,
+                                    TotalArea = decimal.TryParse(GetValue("Total Area", data, columnIndex), out decimal totalarea) ? totalarea : 0,
+                                };
+
+                                var validationContextItem = new ValidationContext(item);
+                                var resultsItem = new List<ValidationResult>();
+                                // ❌ REMOVE this line from top
+                                // processedRows.Add(row);
+
+                                if (!Validator.TryValidateObject(item, validationContextItem, resultsItem, true))
+                                {
+                                    foreach (var error in resultsItem)
+                                    {
+                                        var member = error.MemberNames.FirstOrDefault();
+
+                                        if (member != null && ItemPropertyHeaderMap.ContainsKey(member))
+                                        {
+                                            var header = ItemPropertyHeaderMap[member];
+                                            row.Errors.Add($"{header}|{error.ErrorMessage}");
+                                        }
+                                        else
+                                        {
+                                            row.Errors.Add(error.ErrorMessage);
+                                        }
+                                    }
+                                }
+
+                                // ❌ If validation errors → stop
+                                if (row.Errors.Any())
+                                {
+                                    processedRows.Add(row);
+                                    continue;
+                                }
+
+                                // 🔍 Duplicate check
+                                isDuplicate = await _unitOfWork.ItemRepositories.ExistsByNameAsync("ItemCode", GetValue("Item Code / Part No.", data, columnIndex).Trim(),
+                                                                                                   "ItemId", null);
+
+                                if (isDuplicate)
+                                {
+                                    // row.Errors.Add("Item already exists"); // optional message
+                                    processedRows.Add(row);
+                                    continue;
+                                }
+
+                                // ✅ Create item
+                                await _unitOfWork.ItemRepositories.CreateAsync(item);
+
+                                // ✅ Add to uploaded list
+                                UploadedItems.Add(item);
+
+                                // ✅ Add row ONLY ONCE
+                                processedRows.Add(row);
+                                break;
+
+                            case "Vendor":
+
+
+                                //Get StateName and StatId
+                                string VendStateName = GetValue("StateName", data, columnIndex);
+                                gst = GetValue("GST No.", data, columnIndex);
+                                State VenexistingState = await EnsureStateExists(VendStateName);
+
+                                Currency VendexistingCurrency = await EnsureVendCurrencyExists(CurrName.Trim());
+
+                                async Task<Currency> EnsureVendCurrencyExists(string CurrName)
+                                {
+                                    if (string.IsNullOrWhiteSpace(CurrName))
+                                        return null;
+
+                                    var currency = await _unitOfWork.Currencyis.FirstOrDefaultAsync(r => r.CurrName == CurrName);
+
+                                    if (currency == null)
+                                    {
+                                        currency = new Currency { CurrName = CurrName, CurrSub = ".", Symbol = "*" };
+                                        await _unitOfWork.Currencyis.CreateAsync(currency);
+                                        await _unitOfWork.SaveAsync();
+                                        await _loggingService.LogUserAction(UserName: await _currentUserService.GetUsernameAsync(),
+                                                Machine: _userService.MachineName,
+                                                IP_Address: _userService.IpAddress,
+                                                screen: "Master Upload",
+                                                action: $"While Uploading Created Currency",
+                                                additionalInfo: $"CurrencuName: {CurrName}");
+                                    }
+                                    return currency;
+                                }
+
+                                var vendor = new Vendor
+                                {
+                                    VendorName = GetValue("VendorName/SupplierName", data, columnIndex).Trim(),
+                                    VendorAddress = GetValue("Vendor/Supplier Address", data, columnIndex),
+                                    BusiType = GetValue("BusinessType", data, columnIndex),
+                                    GSTNo = string.IsNullOrWhiteSpace(gst) ? "" : gst,
+                                    StateName = VenexistingState.StateName,
+                                    StateCode = VenexistingState?.StateCode ?? 0,
+                                    PinCode = GetValue("PinCode", data, columnIndex),
+                                    Location = GetValue("Location", data, columnIndex),
+                                    Distance = float.TryParse(GetValue("Distance", data, columnIndex), out float distance) ? distance : 0f,
+                                    CurrId = VendexistingCurrency?.CurrId ?? 1,
+                                    PANNo = !string.IsNullOrWhiteSpace(gst) && gst.Length == 15 ? gst.Substring(2, 10) : "",
+                                    ContactNo = GetValue("Contact No.", data, columnIndex),
+                                    OpenBal = decimal.TryParse(GetValue("Opening Balance", data, columnIndex), out var obj) ? obj : 0m,
+                                    Email = GetValue("Email", data, columnIndex),
+
+                                    BankName = GetValue("Bank Name", data, columnIndex),
+                                    BankAccountNo = GetValue("Bank Account No.", data, columnIndex),
+                                    BankIFSCCode = GetValue("Bank IFSC Code", data, columnIndex),
+                                    BankBranchName = GetValue("Bank Branch Name", data, columnIndex),
+
+                                    Remarks = GetValue("Bank Branch Name", data, columnIndex),
+                                    Country = GetValue("Country", data, columnIndex),
+                                    TaxValidate = bool.TryParse(GetValue("Tax Validatation", data, columnIndex), out var tax) ? tax : false,
+                                    TermsAndCondition = GetValue("TermsAndCondition", data, columnIndex),
+                                    IsitPurch = true,
+                                    IsitSubCon = true,
+
+                                    CreatedDate = DateTime.Now,
+                                    CreatedBy = createdBy
+                                };
+
+                                var validationContextVendor = new ValidationContext(vendor);
+                                var resultsVendor = new List<ValidationResult>();
+
+                                if (!Validator.TryValidateObject(vendor, validationContextVendor, resultsVendor, true))
+                                {
+                                    foreach (var error in resultsVendor)
+                                    {
+                                        var member = error.MemberNames.FirstOrDefault();
+
+                                        if (member != null && VendorPropertyHeaderMap.ContainsKey(member))
+                                        {
+                                            var header = VendorPropertyHeaderMap[member];
+                                            row.Errors.Add($"{header}|{error.ErrorMessage}");
+                                        }
+                                        else
+                                        {
+                                            row.Errors.Add(error.ErrorMessage);
+                                        }
+                                    }
+                                }
+
+                                processedRows.Add(row);
+
+                                if (row.Errors.Any())
+                                    continue;
+
+                                isDuplicate = await _unitOfWork.Vendors.ExistsByNameAsync("VendorName", GetValue("VendorName/SupplierName", data, columnIndex).Trim(), "VendorCode", null);
+                                if (isDuplicate)
+                                {
+                                    continue;
+                                }
+
+                                await _unitOfWork.Vendors.CreateAsync(vendor);
+                                break;
+                            case "Staff":
+                                {
+                                    DateTime? dob = null;
+
+                                    if (DateTime.TryParse(GetValue("Date Of Birth", data, columnIndex), out DateTime parsedDob))
+                                    {
+                                        dob = parsedDob;
+                                    }
+
+                                    DateTime? doj = null;
+
+                                    if (DateTime.TryParse(GetValue("DOJ", data, columnIndex), out DateTime parsedDoj))
+                                    {
+                                        doj = parsedDoj;
+                                    }
+                                    var staff = new Staff
+                                    {
+                                        StaffRefId = GetValue("EmployeeID", data, columnIndex).Trim(),
+                                        StaffName = GetValue("StaffName", data, columnIndex),
+                                        Gender = GetValue("Gender", data, columnIndex),
+                                        DOB = parsedDob,
+                                        Designation = GetValue("Designation", data, columnIndex),
+                                        Department = GetValue("Department", data, columnIndex),
+                                        DOJ = parsedDoj,
+                                        PhoneNo = GetValue("PhoneNo", data, columnIndex),
+                                        PresentAddr = GetValue("PresentAddr", data, columnIndex),
+                                        RelationType = GetValue("RelationType", data, columnIndex),
+                                        FatherHusbName = GetValue("RelationName", data, columnIndex),
+                                        City = GetValue("City", data, columnIndex),
+                                        Reporting = GetValue("Reporting To", data, columnIndex),
+                                        Status = GetValue("Status", data, columnIndex),
+                                        Gmail = GetValue("Email", data, columnIndex),
+                                        BloodGroup = GetValue("BloodGroup", data, columnIndex),
+                                        CreatedDate = DateTime.Now,
+                                        CreatedBy = createdBy
+                                    };
+                                    var validationContextStaff = new ValidationContext(staff);
+                                    var resultsStaff = new List<ValidationResult>();
+
+                                    if (!Validator.TryValidateObject(staff, validationContextStaff, resultsStaff, true))
+                                    {
+                                        foreach (var error in resultsStaff)
+                                        {
+                                            var member = error.MemberNames.FirstOrDefault();
+
+                                            if (member != null && StaffPropertyHeaderMap.ContainsKey(member))
+                                            {
+                                                var header = StaffPropertyHeaderMap[member];
+                                                row.Errors.Add($"{header}|{error.ErrorMessage}");
+                                            }
+                                            else
+                                            {
+                                                row.Errors.Add(error.ErrorMessage);
+                                            }
+                                        }
+                                    }
+
+                                    processedRows.Add(row);
+
+                                    if (row.Errors.Any())
+                                        continue;
+
+
+
+                                    isDuplicate = await _unitOfWork.Staffs.ExistsByNameAsync("StaffName", GetValue("StaffName", data, columnIndex).Trim(), "StaffId", null);
+                                    if (isDuplicate)
+                                    {
+                                        continue;
+                                    }
+
+                                    await _unitOfWork.Staffs.CreateAsync(staff);
+
+                                }
+                                break;
+                        }
+                        rowIndex++;
+                    }
+                    await _js.ToastrSuccess($"{uploadType} data uploaded successfully.");
+                    await _loggingService.LogUserAction(UserName: await _currentUserService.GetUsernameAsync(),
+                            Machine: _userService.MachineName,
+                            IP_Address: _userService.IpAddress,
+                            screen: "Master Upload",
+                            action: $"{uploadType} data Uploaded Succesfully",
+                            additionalInfo: $"uploadType: {uploadType}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await _loggingService.LogDeveloperError(ex, "Error in MasterUpload on ProcessExcelUploadAsync method");
+        }
+    }
+
+
+}

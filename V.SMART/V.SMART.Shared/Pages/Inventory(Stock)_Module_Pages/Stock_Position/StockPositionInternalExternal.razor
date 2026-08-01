@@ -1,0 +1,987 @@
+﻿@page "/stockPositionInternalExternal"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IStockAddIss_Position
+@using V.SMART.Shared.ViewModels.InventoryViewModel.StockAddVM
+@using System.Dynamic
+@using System.ComponentModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject IStockAddIssPosition _stockPosition
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+
+<style>
+    .scroll-box {
+        height: 200px;
+        overflow-y: auto;
+    }
+
+    .listbox option {
+        padding: 4px;
+    }
+
+    .search-box-list {
+        max-height: 180px;
+        overflow-y: auto;
+        font-family: 'Times New Roman';
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .card-fixed {
+        height: 300px;
+    }
+
+</style>
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+
+    @if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+
+</MasterModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Stock Position(Internal & External)"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@StockPositionInernalBreadcrumbs" />
+            <div class="card-body bg-light">
+                <div class="row g-3">
+                    <!-- CATEGORY -->
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm border-0 card-fixed">
+                            <div class="card-header bg-success text-white fw-bold">
+                                Categories
+                            </div>
+
+                            <div class="card-body">
+
+                                <input class="form-control mb-2"
+                                       placeholder="Search Cagegories..."
+                                       value="@categorySearch"
+                                       @oninput="OnCategorySearchChange" />
+
+                                <div class="list-group search-box-list scroll-box">
+
+                                    @if (FilteredCategories != null && FilteredCategories.Any())
+                                    {
+                                        <!-- ALL Option -->
+                                        <button type="button" class="list-group-item list-group-item-action
+                                                       @(SelectedCategory?.CategoryCode == 0 ? "bg-success text-white fw-bold" : "")"
+                                                @onclick="() => SelectCategory(AllCategory)">
+                                            ALL
+                                        </button>
+
+                                        @foreach (var cat in FilteredCategories)
+                                        {
+                                            <button type="button"
+                                                    class="list-group-item list-group-item-action
+                                                                @(SelectedCategory?.CategoryCode == cat.CategoryCode ? "bg-success text-white fw-bold" : "")"
+                                                    @onclick="() => SelectCategory(cat)">
+                                                @cat.CategoryName
+                                            </button>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div class="text-muted p-2">No Categories Found</div>
+                                    }
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ITEMS -->
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm border-0 card-fixed">
+                            <div class="card-header bg-warning fw-bold">
+                                Items
+                            </div>
+
+                            <div class="card-body">
+
+                                <input class="form-control mb-2"
+                                       placeholder="Search Items..."
+                                       value="@itemSearch"
+                                       @oninput="OnItemSearchChange" />
+
+                                <div class="list-group search-box-list scroll-box">
+
+                                    <!-- ALL checkbox -->
+                                    <label class="list-group-item align-items-center">
+                                        <input type="checkbox"
+                                               class="form-check-input me-2"
+                                               @onchange="ToggleAll" />
+                                        ALL
+                                    </label>
+
+                                    @foreach (var item in FilteredItems)
+                                    {
+                                        <label class="list-group-item  align-items-center">
+                                            <input type="checkbox"
+                                                   class="form-check-input me-2"
+                                                   @bind="item.IsChecked" />
+                                            <span>
+                                                @item.ItemCode &nbsp; @item.ItemName
+                                            </span>
+                                        </label>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 mt-2">
+                    <div class="card shadow-sm border-1"
+                         style="background: linear-gradient(135deg, #f1f3f5, #ffffff); border: 1px solid #d8dee4;">
+                        <div class="card-header bg-light text-dark">
+
+                            <div class="d-flex flex-wrap justify-content-end align-items-center gap-3">
+
+                                <button class="btn btn-sm btn-outline-primary rounded-3 d-flex align-items-center fw-semibold"
+                                        id="btnView"
+                                        @onclick="ViewItemsAsync"
+                                        title="Show stock data based on the selected category">
+                                    <i class="bi bi-eye-fill me-2"></i>
+                                    View
+                                </button>
+
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           id="rol"
+                                           checked="@StockBaseRate"
+                                           @onchange="ShowStockBasedRate"
+                                           title="Show Stock-Based Rate Value" />
+
+                                    <label class="form-check-label fw-semibold" for="rol">
+                                        Show Stock-Based Rate
+                                    </label>
+                                </div>
+
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           id="rol"
+                                           checked="@availableStock"
+                                           @onchange="AvailableStock"
+                                           title="Show Available Stock Qty Only" />
+
+                                    <label class="form-check-label fw-semibold" for="rol">
+                                        Show Available Stock Only
+                                    </label>
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="col-12 mt-2">
+                    <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                        <div class="card-header bg-primary-subtle text-dark">
+                            <div class="d-flex justify-content-between align-items-center">
+
+                                <span class="fw-bold fs-6">Stock Item Details</span>
+
+                                <div class="input-group" style="max-width: 250px;">
+                                    <span class="input-group-text bg-white border-end-0">
+                                        <i class="bi bi-search text-muted"></i>
+                                    </span>
+
+                                    <input type="text"
+                                           class="form-control border-start-0"
+                                           placeholder="Search here..."
+                                           value="@searchText"
+                                           @oninput="OnInputChanged"
+                                           title="Filter data by Stock Position, Item Name, ItemCode" />
+                                </div>
+
+                                <button class="btn btn-sm btn-success rounded-3 d-flex align-items-center fw-semibold"
+                                        id="btnPRPrint" @onclick="Print" title="Export data to excel from data grid">
+                                    <i class="bi bi-file-earmark-excel-fill me-2"></i>
+                                    Export to Excel
+                                </button>
+
+                            </div>
+                        </div>
+                        <div class="card-body p-2">
+
+                            <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                                    <thead class="custom-blue text-center align-middle sticky-top">
+
+                                        <tr>
+                                            <th style="min-width:70px; text-align:left;">
+                                                Sl No.
+                                            </th>
+                                            <th style="min-width:280px; text-align:left;">
+                                                Item Description / Stores-->
+                                            </th>
+                                            @foreach (var store in StockItemVMs)
+                                            {
+                                                <th style="min-width:140px; white-space:nowrap;">
+                                                    @ToSentenceCase(store.AddStoreName)
+                                                </th>
+
+                                                <th style="min-width:160px; white-space:nowrap;">
+                                                    @ToSentenceCase($"{store.AddStoreName} value")
+                                                </th>
+                                            }
+                                            <th style="min-width:120px;">Total Qty</th>
+                                            <th style="min-width:150px;">Total Amount</th>
+                                        </tr>
+                                    </thead>
+                                    @{
+                                        int i = 1;
+                                        var grandTotalQty = StockRows.Sum(x => x.TotalQty);
+                                        var grandTotalAmount = StockRows.Sum(x => x.TotalAmount);
+                                    }
+                                    <tbody class="custom-size">
+                                        @if (FilteredStockRows.Any())
+                                        {
+                                            @foreach (var row in FilteredStockRows)
+                                            {
+                                                <tr>
+                                                    <td style="min-width:70px; text-align:left;">
+                                                        @i
+                                                    </td>
+                                                    <td style="min-width:280px; text-align:left;">
+                                                        @row.ItemDescription
+                                                    </td>
+
+                                                    @foreach (var store in StockItemVMs)
+                                                    {
+                                                        <td style="min-width:140px;">
+                                                            @row.StoreQty.GetValueOrDefault(store.StoreId, 0)
+                                                        </td>
+
+                                                        <td style="min-width:160px;">
+                                                            @row.StoreValue.GetValueOrDefault(store.StoreId, 0).ToString("0.00")
+                                                        </td>
+                                                    }
+
+                                                    <td class="fw-bold" style="min-width:120px;">
+                                                        @row.TotalQty
+                                                    </td>
+
+                                                    <td class="fw-bold" style="min-width:150px;">
+                                                        @row.TotalAmount.ToString("0.00")
+                                                    </td>
+                                                </tr>
+
+                                                i++;
+
+                                            }
+
+                                        }
+                                    </tbody>
+                                    <tfoot class="sticky-bottom bg-light">
+                                        <tr class="table-light fw-bold">
+                                            <td colspan="2" class="text-end fw-bold">
+                                                Grand Total
+                                            </td>
+
+                                            @foreach (var store in StockItemVMs)
+                                            {
+                                                <td style="min-width:140px;text-align:left;">
+                                                    @StockRows.Sum(r => r.StoreQty.GetValueOrDefault(store.StoreId, 0))
+                                                </td>
+
+                                                <td style="min-width:160px;text-align:left;">
+                                                    @StockRows.Sum(r => r.StoreValue.GetValueOrDefault(store.StoreId, 0))
+
+                                                </td>
+                                            }
+
+                                            <td style="min-width:120px;text-align:left;">
+                                                @grandTotalQty
+                                            </td>
+
+                                            <td style="min-width:150px;text-align:left;">
+                                                @grandTotalAmount.ToString("0.00")
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Stock Position(Internal & External)";
+
+    private bool isProcessing = true;
+
+    private bool availableStock = false;
+    private bool StockBaseRate = false;
+    private string searchText = string.Empty;
+
+    public List<Category> Categories { get; set; } = new();
+    public List<ItemVM> Items { get; set; } = new();
+    public List<StockAddVM> StockItemVMs { get; set; } = new();
+    public List<StockAddVM> StockRows = new();
+
+    private List<StockAddVM> AllStockRows = new();
+    private List<StockAddVM> AllStockItemVMs = new();
+
+
+    private string categorySearch { get; set; } = string.Empty;
+    private string itemSearch { get; set; } = string.Empty;
+
+
+    private int SelectedCategoryCode { get; set; }
+    private int SelectedItemId { get; set; }
+
+    private Category? SelectedCategory { get; set; }
+    private ItemVM? SelectedItem { get; set; }
+
+
+
+    private Category AllCategory = new Category { CategoryCode = 0, CategoryName = "ALL" };
+    private ItemVM AllItem = new ItemVM { ItemId = 0, ItemCode = "ALL" };
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private List<PageHeader.BreadcrumbItem> StockPositionInernalBreadcrumbs { get; set; } = new()
+    {
+    new PageHeader.BreadcrumbItem { Text = "Inventory" },
+    new PageHeader.BreadcrumbItem { Text = "Stock Position(Internal & External)", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadAllCategoryDetailsAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync in Stock Positions");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    IEnumerable<Category> FilteredCategories =>
+    Categories.Where(s =>
+    string.IsNullOrWhiteSpace(categorySearch) ||
+    s.CategoryName.Contains(categorySearch, StringComparison.OrdinalIgnoreCase)
+    );
+
+
+    IEnumerable<ItemVM> FilteredItems =>
+    Items.Where(s =>
+    string.IsNullOrWhiteSpace(itemSearch) ||
+    s.ItemCode.Contains(itemSearch, StringComparison.OrdinalIgnoreCase)
+    );
+
+    private IEnumerable<StockAddVM> FilteredStockRows =>
+     AllStockRows
+         .Where(x =>
+             (!availableStock || x.TotalQty > 0) &&
+             (
+                 string.IsNullOrWhiteSpace(searchText) ||
+                 (x.ItemCode?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                 (x.ItemName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                 (x.ItemDescription?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+             )
+         );
+
+    #region To load Store and Category
+
+    private async Task LoadAllCategoryDetailsAsync()
+    {
+        isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            Categories = await _stockPosition.GetAllActiveCategoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "LoadAllCategoryDetailsAsync");
+            await _js.ToastrError("Failed to LoadAll LoadAllCategoryDetailsAsync Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async Task SelectCategory(Category category)
+    {
+        try
+        {
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+
+            Items.Clear();
+            StockItemVMs.Clear();
+            StockRows.Clear();
+            availableStock = false;
+            if (category != null)
+            {
+                SelectedItem = null;
+                SelectedCategory = category;
+                SelectedCategoryCode = category.CategoryCode;
+
+                if (SelectedCategoryCode > 0 || SelectedCategoryCode == 0)
+                {
+                    Items = await _stockPosition.GetStockItemsAsync(SelectedCategoryCode);
+                }
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "SelectCategory");
+            await _js.ToastrError("Failed to LoadAll SelectCategory Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+    }
+
+    #endregion
+
+    private void ToggleAll(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+
+        foreach (var item in FilteredItems)
+        {
+            item.IsChecked = isChecked;
+        }
+    }
+    #region
+    private void OnCategorySearchChange(ChangeEventArgs e)
+    {
+        categorySearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(categorySearch))
+            return;
+    }
+    private void OnItemSearchChange(ChangeEventArgs e)
+    {
+        itemSearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(categorySearch))
+            return;
+    }
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            searchText = e.Value?.ToString() ?? "";
+
+            if (string.IsNullOrWhiteSpace(searchText))
+                return;
+
+            if (StockRows is null || !StockRows.Any())
+            {
+                await _js.ToastrWarning("No data available to search.");
+                return;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInputChanged in Stock Positions(Internal and external)");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region View the Records
+    public async Task ViewReords()
+    {
+        try
+        {
+            StockItemVMs.Clear();
+            StockRows.Clear();
+            availableStock = false;
+
+            var selectedItemIds = Items.Where(x => x.IsChecked).Select(x => x.ItemId).ToList();
+            if (!selectedItemIds.Any())
+                return;
+            (AllStockItemVMs, AllStockRows) = await _stockPosition.GetStockAsync(selectedItemIds, StockBaseRate);
+
+            StockItemVMs = AllStockItemVMs;   // columns
+            StockRows = AllStockRows;      // row
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ViewReords");
+            await _js.ToastrError("Failed to LoadAll ViewReords Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    private async Task ViewItemsAsync()
+    {
+        if (!Items.Any())
+        {
+            await _js.ToastrWarning("Please select at least one item.");
+            return;
+        }
+
+
+        ModalTitle = "Are you sure you want to Show the records for selected Items";
+        btnColor = "btn-success";
+        btnText = "Yes! Display";
+        confirmation = "View";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+    private string ToSentenceCase(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+
+        text = text.ToLower();
+        return char.ToUpper(text[0]) + text.Substring(1);
+    }
+    private async Task AvailableStock(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!Items.Any() && !StockRows.Any())
+            {
+                await _js.ToastrWarning("Please select at least one item.");
+                return;
+            }
+
+            bool isChecked = (bool)e.Value;
+            availableStock = isChecked;
+            if (availableStock)
+            {
+                ModalTitle = "Are you sure you want to Show Available Stock qty Only.";
+                btnColor = "btn-success";
+                btnText = "Yes! Display";
+                confirmation = "AvailableStock";
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                var selectedItemIds = Items.Where(x => x.IsChecked).Select(x => x.ItemId).ToList();
+                if (!selectedItemIds.Any())
+                    return;
+                (AllStockItemVMs, AllStockRows) = await _stockPosition.GetStockAsync(selectedItemIds, StockBaseRate);
+
+                StockItemVMs = AllStockItemVMs;   // columns
+                StockRows = AllStockRows;      // row
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await _logs.LogDeveloperError(ex, $"AvailableStock failed for action in StockPosition: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action in StockPosition. Please try again.");
+        }
+
+    }
+    private async Task ShowStockBasedRate(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!Items.Any() && !StockRows.Any())
+            {
+                await _js.ToastrWarning("Please select at least one item.");
+                return;
+            }
+            bool isChecked = (bool)e.Value;
+            StockBaseRate = isChecked;
+            if (StockBaseRate)
+            {
+                ModalTitle = "Are you sure you want to Show Stock-Based Rate Only.";
+                btnColor = "btn-success";
+                btnText = "Yes! Show";
+                confirmation = "StockBase";
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                var selectedItemIds = Items.Where(x => x.IsChecked).Select(x => x.ItemId).ToList();
+                if (!selectedItemIds.Any())
+                    return;
+                (AllStockItemVMs, AllStockRows) = await _stockPosition.GetStockAsync(selectedItemIds, StockBaseRate);
+
+                StockItemVMs = AllStockItemVMs;
+                StockRows = AllStockRows;
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"ShowStockBasedRate failed for action in StockPosition: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action in StockPosition. Please try again.");
+        }
+    }
+    #endregion
+
+
+
+    #region For Item Attachments
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type in PurchasGRNUpsert: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal in PurchasGRNUpsert. Please try again.");
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _stockPosition.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+            {
+                availableStock = false;
+                StockBaseRate = false;
+                return;
+            }
+            switch (confirmation)
+            {
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+                case "Print":
+                    await ExportStockDataToExcel();
+                    break;
+                case "View":
+                    await ViewReords();
+                    break;
+                case "StockBase":
+
+                    var selectedItemIds = Items.Where(x => x.IsChecked).Select(x => x.ItemId).ToList();
+                    if (!selectedItemIds.Any())
+                        return;
+                    (AllStockItemVMs, AllStockRows) = await _stockPosition.GetStockAsync(selectedItemIds, StockBaseRate);
+                    StockItemVMs = AllStockItemVMs;
+                    StockRows = AllStockRows;
+
+                    break;
+
+            }
+            if (StockItemVMs.Any())
+            {
+                int i = 1;
+                foreach (var item in StockRows)
+                    item.SlNo = i++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action in StockPosition: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action in StockPosition. Please try again.");
+        }
+
+
+    }
+
+
+    #endregion
+
+
+
+    #region Print Work
+    private async Task Print()
+    {
+        if (StockItemVMs == null || !StockItemVMs.Any())
+        {
+            await _js.ToastrWarning("Sorry, no data available to print");
+            return;
+        }
+        ModalTitle = "Are you sure you want to Export all Data to excel";
+        btnColor = "btn-success";
+        btnText = "Yes! Export";
+        confirmation = "Print";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+
+    private async Task ExportStockDataToExcel()
+    {
+        try
+        {
+            if (!FilteredStockRows.Any())
+                return;
+
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+
+            var headers = new List<string>
+            {
+                "SlNo",
+                "ItemDescription"
+            };
+
+            foreach (var store in StockItemVMs)
+            {
+                headers.Add($"{store.AddStoreName}_Qty");
+                headers.Add($"{store.AddStoreName}_Value");
+            }
+
+            headers.Add("TotalQty");
+            headers.Add("TotalAmount");
+
+            var exportData = new List<object>();
+            int i = 1;
+
+            foreach (var row in AllStockRows)
+            {
+                dynamic expando = new ExpandoObject();
+                var dict = (IDictionary<string, object>)expando;
+
+                dict["SlNo"] = i++;
+                dict["ItemDescription"] = row.ItemDescription;
+
+                foreach (var store in StockItemVMs)
+                {
+                    dict[$"{store.AddStoreName}_Qty"] =
+                        row.StoreQty.GetValueOrDefault(store.StoreId, 0);
+
+                    dict[$"{store.AddStoreName}_Value"] =
+                        row.StoreValue.GetValueOrDefault(store.StoreId, 0);
+                }
+
+                dict["TotalQty"] = row.TotalQty;
+                dict["TotalAmount"] = row.TotalAmount;
+
+                exportData.Add(expando);
+            }
+
+            var fileBytes = await CreateTemplateAsync("Stock Data", headers.ToArray(), exportData);
+
+            var base64 = Convert.ToBase64String(fileBytes);
+            await _js.InvokeVoidAsync(
+                "downloadExcelFile",
+                base64,
+                "StockData(Internal and external).xlsx"
+            );
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ExportStockDataToExcel");
+            await _js.ToastrError("Excel export failed. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async Task<byte[]> CreateTemplateAsync(string sheetName, string[] headers, IEnumerable<object> data)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add(sheetName);
+
+            for (int col = 0; col < headers.Length; col++)
+            {
+                worksheet.Cell(1, col + 1).Value = headers[col];
+                worksheet.Cell(1, col + 1).Style.Font.Bold = true;
+                worksheet.Cell(1, col + 1).Style.Fill.BackgroundColor = XLColor.Yellow;
+            }
+
+            int rowIndex = 2;
+
+            foreach (var obj in data)
+            {
+                for (int col = 0; col < headers.Length; col++)
+                {
+                    var header = headers[col];
+                    object? value = null;
+
+
+                    if (obj is IDictionary<string, object> dict)
+                    {
+                        dict.TryGetValue(header, out value);
+                    }
+                    else
+                    {
+
+                        var prop = obj.GetType().GetProperty(header);
+                        if (prop != null)
+                            value = prop.GetValue(obj);
+                    }
+
+                    worksheet.Cell(rowIndex, col + 1).Value = value.ToString() ?? "";
+                }
+
+                rowIndex++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "CreateTemplateAsync");
+            await _js.ToastrError("Excel export failed. Please try again.");
+            return null;
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    #endregion
+
+}

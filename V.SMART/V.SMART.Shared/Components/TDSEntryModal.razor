@@ -1,0 +1,330 @@
+﻿
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IEInvoiceAPI
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ILabourServices
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.ISubContractDcOutservice
+@using V.SMART.Shared.ViewModels.AccountsViewModel
+@using V.SMART.Shared.ViewModels.EWayModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesDCVM
+
+@inherits BaseUserRightsComponent
+
+@inject IMfgDcService mfgDcService
+@inject IMfgInvService mfgInvService
+@inject ILabourInvoiceService _LabourInvoiceService
+@inject ISubConDcOutService subconDcService
+
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@inject IEWayDatabaseService _ewayDatabaseService
+
+
+<!-- PREMIUM MULTI INVOICE + TDS ENTRY DESIGN -->
+<div class="container-fluid p-0">
+
+    <!-- Header -->
+    <div class="card shadow-sm border-0 rounded-4 mb-3">
+        <div class="card-body py-3 px-4">
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
+                <!-- Left Content -->
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+
+                        <div class="bg-warning bg-gradient text-white rounded-circle d-flex justify-content-center align-items-center"
+                             style="width:45px; height:45px;">
+                            <i class="bi bi-receipt-cutoff fs-5"></i>
+                        </div>
+
+                        <div>
+                            <h4 class="fw-bold text-warning mb-0">
+                                MULTIPLE INVOICE TDS ENTRY
+                            </h4>
+
+                            <small class="text-muted">
+                                Enter Invoice Details and TDS Information
+                            </small>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+     
+    <!-- Search -->
+    <input type="text"
+           class="form-control mb-3"
+           placeholder="Search Document No..."
+           @bind="SearchTerm"
+           @bind:event="oninput" />
+    <div class="mb-2 text-muted small">
+        Showing @FilteredData.Count() invoice(s)
+    </div>
+
+    <!-- Card -->
+    <div class="card shadow-sm border-0">
+
+        <!-- Table -->
+        <div class="table-responsive">
+
+            <table class="table table-hover table-bordered align-middle mb-0">
+
+                <thead class="table-light">
+                    <tr class="text-center">
+
+                        <th style="min-width:90px;">Sl No</th>
+
+                        <th style="min-width:150px;">
+                            Invoice No
+                        </th>
+
+                        <th style="min-width:160px;">
+                            Invoice Date
+                        </th>
+
+                        <th style="min-width:150px;">
+                            Balance Amount
+                        </th>
+
+                        <th style="min-width:150px;">
+                            TDS Amount
+                        </th>
+
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    @if (FilteredData.Any())
+                    {
+                        int i = 1;
+
+                        @foreach (var item in FilteredData)
+                        {
+                            <tr>
+
+                                <!-- Serial No -->
+                                <td class="text-center fw-bold">
+                                    @i
+                                </td>
+
+                                <!-- Invoice No -->
+                                <td>
+                                    <input class="form-control" value="@($"{item.BillNo}{item.Suffix}")" readonly />
+                                </td>
+
+                                <!-- Invoice Date -->
+                                <td>
+                                    <InputDate class="form-control" @bind-Value="item.BillDate" readonly/>
+                                </td>
+
+                                <!-- Balance Amount -->
+                                <td>
+                                    <InputNumber class="form-control text-end" placeholder="0.00" @bind-Value="item.Balance" readonly />
+                                </td>
+
+                                <td>
+                                    <input type="number" class="form-control text-end" placeholder="Enter TDS"
+                                           step="0.01" @bind="item.TDSAmount" />
+                                </td>
+                            </tr>
+
+                            i++;
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="8"
+                                class="text-center text-muted py-4">
+
+                                No Invoice Added
+
+                            </td>
+                        </tr>
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="card-footer bg-white">
+
+            <div class="row g-3 align-items-end">
+
+                <!-- Total Balance -->
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-secondary">
+                        Total Balance Amount
+                    </label>
+
+                    <input type="text"
+                           class="form-control fw-bold text-end"
+                           value="@AllInvoiceVMs.Sum(x => x.Balance)"
+                           readonly />
+                </div>
+
+                <!-- Total TDS -->
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-secondary">
+                        Total TDS Amount
+                    </label>
+
+                    <input type="text"     
+                           class="form-control fw-bold text-end"
+                           value="@AllInvoiceVMs.Sum(x => x.TDSAmount)"
+                           readonly />
+                </div>
+
+                <div class="col-md-1"></div>
+
+                <!-- Save Button -->
+                <div class="col-md-3 d-flex justify-content-md-end justify-content-start fw-bold">
+                    <button class="btn btn-warning px-4 w-100 w-md-auto" @onclick="SaveTDSDetails">
+                         Update 
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+@code
+{
+    protected override string ScreenName => "Manufacturing DC";
+
+    //when subcon dc then CustId becoms vendorcode
+    [Parameter] public int CustId { get; set; }
+    [Parameter] public string Customer { get; set; }
+    [Parameter] public string DcType { get; set; }
+
+
+    [Parameter] public bool isDcListDetailsModelVisible { get; set; } = false;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool isProcessing, isTrasactionmade;
+
+    private List<MfgDcVM> MfgDcVMs { get; set; } = new();
+
+    private List<MfgInvVM> MfgInvVMs { get; set; } = new();
+
+    private List<BillsVM> AllInvoiceVMs { get; set; } = new();
+
+    private bool IsAllSelected { get; set; }
+
+    private class DictionaryRow
+    {
+        public Dictionary<string, object> Data { get; set; } = new();
+
+        public bool Selected { get; set; } = false;
+    }
+
+    private List<DictionaryRow> WrappedData { get; set; } = new();
+    private string SearchTerm { get; set; } = string.Empty;
+
+    private IEnumerable<BillsVM> FilteredData =>
+     string.IsNullOrWhiteSpace(SearchTerm)
+         ? AllInvoiceVMs
+         : AllInvoiceVMs.Where(r =>
+             (!string.IsNullOrEmpty(r.BillNo) &&
+              r.BillNo.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
+         );
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+        switch (DcType)
+        {
+            case "MfgDc":
+                //LabourInvoiceVMs = await mfgDcService.GetMfgDcByCustidAsync(CustId);
+                break;
+
+            case "MfgInv":
+                //LabourInvoiceVMs = await mfgInvService.GetMfgInvByCustidAsync(CustId);
+                break;
+
+            case "LabourDc":
+                AllInvoiceVMs = await _LabourInvoiceService.GetBillsByCustomerAsync(CustId, "LABOUR WORK");
+                break;
+            case "SubConDc":
+                //LabourInvoiceVMs = await subconDcService.GetSubConDcByVendorCodeAsync(CustId);
+                break;
+        }
+
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task SaveTDSDetails()
+    {
+        try
+        {
+         
+            // Get only entered TDS rows
+            var saveList = AllInvoiceVMs
+                .Where(x => x.TDSAmount > 0)
+                .ToList();
+                
+            foreach (var item in saveList)
+            {
+                if (item.TDSAmount > item.Balance)
+                {
+                    await _js.ToastrWarning($"TDS Amount cannot exceed Balance Amount for Invoice {item.BillNo}.");
+                    return;
+                }
+            }
+
+            if (!saveList.Any())
+            {
+                await _js.ToastrWarning("Please enter at least one TDS amount.");
+                return;
+            }
+            await _LabourInvoiceService.UpdateMultipleTDSAmountAsync(saveList);
+
+
+            await _js.ToastrSuccess($"{saveList.Count} invoice TDS details saved successfully.");
+
+            await Close();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "SaveTDSDetails");
+            await _js.ToastrError("Error while saving TDS details.");
+        }
+    }
+
+    private async Task ValidateTDS(BillsVM item)
+    {
+        if (item.TDSAmount > item.Balance)
+        {
+            await _js.ToastrWarning($"TDS Amount cannot exceed Balance Amount ({item.Balance:N2}).");
+
+            item.TDSAmount = 0;
+            StateHasChanged();
+        }
+    }
+
+}

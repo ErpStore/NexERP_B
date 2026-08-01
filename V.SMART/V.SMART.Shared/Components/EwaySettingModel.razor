@@ -1,0 +1,201 @@
+﻿@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices
+@inherits BaseUserRightsComponent
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ICompanyService _companyService
+
+<!-- SweetAlert -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    window.showUpdateConfirm = async function () {
+        const result = await Swal.fire({
+            title: 'Are you sure you want to update the entered records?',
+            text: "Do you want to continue?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes',
+            cancelButtonText: 'No'
+        });
+        return result.isConfirmed;
+    }
+</script>
+
+<div class="card shadow-sm p-3">
+
+    <h5 class="text-primary mb-2">E-Way Settings</h5>
+    <hr class="my-2" />
+    <!-- API Section -->
+    <div class="row g-2 mb-2">
+        <div class="col-md-6">
+            <label class="form-label small">URL</label>
+            <input class="form-control form-control-sm"
+                   @bind="Company.EwayURL" />
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label small">User Name</label>
+            <input class="form-control form-control-sm"
+                   @bind="Company.EwayUser" />
+        </div>
+    </div>
+
+    <div class="row g-2 mb-2">
+
+        <div class="col-md-6">
+            <label class="form-label small">Commodity Code</label>
+            <input class="form-control form-control-sm"
+                   @bind="Company.EwayCommodityCode" />
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label small">Password</label>
+
+            <div class="input-group input-group-sm">
+                <input type="@(showPassword ? "text" : "password")"
+                       class="form-control"
+                       @bind="Company.EwayPassword" />
+
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        @onclick="TogglePassword">
+                    <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <hr class="my-2" />
+
+    <!-- GST Section -->
+    <h6 class="text-primary mb-2">GST Details</h6>
+
+    <div class="mb-2">
+        <label class="form-label small">Legal Name (As per GST)</label>
+        <input class="form-control form-control-sm"
+               @bind="Company.LegalName" />
+    </div>
+
+    <div class="mb-2">
+        <label class="form-label small">Company Address(As per GST)</label>
+        <textarea class="form-control form-control-sm"
+                  rows="2"
+                  @bind="Company.GSTAddress"></textarea>
+    </div>
+
+    <div class="row g-2 mb-2">
+        <div class="col-md-6">
+            <label class="form-label small">Location</label>
+            <input class="form-control form-control-sm"
+                   @bind="Company.City" />
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label small">Pincode</label>
+            <input class="form-control form-control-sm"
+                   @bind="Company.ZipCode" />
+        </div>
+    </div>
+
+    <!-- Footer inside card -->
+    <div class="d-flex justify-content-between align-items-center mt-3">
+
+        <button class="btn btn-outline-primary btn-sm d-flex align-items-center gap-2"
+                @onclick="ConfirmSelection">
+            Update
+        </button>
+
+        <button class="btn btn-danger btn-sm"
+                @onclick="Close">
+            Close
+        </button>
+
+    </div>
+
+</div>
+
+@code
+{
+    protected override string ScreenName => "Company";
+
+    [Parameter] public int CompanyId { get; set; }
+
+
+    [Parameter] public bool isDcListDetailsModelVisible { get; set; } = false;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Companydetails Company { get; set; } = new Companydetails();
+
+    private bool showPassword = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+        await LoadExistingDc();
+    }
+
+    private async Task LoadExistingDc()
+    {
+        try
+        {
+            Company = await _companyService.GetCompanyDetailsAsync() ?? new Companydetails();
+        }
+        catch (Exception ex)
+        {
+            await _js.InvokeVoidAsync("toastr.error", "Failed to load LoadExistingDc");
+            await _logs.LogDeveloperError(ex, $"LoadExistingDc ");
+        }
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+    private async Task ConfirmSelection()
+    {
+        try
+        {
+            if (Company==null)
+            {
+                await _js.ToastrWarning("We are unable to update the records because the company details were not found.");
+                return;
+            }
+
+            bool confirmed = await _js.InvokeAsync<bool>("showUpdateConfirm");
+
+            if (!confirmed)
+            {
+                return;
+            }
+            var (success, message) = await _companyService.UpdateEwayUserAsync(Company);
+            if (success)
+            {
+                await _js.ToastrSuccess(message);
+                _navigationManager.NavigateTo("/generalSettings");
+            }
+            else
+            {
+                await _js.ToastrError(message);
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await _js.InvokeVoidAsync("toastr.error", "ConfirmSelection");
+            await _logs.LogDeveloperError(ex, $"ConfirmSelection");
+        }
+
+    }
+
+    private void TogglePassword()
+    {
+        showPassword = !showPassword;
+    }
+}

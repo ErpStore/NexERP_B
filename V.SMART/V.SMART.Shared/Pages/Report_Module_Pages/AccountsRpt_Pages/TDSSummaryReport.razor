@@ -1,0 +1,1070 @@
+﻿@page "/tdsSummaryReport"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITaxDetailsReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.AccountsReportViewModel
+@using V.SMART.Shared.ViewModels.ReportViewModel.TaxDetailsReportViewModel
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+@inject ICustomerService customerService
+@inject IVendorService vendorService
+@inject ExcelExportService ExcelExportService
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService CurrentUserService
+@inject ITDSSummaryService tdsSummaryService
+
+<style>
+    .table-heading th {
+        background-color: #C8ACD6 !important;
+        color: black !important;
+    }
+</style>
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="TDS Summary Report"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@TaxDetailsBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <div class="card shadow-sm border-0 h-100">
+
+                    <div class="card border-0 shadow-sm rounded-4 mb-3">
+                        <div class="row g-3 mb-3">
+
+                            <!-- DATE RANGE -->
+                            <div class="col-md-6">
+
+                                <div class="card border-0 shadow-sm rounded-4 h-100">
+
+                                    <div class="card-header text-white border-0"
+                                         style="background:linear-gradient(135deg,#3a7bd5,#00d2ff);">
+                                        <i class="bi bi-calendar-range-fill me-2"></i>
+                                        <strong>Date Range</strong>
+                                    </div>
+
+                                    <div class="card-body">
+
+                                        <div class="row align-items-center">
+
+                                            <div class="col-md-5">
+                                                <label class="small text-muted">From Date</label>
+                                                <InputDate @bind-Value="FromDate"
+                                                           @bind-Value:after="DateChanged"
+                                                           class="form-control" />
+                                            </div>
+
+                                            <div class="col-md-2 text-center">
+                                                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center"
+                                                     style="width:40px;height:40px;">
+                                                    <i class="bi bi-arrow-right"></i>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-5">
+                                                <label class="small text-muted">To Date</label>
+                                                <InputDate @bind-Value="ToDate"
+                                                           @bind-Value:after="DateChanged"
+                                                           class="form-control" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- REPORT TYPE -->
+                            <div class="col-md-6">
+
+                                <div class="card border-0 shadow-sm rounded-4 h-100">
+
+                                    <div class="card-header text-white fw-bold border-0"
+                                         style="background-color:#A35C7A;">
+                                        <i class="bi bi-file-earmark-bar-graph me-2"></i>
+                                        Report Type
+                                    </div>
+
+                                    <div class="card-body">
+
+                                        <div class="row g-2">
+
+                                            <!-- Sales -->
+                                            <div class="col-md-4">
+                                                <input type="radio"
+                                                       class="btn-check"
+                                                       name="reportType"
+                                                       id="sales"
+                                                       @onchange='async (_) => await OnReportTypeChanged("Sales")' />
+
+                                                <label for="sales"
+                                                       class="btn btn-outline-success w-100 p-2 h-100">
+
+                                                    <i class="bi bi-graph-up-arrow fs-4 d-block mb-1"></i>
+
+                                                    <div class="fw-bold">Sales</div>
+                                                    <small>Sales + Labour</small>
+
+                                                </label>
+                                            </div>
+                                           
+                                            <!-- Purchase -->
+                                            <div class="col-md-4">
+                                                <input type="radio"
+                                                       class="btn-check"
+                                                       name="reportType"
+                                                       id="purchase"
+                                                       @onchange='async (_) => await OnReportTypeChanged("Purchase")' />
+
+                                                <label for="purchase"
+                                                       class="btn btn-outline-warning w-100 p-2 h-100">
+
+                                                    <i class="bi bi-building-gear fs-4 d-block mb-1"></i>
+
+                                                    <div class="fw-bold">Purchase</div>
+                                                    <small>Purchase + SubContract</small>
+
+                                                </label>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="card shadow-sm mt-3">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2"
+                                 style="background:#121358">
+
+                                <!-- TITLE -->
+                                <h6 class="mb-0">
+                                    <i class="bi bi-file-earmark-text me-2"></i> TDS Report
+                                </h6>
+
+                                <div class="card-header text-white" style="background:#121358">
+
+                                    <div class="row align-items-center gy-2">
+                                        <!-- RIGHT SIDE -->
+                                        <div class="col-12 col-lg">
+                                            <div class="row g-2 justify-content-lg-end">
+
+                                                <!-- SEARCH -->
+                                                <div class="col-12 col-md-5">
+                                                    <div class="input-group shadow-sm rounded-3 overflow-hidden border">
+                                                        <span class="input-group-text bg-white border-0">
+                                                            <i class="bi bi-search text-muted"></i>
+                                                        </span>
+
+                                                        <input type="text"
+                                                               class="form-control border-start-0"
+                                                               placeholder="Search InvoiceNo., Customer, Vendor..."
+                                                               @bind="searchText"
+                                                               @bind:event="oninput" />
+                                                    </div>
+                                                </div>
+
+                                                <!-- COLUMN MENU -->
+                                                <div class="col-12 col-md-auto">
+                                                    <div class="dropdown w-100">
+                                                        <button class="btn btn-outline-light w-100"
+                                                                type="button"
+                                                                data-bs-toggle="dropdown">
+                                                            <i class="bi bi-layout-three-columns me-1"></i>
+                                                            Manage Columns
+                                                        </button>
+
+                                                        <ul class="dropdown-menu p-3 shadow border-0 rounded-4"
+                                                            style="max-height:400px; overflow:auto; min-width:260px;">
+
+                                                            @foreach (var col in Columns.Where(c => !c.IsDetailColumn || IsDetailView))
+                                                            {
+                                                                <li class="mb-2">
+                                                                    <div class="form-check">
+                                                                        <input class="form-check-input"
+                                                                               type="checkbox"
+                                                                               checked="@col.IsVisible"
+                                                                               @onchange="async e => await OnColumnChanged(col, e.Value)" />
+
+                                                                        <label class="form-check-label small fw-semibold">
+                                                                            @col.Title
+                                                                        </label>
+                                                                    </div>
+                                                                </li>
+                                                            }
+                                                        </ul>
+                                                    </div>
+                                                </div>
+
+                                                <!-- PRINT -->
+                                                <div class="col-12 col-md-auto">
+                                                    <button class="btn btn-success rounded-3 shadow-sm fw-semibold w-100"
+                                                            id="btnPrint"
+                                                            @onclick="Print">
+                                                        <i class="bi bi-file-earmark-excel-fill me-2"></i>
+                                                        Print
+                                                    </button>
+                                                </div>
+
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <div class="card-body p-0">
+                                @if (string.IsNullOrWhiteSpace(SelectedTopic))
+                                {
+                                    <div class="d-flex justify-content-center align-items-center">
+                                        <h5 class="text-muted">
+                                            Please select Sales/Purchase to view the report.
+                                        </h5>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="table-responsive" style="height:500px; overflow-y:auto; overflow-x:auto;">
+
+                                        <table class="table table-bordered table-hover table-striped align-middle mb-0">
+
+                                            <thead class="table-heading position-sticky top-0 z-3">
+                                                <tr>
+                                                    @if (IsColumnVisible("SlNo"))
+                                                    {
+                                                        <th>SlNo.</th>
+                                                    }
+                                                    @if (IsColumnVisible("Customer"))
+                                                    {
+                                                        <th>Customer</th>
+                                                    }
+                                                    @if (IsColumnVisible("InvoiceNo"))
+                                                    {
+                                                        <th>Invoice No</th>
+                                                    }
+                                                    @if (IsColumnVisible("InvoiceDate"))
+                                                    {
+                                                        <th>Invoice Date</th>
+                                                    }
+                                                    @if (IsColumnVisible("Type"))
+                                                    {
+                                                        <th>Type</th>
+                                                    }
+                                                    @if (IsColumnVisible("InvoiceValue"))
+                                                    {
+                                                        <th>Invoice Value</th>
+                                                    }
+                                                    @if (IsColumnVisible("TotalBasicAmount"))
+                                                    {
+                                                        <th>Basic Amount</th>
+                                                    }
+                                                    @if (IsColumnVisible("CreditDebitNoteNo"))
+                                                    {
+                                                        <th>Credit/Debit Note No</th>
+                                                    }
+                                                    @if (IsColumnVisible("CreditDebitNoteDate"))
+                                                    {
+                                                        <th>Credit/Debit Note Date</th>
+                                                    }
+                                                    @if (IsColumnVisible("CreditDebitNoteAmt"))
+                                                    {
+                                                        <th>Credit/Debit Note Amount</th>
+                                                    }
+                                                    @if (IsColumnVisible("TDSPercent"))
+                                                    {
+                                                        <th>TDS %</th>
+                                                    }
+                                                    @if (IsColumnVisible("TDSAmt"))
+                                                    {
+                                                        <th>TDS Amount</th>
+                                                    }
+                                                    @if (IsColumnVisible("TotalAmount"))
+                                                    {
+                                                        <th>Total Amount</th>
+                                                    }
+                                                    @if (IsColumnVisible("InvoiceBalance"))
+                                                    {
+                                                        <th>Invoice Balance</th>
+                                                    }
+                                                    @if (IsColumnVisible("Remarks"))
+                                                    {
+                                                        <th>Remarks</th>
+                                                    }
+                                                    @if (IsColumnVisible("PANNo"))
+                                                    {
+                                                        <th>PAN No</th>
+                                                    }
+
+                                                </tr>
+                                            </thead>
+
+                                            <tbody>
+
+                                                @if (FilteredTDSSummaryData != null && FilteredTDSSummaryData.Any())
+                                                {
+                                                    @foreach (var item in FilteredTDSSummaryData)
+                                                    {
+                                                        <tr>
+                                                            @if (IsColumnVisible("SlNo"))
+                                                            {
+                                                                <td class="text-center">@item.SlNo</td>
+                                                            }
+                                                            @if (IsColumnVisible("Customer"))
+                                                            {
+                                                                <td>@item.Customer</td>
+                                                            }
+                                                            @if (IsColumnVisible("InvoiceNo"))
+                                                            {
+                                                                <td>@item.InvoiceNo</td>
+                                                            }
+                                                            @if (IsColumnVisible("InvoiceDate"))
+                                                            {
+                                                                <td>@item.InvoiceDate</td>
+                                                            }
+                                                            @if (IsColumnVisible("Type"))
+                                                            {
+                                                                @* <td>@item.Type</td> *@
+                                                                <td>
+                                                                    <span class="badge px-3 py-2 text-white"
+                                                                          style="@(item.Type == "Sales"
+                                                                            ? "background:linear-gradient(135deg,#4F46E5,#5e435d);"
+                                                                            : item.Type == "LABOUR"
+                                                                            ? "background:linear-gradient(135deg,#F59E0B,#FBBF24); color:#9491e2;"
+                                                                            : item.Type == "EXPORT"
+                                                                            ? "background:linear-gradient(135deg,#10B981,#6d90b9);"
+                                                                            : item.Type == "PURCHASE"
+                                                                            ? "background:linear-gradient(135deg,#06B6D4,#22D3EE); color:#87a3a3;"
+                                                                            : item.Type == "SUBCONTRACT"
+                                                                            ? "background:linear-gradient(135deg,#EF4444,#5c73b9);"
+                                                                            : "background:linear-gradient(135deg,#6B7280,#9CA3AF);")">
+
+                                                                            @item.Type
+                                                                    </span>
+                                                                </td>
+                                                            }
+                                                            @if (IsColumnVisible("InvoiceValue"))
+                                                            {
+                                                                <td class="text-end">
+                                                                    @item.InvoiceValue.ToString("N2")
+                                                                </td>
+                                                            }
+                                                            @if (IsColumnVisible("TotalBasicAmount"))
+                                                            {
+                                                                <td class="text-end">
+                                                                    @item.TotalBasicAmount.ToString("N2")
+                                                                </td>
+                                                            }
+                                                            @if (IsColumnVisible("CreditDebitNoteNo"))
+                                                            {
+                                                                <td>@item.CreditDebitNoteNo</td>
+                                                            }
+                                                            @if (IsColumnVisible("CreditDebitNoteDate"))
+                                                            {
+                                                                <td>@item.CreditDebitNoteDate</td>
+                                                            }
+                                                            @if (IsColumnVisible("CreditDebitNoteAmt"))
+                                                            {
+                                                                <td class="text-end">
+                                                                    @item.CreditDebitNoteAmt?.ToString("N2")
+                                                                </td>
+                                                            }
+                                                            @if (IsColumnVisible("TDSPercent"))
+                                                            {
+                                                                <td class="text-end">
+                                                                    @item.TDSPercent?.ToString("N2")
+                                                                </td>
+                                                            }
+                                                            @if (IsColumnVisible("TDSAmt"))
+                                                            {
+                                                                <td class="text-end">
+                                                                    @item.TDSAmt?.ToString("N2")
+                                                                </td>
+                                                            }
+                                                            @if (IsColumnVisible("TotalAmount"))
+                                                            {
+                                                                <td class="text-end">
+                                                                    @item.TotalAmount?.ToString("N2")
+                                                                </td>
+                                                            }
+                                                            @if (IsColumnVisible("InvoiceBalance"))
+                                                            {
+                                                                <td class="text-end">
+                                                                    @item.InvoiceBalance?.ToString("N2")
+                                                                </td>
+                                                            }
+                                                            @if (IsColumnVisible("Remarks"))
+                                                            {
+                                                                <td>@item.Remarks</td>
+                                                            }
+                                                            @if (IsColumnVisible("PANNo"))
+                                                            {
+                                                                <td>@item.PANNo</td>
+                                                            }
+
+                                                        </tr>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <tr>
+                                                        <td colspan="16" class="text-center text-muted py-4">
+                                                            No Records Found
+                                                        </td>
+                                                    </tr>
+                                                }
+
+                                            </tbody>
+
+                                            @if (FilteredTDSSummaryData != null && FilteredTDSSummaryData.Any())
+                                            {
+                                                <tfoot class="table-warning fw-bold">
+                                                    <tr>
+                                                        @{
+                                                            int totalColspan = 0;
+
+                                                            if (IsColumnVisible("SlNo")) totalColspan++;
+                                                            if (IsColumnVisible("Customer")) totalColspan++;
+                                                            if (IsColumnVisible("InvoiceNo")) totalColspan++;
+                                                            if (IsColumnVisible("InvoiceDate")) totalColspan++;
+                                                        }
+
+                                                        <td colspan="@totalColspan" class="text-end">
+                                                            Total :
+                                                        </td>
+
+                                                        @if (IsColumnVisible("Type"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("InvoiceValue"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredTDSSummaryData.Sum(x => x.InvoiceValue).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalBasicAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredTDSSummaryData.Sum(x => x.TotalBasicAmount).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("CreditDebitNoteNo"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("CreditDebitNoteDate"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("CreditDebitNoteAmt"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TDSPercent"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TDSAmt"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredTDSSummaryData.Sum(x => x.TDSAmt ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("TotalAmount"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredTDSSummaryData.Sum(x => x.TotalAmount ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("InvoiceBalance"))
+                                                        {
+                                                            <td class="text-end">
+                                                                @FilteredTDSSummaryData.Sum(x => x.InvoiceBalance ?? 0).ToString("N2")
+                                                            </td>
+                                                        }
+
+                                                        @if (IsColumnVisible("Remarks"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @if (IsColumnVisible("PANNo"))
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+                                        </table>
+
+                                    </div>
+                                }
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "TDSummary Report";
+    private bool isProcessing = true;
+    private string searchText = string.Empty;
+    private bool IsDetailView { get; set; }
+    private List<PageHeader.BreadcrumbItem> TaxDetailsBreadcrumbs { get; set; } = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Accounts" },
+        new PageHeader.BreadcrumbItem { Text = "TDS Summary", IsLast = true }
+    };
+    private List<Customer> Customers = new();
+    public string ReportType { get; set; } = "0";
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string partySearch = "";
+    private List<Customer> FilteredParties = new();
+    private List<TaxDetailsVM> TaxDetailsList = new();
+    private List<CustomerVM> FilteredCustomers = new();
+    private List<VendorVM> FilteredVendors = new();
+    private bool IsLoading = false;
+
+    public List<TaxDetailsVM> TaxDetailsVMs { get; set; } = new();
+
+    private int SelectedPartyId;
+    private int SelectedVendorCode;
+    private string SelectedTopic = "";
+    public DateTime? FromDate = DateTime.Today.AddMonths(-1);
+    public DateTime? ToDate = DateTime.Today;
+    private List<CustomerVM> CustomerList = new();
+    private List<VendorVM> VendorList = new();
+    private string customerSearch { get; set; } = string.Empty;
+    private string vendorSearch { get; set; } = string.Empty;
+
+    private List<TDSReportVM> FilteredData = new();
+    private string? UserName;
+    private int screenCode { get; set; }
+    private List<GridColumn> Columns = new();
+    private string UserId = "";
+
+
+    private List<TDSReportVM> TDSReportList = new();
+    private List<TDSReportVM> FilteredTDSReportList = new();
+    private string SelectedReportType = "Sales"; 
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await InitializeColumns(IsHidden);
+            screenCode = await tdsSummaryService.GetScreenCodeByScreenNameAsync(ScreenName);
+            UserName = await CurrentUserService.GetUsernameAsync();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync in Stock Positions");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+        {
+            // ================= MAIN COLUMNS =================
+            new() { Title = "SlNo", Field = "SlNo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Customer", Field = "Customer", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Type", Field = "Type", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Invoice No.", Field = "InvoiceNo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Invoice Date", Field = "InvoiceDate", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Invoice Value", Field = "InvoiceValue", IsVisible = true, IsDetailColumn = false },
+
+            new() { Title = "Total BasicAmount", Field = "TotalBasicAmount", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "CreditDebitNote No.", Field = "CreditDebitNoteNo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "CreditDebitNote Date", Field = "CreditDebitNoteDate", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "CreditDebitNote Amount", Field = "CreditDebitNoteAmt", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "TDS Percentage", Field = "TDSPercent", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "TDS Amount", Field = "TDSAmt", IsVisible = true, IsDetailColumn = false },
+
+            new() { Title = "Total Amount", Field = "TotalAmount", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Invoice Balance", Field = "InvoiceBalance", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Remarks", Field = "Remarks", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "PAN No.", Field = "PANNo", IsVisible = true, IsDetailColumn = false },
+
+        };
+
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error loading column preferences for JobOrderList");
+            await _js.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await PreferenceService.SavePreferencesAsync(ScreenName, UserName, Columns);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in HandleColumnChange()");
+        }
+    }
+
+    private async Task OnColumnChanged(GridColumn column, object value)
+    {
+        try
+        {
+            column.IsVisible = Convert.ToBoolean(value);
+            await PreferenceService.SavePreferencesAsync(ScreenName, UserName, Columns);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error changing column");
+        }
+    }
+
+    private bool IsColumnVisible(string field)
+    {
+        return Columns.Any(x => x.Field == field && x.IsVisible);
+    }
+
+    IEnumerable<TDSReportVM> FilteredTDSSummaryData
+    {
+        get
+        {
+            var filtered = (FilteredTDSReportList ?? Enumerable.Empty<TDSReportVM>())
+                .Where(s =>
+                    string.IsNullOrWhiteSpace(searchText)
+                    || (!string.IsNullOrWhiteSpace(s.InvoiceNo) &&
+                        s.InvoiceNo.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrWhiteSpace(s.Customer) &&
+                        s.Customer.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrWhiteSpace(s.Type) &&
+                        s.Type.Contains(searchText, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            for (int i = 0; i < filtered.Count; i++)
+            {
+                filtered[i].SlNo = i + 1;
+            }
+
+            return filtered;
+        }
+    }
+
+
+    #region For Item Attachments
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            else if (confirmation == "Export")
+            {
+                await ExportTDSSummaryDataToExcel(isConfirmed);
+            }
+            else
+            {
+                await _js.ToastrWarning("Unknown confirmation action.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task Print()
+    {
+        if (FilteredTDSReportList == null || !FilteredTDSReportList.Any())
+        {
+            await _js.ToastrWarning("Sorry, no data available to print");
+            return;
+        }
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task confirmation_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && confirmation == "Export")
+            {
+                await ExportTDSSummaryDataToExcel(isConfirmed);
+                confirmation = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while handling confirmation_Click");
+
+            await _js.ToastrError("Error while exporting Tax Details");
+        }
+    }
+
+    #endregion
+
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            searchText = e.Value?.ToString() ?? "";
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while searching");
+        }
+    }
+
+    private void OnPartySearchChange(ChangeEventArgs e)
+    {
+        partySearch = e.Value?.ToString() ?? "";
+
+        // ================= PURCHASE =================
+
+        if (SelectedTopic == "Purchase")
+        {
+            FilteredVendors = VendorList
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x.VendorName) &&
+                    x.VendorName.Contains(
+                        partySearch,
+                        StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        // ================= SALES / EXPORT =================
+
+        else
+        {
+            FilteredCustomers = CustomerList
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x.CustName) &&
+                    x.CustName.Contains(
+                        partySearch,
+                        StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private async Task OnReportTypeChanged(string reportType)
+    {
+        try
+        {
+            IsLoading = true;
+
+            SelectedTopic = reportType;
+
+            var result = await tdsSummaryService.GetTDSSummaryReportAsync(
+                SelectedTopic,
+                FromDate,
+                ToDate);
+
+            FilteredTDSReportList = result?.ToList() ?? new List<TDSReportVM>();
+
+            int i = 1;
+
+            foreach (var item in FilteredTDSReportList)
+            {
+                item.SlNo = i++;
+            }
+        }
+        catch (Exception ex)
+        {
+            FilteredTDSReportList = new List<TDSReportVM>();
+
+            await _logs.LogDeveloperError(ex, "Error in OnReportTypeChanged");
+        }
+        finally
+        {
+            IsLoading = false;
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task DateChanged()
+    {
+        if (!string.IsNullOrEmpty(SelectedTopic))
+        {
+            await OnReportTypeChanged(SelectedTopic);
+        }
+    }
+
+
+    private async Task ExportTDSSummaryDataToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirm)
+                return;
+
+            if (FilteredTDSSummaryData == null || !FilteredTDSSummaryData.Any())
+            {
+                await _js.ToastrWarning("No data available");
+                return;
+            }
+
+            List<Dictionary<string, object>> exportData = new();
+
+            foreach (var item in FilteredTDSSummaryData)
+            {
+                Dictionary<string, object> row = new();
+
+                // =========================
+                // MAIN COLUMNS
+                // =========================
+
+                if (IsColumnVisible("SlNo"))
+                    row.Add("Sl No.", item.SlNo);
+
+                if (IsColumnVisible("Customer"))
+                    row.Add("Customer", item.Customer);
+
+                if (IsColumnVisible("InvoiceNo"))
+                    row.Add("Invoice No.", item.InvoiceNo);
+
+                if (IsColumnVisible("InvoiceDate"))
+                    row.Add("Invoice Date", item.InvoiceDate?.ToString("dd/MM/yyyy"));
+
+                if (IsColumnVisible("Type"))
+                    row.Add("Type", item.Type);
+
+                if (IsColumnVisible("InvoiceValue"))
+                    row.Add("Invoice Value", item.InvoiceValue);
+
+                if (IsColumnVisible("TotalBasicAmount"))
+                    row.Add("Basic Amount", item.TotalBasicAmount);
+
+                if (IsColumnVisible("CreditDebitNoteNo"))
+                    row.Add("Credit/Debit Note No", item.CreditDebitNoteNo);
+
+                if (IsColumnVisible("CreditDebitNoteDate"))
+                    row.Add("Credit/Debit Note Date", item.CreditDebitNoteDate);
+
+                if (IsColumnVisible("CreditDebitNoteAmt"))
+                    row.Add("Credit/Debit Note Amount", item.CreditDebitNoteAmt);
+
+                if (IsColumnVisible("TDSPercent"))
+                    row.Add("TDS %", item.TDSPercent);
+
+                if (IsColumnVisible("TDSAmt"))
+                    row.Add("TDS Amount", item.TDSAmt);
+
+                if (IsColumnVisible("TotalAmount"))
+                    row.Add("Total Amount", item.TotalAmount);
+
+                if (IsColumnVisible("InvoiceBalance"))
+                    row.Add("Invoice Balance", item.InvoiceBalance);
+
+                if (IsColumnVisible("Remarks"))
+                    row.Add("Remarks", item.Remarks);
+
+                if (IsColumnVisible("PANNo"))
+                    row.Add("PAN No.", item.PANNo);
+
+                
+                exportData.Add(row);
+            }
+
+            if (!exportData.Any())
+            {
+                await _js.ToastrWarning("No data found for export");
+
+                return;
+            }
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "TDSSummary", "TDS Summary List");
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.DownloadExcelAsync(base64, "TDSSummary.xlsx");
+            await _js.ToastrSuccess("Excel exported successfully");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ExportTDSSummaryDataToExcel");
+            await _js.ToastrError("Error while exporting TDS Summary Report!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task<byte[]> CreateTemplateAsync(string sheetName, string[] headers, IEnumerable<object> data)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook();
+
+            var worksheet = workbook.Worksheets.Add(sheetName);
+
+            // HEADER
+            for (int col = 0; col < headers.Length; col++)
+            {
+                var cell = worksheet.Cell(1, col + 1);
+
+                cell.Value = headers[col];
+
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = XLColor.Yellow;
+            }
+
+            int rowIndex = 2;
+
+            foreach (var obj in data)
+            {
+                for (int col = 0; col < headers.Length; col++)
+                {
+                    var header = headers[col];
+
+                    object? value = null;
+
+                    // PROPERTY MATCH
+                    var prop = obj.GetType().GetProperty(header);
+
+                    if (prop != null)
+                    {
+                        value = prop.GetValue(obj);
+                    }
+
+                    worksheet.Cell(rowIndex, col + 1).Value =
+                        value?.ToString() ?? "";
+                }
+
+                rowIndex++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+
+            workbook.SaveAs(stream);
+
+            return stream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "CreateTemplateAsync");
+
+            await _js.ToastrError("Excel creation failed");
+
+            return Array.Empty<byte>();
+        }
+    }
+}

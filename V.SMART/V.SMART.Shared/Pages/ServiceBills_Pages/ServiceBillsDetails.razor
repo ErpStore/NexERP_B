@@ -1,0 +1,385 @@
+﻿@page "/ServiceBills/details/{ServiceId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ICashFlowService
+@using V.SMART.Shared.ViewModels.CashFlowViewModel.ServiceBillViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigationManager
+@inject ILoggingService LoggingService
+@inject IServiceBillsService serviceBillService
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." class="img-fluid" style="max-height: 100px;" />
+    </div>
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+      <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+        <!-- Company Details Section -->
+        <MyCompanyDetails />
+
+        <!-- Cancelled Watermark -->
+        @if (ServiceBillVMs.IsCancel)
+        {
+            <div class="cancelWatermark ms-20 mt-10">CANCELLED</div>
+        }
+            else if (ServiceBillVMs.ShortClose)
+        {
+            <div class="cancelWatermark ms-20 mt-10">SHORT CLOSED</div>
+        }
+
+         <hr class="border-2 border-primary-subtle mb-4" />
+         <div class="text-center">
+             <h4 class="fw-semibold mt-3">Service Bills</h4>
+         </div>
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        <!-- Customer & Document Details Section -->
+        <div class="row g-3 mb-4">
+            <!-- Customer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Customer Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(ServiceBillVMs?.CustVendorName) ? ServiceBillVMs.CustVendorName : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Ref PO No.</strong></td><td>@(!string.IsNullOrEmpty(refPoNosDisplay) ? refPoNosDisplay : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Ref PO Date</strong></td><td>@refPoDatesDisplay</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>DC No.</strong></td><td>@(!string.IsNullOrEmpty(ServiceBillVMs?.DcNo) ? ServiceBillVMs.DcNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>DC Date</strong></td><td>@(ServiceBillVMs ?.DcDate?.ToString("dd-MM-yyyy") ?? "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Mode Of Transport</strong></td><td>@(!string.IsNullOrEmpty(ServiceBillVMs?.ModeofTrasnport) ? ServiceBillVMs.ModeofTrasnport : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Vehicle No.</strong></td><td>@(!string.IsNullOrEmpty(ServiceBillVMs?.VehicleNo) ? ServiceBillVMs.VehicleNo : "N/A")</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Document Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>ServiceInv No</strong></td>
+                                    <td>@(ServiceBillVMs != null ? $"{ServiceBillVMs.InvNo}" : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>ServiceInv Date</strong></td>
+                                    <td>@(ServiceBillVMs?.InvDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Currency</strong></td>
+                                    <td>@(!string.IsNullOrEmpty(ServiceBillVMs?.CurrName) ? ServiceBillVMs.CurrName : "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Payment Terms</strong></td>
+                                    <td>@(!string.IsNullOrEmpty(ServiceBillVMs?.PayTerms) ? ServiceBillVMs.PayTerms : "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Remarks</strong></td>
+                                    <td>@(!string.IsNullOrEmpty(ServiceBillVMs?.Remarks) ? ServiceBillVMs.Remarks : "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Bills Items Section -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                ServiceBills Items
+            </div>
+            <div class="table-responsive" style="overflow-x:auto;">
+                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th class="text-center">Sl No.</th>
+                            <th>Item Code</th>
+                            <th>Description</th>
+                            <th class="text-center">UOM</th>
+                            <th class="text-center">HSN</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Discount</th>
+                            <th class="text-end">Basic Amount</th>
+                            @if (CustomerVMs.TaxValidate == false)
+                            {
+                                @if (CustomerVMs.BusiType == "Local")
+                                {
+                                    <th class="text-end">CGST</th>
+                                    <th class="text-end">SGST</th>
+                                }
+                                else if (CustomerVMs.BusiType == "InterState")
+                                {
+                                    <th class="text-end">IGST</th>
+                                }
+                            }
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (ServiceBillVMs?.ServiceBillsSub != null && ServiceBillVMs.ServiceBillsSub.Any())
+                        {
+                            @foreach (var item in ServiceBillVMs.ServiceBillsSub)
+                            {
+                                <tr>
+                                    <td class="text-center">@item.SlNo</td>
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td class="text-center">@item.MeasureUnit</td>
+                                    <td class="text-center">@item.HsnCode</td>
+                                    <td class="text-end">@FormatDecimal(item.Qty)</td>
+                                    <td class="text-end">@FormatDecimal(item.UnitPrice)</td>
+                                    <td class="text-end">@FormatDecimal(item.LineDiscountAmount)</td>
+                                    <td class="text-end">@FormatDecimal(item.LineBasicAmount)</td>
+
+                                    @if (CustomerVMs.TaxValidate == false)
+                                    {
+                                        @if (CustomerVMs.BusiType == "Local")
+                                        {
+                                            <td class="text-end">@FormatDecimal(item.LineCGSTAmount)</td>
+                                            <td class="text-end">@FormatDecimal(item.LineSGSTAmount)</td>
+                                        }
+                                        else if (CustomerVMs.BusiType == "InterState")
+                                        {
+                                            <td class="text-end">@FormatDecimal(item.LineIGSTAmount)</td>
+                                        }
+                                    }
+
+                                    <td>@item.Remarks</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="13" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Due Date & Tax Totals Section -->
+        <div class="row g-3 mb-4">
+             <div class="col-md-6">
+             </div>
+            <!-- Tax Totals -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-success-subtle text-success-emphasis fw-semibold p-2 small">
+                        Totals & Taxes
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary">Total Gross Amount</td><td class="text-end">@FormatDecimal(ServiceBillVMs.TotalGrossAmount)</td></tr>
+                                <tr><td class="text-secondary">Total Discount</td><td class="text-end">@FormatDecimal(ServiceBillVMs.DiscountAmount)</td></tr>
+                                <tr><td class="text-secondary">Total Basic Amount</td><td class="text-end">@FormatDecimal(ServiceBillVMs.TotalBasicAmount)</td></tr>
+                                <tr><td class="text-secondary">Freight Charges</td><td class="text-end">@FormatDecimal(ServiceBillVMs.FreightCharges)</td></tr>
+                                <tr><td class="text-secondary">Packing Charges</td><td class="text-end">@FormatDecimal(ServiceBillVMs.PackingCharges)</td></tr>
+                                <tr><td class="text-secondary">Insurance Charges</td><td class="text-end">@FormatDecimal(ServiceBillVMs.InsuranceCharges)</td></tr>
+                                <tr><td class="text-secondary">Total Taxable</td><td class="text-end">@FormatDecimal(ServiceBillVMs.TotalTaxable)</td></tr>
+                                @if (CustomerVMs.TaxValidate == false)
+                                {
+                                    @if (CustomerVMs.BusiType == "Local")
+                                    {
+                                        <tr><td class="text-secondary">Total CGST</td><td class="text-end">@FormatDecimal(ServiceBillVMs.TotalCGSTAmount)</td></tr>
+                                        <tr><td class="text-secondary">Total SGST</td><td class="text-end">@FormatDecimal(ServiceBillVMs.TotalSGSTAmount)</td></tr>
+                                    }
+                                    else if (CustomerVMs.BusiType == "InterState")
+                                    {
+                                        <tr><td class="text-secondary">Total IGST</td><td class="text-end">@FormatDecimal(ServiceBillVMs.TotalIGSTAmount)</td></tr>
+                                    }
+                                }
+                                <tr><td class="text-secondary">TCS</td><td class="text-end">@FormatDecimal(ServiceBillVMs.TCSAmount)</td></tr>
+                                <tr><td class="text-secondary">Other Charges</td><td class="text-end">@FormatDecimal(ServiceBillVMs.OtherCharges)</td></tr>
+                                <tr><td class="text-secondary">Round Off</td><td class="text-end">@FormatDecimal(ServiceBillVMs.RoundOff)</td></tr>
+                                <tr class="fw-bold fs-6 text-primary">
+                                    <td>Grand Total</td>
+                                    <td class="text-end">@FormatDecimal(ServiceBillVMs.GrandTotal)</td>
+                                </tr>
+
+                                @if (ServiceBillVMs.CurrId > 1)
+                                {
+                                    <tr>
+                                        <td colspan="2" class="text-end">
+                                            <small class="text-muted d-block">
+                                                Today's value: @ServiceBillVMs.TodayVal
+                                            </small>
+                                            <small class="fw-bold text-success d-block">
+                                                Converted Value in Rs: @((ServiceBillVMs.GrandTotal * ServiceBillVMs.TodayVal).ToString("0.00"))
+                                            </small>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <!-- Due Date & Terms and Conditions -->
+            <div class="col-md-12">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-warning-subtle text-warning-emphasis fw-semibold p-2 small">
+                        Total Amount in Words
+                    </div>
+                    <div class="card-body p-2 small">
+                        <p class="mb-0">
+                            @if (ServiceBillVMs.CurrId > 1 && ServiceBillVMs.TodayVal > 0)
+                            {
+                                <small class="fw-bold text-success d-block">
+                                    Converted Value in Rs:
+                                    @NumberToWordsHelper.ConvertNumberToWords(ServiceBillVMs.GrandTotal * ServiceBillVMs.TodayVal)
+                                </small>
+                            }
+                            else
+                            {
+                                <strong>@NumberToWordsHelper.ConvertNumberToWords(ServiceBillVMs.GrandTotal)</strong>
+                            }
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="/ServiceBills" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left-circle"></i> Back To List
+            </a>
+            <a href="@($"/ServiceBills/update/{ServiceId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+            <button class="btn btn-outline-success" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print
+            </button>
+       </div>
+ </div>
+    }
+}
+
+@code {
+
+    #region Declaration And Properties
+    protected override string ScreenName => "Service Bills";
+    [Parameter]
+    public int ServiceId { get; set; }
+
+
+    private bool isProcessing { get; set; } = true;
+    private ServiceBillsVM ServiceBillVMs { get; set; } = new ServiceBillsVM();
+    private CustomerVM CustomerVMs { get; set; } = new CustomerVM();
+    private VendorVM? SelectedVendor;
+
+    private string refEnqNosDisplay = "N/A";
+    private string refEnqDatesDisplay = "N/A";
+    private int Decimalplaces { get; set; } = 2;
+
+    private List<ServiceBillsSubVM> refPos = new();
+    private string refPoNosDisplay = "N/A";
+    private string refPoDatesDisplay = "N/A";
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadServiceBills();
+
+        }
+        catch(Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync Final Inspection List page");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadServiceBills()
+    {
+        try
+        {
+            if (ServiceId > 0)
+            {
+                var ServiceBills = await serviceBillService.GetServiceByServiceIdAsync(ServiceId);
+                if (ServiceBills != null)
+                {
+                    ServiceBillVMs = ServiceBills;
+                }
+                if (ServiceBillVMs.IncomingServics == true)
+                {
+                    SelectedVendor = await serviceBillService.GetVendorByIdAsync(ServiceBillVMs.CustVendorId ?? 0);
+                    ServiceBillVMs.CustVendorName = SelectedVendor.VendorName;
+                }
+                Decimalplaces = await serviceBillService.GetDecimalPlacesAsync();
+                CustomerVMs = await serviceBillService.GetCustomerById(ServiceBillVMs.CustVendorId ?? 0);
+                refPos = await serviceBillService.GetDistinctRefPoByServiceIdAsync(ServiceBills.ServiceId);
+
+                if (refPos.Any())
+                {
+                    // Only join the existing items, no extra commas
+                    refPoNosDisplay = string.Join(", ", refPos.Select(e => e.RefPoNo).Where(n => !string.IsNullOrEmpty(n)));
+                    refPoDatesDisplay = string.Join(", ", refPos
+                        .Select(e => e.RefPoDate.HasValue ? e.RefPoDate.Value.ToString("dd/MM/yyyy") : null)
+                        .Where(d => !string.IsNullOrEmpty(d)));
+                }
+            }
+        }
+        catch(Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LoadServiceBills()");
+            await _js.ToastrError("An error occurred while handling the LoadServiceBills()");
+        }
+    }
+
+    #endregion
+
+    }
+}

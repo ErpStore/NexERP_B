@@ -1,0 +1,456 @@
+﻿@page "/labourDcOutgoing/details/{DcId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ILabourServices
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.LabourDc_VM
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ILabourDcOutgoingService _dcService
+@inject ReportService reportService
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+        <!-- Company Details Section -->
+        <div class="row align-items-center mb-4 g-4">
+            <div class="col-12 col-lg-3 text-center">
+                @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                {
+                    <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid rounded-3" style="max-height:120px;" />
+                }
+            </div>
+            <div class="col-12 col-lg-9 text-lg-start text-center">
+                <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+                <p class="text-muted mb-0"><strong>GST No:</strong> @(company?.GSTIN ?? "N/A")</p>
+            </div>
+        </div>
+        <div class="row g-3 mb-4">
+            <!-- CustOmer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Customer Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.CustName) ? LabourDcOutgoingVMs.CustName : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.CustAddress) ? LabourDcOutgoingVMs.CustAddress : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>GSTIN</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.CustGstNo) ? LabourDcOutgoingVMs.CustGstNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.ContactNo) ? LabourDcOutgoingVMs.ContactNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.KindofAttention) ? LabourDcOutgoingVMs.KindofAttention : "N/A")</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Document Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>DC No</strong></td>
+                                    <td>@(LabourDcOutgoingVMs != null ? $"{LabourDcOutgoingVMs.Prefix}{LabourDcOutgoingVMs.DcNo}{LabourDcOutgoingVMs.Suffix}" : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>DC Date</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.DcDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Issued From Store</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.StoreName ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Sub Supply Type.</strong></td>
+                                    @if (LabourDcOutgoingVMs.SubSupplyType==1)
+                                    {
+                                        <td>Supply</td>
+                                    }
+                                    else if (LabourDcOutgoingVMs.SubSupplyType == 4)
+                                    {
+                                        <td>JobWork</td>
+                                    }
+                                    else if (LabourDcOutgoingVMs.SubSupplyType == 5)
+                                    {
+                                        <td>ForOwnUse</td>
+                                    }
+                                    else if (LabourDcOutgoingVMs.SubSupplyType==8)
+                                    {
+                                        <td>Others</td>
+                                    }
+                                   
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Remarks</strong></td>
+                                    <td>@LabourDcOutgoingVMs.Remarks</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Consignee & Other Terms Section -->
+        <div class="row g-3 mb-4">
+            <!-- Consignee Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                        Consignee Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        @if (LabourDcOutgoingVMs.IsSameAsShipping)
+                        {
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.CustName) ? LabourDcOutgoingVMs.CustName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.CustAddress) ? LabourDcOutgoingVMs.CustAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.CustGstNo) ? LabourDcOutgoingVMs.CustGstNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.ContactNo) ? LabourDcOutgoingVMs.ContactNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.KindofAttention) ? LabourDcOutgoingVMs.KindofAttention : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.ShippingName) ? LabourDcOutgoingVMs.ShippingName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.ShippingAddress) ? LabourDcOutgoingVMs.ShippingAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.ShippingGstNo) ? LabourDcOutgoingVMs.ShippingGstNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(LabourDcOutgoingVMs?.ShippingPhone) ? LabourDcOutgoingVMs.ShippingPhone : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        }
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment, Delivery, and Other Terms -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                       E-WAY Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>E-Way No.</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.EwayNo ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>E-Way Date</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.EwayDate?.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Transporter Details -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                        Mode Of Transport
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Mode Of Transport</strong></td>
+                                    @if (LabourDcOutgoingVMs?.TransportMode==1)
+                                    {
+                                        <td>By Road</td>
+                                    }else if (LabourDcOutgoingVMs?.TransportMode==2)
+                                    {
+                                        <td>By Railway</td>
+                                    }
+                                    else if (LabourDcOutgoingVMs?.TransportMode == 3)
+                                    {
+                                        <td>By Airway</td>
+                                    }
+                                    else if (LabourDcOutgoingVMs?.TransportMode == 4)
+                                    {
+                                        <td>By Seaway</td>
+                                    }
+                                    
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Vehicle No</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.VehicleNo ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Transport From</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.TransFrom ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Transport To</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.TransTo ?? "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                        Transporter Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Transporter Id</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.TransId ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Transporter Document No.</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.TransDocNo ?? "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Transporter Name.</strong></td>
+                                    <td>@(LabourDcOutgoingVMs?.TransName ?? "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- DC Items Section -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                Delivery Challan Items
+            </div>
+            <div class="table-responsive" style="overflow-x:auto;">
+                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th>Sl No.</th>
+                            <th>Item Code</th>
+                            <th>Description</th>
+                            <th>UOM</th>
+                            <th>HSN</th>
+                            <th>Qty</th>
+                            <th>Unit Price</th>
+                            <th>Basic Amount</th>
+
+                            <th>Ref Po No</th>
+                            <th>Ref Po Date</th>
+  
+                               
+                            <th>Ref GRN No</th>
+                            <th>Ref GRN Date</th>
+
+                            <th>Ref Dc No</th>
+                          
+                            <th>Remarks</th>
+                            <th>Cost Center</th>
+                            <th>Batch No</th>
+                            <th>WO No.</th>
+                            <th>Heat No.</th>
+                            <th>Rc No.</th>
+                            <th>Category</th>
+                            <th>Specification</th>
+                            <th>Item Cancel</th>
+                            <th>Item Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (LabourDcOutgoingVMs?.LabourDcOutgoingSubVMs != null && LabourDcOutgoingVMs.LabourDcOutgoingSubVMs.Any())
+                        {
+                            @foreach (var item in LabourDcOutgoingVMs.LabourDcOutgoingSubVMs)
+                            {
+                                <tr>
+                                    <td>@item.SlNo</td>
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td>@item.MeasureUnit</td>
+                                    <td>@item.HSNCode</td>
+                                    <td>@FormatDecimal(item.Qty)</td>
+                                    <td>@FormatDecimal(item.UnitPrice)</td>
+                                    <td>@FormatDecimal(item.Qty * item.UnitPrice)</td>
+
+                                    <td>@item.RefPoNo</td>
+                                    <td>@item.RefPoDate?.ToString("dd/MM/yyyy")</td>
+                                  
+                                    <td>@item.RefGRNNo</td>
+                                    <td>@item.RefGRNDate?.ToString("dd/MM/yyyy")</td>
+
+                                    <td>@item.RefDcNo</td>
+                                    <td>@item.RefDcDate?.ToString("dd/MM/yyyy")</td>
+                                    
+                                    <td>@item.DcRowRem</td>
+                                    <td>@item.ProjectNo</td>
+                                    <td>@item.BatchNo</td>
+                                    <td>@item.WONo</td>
+                                    <td>@item.HeatNo</td>
+                                    <td>@item.RCNos</td>
+                                    <td>@item.Category</td>
+                                    <td>@item.Specification</td>
+                                    <td>@item.ItemCancel</td>
+                                    <td>@item.CancelItemReason</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="13" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="@($"/labourDcoutgoingList?currentPage={currentPage}")" class="btn btn-secondary  rounded-3" disabled="@isProcessing">
+                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+            </a>
+            <a href="@($"/labourDcOutgoing/update/{DcId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+
+            @* <button class="btn btn-outline-success" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print
+            </button> *@
+
+            <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Labour Delivery Challan";
+
+    [Parameter]
+    public int DcId { get; set; }
+    private bool isProcessing { get; set; } = true;
+
+    private LabourDcOutgoingVM LabourDcOutgoingVMs { get; set; } = new LabourDcOutgoingVM();
+    private CustomerVM CustomerVMs { get; set; } = new CustomerVM();
+    string? pdfBase64;
+    private Companydetails company { get; set; } = new Companydetails();
+
+    private int Decimalplaces { get; set; } = 2;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            company = await _dcService.GetCompanyDetailsAsync();
+            await LoadDcDetails();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Faild in OnInitializedAsync purchase SCN");
+        }
+    }
+
+    private async Task LoadDcDetails()
+    {
+        if (DcId > 0)
+        {
+            var dc = await _dcService.GetLabourDcByIdAsync(DcId);
+            if (dc != null)
+            {
+                LabourDcOutgoingVMs = dc;
+
+            }
+
+            Decimalplaces = await _dcService.GetDecimalPlacesAsync();
+
+            CustomerVMs = await _dcService.GetCustomerByIdAsync(LabourDcOutgoingVMs.CustId.Value);
+
+        }
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(DcId, "LabDC.frx", "DcId", LabourDcOutgoingVMs.DcCancel, "Labour Delivery Challan", "Sp_Print_LabourDC");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _JS.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _JS.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Labour Delivery Challan");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in Labour Delivery Challan.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

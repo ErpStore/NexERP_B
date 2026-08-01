@@ -1,0 +1,3377 @@
+﻿@page "/MfgDc/create"
+@page "/MfgDc/create/{CustId:int}"
+@page "/MfgDc/update/{DcId:int}"
+
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchaseSCNService
+@using V.SMART.Shared.Data.OutSourcing.PurchaseGRN
+@using V.SMART.Shared.Data.SalesAndLabour.SalesDC
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesDCVM
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@inject ReportService reportService
+@inject ICalculationService _calculationService
+@inject IMfgDcService mfgDcService
+@inject ILoggingService _logs
+@inject IPurchaseSCNService _scnService
+@inject ICostingService _CostingService
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<DetailsModal Title="@(MfgDcVMs.IsPurchaseReturn?"GRN Details":"PO Details")"
+              Columns="@(MfgDcVMs.IsPurchaseReturn?GRNColumns:PoColumns)"
+              ColumnFields="@(MfgDcVMs.IsPurchaseReturn?GRNFields:PoFields)"
+              HiddenColumns="@(MfgDcVMs.IsPurchaseReturn?GRNHiddenColumns:PoHiddenColumns)"
+              Data="@(MfgDcVMs.IsPurchaseReturn?GRNData:PoData)"
+              IsVisible="@IsPoModalVisible"
+              IsVisibleChanged="@((val) => IsPoModalVisible = val)"
+              OnSelectedItems="@(MfgDcVMs.IsPurchaseReturn?OnGRNSelectedAsync:OnPoSelectedAsync)">
+</DetailsModal>
+
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="900px" OnClose="CloseModal">
+    @if (ActiveModal == "Customer")
+    {
+        <CustomerUpsert isCustModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                        refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }else if (ActiveModal == "RejectionRework")
+    {
+         <RejectionReworkDcModel isRejectReworkDetailsModelVisible=true DcId=@MfgDcVMs.DcId DcType="MfgDc" OnClose="CloseModal" />
+    }else if (ActiveModal == "Eway")
+    {
+         <EwayDcListModel isDcListDetailsModelVisible=true CustId=@MfgDcVMs.CustId.Value Customer=@MfgDcVMs.CustName DcType="MfgDc" OnClose="CloseModal" />
+    }
+
+</MasterModal>
+
+
+<style>
+    .freeze-last-col {
+  position: sticky;
+  right: 0;
+  background-color: #f8f9fa;
+  z-index: 10;
+}
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Cancelled Watermark -->
+            @if (MfgDcVMs.DcCancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+            else if (MfgDcVMs?.DcShortClose == true)
+            {
+                <div class="cancelWatermark">SHORT CLOSED</div>
+            }
+
+            <PageHeader TitleText="@(MfgDcVMs.DcId > 0 ? "Update Sales DC" : "Create Sales DC")"
+                TitleIcon="bi bi-tag"
+                Breadcrumbs="@DcFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="MfgDcVMs" OnValidSubmit="UpsertDC">
+                    <ObjectGraphDataAnnotationsValidator  />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <!-- Correspondence Status -->
+                        @if (MfgDcVMs.DcId > 0 && !string.IsNullOrWhiteSpace(MfgDcVMs.DcNo))
+                        {
+                            <CorrespondenceStatus ReferenceType="Manufacturing-Dc"
+                                                    ReferenceId="@MfgDcVMs.DcId"
+                                                    ReferenceTypeName="@MfgDcVMs.DcNo" />
+                        }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+                        <!-- =================== Customer Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Customer Information</span>
+                                    <button type="button" class="btn btn-sm btn-success rounded-3"
+                                            @onclick='() => OpenModal("Customer")'>
+                                        <i class="bi bi-person-add me-1"></i> Add Customer
+                                    </button>
+                                </div>
+
+                                <div class="card-body">
+
+                                    @if (!MfgDcVMs.IsPurchaseReturn)
+                                    {
+                                        <!-- Customer Autocomplete -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>M/S.*</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <MudAutocomplete T="CustomerVM"
+                                                    Value="SelectedCustomer"
+                                                    ValueChanged="@(async c => await OnCustomerChanged(c))"
+                                                    ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                    SearchFunc="SearchCustomers"
+                                                    Dense="true"
+                                                    Variant="Variant.Outlined"
+                                                    Placeholder="Search Customer"
+                                                    Title="Search atleast 3 letters in Customer"
+                                                    Class="w-100 autocomplete-sm"
+                                                    MaxItems="50"
+                                                    Clearable="true"
+                                                    ResetValueOnEmptyText="true"
+                                                    Required="true"
+                                                    AvoidSubmit="true"
+                                                    Disabled="@IsSomeItemsTransMade" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Address -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Address</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                          rows="1" readonly>@MfgDcVMs?.CustAddress</textarea>
+                                            </div>
+                                        </div>
+
+                                        <!-- Phone -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Phone No</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       value="@MfgDcVMs?.ContactNo" readonly />
+                                            </div>
+                                        </div>
+
+                                        <!-- GSTIN -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>GSTIN</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       value="@MfgDcVMs?.CustGstNo" readonly />
+                                            </div>
+                                        </div>
+
+                                        <!-- Contact Person -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Contact Person</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select class="form-select form-select-sm rounded-3 w-100"
+                                                        @bind="@MfgDcVMs.KindofAttention">
+                                                    <option disabled value="">Select Contact Person</option>
+                                                    @foreach (var cp in contactPersons)
+                                                    {
+                                                        <option value="@cp.ContactPersonName">@cp.ContactPersonName</option>
+                                                    }
+                                                </select>
+                                                <ValidationMessage For="@(() => MfgDcVMs.KindofAttention)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Shipping Address -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Shipping Address</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="form-check form-switch d-flex align-items-center">
+                                                    <input class="form-check-input" type="checkbox" id="SameAsShipping"
+                                                           checked="@MfgDcVMs.IsSameAsShipping"
+                                                           @onchange="OnShippingChange" />
+                                                    <label class="form-check-label ms-2 fw-semibold" for="SameAsShipping">
+                                                        Same as Shipping
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        @if (!MfgDcVMs.IsSameAsShipping)
+                                        {
+                                            <!-- Shipping To -->
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Shipping To</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <select value="@MfgDcVMs.ShippingId"
+                                                            class="form-select form-select-sm rounded-3 w-100"
+                                                            @onchange="OnConsigneeChangedAsync">
+                                                        <option value="">Select Shipping Address</option>
+                                                        @foreach (var consine in consineeAddress)
+                                                        {
+                                                            <option value="@consine.AltCustId">@consine.AltCustName</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            @if (MfgDcVMs.ShippingId > 0)
+                                            {
+                                                <div class="mb-2 row">
+                                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                        <small>Address</small>
+                                                    </label>
+                                                    <div class="col-12 col-lg-9">
+                                                        <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                               value="@MfgDcVMs.ShippingAddress" readonly />
+                                                    </div>
+                                                </div>
+
+                                                <div class="mb-2 row">
+                                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                        <small>Contact No</small>
+                                                    </label>
+                                                    <div class="col-12 col-sm-9">
+                                                        <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                               value="@MfgDcVMs.ShippingPhone" readonly />
+                                                    </div>
+                                                </div>
+
+                                                <div class="mb-2 row">
+                                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                        <small>GSTIN</small>
+                                                    </label>
+                                                    <div class="col-12 col-sm-9">
+                                                        <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                               value="@MfgDcVMs.ShippingGstNo" readonly />
+                                                    </div>
+                                                </div>
+                                            }
+                                        }
+
+
+                                    }
+                                    else
+                                    {
+                                         <!-- Vendor/Supplier Autocomplete -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>M/S.*</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <MudAutocomplete T="VendorVM"
+                                                                 Value="SelectedVendor"
+                                                                 ValueChanged="@(async c => await OnVendorChanged(c))"
+                                                                 ToStringFunc="@(c => c?.VendorName ?? string.Empty)"
+                                                                 SearchFunc="SearchVendors"
+                                                                 Dense="true"
+                                                                 Variant="Variant.Outlined"
+                                                                 Placeholder="Search Vendor/Supplier"
+                                                                 Title="Search atleast 3 letters in Vendor"
+                                                                 Class="w-100 autocomplete-sm"
+                                                                 MaxItems="50"
+                                                                 Clearable="true"
+                                                                 ResetValueOnEmptyText="true"
+                                                                 Required="true"
+                                                                 AvoidSubmit="true"
+                                                                 Disabled="@IsSomeItemsTransMade" />
+                                            </div>
+                                        </div>
+                                    }
+
+                                    
+                                    <!-- Mode Of Transport -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Mode Of Transport</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select @bind="MfgDcVMs.ModeofTrasnport"
+                                                    class="form-select form-select-sm rounded-3 w-100">
+                                               
+                                                <option value="1">By Road</option>
+                                                <option value="2">By Railway</option>
+                                                <option value="3">By Airway</option>
+                                                <option value="4">By Seaway</option>
+                                            </select>
+                                            <ValidationMessage For="@(() => MfgDcVMs.ModeofTrasnport)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Vehicle No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Vehicle No</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="MfgDcVMs.VehicleNo" />
+                                            <ValidationMessage For="@(() => MfgDcVMs.VehicleNo)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Transport From -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Transport From</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="MfgDcVMs.TransFrom" />
+                                            <ValidationMessage For="@(() => MfgDcVMs.TransFrom)" />
+                                        </div>
+                                    </div>
+                                    <!-- Transport TO -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Transport To</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="MfgDcVMs.TransTo" />
+                                            <ValidationMessage For="@(() => MfgDcVMs.TransTo)" />
+                                        </div>
+                                    </div>
+
+
+                                    <div class="accordion mb-3" id="transportAccordion">
+                                        <div class="accordion-item border-0 shadow-sm rounded-3">
+                                            <h2 class="accordion-header" id="headingTransport">
+                                                <button class="accordion-button collapsed fw-semibold text-primary"
+                                                        type="button"
+                                                        data-bs-toggle="collapse"
+                                                        data-bs-target="#collapseTransport"
+                                                        aria-expanded="false"
+                                                        aria-controls="collapseTransport">
+                                                    <i class="bi bi-truck me-2"></i> Transport Details
+                                                </button>
+                                            </h2>
+                                            <div id="collapseTransport"
+                                                 class="accordion-collapse collapse"
+                                                 aria-labelledby="headingTransport"
+                                                 data-bs-parent="#transportAccordion">
+                                                <div class="accordion-body">
+
+                                                     <!-- Transport ID -->
+                                                    <div class="mb-2 row">
+                                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                            <small>Transport ID</small>
+                                                        </label>
+                                                        <div class="col-12 col-sm-9">
+                                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                                       @bind-Value="MfgDcVMs.TransId" />
+                                                            <ValidationMessage For="@(() => MfgDcVMs.TransId)" />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Transport Doc No. -->
+                                                    <div class="mb-2 row">
+                                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                            <small>Transport Doc No.</small>
+                                                        </label>
+                                                        <div class="col-12 col-sm-9">
+                                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                                       @bind-Value="MfgDcVMs.TransDocNo" />
+                                                            <ValidationMessage For="@(() => MfgDcVMs.TransDocNo)" />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Transport Name -->
+                                                    <div class="mb-2 row">
+                                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                            <small>Transport Name</small>
+                                                        </label>
+                                                        <div class="col-12 col-sm-9">
+                                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                                       @bind-Value="MfgDcVMs.TransName" />
+                                                            <ValidationMessage For="@(() => MfgDcVMs.TransName)" />
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                    <!-- =================== Dc Detail =================== -->
+                    <div class="col-12 col-lg-6 mb-2">
+                        <div class="card h-100 shadow-sm">
+
+                            <!-- Header -->
+                            <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                <span class="fw-bold fs-6">Delivery Challan Details</span>
+
+                                @if (MfgDcVMs.DcId > 0 && (CanCreate || CanEdit))
+                                {
+                                    <button type="button"
+                                            class="btn btn-sm rounded-3 @(MfgDcVMs.DcCancel ? "btn-success" : "btn-danger")"
+                                            @onclick="Cancel">
+
+                                        @if (!MfgDcVMs.DcCancel)
+                                        {
+                                            <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                        }
+                                    </button>
+
+                                     <!-- Short Close / Reopen Button -->
+                                    <button type="button"
+                                            class="btn btn-sm rounded-3 @(MfgDcVMs.DcShortClose ? "btn-success" : "btn-warning")"
+                                            @onclick="() => AskToShortCloseAsync(MfgDcVMs)"
+                                            disabled="@MfgDcVMs.DcCancel">
+
+                                        @if (!MfgDcVMs.DcShortClose)
+                                        {
+                                            <i class="bi bi-box-seam me-1"></i> <span>Short Close</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Re-Open</span>
+                                        }
+                                    </button>
+
+                                }
+                            </div>
+
+                            <div class="card-body">
+
+                                @* Only show if no PoReference Not In Sub *@
+                                @if (MfgDcVMs?.MfgDcSubVMs == null || !MfgDcVMs.MfgDcSubVMs.Any(x => !string.IsNullOrEmpty(x.RefPoNo)))
+                                {
+                                     bool isDisabled = MfgDcVMs.DcId > 0;
+
+                                    <div class="row g-2 mb-2 align-items-stretch">
+
+                                        @if (!MfgDcVMs.IsPurchaseReturn && MfgDcVMs.MfgDcSubVMs.Any(x => !string.IsNullOrEmpty(x.ItemCode)))
+                                        {
+                                            <!-- Static WithoutPo DC Icon -->
+                                           
+                                            <div class="col-12 col-sm-6">
+                                                <div class="card h-100 shadow-sm border-2 border-success bg-success-subtle">
+                                                    <div class="card-body d-flex align-items-center justify-content-center">
+                                                       @*  <i class="bi bi-check-circle-fill text-success me-2" style="font-size: 1.5rem;"></i> *@
+                                                       <i class="bi @(MfgDcVMs.IsWithoutPoDc ? "bi-check-circle-fill text-success" : "bi-circle text-secondary") me-2"></i>
+                                                        <span class="fw-semibold text-success">
+                                                            WithoutPo DC
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                        else if(!MfgDcVMs.IsPurchaseReturn)
+                                        {
+                                                 <!-- WithoutPo DC -->
+                                                <div class="col-12 col-sm-6">
+                                                    <div class="card h-100 shadow-sm border-2 @(MfgDcVMs.IsWithoutPoDc ? "border-success bg-success-subtle" : "border-light")"
+                                                            style="cursor:@(isDisabled ? "not-allowed" : "pointer"); height:60px;"
+                                                            @onclick="isDisabled ? null : (() => ToggleDc(true))">                           
+                                                        <div class="card-body d-flex align-items-center justify-content-center">
+                                                            <i class="bi @(MfgDcVMs.IsWithoutPoDc ? "bi-check-circle-fill text-success" : "bi-circle text-secondary") me-2"></i>
+                                                            <span class="fw-semibold text-success">
+                                                                WithoutPo DC
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                        }
+
+                                        @if (!MfgDcVMs.IsWithoutPoDc && MfgDcVMs.MfgDcSubVMs.Any(x => !string.IsNullOrEmpty(x.ItemCode)))
+                                        {
+                                            <!-- Static Purchase Return DC Icon -->
+                                            <div class="col-12 col-sm-6">
+                                                <div class="card h-100 shadow-sm border-2 border-danger bg-danger-subtle">
+                                                    <div class="card-body d-flex align-items-center justify-content-center">
+                                                        <i class="bi bi-arrow-repeat text-danger me-2" style="font-size: 1.5rem;"></i>
+                                                        <span class="fw-semibold text-danger">
+                                                            Purchase Return DC
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                        else if(!MfgDcVMs.IsWithoutPoDc)
+                                        {
+                                            <!-- Purchase Return DC -->
+                                            <div class="col-12 col-sm-6">
+                                                <div class="card h-100 shadow-sm border-2 @(MfgDcVMs.IsPurchaseReturn ? "border-danger bg-danger-subtle" : "border-light")"
+                                                style="cursor:pointer"
+                                                @onclick="() => ToggleDc(false)">
+                                                    <div class="card-body d-flex align-items-center justify-content-center">
+                                                        <i class="bi bi-arrow-repeat text-danger me-2"></i>
+                                                        <span class="fw-semibold text-danger">
+                                                            Purchase Return DC
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+
+                                    </div>
+                                }
+
+                                <div class="row mb-2">
+                                    <div class="col-12 d-flex justify-content-end">
+                                        <div class="form-check d-flex align-items-center gap-2">
+                                                <input type="checkbox"
+                                                    class="form-check-input"
+                                                    style="border:2px solid #000;"
+                                                    @bind="MfgDcVMs.IsManualDcNo" @onclick="()=>ToggleAutoDcNo()" readonly="@MfgDcVMs.DcId>0" />
+                                            <label class="form-check-label text-dark">
+                                                <small>Is Manual Dc No.</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Dc No -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>Dc No.</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <div class="input-group input-group-sm flex-wrap w-100">
+                                            <input type="text"
+                                                   class="form-control form-control-sm rounded-start"
+                                                   placeholder="Prefix"
+                                                   maxlength="10"
+                                                   @bind="MfgDcVMs.Prefix" />
+
+                                            <input type="text"
+                                                   class="form-control form-control-sm"
+                                                   placeholder="Dc No."
+                                                   @bind="MfgDcVMs.DcNo" readonly="@IsDcNoReadonly"/>
+
+                                            <span class="input-group-text rounded-end">@MfgDcVMs.Suffix</span>
+                                        </div>
+                                        <ValidationMessage For="@(() => MfgDcVMs.Prefix)" />
+                                        <ValidationMessage For="@(() => MfgDcVMs.DcNo)" />
+                                        <ValidationMessage For="@(() => MfgDcVMs.Suffix)" />
+                                    </div>
+                                </div>
+
+                                <!-- Dc Date -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>DC Date</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <InputDate class="form-control form-control-sm rounded-3"
+                                                   @bind-Value="@MfgDcVMs.DcDate" />
+                                        <ValidationMessage For="@(() => MfgDcVMs.DcDate)" />
+                                    </div>
+                                </div>
+
+                                <!-- PO Details -->
+                                @if (!MfgDcVMs.IsWithoutPoDc  && poPendingCount > 0 && !MfgDcVMs.IsPurchaseReturn )
+                                {
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Ref. PO</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9 position-relative">
+                                            <button type="button"
+                                                class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                @onclick="ShowPoDetails">
+                                               <i class="bi bi-list-ul me-1"></i>  PO Details
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                else if (MfgDcVMs.IsPurchaseReturn && GRNPendingCount>0)
+                                {
+                                    @if (GRNPendingCount>0)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. GRN's</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9">
+                                                 <button type="button"
+                                                    class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                    @onclick="ShowGRNDetails">
+                                                   <i class="bi bi-list-ul me-1"></i>  GRN Details
+                                                </button>
+
+                                                <ValidationMessage For="@(() => MfgDcVMs.RefGRNId)" />
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            
+                                            </label>
+
+                                            <div class="col-12 col-sm-9">
+                                                    <small class="text-danger">No Pending GRN's found</small>
+                                            </div>
+                                        </div>
+                                    }
+                                        
+                                }else if(!MfgDcVMs.IsWithoutPoDc  && poPendingCount ==0)
+                                {
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                           
+                                        </label>
+                                        <div class="col-12 col-sm-9 position-relative">
+                                            <small class="text-danger">No Pending Po's found'</small>
+                                        </div>
+                                    </div>
+                                        
+                                }
+                                    <!-- Issue From Store -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>Issue From Store</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                id="MfgDc" value="@MfgDcVMs.IssueStoreId"
+                                                @onchange="OnStoreChanged">
+                                            <option value="0">--Select Store--</option>
+                                            @foreach (var storeid in stores)
+                                            {
+                                                <option value="@storeid.StoreId">@storeid.StoreName</option>
+                                            }
+                                        </select>
+                                        <ValidationMessage For="@(() => MfgDcVMs.IssueStoreId)" />
+                                    </div>
+                                </div>
+
+                                <!-- Towards -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>Towards</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1"
+                                                  @bind="MfgDcVMs.Towards"></textarea>
+                                        <ValidationMessage For="@(() => MfgDcVMs.Towards)" />
+                                    </div>
+                                </div>
+
+                                <!-- Remarks -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>Remarks</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1"
+                                                  @bind="MfgDcVMs.MainRemarks"></textarea>
+                                        <ValidationMessage For="@(() => MfgDcVMs.MainRemarks)" />
+                                    </div>
+                                </div>
+
+                               
+
+                                <!-- Sub Supply Type -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>Sub Supply Type</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <select @bind="MfgDcVMs.SubSuppType"
+                                                class="form-select form-select-sm rounded-3 w-100">
+                                            <option value="1">Supply</option>
+                                            <option value="5">ForOwnUse</option>
+                                            <option value="8">Others</option>
+                                        </select>
+                                        <ValidationMessage For="@(() => MfgDcVMs.SubSuppType)" />
+                                    </div>
+                                </div>
+
+                                @if (MfgDcVMs.SubSuppType==8)
+                                {
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Sub Supply Desc.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                        rows="1"
+                                                        @bind="MfgDcVMs.SubSupplyDesc"></textarea>
+                                            <ValidationMessage For="@(() => MfgDcVMs.SubSupplyDesc)" />
+                                        </div>
+                                    </div>
+                                }
+
+                                <!-- E-Way Bill No -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>E-Way Bill No</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <input type="text"
+                                               class="form-control form-control-sm rounded-3 w-100"
+                                               @bind="MfgDcVMs.EwayBillNo" />
+                                    </div>
+                                </div>
+
+                                <!-- E-Way Bill Date -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>E-Way Bill Date</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <InputDate class="form-control form-control-sm rounded-3 w-100"
+                                                   @bind-Value="MfgDcVMs.EwayBillDate" />
+                                    </div>
+                                </div>
+
+                                <!-- Action Row -->
+                                <div class="row align-items-end mb-2">
+                                    <!-- Rejection Button -->
+                                    @if (DcId > 0)
+                                    {
+                                        <div class="col-auto">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-danger rounded-3"
+                                                    @onclick='() => OpenModal("RejectionRework")'>
+                                                <i class="bi bi-plus-circle me-1"></i> Rejections
+                                            </button>
+                                        </div>
+                                    }
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                               
+                                <div class="card-header bg-primary-subtle text-dark">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+
+                                        <!-- Title -->
+                                        <span class="fw-bold fs-6">Item Details</span>
+
+                                        <!-- Right Controls -->
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                            <!-- Add Item Button -->
+                                             <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                                <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                            </button>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                   @if (SelectedCustomer != null && SelectedCustomer.LineId)
+                                                   {
+                                                        <th style="width:70px;">Line NO.</th>
+                                                   }
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:70px;">HSN</th>
+                                                     @if(IsLabourCost)
+                                                    {
+                                                        <th style="width:100px;">Labour Cost</th>
+                                                    }
+                                                    <th style="width:120px;">Qty</th>
+                                                    <th style="width:120px;">Bal Qty</th>
+                                                    <th style="width:120px;">Unit Price</th>
+                                                   
+                                                     <th style="width:100px;">Stock Qty</th>
+                                                    @if (!MfgDcVMs.IsWithoutPoDc && !MfgDcVMs.IsPurchaseReturn)
+                                                    {
+                                                        <th style="width:110px;">PO BalQty</th>
+                                                        <th style="width:110px;">Ref PO No.</th>
+                                                        <th style="width:110px;">Ref PO Dt.</th>
+                                                        <th style="width:110px;">PO Due Dt.</th>
+                                                    }
+                                                   
+                                                     <th style="width:200px;">Remarks</th>
+                                                    <th style="width:110px;">Type of PO</th>
+                                                    <th style="width:150px;">Cost-Center</th>
+                                                    <th style="width:150px;">Line Id</th>
+                                                    <th style="width:130px;">Item Cancel</th>
+
+                                                    <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in MfgDcVMs.MfgDcSubVMs)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Line No -->
+                                                        @if (SelectedCustomer != null && SelectedCustomer.LineId)
+                                                        {
+                                                             <td>@subitem.LineId</td>
+                                                        }
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @if (subitem.IsEditable  && (subitem.RefPoSubId == 0 || subitem.RefPoSubId == null) 
+                                                                    && subitem.Qty.GetValueOrDefault() == subitem.BalQty && !MfgDcVMs.IsPurchaseReturn)
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                            Value="subitem.SelectedItem"
+                                                                                            ValueChanged="@(async item => await OnItemChanged(subitem, item))"
+                                                                                            ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                            SearchFunc="SearchItems"
+                                                                                            Dense="true"
+                                                                                            Variant="Variant.Outlined"
+                                                                                            Placeholder="Search Item Code"
+                                                                                            Title="Search Atleast 3 Letters in Item-Code"
+                                                                                            Class="w-100 autocomplete-sm"
+                                                                                            MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                        Size="Size.Small"
+                                                                                        Color="Color.Primary"
+                                                                                        OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                        Edge="Edge.End"
+                                                                                        Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.MeasureUnit</td>
+                                                        <td>@subitem.HSNCode</td>
+                                                         @if(IsLabourCost)
+                                                         {
+                                                              <td>@subitem.LabourCost</td>
+                                                         }
+                                                       
+
+                                                        <!-- Qty -->
+                                                        <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Qty"
+                                                                           title="Enter Quantity"
+                                                                          
+                                                                           @bind="subitem.Qty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" step="any" />
+                                                                <ValidationMessage For="@(() => subitem.Qty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.Qty</span>
+                                                            }
+                                                        </td>
+
+                                                        <td>@subitem.BalQty</td>
+
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" class="form-control form-control-sm" placeholder="Price" title="Enter Unit Price"
+                                                                        @bind="subitem.UnitPrice" step="any"/>
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        <td class="text-danger">@subitem.StockQty</td>
+                                                        
+                                                        @if(!MfgDcVMs.IsWithoutPoDc && !MfgDcVMs.IsPurchaseReturn)
+                                                        {
+                                                            <td>@subitem.PoBalQty</td>
+                                                            <td>@subitem.RefPoNo</td>
+                                                            <td>@subitem.RefPoDate?.ToString("dd/MM/yyyy")</td>
+                                                            <td>@subitem.PoDueDate?.ToString("dd/MM/yyyy")</td>
+
+                                                        }
+                                                       <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea @bind-Value="subitem.Remark"
+                                                                   class="form-control form-control-sm"
+                                                                   placeholder="Enter Remarks"
+                                                                   readonly="@MfgDcVMs.IsPurchaseReturn" title="Enter NV in the Remarks for particulars that do not have invoice values" />
+                                                                <ValidationMessage For="@(() => subitem.Remark)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remark
+                                                            }
+                                                        </td>
+                                                       
+
+                                                        <!--Typeof Po -->
+                                                         <td>@subitem.TypeOfPo</td>
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @subitem.ProjectNo
+                                                        </td>
+
+                                                        <td>
+                                                            @subitem.LineId
+                                                        </td>
+
+                                                        <td class="text-center align-middle">
+
+                                                            <div class="form-check form-switch d-flex justify-content-center">
+                                                                <InputCheckbox 
+                                                                @bind-Value="subitem.ItemCancel"
+                                                                @bind-Value:event="onchange"
+                                                                ValueChanged="@(async (value) => await OnItemCancelChanged(subitem))"
+                                                                class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                            </div>
+                                                            <ValidationMessage For="@(() => subitem.ItemCancel)" 
+                                                                class="text-danger fw-semibold small mt-2 d-block" />
+                                                        </td>
+
+                                                        <!-- Action Buttons -->
+                                                        <td class="freeze-last-col text-end">
+                                                            @if (!MfgDcVMs.DcCancel)
+                                                            {
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <button type="button" class="btn btn-success btn-icon btn-sm" title="Save" 
+                                                                            @onclick="async () => await SaveRow(subitem)">
+                                                                        <i class="bi bi-check-lg"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel" 
+                                                                            @onclick="async () => await CancelEdit(subitem, MfgDcVMs)">
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <button type="button" class="btn btn-primary btn-icon btn-sm" 
+                                                                            title="Edit" 
+                                                                            disabled="@subitem.ItemCancel"    
+                                                                            @onclick="async () => await EditRowAsync(subitem)">
+                                                                        <i class="bi bi-pencil"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-danger btn-icon btn-sm"
+                                                                            title="Delete" 
+                                                                            disabled="@subitem.ItemCancel"
+                                                                            @onclick="async () => await RemoveRow(subitem)">
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                }
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            <!-- Totals -->
+                                            @if (MfgDcVMs.MfgDcSubVMs?.Any() == true && !MfgDcVMs.IsPurchaseReturn)
+                                            {
+                                                <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="@(SelectedCustomer.LineId ? 6 : 5)" class="text-end fw-bold">
+                                                            Totals:
+                                                        </td>
+                                                        <td>@MfgDcVMs.TotalQty</td>
+                                                        <td>@MfgDcVMs.TotalBalQty</td>
+                                                        <td>Avg: @FormatDecimal(MfgDcVMs.AverageUnitPrice)</td>
+                                                        <td colspan="10"></td>
+
+                                                    </tr>
+                                                </tfoot>
+                                            }
+                                            else
+                                            {
+                                                <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="@(MfgDcVMs.IsPurchaseReturn ? 6 : 5)" class="text-end fw-bold">
+                                                            Totals:
+                                                        </td>
+                                                        <td>@MfgDcVMs.TotalQty</td>
+                                                        <td>@MfgDcVMs.TotalBalQty</td>
+                                                        <td>Avg: @FormatDecimal(MfgDcVMs.AverageUnitPrice)</td>
+                                                        <td colspan="11"></td>
+
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+
+                                        </table>
+                                    </div>
+
+                                    @if(!MfgDcVMs.DcCancel  && MfgDcVMs.IsWithoutPoDc)
+                                    {
+                                        <div class="mt-2 text-start">
+                                            <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                                <i class="bi bi-plus-circle me-1"></i> Add Item
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Action Buttons -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if(!MfgDcVMs.DcCancel)
+                                {
+                                    <div class="col-4 col-md-3 mt-3">
+                                        <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i> @(MfgDcVMs.DcId > 0 ? "Update" : "Create")
+                                        </button>
+                                    </div>
+                                  
+                                }
+                            }
+
+                            @if(MfgDcVMs.DcId>0 && string.IsNullOrEmpty(MfgDcVMs.EwayBillNo))
+                            {
+                                 <div class="col-4 col-md-3 mt-3">
+                                    <button type="button" class="btn  btn-success w-100 rounded-3 rounded-3" @onclick='() => OpenModal("Eway")'>
+                                        <i class="bi bi-person-add me-1"></i> E-Way
+                                    </button>
+                            
+                                 </div>
+                            }
+
+                            <div class="col- col-md-3 mt-3">
+                                <SmartBackButton Url="@($"/mfgDcList?currentPage={currentPage}")" />
+                            </div>
+                            
+                        @if (CanCreate || CanEdit && DcId > 0)
+                        {
+                            <div class="col-12 col-md-3">
+                                <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                    <i class="bi bi-printer me-1"></i>Print
+                                </button>
+                            </div>
+                        }
+                        </div>
+
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+} 
+
+
+@code {
+
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Manufacturing DC";
+
+    [Parameter] public int? DcId { get; set; }
+    [Parameter] public int CustId { get; set; }
+
+    private int screenCode { get; set; }
+
+    private bool isProcessing = true;
+    private MfgDcVM MfgDcVMs { get; set; } = new();
+    private MfgDcSubVM? rowToDelete;
+    private MfgDcSubVM? rowToCancel;
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private CustomerVM? SelectedCustomer;
+    private List<Store> stores = new();
+
+    private List<PurchaseGRN> purchGRN = new();
+
+    string? pdfBase64;
+    
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private List<ContactPerson> contactPersons = new();
+    private List<CustomerIndirect> consineeAddress = new();
+    private List<string> fromLocations = new();
+    private List<string> toLocations = new();
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private int poPendingCount = 0;
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private bool IsPoModalVisible = false;
+    private List<Dictionary<string, object>>? PoData;
+
+    #region Grn
+    private VendorVM? SelectedVendor;
+    private int GRNPendingCount = 0;
+    private bool IsGRNModalVisible = false;
+    private List<Dictionary<string, object>>? GRNData;
+    // 🔹 Visible Column Titles
+    private List<string> GRNColumns = new()
+    {
+        "GRNSubId","GRN No", "Suffix", "GRN Date","ItemId",
+        "Item Code", "Item Name", "UOM", "HSN Code",
+        "Qty", "Bal Qty", "Unit Price","Stock Qty","CostCenterId",
+        "Project No", "Remark"
+    };
+
+    // 🔹 Field Names (backend binding)
+    private List<string> GRNFields = new()
+    {
+        "GRNSubId","GRNNo", "Suffix", "GRNDate","ItemId",
+        "ItemCode", "ItemName", "UOM", "HSNCode",
+        "Qty", "BalQty", "UnitPrice","StockQty","CostCenterId",
+        "ProjectNo", "Remark"
+    };
+
+    // 🔹 Hidden Columns (IDs and internal refs)
+    private List<string> GRNHiddenColumns = new()
+    {
+        "GRNSubId","ItemId", "CostCenterId"
+    };
+
+    #endregion
+
+    // 🔹 Visible Column Titles
+    private List<string> PoColumns = new()
+    {
+        "PoSubId", "IsOpenPo","Po No", "Suffix", "Po Date","LineId","ItemId",
+        "Item Code", "Item Name", "UOM", "HSN Code",
+        "Qty", "Bal Qty", "Unit Price","Stock Qty", "Po Due Date","CostCenterId",
+        "Project No", "Remark","Customer"
+    };
+
+    // 🔹 Field Names (backend binding)
+    private List<string> PoFields = new()
+    {
+        "PoSubId", "IsOpenPo","PoNo", "Suffix", "PoDate","LineId","ItemId",
+        "ItemCode", "ItemName", "UOM", "HSNCode",
+        "Qty", "BalQty", "UnitPrice","StockQty", "PoDuedate","CostCenterId",
+        "ProjectNo", "Remark","Customer"
+    };
+
+    // 🔹 Hidden Columns (IDs and internal refs)
+    private List<string> PoHiddenColumns = new()
+    {
+        "PoSubId","ItemId", "CostCenterId"
+    };
+
+    private List<PageHeader.BreadcrumbItem> DcFormBreadcrumbs = new()
+    {
+        new() { Text = "Sales" },
+        new() { Text = "DC-Outgoing", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+    private bool IsLabourCost { get; set; } = false;
+
+    #endregion
+
+    public bool IsDcNoReadonly =>!(MfgDcVMs.IsManualDcNo ?? false) || DcId == 0;
+    private async Task ToggleAutoDcNo()
+    {
+        if (MfgDcVMs.IsManualDcNo??false)
+        {
+            MfgDcVMs.DcNo = await mfgDcService.GetDcOutgoingNoAsync(MfgDcVMs.Suffix);
+        }
+    }
+
+
+    #region  ToggleDc
+
+    private async Task ToggleDc(bool isWithoutPo)
+    {
+        if (isWithoutPo)
+        {
+            // If already selected, unselect
+            if (MfgDcVMs.IsWithoutPoDc)
+            {
+                MfgDcVMs.IsWithoutPoDc = false;
+            }
+            else
+            {
+                MfgDcVMs.IsWithoutPoDc = true;
+                MfgDcVMs.IsPurchaseReturn = false;
+
+            }
+        }
+        else
+        {
+            if (MfgDcVMs.IsPurchaseReturn)
+            {
+                MfgDcVMs.IsPurchaseReturn = false;
+
+            }
+            else
+            {
+                MfgDcVMs.IsPurchaseReturn = true;
+                MfgDcVMs.IsWithoutPoDc = false;
+
+            }
+        }
+    }
+
+    #endregion
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            DecimalPlaces = await mfgDcService.GetDecimalPlacesAsync();
+            screenCode = await mfgDcService.GetScreenCodeByScreenNameAsync(ScreenName);
+            IsLabourCost = await _CostingService.IsLabourChargesDisplayEnabledAsync();
+
+            if (DcId.HasValue)
+            {
+                await LoadExistingDc(DcId.Value);
+            }
+            else if (CustId > 0)
+            {
+                await InitializeNewDc(CustId);
+            }
+            MfgDcVMs.ModeofTrasnport = 1;
+            MfgDcVMs.SubSuppType = 1;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingDc(int dcId)
+    {
+        try
+        {
+            MfgDcVMs = await mfgDcService.GetMfgDcByDcIdAsync(dcId);
+            if (MfgDcVMs == null)
+            {
+                await _js.ToastrWarning("DC not found.");
+                return;
+            }
+
+            if(!MfgDcVMs.IsPurchaseReturn)
+            {
+                SelectedCustomer = await mfgDcService.GetCustomerByIdAsync(MfgDcVMs.CustId.Value);
+                if (SelectedCustomer != null)
+                    await ApplyCustomerSelectionAsync(SelectedCustomer);
+            }else
+            {
+                SelectedVendor = await _scnService.GetVendorByIdAsync(MfgDcVMs.VendorCode.Value);
+                if (SelectedVendor != null)
+                    await ApplyVendorSelectionAsync(SelectedVendor);
+            }
+
+
+
+            decimal stockqty = 0;
+            foreach (var dcSub in MfgDcVMs.MfgDcSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[dcSub.ItemId.Value] =
+                    await mfgDcService.GetCorrespondenceAttachmentsCountAsync(dcSub.ItemId.Value, "Item");
+
+                if (!string.IsNullOrWhiteSpace(dcSub.RcSubIds))
+                {
+                    var ids = dcSub.RcSubIds.Replace("'", "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                    foreach (var rcSubId in ids)
+                    {
+                        if (int.TryParse(rcSubId, out int rcsubid))
+                        {
+                            stockqty += await mfgDcService.GetAvailableStockByItemIdAndRcAndScreenAsync(dcSub.ItemId!.Value,MfgDcVMs.IssueStoreId,rcsubid);
+                        }
+                    }
+                    dcSub.StockQty = stockqty;
+                }
+                else
+                {
+                    dcSub.StockQty = await mfgDcService.GetStockQtyFromStockManager(dcSub.ItemId.Value, MfgDcVMs.IssueStoreId.Value);
+                }
+                  if(IsLabourCost)
+                  {
+                      if (dcSub.UnitPrice < dcSub.LabourCost)
+                      {
+                          _js.ToastrWarning(
+                              $"Unit Price ({dcSub.UnitPrice:0.00}) Is less than Labour Cost ({dcSub.LabourCost:0.00})."
+                          );
+                      }
+                      else if(dcSub.UnitPrice > dcSub.LabourCost)
+                      {
+                          _js.ToastrWarning(
+                          $"Unit Price ({dcSub.UnitPrice:0.00}) Is  Greater than than Labour Cost ({dcSub.LabourCost:0.00})."
+                      );
+
+                      }
+
+                  }
+
+            }
+
+            //Check Transaction Completed flag
+            IsSomeItemsTransMade = CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load Existing DC.");
+            await _logs.LogDeveloperError(ex, $"LoadExistingDc failed for DcId: {DcId}");
+        }
+    }
+
+    private bool CheckIsTransMade()
+    {
+        var list = MfgDcVMs?.MfgDcSubVMs;
+        if (list == null || list.Count == 0)
+            return false;
+
+        decimal totalQty = 0, totalBalQty = 0;
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            totalQty += list[i].Qty.GetValueOrDefault();
+            totalBalQty += list[i].BalQty;
+        }
+
+        return totalQty != totalBalQty;
+    }
+
+    private async Task InitializeNewDc(int custId)
+    {
+        try
+        {
+            var customer = await mfgDcService.GetCustomerByIdAsync(custId);
+            if (customer != null)
+                await ApplyCustomerSelectionAsync(customer);
+
+            MfgDcVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            MfgDcVMs.Prefix = await mfgDcService.GetPrefixFromDb();
+            MfgDcVMs.DcNo = await mfgDcService.GetDcOutgoingNoAsync(MfgDcVMs.Suffix);
+
+            var MapStoreForDc = await mfgDcService.GetMappedStoreForFormAsync("SalesDCForm");
+
+            if (MapStoreForDc.StoreId > 0)
+            {
+                MfgDcVMs.IssueStoreId = MapStoreForDc.StoreId;
+                MfgDcVMs.StoreName = MapStoreForDc.StoreName;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new po.");
+            await _logs.LogDeveloperError(ex, $"InitializeNewPo failed for CustId: {custId}");
+        }
+    }
+
+    #endregion
+
+
+    #region Customer data, Currency And Tax  Handlers
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3) 
+            return Enumerable.Empty<CustomerVM>();
+
+        try
+        {
+            var results = await mfgDcService.SearchCustomersAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<CustomerVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search customers. Please try again.");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+            await ApplyCustomerSelectionAsync(customer);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnCustomerChanged: {ex}");
+            await _logs.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting");
+            contactPersons.Clear();
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+            SelectedCustomer = customer;
+            MfgDcVMs.CustId = customer?.CustId ?? 0;
+            MfgDcVMs.CustName = customer?.CustName;
+            MfgDcVMs.CustAddress = customer?.CustAddr;
+            MfgDcVMs.CustGstNo = customer?.GSTNo;
+            MfgDcVMs.ContactNo = customer?.ContactNo;
+
+            if (customer == null)
+            {
+                contactPersons.Clear();
+                consineeAddress.Clear();
+                stores.Clear();
+                return;
+            }
+
+            contactPersons = await mfgDcService.GetContactPersonsAsync(customer.CustId);
+            consineeAddress = await mfgDcService.GetConsigneeAddressesAsync(customer.CustId);
+
+            stores = (await mfgDcService.GetAllActiveStoresAsync()).ToList();
+
+
+
+            MfgDcVMs.KindofAttention = contactPersons.Count == 1 ? contactPersons.First().ContactPersonName : string.Empty;
+
+            //Pending PoDetails
+            poPendingCount = await mfgDcService.GetPendingPoCountAsync(customer.CustId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {customer?.CustId}");
+            await _js.ToastrError("Failed to apply customer selection. Please try again.");
+        }
+    }
+
+    private async Task OnShippingChange(ChangeEventArgs e)
+    {
+        try
+        {
+            MfgDcVMs.IsSameAsShipping = (bool)e.Value;
+
+            if (!MfgDcVMs.IsSameAsShipping && SelectedCustomer != null)
+            {
+                consineeAddress = await mfgDcService.GetConsigneeAddressesAsync(SelectedCustomer.CustId);
+            }
+            else
+            {
+                consineeAddress.Clear();
+                ResetShippingDefaults();
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex,$"Error while toggling shipping address for CustId={SelectedCustomer?.CustId}");
+        }
+    }
+
+    private void ResetShippingDefaults()
+    {
+        MfgDcVMs.ShippingId = null;
+        MfgDcVMs.ShippingName = null;
+        MfgDcVMs.ShippingAddress = null;
+        MfgDcVMs.ShippingGstNo = null;
+        MfgDcVMs.ShippingPhone = null;
+    }
+
+    private async Task OnConsigneeChangedAsync(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var selectedId) || selectedId == 0)
+            {
+                MfgDcVMs.IsSameAsShipping = true; 
+                ResetShippingDefaults();
+
+                StateHasChanged();
+                return;
+            }
+
+            MfgDcVMs.IsSameAsShipping = false; 
+
+            var selectedConsignee = consineeAddress.FirstOrDefault(c => c.AltCustId == selectedId);
+            if (selectedConsignee == null)
+                return;
+
+            MfgDcVMs.ShippingId = selectedConsignee.AltCustId;
+            MfgDcVMs.ShippingAddress = string.Join(" ",
+                new[] { selectedConsignee.AltCustAddr1, selectedConsignee.AltCustAddr2 }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+            MfgDcVMs.ShippingGstNo = selectedConsignee.GSTNo ?? string.Empty;
+            MfgDcVMs.ShippingPhone = selectedConsignee.ContactNo ?? string.Empty;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnConsigneeChangedAsync");
+        }
+    }
+
+    #endregion
+
+
+    #region Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await mfgDcService.SearchItemsAsync(value, MfgDcVMs.CustId);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(MfgDcSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItem = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.HSNCode = item.HSNCode;
+                subitem.MeasureUnit = item.MeasureUnit;
+                subitem.LabourCost = item.AssemblyPrice;
+
+                if (MfgDcVMs?.CustId != null && subitem.ItemId.HasValue)
+                {
+                    var rates = await mfgDcService.GetBulkLastUnitPricesAsync(
+                        new List<int> { subitem.ItemId.Value },
+                        MfgDcVMs.CustId.Value
+                    );
+
+                    if (rates.TryGetValue(subitem.ItemId.Value, out decimal rate))
+                    {
+                        subitem.UnitPrice = rate;
+                    }
+                }
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await mfgDcService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+                    
+                    if (MfgDcVMs.IsWithoutPoDc)
+                    {
+                        subitem.StockQty = await mfgDcService.GetStockQtyFromStockManager(subitem.ItemId.Value, MfgDcVMs.IssueStoreId.Value);
+                    }
+                      if(IsLabourCost)
+                       {
+                           if (subitem.UnitPrice < subitem.LabourCost)
+                           {
+                               _js.ToastrWarning(
+                                   $"Unit Price ({subitem.UnitPrice:0.00}) Is less than Labour Cost ({subitem.LabourCost:0.00})."
+                               );
+                           }
+                           else if(subitem.UnitPrice > subitem.LabourCost)
+                           {
+                                   _js.ToastrWarning(
+                                   $"Unit Price ({subitem.UnitPrice:0.00}) Is  Greater than than Labour Cost ({subitem.LabourCost:0.00})."
+                               );
+
+                           }
+  
+                       }
+
+                }
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItem = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.HSNCode = null;
+                subitem.MeasureUnit = null;
+                subitem.UnitPrice = 0m;
+                subitem.LabourCost = 0m;
+            }
+
+            if (MfgDcVMs != null)
+            {
+                if (MfgDcVMs.IsWithoutPoDc)
+                {
+                    subitem.TypeOfPo = "General PO";
+                }
+                else if (MfgDcVMs.IsPurchaseReturn)
+                {
+                    subitem.TypeOfPo = "Purchase-GRN";
+                }
+                else
+                {
+                    subitem.TypeOfPo = "General PO";
+                }
+            }
+
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    private bool IsItemAlreadySelected(int itemId, int? currentItemId)
+    {
+        return MfgDcVMs.MfgDcSubVMs?.Any(q => q.ItemId == itemId && q.ItemId != currentItemId) == true;
+    }
+
+    #endregion
+
+
+    #region Quantity Handlers
+
+    private async Task OnQtyChange(ChangeEventArgs e, MfgDcSubVM SubVM)
+    {
+        try
+        {
+
+
+            int refposubid = 0;
+            int.TryParse(SubVM.RefPoSubId.ToString(),out refposubid);
+
+            var isOpenPo = await mfgDcService.IsOpenPoAsync(refposubid);
+            decimal stkqty = 0;
+
+            // Common validation: Qty must be positive
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.Qty = 0;
+                SubVM.BalQty = 0;
+                await _js.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+
+            // NEW Po line
+            if (SubVM.DcSubId == 0)
+            {
+                decimal rcstockqty = 0;
+                if (SubVM.RcSubIds != "" && SubVM.RcSubIds != null)
+                {
+                    var ids = SubVM.RcSubIds.Replace("'", "").Split(',', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var rcid in ids)
+                    {
+                        int.TryParse(rcid.ToString(), out int rsubid);
+                        rcstockqty = rcstockqty + await mfgDcService.GetAvailableStockByItemIdAndRcAndScreenAsync(SubVM.ItemId.Value, MfgDcVMs.IssueStoreId.Value, rsubid);
+                    }
+                }
+                var stockDict = (SubVM.RcSubIds != "" && SubVM.RcSubIds != null) ? rcstockqty : await mfgDcService.GetStockQtyFromStockManager(SubVM.ItemId.Value, MfgDcVMs.IssueStoreId.Value);
+
+                decimal.TryParse(stockDict.ToString(), out stkqty);
+
+
+                if (refposubid > 0)
+                {
+                    var poBalQty = await mfgDcService.GetPoItemBalQtyFromPoSubId(refposubid);
+
+                    decimal possibleQty = Math.Min(stkqty, poBalQty);
+
+                    if(isOpenPo)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else if (newQty <= possibleQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.Qty = possibleQty;
+                        SubVM.BalQty = possibleQty;
+                        await _js.ToastrWarning($"Qty cannot exceed Available Po Bal Qty ({poBalQty}). " + $"[Stock Qty: {stkqty}");
+                        return;
+                    }
+                }
+                else
+                {
+                    int refscnsubid = 0;
+                    int.TryParse(SubVM.RefSCNSubId.ToString(),out refscnsubid);
+                    var scnBalQty = await mfgDcService.GetSCNItemBalQtyFromSCNSubId(refscnsubid);
+                    decimal possibleQty = Math.Min(stkqty, scnBalQty);
+
+                    if (refscnsubid>0)
+                    {
+                        if(newQty<=possibleQty)
+                        {
+                            SubVM.Qty = newQty;
+                            SubVM.BalQty = newQty;
+                        }
+                        else
+                        {
+                            SubVM.Qty = possibleQty;
+                            SubVM.BalQty = possibleQty;
+                            await _js.ToastrWarning($"Qty {newQty} cannot exceed Available SCN Reject Bal Qty ({scnBalQty}). Stock  Qty ({stkqty})");
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+
+
+                }
+            }
+
+            // EXISTING DC line
+            else
+            {
+                var original = await mfgDcService.GetDcSubItemDetailByDcSubIdAsync(SubVM.DcSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.Qty - original.BalQty;
+
+                // Cannot decrease below transacted quantity
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.Qty = alreadyTransacted;
+                    SubVM.BalQty = 0;
+                    await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                if (SubVM.RefPoSubId > 0)
+                {
+                    var poBalQty = await mfgDcService.GetPoItemBalQtyFromPoSubId(refposubid);
+                    var maxAllowedQty = original.Qty + poBalQty;
+
+                    if (newQty > maxAllowedQty && !isOpenPo)
+                    {
+                        SubVM.Qty = maxAllowedQty;
+                        SubVM.BalQty = maxAllowedQty.GetValueOrDefault() - alreadyTransacted.GetValueOrDefault();
+                        await _js.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                    }
+                    else
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted.GetValueOrDefault();
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty - alreadyTransacted.GetValueOrDefault();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnQtyChange failed for DcSubId: {SubVM?.DcSubId}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(MfgDcSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.Qty <= 0)
+                errors.Add("Quantity must be greater than 0.");
+
+            if (row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await _logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = MfgDcVMs.MfgDcSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await _logs.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            MfgDcVMs.MfgDcSubVMs.Add(new MfgDcSubVM
+            {
+                DcId = MfgDcVMs.DcId,
+                IsEditable = true
+            });
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await _logs.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(MfgDcSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            if (!MfgDcVMs.MfgDcSubVMs.Any(x => x.IsEditable))
+            {
+                if (MfgDcVMs.IsWithoutPoDc)
+                {
+                    MfgDcVMs.MfgDcSubVMs.Add(new MfgDcSubVM
+                    {
+                        DcId = MfgDcVMs.DcId,
+                        IsEditable = true
+                    });
+                }
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SaveRow failed for DcSubId: {item?.DcSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(MfgDcSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItem == null && item.ItemId > 0)
+            {
+                item.SelectedItem = await mfgDcService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"EditRowAsync failed for DcSubId: {item?.DcSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(MfgDcSubVM? item, MfgDcVM? parentDc)
+    {
+        try
+        {
+            if (item == null || parentDc == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (item.Qty.GetValueOrDefault() <= 0) ||
+                (item.UnitPrice <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentDc.MfgDcSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CancelEdit failed for DcSubId: {item?.DcSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(MfgDcSubVM item)
+    {
+        try
+        {
+            if (MfgDcVMs.MfgDcSubVMs.Count == 1 && item.DcSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }else if (MfgDcVMs.MfgDcSubVMs.Count == 1 && !MfgDcVMs.IsWithoutPoDc)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if (item.Qty.GetValueOrDefault() != item.BalQty)
+            {
+                await _js.ToastrWarning("This row cannot be deleted because some transactions are done.");
+                return;
+            }
+
+            if(!string.IsNullOrEmpty(MfgDcVMs.EwayBillNo))
+            {
+                await _js.ToastrWarning("This row cannot be deleted because Eway transactions are done.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                MfgDcVMs.MfgDcSubVMs.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"RemoveRow failed for DcSubId: {item?.DcSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in MfgDcVMs.MfgDcSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Customer" => "Add New Customer",
+                "Item" => "Add New Item",
+                "Attachments" => "Attached Drawings",
+                "RejectionRework"=>"Rejection/Rework Details",
+                "Eway"=>"E-Way Settings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+            MfgDcVMs = await mfgDcService.GetMfgDcByDcIdAsync(DcId.Value);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if(IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("Some Items Transaction Are Made!.. You Can't Cancel the Complete Sales DC");
+                return;
+            }
+
+            if (!DcId.HasValue || DcId == 0)
+            {
+                await _js.ToastrWarning("MfgDc  cancel is not allowed before saving the Dc.");
+                return;
+            }
+
+            if (MfgDcVMs.MfgDcSubVMs.Any(s => s.ItemCancel))
+            {
+                await _js.ToastrWarning("Dc cannot be cancelled — one or more items are already cancelled.");
+                return;
+            }
+
+            if (MfgDcVMs.DcShortClose)
+            {
+                await _js.ToastrError("Sales Dc is already short closed. You can't cancel it.");
+                return;
+            }
+
+            if(!string.IsNullOrEmpty(MfgDcVMs.EwayBillNo))
+            {
+                await _js.ToastrWarning("This Dc cannot be Cancel because Eway transactions are done.");
+                return;
+            }
+
+
+            if(MfgDcVMs.DcCancel)
+            {
+                var subs =  await mfgDcService.GetDcDetailsSubByDcIdAsync(MfgDcVMs.DcId);
+
+                if (subs == null || subs.Count == 0)
+                    return;
+
+                foreach (var sub in subs)
+                {
+                    await mfgDcService.ValidateDcBalanceBeforeRevertAsync(sub);
+                }
+            }
+
+
+            if (!MfgDcVMs.DcCancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this DC?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this DC?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+            MfgDcVMs= await mfgDcService.GetMfgDcByDcIdAsync(MfgDcVMs.DcId);
+            await _js.ToastrWarning(ex.Message);
+            await _logs.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the DC.Cancel method");
+            await _logs.LogDeveloperError(ex, "Error in DC Sales Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnItemCancelChanged(MfgDcSubVM subitem)
+    {
+        try
+        {
+            if(IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("Some Items Transaction Are Made!.. You Can't Cancel this item.");
+                return;
+            }
+
+            if (!DcId.HasValue || DcId == 0)
+            {
+                await _js.ToastrWarning("this item!.. Cancel is not allowed before saving the Dc.");
+                return;
+            }
+            if (MfgDcVMs.DcShortClose)
+            {
+                await _js.ToastrError("Sales Dc is already short closed. You can't cancel it.");
+                return;
+            }
+
+            if (MfgDcVMs.DcCancel)
+            {
+                await _js.ToastrError("Sales Dc is already cancelled. So You can't cancel it.");
+                return;
+            }
+
+            if(!string.IsNullOrEmpty(MfgDcVMs.EwayBillNo))
+            {
+                await _js.ToastrWarning("This Item cannot be Cancel because Eway transactions are done.");
+                return;
+            }
+
+            var entity = new MfgDcSub
+            {
+                DcSubId = subitem.DcSubId,
+                RefPoSubId = subitem.RefPoSubId,
+                Qty=subitem.Qty??0,
+  
+                BalQty = subitem.BalQty,
+            };
+
+            if(subitem.ItemCancel)
+            {
+                await mfgDcService.ValidateDcBalanceBeforeRevertAsync(entity);
+            }
+
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.ItemCancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = false;
+                }
+                rowToCancel = subitem;
+
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            MfgDcVMs= await mfgDcService.GetMfgDcByDcIdAsync(MfgDcVMs.DcId);
+            await _js.ToastrWarning(ex.Message);
+            await _logs.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Item.Cancel method");
+            await _logs.LogDeveloperError(ex, "Error in Item Cancel in PO Sales");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                case "Cancel":
+                case "Revert":
+                    await CancelDc();
+                    break;
+
+                case "ItemCancel":
+                    await CancelItem(rowToCancel);
+                    break;
+                case "Short-Close":
+                    await ShortClose();
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task CancelItem(MfgDcSubVM rowToCancel)
+    {
+        if (rowToCancel == null) return;
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!rowToCancel.ItemCancel)
+            {
+                rowToCancel.ItemCancel = true;
+                rowToCancel.ItemCancelReason = cancelReason;
+
+                await mfgDcService.UpdateItemCancelAndAddorRevertAsync(rowToCancel,screenCode);
+
+                await _logs.LogUserAction(
+                username, machine, ip,
+                screen: "Manufacturing Dc",
+                action: $"Cancelled Dc No: {MfgDcVMs.DcNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"Reason: {cancelReason}");
+
+            }
+            else
+            {
+                rowToCancel.ItemCancel = false;
+                rowToCancel.ItemCancelReason = string.Empty;
+
+                await mfgDcService.UpdateItemCancelAndAddorRevertAsync(rowToCancel,screenCode);
+
+                await _logs.LogUserAction(
+                username, machine, ip,
+                screen: "Manufacturing Dc",
+                action: $"Reverted Dc No: {MfgDcVMs.DcNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"Reason: {cancelReason}");
+
+            }
+            MfgDcVMs.MfgDcSubVMs = await mfgDcService.GetDcSubByDcIdAsync(MfgDcVMs.DcId);
+
+            decimal stockqty = 0;
+            foreach (var dcSub in MfgDcVMs.MfgDcSubVMs.Where(q => q.ItemId > 0))
+            {
+                if (!string.IsNullOrWhiteSpace(dcSub.RcSubIds))
+                {
+                    var ids = dcSub.RcSubIds.Replace("'", "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                    foreach (var rcSubId in ids)
+                    {
+                        if (int.TryParse(rcSubId, out int rcsubid))
+                        {
+                            stockqty += await mfgDcService.GetAvailableStockByItemIdAndRcAndScreenAsync(dcSub.ItemId!.Value,MfgDcVMs.IssueStoreId,rcsubid);
+                        }
+                    }
+                    dcSub.StockQty = stockqty;
+                }
+                else
+                {
+                    dcSub.StockQty = await mfgDcService.GetStockQtyFromStockManager(dcSub.ItemId.Value, MfgDcVMs.IssueStoreId.Value);
+                }
+
+            }
+
+            await ResetSlno();
+
+            var toastMessage = rowToCancel.ItemCancel
+                ? "Item cancelled successfully."
+                : "Item has been reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+            rowToCancel = null;
+            cancelReason = string.Empty;
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            rowToCancel = null;
+            await _js.ToastrWarning("Cannot revert because PO balance  is less than required quantity.");
+            await _logs.LogDeveloperError(ex, $"Item Cancel/Reverse failed for DcId: {MfgDcVMs.DcId}");
+        }
+        finally
+        {
+            rowToCancel = null;
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelDc()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!MfgDcVMs.DcCancel)
+            {
+                MfgDcVMs.DcCancel = true;
+                MfgDcVMs.CancelReason = cancelReason;
+                await mfgDcService.UpdatedCancelStatusAndAddOrRevertQty(MfgDcVMs,screenCode);
+
+
+                await _logs.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Manufacturing DC",
+                    action: $"Cancelled Manufacturing DC No: {MfgDcVMs.DcNo}",
+                    additionalInfo: $"DC Id: {MfgDcVMs.DcId}"
+                );
+
+                await _js.ToastrSuccess("DC cancelled successfully.");
+            }
+            else
+            {
+                MfgDcVMs.DcCancel = false;
+                MfgDcVMs.CancelReason = string.Empty;
+                await mfgDcService.UpdatedCancelStatusAndAddOrRevertQty(MfgDcVMs,screenCode);
+
+                await _logs.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Manufacturing DC",
+                    action: $"Reverted Manufacturing DC No: {MfgDcVMs.DcNo}",
+                    additionalInfo: $"DC Id: {MfgDcVMs.DcId}"
+                );
+
+                await _js.ToastrSuccess("DC has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while cancelling/reverting the Sales DC.");
+            await _logs.LogDeveloperError(ex, $"CancelDc failed for DcId: {MfgDcVMs.DcId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.DcSubId > 0)
+            {
+                await mfgDcService.DeleteAndResequenceAsync(rowToDelete, MfgDcVMs,screenCode);
+
+                MfgDcVMs.MfgDcSubVMs = await mfgDcService.GetDcSubByDcIdAsync(MfgDcVMs.DcId);
+            }
+            else
+            {
+                MfgDcVMs.MfgDcSubVMs.Remove(rowToDelete);
+
+                if (!MfgDcVMs.MfgDcSubVMs.Any())
+                {
+                    MfgDcVMs.MfgDcSubVMs.Add(new MfgDcSubVM
+                    {
+                        DcId = MfgDcVMs.DcId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < MfgDcVMs.MfgDcSubVMs.Count; i++)
+                        MfgDcVMs.MfgDcSubVMs[i].SlNo = i + 1;
+                }
+            }
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error confirming deletion for DcId: {MfgDcVMs.DcId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await mfgDcService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region Quotation Operations
+
+    private async Task UpsertDC()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            MfgDcVMs.MfgDcSubVMs.RemoveAll(x =>!x.ItemId.HasValue && (x.Qty<=0) && (x.UnitPrice<=0));
+
+            if (!MfgDcVMs.MfgDcSubVMs.Any())
+            {
+                await _js.ToastrWarning("Cannot save a DC without valid items.");
+                return;
+            }
+
+            bool main = await ValidateMainTable();
+            if (!main) return;
+
+            // Validate each line
+            foreach (var line in  MfgDcVMs.MfgDcSubVMs)
+            {
+                bool isValid = await ValidateDcLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewDc = MfgDcVMs.DcId == 0;
+             if(isNewDc)
+             {
+                 var isduplicate = await mfgDcService.IsDuplicateDcNoAsync(MfgDcVMs.DcNo, MfgDcVMs.Suffix, MfgDcVMs.DcId, MfgDcVMs.CustId);
+
+                 if (isduplicate)
+                 {
+                     await _js.ToastrWarning("This DC number already exists for the selected customer. Please verify and try again.");
+                     return;
+                 }
+             }
+
+            try
+            {
+                await mfgDcService.UpsertDCAsync(MfgDcVMs,screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewDc)
+                await _js.ToastrSuccess("Sales DC saved successfully.");
+            else
+                await _js.ToastrSuccess("Sales DC updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/mfgDcList");
+        }
+
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "UpsertDc failed.");
+            await _js.ToastrError("Error saving Sales DC.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateMainTable()
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(MfgDcVMs.DcNo))
+            {
+                errors.Add($"Please enter the Valid Dc number");
+
+            }
+
+            if (MfgDcVMs.CustId == 0)
+            {
+                errors.Add($"Please select  Customer");
+
+            }
+
+            if (MfgDcVMs.IssueStoreId == 0)
+            {
+                errors.Add($"Please select  Issue store. ");
+
+            }
+            if (string.IsNullOrEmpty(MfgDcVMs.ModeofTrasnport.ToString()))
+            {
+                errors.Add($"Please select  Mode Of Transport");
+
+            }
+            if (string.IsNullOrEmpty(MfgDcVMs.VehicleNo))
+            {
+                errors.Add($"Please enter valid Vehicle No");
+
+            }
+            if (string.IsNullOrEmpty(MfgDcVMs.TransFrom))
+            {
+                errors.Add($"Please enter valid Transport From");
+
+            }
+            if (string.IsNullOrEmpty(MfgDcVMs.TransTo))
+            {
+                errors.Add($"Please enter valid Transport To");
+
+            }
+            if (string.IsNullOrEmpty(MfgDcVMs.SubSuppType.ToString()))
+            {
+                errors.Add($"Please select valid Sub Supply Type");
+
+            }
+
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrWarning(message);
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ValidateMainTable failed.");
+            await _js.ToastrError("Error validating Invoice line.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateDcLineAsync(MfgDcSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrWarning("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.Qty.HasValue || line.Qty <= 0)
+            {
+                await _js.ToastrWarning($"Item {line.ItemCode}: Quantity must be greater than 0.");
+                return false;
+            }
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+            {
+                await _js.ToastrWarning($"Item {line.ItemCode}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            if (!MfgDcVMs.IsPurchaseReturn)
+            {
+                if(string.IsNullOrEmpty(SelectedCustomer.LineId.ToString()))
+                {
+                    await _js.ToastrWarning($"Item {line.ItemCode}: Line No is Required");
+                    return false;
+                }
+            }
+            
+
+            // Qty vs PO / Already Transacted validation
+            decimal qtyOut = 0, stkqty = 0;
+            int RefPoSubId = 0;
+            int.TryParse(line.RefPoSubId.ToString(), out RefPoSubId);
+
+            if (line.DcSubId == 0)
+            {
+                if (RefPoSubId>0)
+                {
+                    var isOpenPo = await mfgDcService.IsOpenPoAsync(line.RefPoSubId.Value);
+                    var poBalQty = await mfgDcService.GetPoItemBalQtyFromPoSubId(line.RefPoSubId.Value);
+
+                    decimal rcstockqty = 0;
+                    if (line.RcSubIds != "" && line.RcSubIds != null)
+                    {
+                        var ids = line.RcSubIds.Replace("'", "").Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var rcid in ids)
+                        {
+                            int.TryParse(rcid.ToString(), out int rsubid);
+                            rcstockqty = rcstockqty + await mfgDcService.GetAvailableStockByItemIdAndRcAndScreenAsync(line.ItemId.Value, MfgDcVMs.IssueStoreId.Value, rsubid);
+                        }
+                    }
+                    var stockDict = (line.RcSubIds != "" && line.RcSubIds != null) ? rcstockqty : await mfgDcService.GetStockQtyFromStockManager(line.ItemId.Value, MfgDcVMs.IssueStoreId.Value);
+
+                    decimal.TryParse(stockDict.ToString(), out stkqty);
+                    decimal possibleQty = Math.Min(stkqty, poBalQty);
+
+
+                    if (!isOpenPo && (line.Qty > possibleQty))
+                    {
+                        line.Qty = possibleQty;
+                        line.BalQty = possibleQty;
+                        await _js.ToastrWarning($"Qty {line.Qty} cannot exceed Available Po Bal Qty ({possibleQty}). " + $"[Stock Qty: {stkqty}");
+                        return false;
+                    }
+
+                }
+
+            }
+            else if (line.DcSubId > 0)
+            {
+                var original = await mfgDcService.GetDcSubItemDetailByDcSubIdAsync(line.DcSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty;
+                    decimal origQty = original.Qty.GetValueOrDefault();
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.Qty < alreadyTransacted)
+                    {
+                        line.Qty = alreadyTransacted;
+                        line.BalQty = 0m;
+                        await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = line.Qty.GetValueOrDefault() - origQty;
+                        line.BalQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ValidatePOLineAsync failed.");
+            await _js.ToastrError("Error Validate Manufacturing-PO line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+
+    #region Po Details Selection
+
+    private async Task ShowPoDetails()
+    {
+        if (MfgDcVMs?.CustId != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                if(MfgDcVMs.CustId >0)
+                {
+                    PoData = await mfgDcService.GetPoDetailsByCustId(MfgDcVMs.CustId.Value,MfgDcVMs.IssueStoreId.Value);
+                }
+                else
+                {
+                    await _js.ToastrError("Select the customer First");
+                }
+                IsPoModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await _logs.LogDeveloperError(ex, "ShowPoDetails failed.");
+                await _js.ToastrError("Error fetching Show PoDetails details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnPoSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (MfgDcVMs.MfgDcSubVMs == null)
+            MfgDcVMs.MfgDcSubVMs = new List<MfgDcSubVM>();
+
+        int custId = MfgDcVMs.CustId.Value;
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .ToList();
+
+            //var priceDict = await MfgPoService.GetBulkLastUnitPricesAsync(itemIds, custId);
+
+            var LabourCost = await _CostingService.GetBulkLabourCostsAsync(itemIds);
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? poSubId = item.ContainsKey("PoSubId") && item["PoSubId"] != null
+                    ? Convert.ToInt32(item["PoSubId"])
+                    : (int?)null;
+
+                if (MfgDcVMs.MfgDcSubVMs.Any(x => x.ItemId == itemId && x.RefPoSubId == poSubId))
+                    continue;
+
+                var subVm = new MfgDcSubVM
+                {
+                    RefPoSubId = poSubId,
+                    RefPoNo = item.TryGetValue("PoNo", out var poNo) ? poNo?.ToString() : string.Empty,
+
+                    RefPoDate = item.TryGetValue("PoDate", out var poDate) && DateTime.TryParse(poDate?.ToString(), out var parsedPoDate)
+                        ? parsedPoDate
+                        : (DateTime?)null,
+
+                    LineId = item.TryGetValue("LineId", out var lineId) ? lineId?.ToString() : string.Empty,
+                    ItemId = itemId,
+                    ItemCode = item.TryGetValue("ItemCode", out var itemCode) ? itemCode?.ToString() : string.Empty,
+                    ItemName = item.TryGetValue("ItemName", out var itemName) ? itemName?.ToString() : string.Empty,
+                    MeasureUnit = item.TryGetValue("UOM", out var uom) ? uom?.ToString() : string.Empty,
+                    HSNCode = item.TryGetValue("HSNCode", out var hsn) ? hsn?.ToString() : string.Empty,
+
+                    Qty = item.TryGetValue("Qty", out var qtyVal) && decimal.TryParse(qtyVal?.ToString(), out var parsedQty)
+                        ? parsedQty
+                        : 0m,
+
+                    BalQty = item.TryGetValue("BalQty", out var balQtyVal) && decimal.TryParse(balQtyVal?.ToString(), out var parsedBalQty)
+                        ? parsedBalQty
+                        : 0m,
+
+                    PoBalQty = item.TryGetValue("BalQty", out var poBalQtyVal) && decimal.TryParse(poBalQtyVal?.ToString(), out var parsedPoBalQty)
+                        ? parsedPoBalQty
+                        : 0m,
+
+                    UnitPrice = item.TryGetValue("UnitPrice", out var unitPrice) && decimal.TryParse(unitPrice?.ToString(), out var parsedPrice)
+                        ? parsedPrice
+                        : 0m,
+                    LabourCost = LabourCost.TryGetValue(itemId, out var LabourCosts) ? LabourCosts : 0,  
+
+                    StockQty=item.TryGetValue("StockQty", out var StockQty) && decimal.TryParse(StockQty?.ToString(), out var parsedStockQty)
+                        ? parsedStockQty
+                        : 0m,
+
+                    PoDueDate = item.TryGetValue("PoDuedate", out var dueDate) && DateTime.TryParse(dueDate?.ToString(), out var parsedDueDate)
+                        ? parsedDueDate
+                        : (DateTime?)null,
+
+                    CostId = item.TryGetValue("CostCenterId", out var costId) && int.TryParse(costId?.ToString(), out var parsedCostId) && parsedCostId != 0
+                        ? parsedCostId
+                        : (int?)null,
+
+                    ProjectNo = item.TryGetValue("ProjectNo", out var projectNo) ? projectNo?.ToString() : string.Empty,
+
+                    RcSubIds = item.ContainsKey("RcSubId") ? item["RcSubId"]?.ToString() : "",
+
+                    TypeOfPo = "General PO",
+
+                    IsEditable = true
+                };
+
+
+                MfgDcVMs.MfgDcSubVMs.Add(subVm);
+            }
+
+            int slNo = 1;
+            foreach (var row in MfgDcVMs.MfgDcSubVMs)
+            {
+                row.SlNo = slNo++;
+            }
+              if(IsLabourCost)
+               {
+                    foreach (var row in MfgDcVMs.MfgDcSubVMs)
+                    {
+                 
+                        if (row.UnitPrice < row.LabourCost)
+                        {
+                            _js.ToastrWarning(
+                                $"Unit Price ({row.UnitPrice:0.00}) Is less than Labour Cost ({row.LabourCost:0.00})."
+                            );
+                        }
+                        else if(row.UnitPrice > row.LabourCost)
+                        {
+                            _js.ToastrWarning(
+                            $"Unit Price ({row.UnitPrice:0.00}) Is  Greater than than Labour Cost ({row.LabourCost:0.00})."
+                        );
+
+                        }
+
+                    }
+             }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPoSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected PoSelected items.");
+        }
+    }
+
+    #endregion
+
+
+
+    private async Task AskToShortCloseAsync(MfgDcVM mfgDcvm)
+    {
+        try
+        {
+            if (mfgDcvm == null)
+            {
+                await _js.ToastrError("Invalid Dc selected.");
+                return;
+            }
+
+            if (mfgDcvm.DcTally)
+            {
+                await _js.ToastrWarning("This Manuafacturing Dc has already been completed. No further actions are allowed.");
+                return;
+            }
+
+            if (mfgDcvm.DcCancel)
+            {
+                await _js.ToastrWarning("This Manuafacturing Dc has already been cancelled. No further actions are allowed.");
+                return;
+            }
+
+            if (!mfgDcvm.DcShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Manuafacturing Dc?";
+                btnText = "ShortClose";
+                btnColor = "btn-danger";
+                confirmation = "Short-Close";
+                showCancelReasonBox = false;
+            }
+            else 
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Manuafacturing Dc?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "Short-Close";
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while AskToShortCloseAsync enquiry.");
+            await _logs.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    private async Task ShortClose()
+    {
+        if (MfgDcVMs == null)
+        {
+            await _js.ToastrError("No Manufacturing Dc selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            MfgDcVMs.DcShortClose = !MfgDcVMs.DcShortClose;
+            await mfgDcService.UpdateMfgDcShortCloseAsync(MfgDcVMs);
+            StateHasChanged();
+
+            string msg = MfgDcVMs.DcShortClose
+                 ? "Manufacturing Dc ShortClose Successfully!"
+                 : "Manufacturing Dc ReOpen Successfully!";
+            await _js.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while updating ShortClose.Manufacturing Dc");
+            await _logs.LogDeveloperError(ex, "Error in ShortClose() Manufacturing Dc");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #region Formatting
+
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value) 
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+    #endregion
+
+    #region Store change
+
+    private async Task OnStoreChanged(ChangeEventArgs e)
+    {
+        MfgDcVMs.IssueStoreId = int.Parse(e.Value.ToString());
+        await LoadStockForAllItems(MfgDcVMs.IssueStoreId.Value);
+    }
+
+    private async Task LoadStockForAllItems(int storeId)
+    {
+        foreach (var item in MfgDcVMs.MfgDcSubVMs)
+        {
+            item.StockQty = await mfgDcService.GetStockQtyFromStockManager(item.ItemId.Value, storeId);
+        }
+    }
+
+    #endregion
+
+
+    #region Load Purchase Rejected GRN 
+
+
+    private async Task<IEnumerable<VendorVM>> SearchVendors(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<VendorVM>();
+
+        try
+        {
+            var results = await _scnService.SearchVendorsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<VendorVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"In PurchaseGRNUpsert SearchVendors failed for value: {value}");
+            await _js.ToastrError("Failed to search Vendors in PurchaseGRNUpsert. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+
+    private async Task OnVendorChanged(VendorVM? vendor)
+    {
+        try
+        {
+            await ApplyVendorSelectionAsync(vendor);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnVendorChanged: {ex}");
+            await _logs.LogDeveloperError(ex, "Error in OnVendorChanged");
+            await _js.ToastrError("Error while selecting");
+
+        }
+    }
+
+    private async Task ApplyVendorSelectionAsync(VendorVM? vendor)
+    {
+        try
+        {
+            SelectedVendor = vendor;
+            MfgDcVMs.VendorCode = vendor.VendorCode;
+            // contactPersons = await _scnService.GetContactPersonsVendorAsync(vendor.VendorCode);
+
+            GRNPendingCount = await mfgDcService.GetRejectionCountAsync(vendor.VendorCode);
+
+            stores = (await mfgDcService.GetAllActiveStoresAsync()).ToList();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"ApplyVendorSelectionAsync failed for VendorCode: {vendor?.VendorCode}");
+            await _js.ToastrError("Failed to apply vendor selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+    
+    #region Po Details Selection
+
+    private async Task ShowGRNDetails()
+    {
+        if (MfgDcVMs?.CustId != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                if(MfgDcVMs.CustId >0)
+                {
+                    GRNData = await mfgDcService.GetGRNDetailsByVendorCode(SelectedVendor.VendorCode,MfgDcVMs.IssueStoreId.Value);
+                }
+                else
+                {
+                    await _js.ToastrError("Select the customer First");
+                }
+                IsPoModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await _logs.LogDeveloperError(ex, "ShowGRNDetails failed.");
+                await _js.ToastrError("Error fetching Show ShowGRNDetails details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    #endregion
+
+    private async Task OnGRNSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (MfgDcVMs.MfgDcSubVMs == null)
+            MfgDcVMs.MfgDcSubVMs = new List<MfgDcSubVM>();
+
+        int custId = MfgDcVMs.CustId.Value;
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .ToList();
+
+            //var priceDict = await MfgPoService.GetBulkLastUnitPricesAsync(itemIds, custId);
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? grnSubId = item.ContainsKey("GRNSubId") && item["GRNSubId"] != null
+                    ? Convert.ToInt32(item["GRNSubId"])
+                    : (int?)null;
+
+                if (MfgDcVMs.MfgDcSubVMs.Any(x => x.ItemId == itemId && x.RefSCNSubId == grnSubId))
+                    continue;
+
+                var subVm = new MfgDcSubVM
+                {
+                    RefSCNSubId = grnSubId,
+                    RefGRNNo = item.TryGetValue("GRNNo", out var grnNo) ? grnNo?.ToString() : string.Empty,
+
+                    RefGRNDate = item.TryGetValue("GRNDate", out var grnDate) && DateTime.TryParse(grnDate?.ToString(), out var parsedGRNDate)
+                        ? parsedGRNDate
+                        : (DateTime?)null,
+
+                    ItemId = itemId,
+                    ItemCode = item.TryGetValue("ItemCode", out var itemCode) ? itemCode?.ToString() : string.Empty,
+                    ItemName = item.TryGetValue("ItemName", out var itemName) ? itemName?.ToString() : string.Empty,
+                    MeasureUnit = item.TryGetValue("UOM", out var uom) ? uom?.ToString() : string.Empty,
+                    HSNCode = item.TryGetValue("HSNCode", out var hsn) ? hsn?.ToString() : string.Empty,
+                  
+                    Qty = item.TryGetValue("Qty", out var qtyVal) && decimal.TryParse(qtyVal?.ToString(), out var parsedQty)
+                        ? parsedQty
+                        : 0m,
+
+                    BalQty = item.TryGetValue("BalQty", out var balQtyVal) && decimal.TryParse(balQtyVal?.ToString(), out var parsedBalQty)
+                        ? parsedBalQty
+                        : 0m,
+
+                    UnitPrice = item.TryGetValue("UnitPrice", out var unitPrice) && decimal.TryParse(unitPrice?.ToString(), out var parsedPrice)
+                        ? parsedPrice
+                        : 0m,
+
+                    StockQty=item.TryGetValue("StockQty", out var StockQty) && decimal.TryParse(StockQty?.ToString(), out var parsedStockQty)
+                        ? parsedStockQty
+                        : 0m,
+
+                    CostId = item.TryGetValue("CostCenterId", out var costId) && int.TryParse(costId?.ToString(), out var parsedCostId) && parsedCostId != 0
+                        ? parsedCostId
+                        : (int?)null,
+
+                    ProjectNo = item.TryGetValue("ProjectNo", out var projectNo) ? projectNo?.ToString() : string.Empty,
+
+                    Remark=item.TryGetValue("Remark", out var rm) ? rm?.ToString() : string.Empty,
+
+                    TypeOfPo = "",
+
+                    IsEditable = true
+                };
+
+
+                MfgDcVMs.MfgDcSubVMs.Add(subVm);
+            }
+
+            int slNo = 1;
+            foreach (var row in MfgDcVMs.MfgDcSubVMs)
+            {
+                row.SlNo = slNo++;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnGRNSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected OnGRNSelectedAsync items.");
+        }
+    }
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(DcId.GetValueOrDefault(), "MfgDC.frx", "DcId", MfgDcVMs.DcCancel, "Manufacturing DC", "Sp_Print_MfgDC");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Manufacturing DC");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Manufacturing DC.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

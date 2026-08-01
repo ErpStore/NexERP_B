@@ -1,0 +1,1383 @@
+﻿@page "/tcr/create"
+@page "/tcr/update/{TCReturnId:int}"
+
+
+@using V.SMART.Shared.Data.Inventory_Stock_.ToolCrib
+@using V.SMART.Shared.Data.Master.MasterScreeenManagement_Module
+@using V.SMART.Shared.Pages.Master_Module_pages.Items_Pages
+@using V.SMART.Shared.Pages.Master_Module_pages.TermsAndConditions_Pages
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.InventoryViewModel
+@using V.SMART.Shared.ViewModels.InventoryViewModel.ToolCribViewModels
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject IToolCribReturnService tcReturnService
+@inject ILoggingService LoggingService
+
+@inject ReportService _reportService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _JS
+
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+<DetailsModal Title="ToolCribIssue Details"
+              Columns="@IssueColumns"
+              ColumnFields="@IssueFields"
+              HiddenColumns="@IssueHiddenColumns"
+              Data="@IssueData"
+              IsVisible="@IsIssueModalVisible"
+              IsVisibleChanged="@((val) => IsIssueModalVisible = val)"
+              OnSelectedItems="OnIssueSelectedAsync">
+</DetailsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+            refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="@(TCRVMs.TCReturnId > 0 ? "Update ToolCribReturn" : "Create ToolCribReturn")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@TcrFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="TCRVMs" OnValidSubmit="UpsertTcr">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+
+                        <!-- Correspondence Status -->
+                        <div class="col-12  d-flex justify-content-end align-items-center">
+                            @if (TCRVMs.TCReturnId > 0 && !string.IsNullOrWhiteSpace(TCRVMs.TCReturnNo))
+                            {
+                                <CorrespondenceStatus ReferenceType="ToolCribReturn"
+                                                      ReferenceId="@TCRVMs.TCReturnId"
+                                                      ReferenceTypeName="@TCRVMs.TCReturnNo" />
+                            }
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+
+                        <!-- =================== Document Details =================== -->
+                        <div class="col-12 col-lg-6">
+                            <div class="card shadow-sm border-0 h-100">
+                                <!-- Header -->
+                                <div class="card-header bg-primary-subtle text-dark py-2 d-flex justify-content-between align-items-center">
+                                    <span class="fw-semibold fs-6">Document Details</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- ToolCribReturn No -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-sm-3 col-form-label text-dark fw-medium">
+                                            <small>ToolCrib Return No.</small>
+                                        </label>
+                                        <div class="col-sm-9">
+                                            <div class="input-group input-group-sm">
+                                                <InputText class="form-control form-control-sm rounded-start-3"
+                                                           placeholder="ToolCrib Return No."
+                                                           maxlength="30"
+                                                           @bind-Value="@TCRVMs.TCReturnNo" />
+                                                <span class="input-group-text rounded-end-3">@TCRVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => TCRVMs.TCReturnNo)" />
+                                            <ValidationMessage For="@(() => TCRVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- ToolCribReturn Date -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-sm-3 col-form-label text-dark fw-medium">
+                                            <small>ToolCrib Return Date</small>
+                                        </label>
+                                        <div class="col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="TCRVMs.TCReturnDate" />
+                                            <ValidationMessage For="@(() => TCRVMs.TCReturnDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Reference Issue -->
+                                    @if (issuePendingCount > 0)
+                                    {
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-sm-3 col-form-label text-dark fw-medium">
+                                                <small>Ref. Issue</small>
+                                            </label>
+                                            <div class="col-sm-9">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                        @onclick="ShowIssueDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> Issue Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Store Details =================== -->
+                        <div class="col-12 col-lg-6">
+                            <div class="card shadow-sm border-0 h-100">
+                                <div class="card-header bg-primary-subtle text-dark py-2 d-flex justify-content-between align-items-center">
+                                    <span class="fw-semibold fs-6">Store Details</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- Add To Store -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-sm-3 col-form-label text-dark fw-medium">
+                                            <small>Add To Store</small>
+                                        </label>
+
+                                        <div class="col-sm-9">
+                                            <select @bind="@TCRVMs.StoreId"
+                                                    class="form-select form-select-sm rounded-3">
+                                                <option value="0">-- Select Store --</option>
+
+                                                @foreach (var store in stores)
+                                                {
+                                                    <option value="@store.StoreId">@store.StoreName</option>
+                                                }
+                                            </select>
+
+                                            <ValidationMessage For="@(() => TCRVMs.StoreId)" />
+                                        </div>
+                                    </div>
+
+
+                                    <!-- Return By -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-sm-3 col-form-label text-dark fw-medium">
+                                            <small>Return By</small>
+                                        </label>
+                                        <div class="col-sm-9">
+                                           @*  <InputText class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="TCRVMs.FromWhom" /> *@
+
+                                            <MudAutocomplete T="Staff"
+                                                             Label="Return By"
+                                                             Variant="Variant.Outlined"
+                                                             Dense="true"
+                                                             Clearable="true"
+                                                             ResetValueOnEmptyText="true"
+                                                             SearchFunc="SearchStaff"
+                                                             ToStringFunc="@(x => x?.StaffName ?? string.Empty)"
+                                                             @bind-Value="SelectedStaff"
+                                                             MaxItems="50" />
+                                            <ValidationMessage For="@(() => TCRVMs.FromWhom)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Breakage Remarks -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-sm-3 col-form-label text-dark fw-medium">
+                                            <small>Breakage Remarks</small>
+                                        </label>
+                                        <div class="col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3"
+                                                      rows="1"
+                                                      @bind="TCRVMs.BreakageRemarks"></textarea>
+                                            <ValidationMessage For="@(() => TCRVMs.BreakageRemarks)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- =================== Item Details =================== -->
+                    <div class="col-12">
+                        <div class="card shadow-sm border-1"
+                             style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                            <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                <span class="fw-bold fs-6">Item Details</span>
+                            </div>
+
+                            <div class="card-body p-2">
+                                <div class="table-responsive" style="overflow-x:auto;">
+                                    <table class="table table-bordered table-sm align-middle text-center mb-0"
+                                           style="table-layout: fixed; min-width: 1200px;">
+                                        <thead class="custom-blue">
+                                            <tr>
+                                                <th style="width:50px;">Sl.No</th>
+                                                <th style="width:90px;">Ref Issue No</th>
+                                                <th style="width:120px;">Ref Issue Date</th>
+                                                <th style="width:160px;">Item Code</th>
+                                                <th style="width:200px;">Item Name</th>
+                                                <th style="width:80px;">UOM</th>
+                                                <th style="width:100px;">Acc Qty</th>
+                                                <th style="width:150px;">Reject Qty</th>
+                                                <th style="width:150px;">Rejection Remarks</th>
+                                                <th style="width:150px;">Rework Qty</th>
+                                                <th style="width:150px;">Rework Remarks</th>
+                                                <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody class="custom-size">
+                                            @if (TCRVMs?.ToolCribReturnSubVMs != null && TCRVMs.ToolCribReturnSubVMs.Any())
+                                            {
+                                                @foreach (var subitem in TCRVMs.ToolCribReturnSubVMs)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+                                                        <td>@subitem.RefTCIssueNo</td>
+                                                        <td>@subitem.RefTCIssueDate?.ToString("dd/MM/yyyy")</td>
+                                                        <td>@subitem.ItemCode</td>
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.MeasureUnit</td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm text-end"
+                                                                       placeholder="Acc Qty"
+                                                                       min="0"
+                                                                       step="any"
+                                                                       @bind="subitem.AccpQty"
+                                                                       @bind:event="oninput"
+                                                                       @bind:after="async () => await OnAccpQtyChange(subitem.AccpQty, subitem)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.AccpQty
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm text-end"
+                                                                       placeholder="Rej Qty"
+                                                                       min="0"
+                                                                       step="any"
+                                                                       @bind="subitem.RejQty"
+                                                                       @bind:event="oninput"
+                                                                       @bind:after="async () => await OnRejQtyChange(subitem.RejQty, subitem)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.RejQty
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Rejection Remarks"
+                                                                       @bind="subitem.RejRemark" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.RejRemark
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm text-end"
+                                                                       placeholder="Rew Qty"
+                                                                       min="0"
+                                                                       step="any"
+                                                                       @bind="subitem.RewQty"
+                                                                       @bind:event="oninput"
+                                                                       @bind:after="async () => await OnRewQtyChange(subitem.RewQty, subitem)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.RewQty
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Rework Remarks"
+                                                                       @bind="subitem.RewRemark" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.RewRemark
+                                                            }
+                                                        </td>
+
+                                                        <!-- Action Buttons -->
+                                                        <td class="freeze-last-col text-end">
+                                                            <div class="d-flex justify-content-end align-items-center gap-1">
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                            @onclick="async () => await SaveRow(subitem)">
+                                                                        <i class="bi bi-check-lg"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel"
+                                                                            @onclick="async () => await CancelEdit(subitem, TCRVMs)">
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                            @onclick="async () => await EditRowAsync(subitem)">
+                                                                        <i class="bi bi-pencil"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                            @onclick="async () => await RemoveRow(subitem)">
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                }
+                                                            </div>
+                                                        </td>
+
+                                                    </tr>
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- =================== Action Buttons =================== -->
+                    <div class="row g-3 mt-3">
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-6 col-md-3">
+                                <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i>
+                                    @(TCRVMs.TCReturnId > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                        }
+                        <div class="col-6 col-md-3">
+                            <SmartBackButton Url="/tcReturnList" />
+                        </div>
+
+                        @if (CanCreate || CanEdit && TCReturnId > 0)
+                        {
+                            <div class="col-12 col-md-3">
+                                <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                    <i class="bi bi-printer me-1"></i>Print
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+
+}
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Tool-Crib Return";
+
+    [Parameter] public int? TCReturnId { get; set; }
+
+    private int screenCode { get; set; }
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    private bool isProcessing = true;
+    private ToolCribReturnVM TCRVMs { get; set; } = new();
+    private ToolCribReturnSubVM TCRSubVMs { get; set; } = new();
+    private ToolCribReturnSubVM? rowToDelete;
+
+    private DateTime? DueDate { get; set; } = DateTime.Today;
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private bool IsEditMode = false;
+
+    private List<Store> stores = new();
+    private List<ToolCribIssue> tcinos = new();
+    private List<ToolCribIssueSubVM> tcisubitems = new();
+    private List<ToolCribReturnSubVM> tcrsubitems = new();
+    private List<Category> categories = new();
+    private List<string> UserList = new();
+    public List<string> allToolCribNumbers = new();
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private int issuePendingCount = 0;
+
+    private bool IsIssueModalVisible = false;
+    private List<Dictionary<string, object>>? IssueData;
+    private List<string> IssueColumns = new() { "RefTCIssueSubId", "TCIssueNo", "TCIssueDate", "ItemId", "ItemCode", "ItemName", "MeasureUnit", "Qty", "BalQty", "Rate", "Remarks" };
+    private List<string> IssueFields = new() { "RefTCIssueSubId", "TCIssueNo", "TCIssueDate", "ItemId", "ItemCode", "ItemName", "MeasureUnit","Qty", "BalQty", "Rate","Remarks" };
+    private List<string> IssueHiddenColumns = new() { "RefTCIssueSubId", "ItemId" };
+
+    private List<PageHeader.BreadcrumbItem> TcrFormBreadcrumbs = new()
+    {
+        new() { Text = "Inventory" },
+        new() { Text = "ToolCribReturn", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    private List<Staff> StaffList = new();
+    private Staff? _selectedStaff;
+    public Staff? SelectedStaff
+    {
+        get => _selectedStaff;
+        set
+        {
+            _selectedStaff = value;
+
+            if (value != null)
+            {
+                TCRVMs.FromWhom = value.StaffName;
+                // TCIVMs.IssuedToStaffId = value.StaffId; // Recommended
+            }
+            else
+            {
+                TCRVMs.FromWhom = string.Empty;
+                // TCIVMs.IssuedToStaffId = 0;
+            }
+        }
+    }
+
+    #endregion
+
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            stores = (await tcReturnService.GetAllReturnStoresAsync()).ToList();
+            screenCode = await tcReturnService.GetScreenCodeByScreenNameAsync(ScreenName);
+            issuePendingCount = await tcReturnService.GetPendingIssueCountAsync();
+            StaffList = await tcReturnService.GetAllStaffAsync();
+            if (TCReturnId.HasValue)
+            {
+
+                await LoadExistingTcr(TCReturnId.Value);
+            }
+            else if (TCReturnId == null)
+            {
+                await InitializeNewTcr();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    private async Task LoadExistingTcr(int dcId)
+    {
+        try
+        {
+            TCRVMs = await tcReturnService.GetToolCribReturnByDcIdAsync(dcId);
+            SelectedStaff = StaffList.FirstOrDefault(x => x.StaffName == TCRVMs.FromWhom);
+            if (TCRVMs == null)
+            {
+                await _JS.ToastrWarning("ToolCribReturn not found.");
+                return;
+            }
+
+            foreach (var tcrSub in TCRVMs.ToolCribReturnSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[tcrSub.ItemId.Value] =
+                    await tcReturnService.GetCorrespondenceAttachmentsCountAsync(tcrSub.ItemId.Value, "Item");
+            }
+
+            IsSomeItemsTransMade = CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to load existing Po.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingTCR failed for TCReturnId: {TCReturnId}");
+        }
+    }
+
+    private bool CheckIsTransMade()
+    {
+        var list = TCRVMs?.ToolCribReturnSubVMs;
+        if (list == null || list.Count == 0)
+            return false;
+
+        decimal totalQty = 0, totalBalQty = 0, totalAccpQty = 0, totalRejQty = 0, totalRewQty = 0;
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            totalAccpQty += list[i].AccpQty.GetValueOrDefault();
+            totalRejQty += list[i].RejQty.GetValueOrDefault();
+            totalRewQty += list[i].RewQty.GetValueOrDefault();
+        }
+
+        return totalQty != totalBalQty;
+    }
+
+    private async Task InitializeNewTcr()
+    {
+        try
+        {
+            TCRVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            TCRVMs.TCReturnNo = await tcReturnService.GetToolCribReturnNumberAsync(TCRVMs.Suffix);
+
+            var MapStoreForTCReturn = await tcReturnService.GetMappedStoreForFormAsync("ToolCribReturnForm");
+
+            if (MapStoreForTCReturn.StoreId > 0)
+            {
+                TCRVMs.StoreId = MapStoreForTCReturn.StoreId;
+                TCRVMs.StoreName = MapStoreForTCReturn.StoreName;
+            }
+            else
+            {
+                TCRVMs.StoreId = null;
+                TCRVMs.StoreName = null;
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to initialize new return.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewTcr failed.");
+        }
+    }
+
+    #region Qty Handlers
+
+    private async Task<decimal> GetIssueQtyAsync(ToolCribReturnSubVM subVM)
+    {
+        if (subVM.RefTCIssueSubId is null or 0)
+            return 0;
+
+        return await tcReturnService.GetTCIssueItemBalQtyFromTCIssueSubId(subVM.RefTCIssueSubId.Value);
+    }
+
+    private async Task<bool> ValidateAndAdjustAsync(
+                            ToolCribReturnSubVM subVM,
+                            decimal newAccp,
+                            decimal newRej,
+                            decimal newRew,
+                            string fieldName)
+    {
+        var issueQty = await GetIssueQtyAsync(subVM);
+
+        var original = await tcReturnService
+            .GetTCReturnSubItemDetailByTCReturnSubIdAsync(subVM.TCReturnSubId);
+
+        decimal originalAccp = original?.AccpQty ?? 0;
+        decimal originalRej = original?.RejQty ?? 0;
+        decimal originalRew = original?.RewQty ?? 0;
+
+        var originalTotal = originalAccp + originalRej + originalRew;
+
+        var maxAllowed = issueQty + originalTotal;
+        var total = newAccp + newRej + newRew;
+
+        if (total > maxAllowed)
+        {
+            await _JS.ToastrWarning(
+                $"{fieldName} change exceeded limit. Max allowed total is {maxAllowed}. Auto-adjusted.");
+
+            if (fieldName == "Accepted")
+                subVM.AccpQty = maxAllowed - (newRej + newRew);
+
+            else if (fieldName == "Rejected")
+                subVM.RejQty = maxAllowed - (newAccp + newRew);
+
+            else if (fieldName == "Rework")
+                subVM.RewQty = maxAllowed - (newAccp + newRej);
+
+            return false;
+        }
+
+        return true;
+    }
+
+
+    private async Task OnAccpQtyChange(decimal? newValue, ToolCribReturnSubVM subVM)
+    {
+        try
+        {
+            var accp = newValue.GetValueOrDefault();
+            if (accp < 0)
+            {
+                subVM.AccpQty = 0;
+                await _JS.ToastrWarning("Accepted Qty must be positive.");
+                return;
+            }
+
+            var rej = subVM.RejQty.GetValueOrDefault();
+            var rew = subVM.RewQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Accepted"))
+                subVM.AccpQty = accp;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnAccpQtyChange failed");
+            await _JS.ToastrError("Failed to update Accepted Qty.");
+        }
+    }
+
+    private async Task OnRejQtyChange(decimal? newValue, ToolCribReturnSubVM subVM)
+    {
+        try
+        {
+            var rej = newValue.GetValueOrDefault();
+            if (rej < 0)
+            {
+                subVM.RejQty = 0;
+                await _JS.ToastrWarning("Rejected Qty must be positive.");
+                return;
+            }
+
+            var accp = subVM.AccpQty.GetValueOrDefault();
+            var rew = subVM.RewQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Rejected"))
+                subVM.RejQty = rej;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnRejQtyChange failed");
+            await _JS.ToastrError("Failed to update Rejection Qty.");
+        }
+    }
+
+    private async Task OnRewQtyChange(decimal? newValue, ToolCribReturnSubVM subVM)
+    {
+        try
+        {
+            var rew = newValue.GetValueOrDefault();
+            if (rew < 0)
+            {
+                subVM.RewQty = 0;
+                await _JS.ToastrWarning("Rework Qty must be positive.");
+                return;
+            }
+
+            var accp = subVM.AccpQty.GetValueOrDefault();
+            var rej = subVM.RejQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Rework"))
+                subVM.RewQty = rew;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnRewQtyChange failed");
+            await _JS.ToastrError("Failed to update Rework Qty.");
+        }
+    }
+
+
+    #endregion
+
+
+
+    #region Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _unitOfWork.ItemRepositories.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _JS.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+
+    #endregion
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(ToolCribReturnSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.AccpQty == null || row.AccpQty <= 0)
+                errors.Add("Quantity must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _JS.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = TCRVMs.ToolCribReturnSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task SaveRow(ToolCribReturnSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            if((item.AccpQty.GetValueOrDefault() + item.RejQty.GetValueOrDefault() + item.RewQty.GetValueOrDefault()) == 0 )
+            {
+                await _JS.ToastrError("Accecpt Qty, Reject Qty Or Re-work Qty Should not be 0");
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for TCSubId: {item?.TCReturnId}");
+            await _JS.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(ToolCribReturnSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for DcSubid: {item?.TCReturnId}");
+            await _JS.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(ToolCribReturnSubVM? item, ToolCribReturnVM? parentTcr)
+    {
+        try
+        {
+            if (item == null || parentTcr == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (item.AccpQty <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentTcr.ToolCribReturnSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for PoSubId: {item?.TCReturnId}");
+            await _JS.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(ToolCribReturnSubVM item)
+    {
+        try
+        {
+            if (TCRVMs.ToolCribReturnSubVMs.Count == 1 && item.TCReturnId > 0)
+            {
+                await _JS.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            var (addQty, balQty) = await tcReturnService.GetQtyBalQtyByStockAddAsync(
+                          screenCode,
+                          TCRVMs.StoreId.Value,
+                          item.ItemId.Value,
+                          item.TCReturnSubId);
+
+            if (addQty != balQty)
+            {
+                await _JS.ToastrWarning($"cannot delete item '{item.ItemCode}'. Stock already used.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                TCRVMs.ToolCribReturnSubVMs.Remove(item);
+                await _JS.ToastrSuccess("New item row removed successfully.");
+
+                if (!TCRVMs.ToolCribReturnSubVMs.Any())
+                    TCRVMs.ToolCribReturnSubVMs = new List<ToolCribReturnSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for TCReturnId: {item?.TCReturnId}");
+            await _JS.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in TCRVMs.ToolCribReturnSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _JS.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+    #endregion
+
+    private async Task ShowIssueDetails()
+    {
+        try
+        {
+            isProcessing = true;
+            IssueData = await tcReturnService.GetAllOpenToolCribIssuesAsync();
+            if (IssueData != null && IssueData.Count > 0)
+            {
+                IsIssueModalVisible = true;
+            }
+            else
+            {
+                await _JS.ToastrWarning("No open Tool Crib Issues found.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ShowIssueDetails failed.");
+            await _JS.ToastrError("Error fetching ToolCribIssue list.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnIssueSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+
+        if (TCRVMs.ToolCribReturnSubVMs == null)
+            TCRVMs.ToolCribReturnSubVMs = new List<ToolCribReturnSubVM>();
+
+        try
+        {
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? RefTcIssueSubId = item.ContainsKey("RefTCIssueSubId") && item["RefTCIssueSubId"] != null
+                    ? Convert.ToInt32(item["RefTCIssueSubId"])
+                    : (int?)null;
+
+                if (TCRVMs.ToolCribReturnSubVMs.Any(x => x.ItemId == itemId && x.RefTCIssueSubId == RefTcIssueSubId))
+                    continue;
+
+                var subVm = new ToolCribReturnSubVM
+                {
+                    RefTCIssueSubId = RefTcIssueSubId,
+                    RefTCIssueNo = item.ContainsKey("TCIssueNo") ? item["TCIssueNo"]?.ToString() : "",
+                    RefTCIssueDate = item.ContainsKey("TCIssueDate") && item["TCIssueDate"] != null
+                        ? Convert.ToDateTime(item["TCIssueDate"])
+                        : null,
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    MeasureUnit = item.ContainsKey("MeasureUnit") ? item["MeasureUnit"]?.ToString() : "",
+                    AccpQty = item.ContainsKey("BalQty") && item["BalQty"] != null ? Convert.ToInt32(item["BalQty"]) : 0,
+                    IsEditable = true
+                };
+
+                TCRVMs.ToolCribReturnSubVMs.Add(subVm);
+            }
+
+            int slNo = 1;
+            foreach (var row in TCRVMs.ToolCribReturnSubVMs)
+            {
+                row.SlNo = slNo++;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnIssueSelectedAsync failed.");
+            await _JS.ToastrError("Error processing selected Tool crib Issue items.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Item" => "Add New Item",
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                default:
+                    await _JS.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _JS.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+           
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.TCReturnSubId > 0)
+            {
+                await tcReturnService.DeleteAndResequenceAsync(rowToDelete, TCRVMs,screenCode);
+                TCRVMs.ToolCribReturnSubVMs = await tcReturnService.GetToolCribReturnSubByDcIdAsync(TCRVMs.TCReturnId);
+            }
+            else
+            {
+                TCRVMs.ToolCribReturnSubVMs.Remove(rowToDelete);
+
+                if (!TCRVMs.ToolCribReturnSubVMs.Any())
+                {
+                    TCRVMs.ToolCribReturnSubVMs.Add(new ToolCribReturnSubVM
+                    {
+                        TCReturnId = TCRVMs.TCReturnId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    for (int i = 0; i < TCRVMs.ToolCribReturnSubVMs.Count; i++)
+                        TCRVMs.ToolCribReturnSubVMs[i].SlNo = i + 1;
+                }
+            }
+
+            await _JS.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for TCId: {TCRVMs.TCReturnId}");
+            await _JS.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _JS.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _JS.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await tcReturnService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _JS.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    private async Task UpsertTcr()
+    {
+        try
+        {
+            isProcessing = true;
+
+            TCRVMs.ToolCribReturnSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (x.AccpQty == 0));
+
+            if (!TCRVMs.ToolCribReturnSubVMs.Any())
+            {
+                await _JS.ToastrError("Cannot save a ToolCribReturn without valid items.");
+                return;
+            }
+
+            if( TCRVMs.StoreId == null || TCRVMs.StoreId == 0)
+            {
+                await _JS.ToastrError("Please select a Store before saving.");
+                return;
+            }
+
+            if(string.IsNullOrEmpty(TCRVMs.TCReturnNo))
+            {
+                await _JS.ToastrError("Return Number is Required!..");
+                return;
+            }
+
+            if(string.IsNullOrEmpty(TCRVMs.FromWhom))
+            {
+                await _JS.ToastrError("Return by name is required!..");
+                return;
+            }
+
+            foreach (var line in TCRVMs.ToolCribReturnSubVMs)
+            {
+                bool isValid = await ValidateToolCribReturnLineAsync(line);
+                if (!isValid) return;
+            }
+
+            var isNewTcr = TCRVMs.TCReturnId == 0;
+            try
+            {
+                await tcReturnService.UpsertToolCribReturnAsync(TCRVMs, screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _JS.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewTcr)
+                await _JS.ToastrSuccess("ToolCribReturn saved successfully.");
+            else
+                await _JS.ToastrSuccess("ToolCribReturn updated successfully.");
+
+            // Discard popup Clear
+            await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/tcReturnList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertTcr failed.");
+            await _JS.ToastrError("Error saving ToolCribReturn.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateToolCribReturnLineAsync(ToolCribReturnSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _JS.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            var totalQty = (line.AccpQty ?? 0) + (line.RejQty ?? 0) + (line.RewQty ?? 0);
+
+            if (totalQty <= 0)
+            {
+                await _JS.ToastrError(
+                    $"Item {line.ItemCode}: Accepted + Rejected + Reworked Qty must be greater than 0."
+                );
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidateToolCribReturnLineAsync failed.");
+            await _JS.ToastrError("Error validating Tool Crib Return line.");
+            return false;
+        }
+    }
+
+
+    // #endregion
+
+    #region Formatting
+
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+    #endregion
+
+    private Task<IEnumerable<Staff>> SearchStaff(string value, CancellationToken token)
+    {
+        IEnumerable<Staff> result = StaffList;
+
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            result = StaffList.Where(x => x.StaffName.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult(result);
+    }
+    private Task OnStaffChanged(Staff? staff)
+    {
+        if (staff != null)
+        {
+            TCRVMs.FromWhom = staff.StaffName;
+
+        }
+
+        return Task.CompletedTask;
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            var pdfBytes = await _reportService.Generate_Report(TCReturnId.GetValueOrDefault(), "ToolCribReturnNote.frx", "TCReturnId", false, ScreenName, "Sp_Print_ToolCribReturn");
+
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf ToolCribReturn");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in ToolCribReturn.");
+        }
+    }
+}

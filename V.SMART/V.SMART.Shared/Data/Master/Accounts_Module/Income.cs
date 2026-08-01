@@ -1,0 +1,36 @@
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace V.SMART.Shared.Data.Master.Accounts_Module
+{
+    public class Income
+    {
+        [Key]
+        public int IncomeCode { get; set; }
+
+        [Required(ErrorMessage = "Income Name is required.")]
+        [StringLength(250, ErrorMessage = "Income Name cannot exceed 250 characters.")]
+        [RegularExpression(@"^[a-zA-Z0-9\s\-_.()]*$", ErrorMessage = "Income Name can only contain letters, numbers, spaces, and basic symbols (- _ . ( )).")]
+        public string IncomeName { get; set; }
+
+        [StringLength(250, ErrorMessage = "Description cannot exceed 250 characters.")]
+        public string? IncomeDesc { get; set; }
+
+        [Required(ErrorMessage = "Please specify whether the income is direct or indirect.")]
+        public bool IsDirect { get; set; }
+
+        public string IncomeType => IsDirect ? "Direct" : "Indirect";
+
+        public bool IsDefault { get; set; } = false;
+
+        [StringLength(250, ErrorMessage = "CreatedBy cannot exceed 250 characters.")]
+        public string? CreatedBy { get; set; }
+
+        public DateTime? CreatedDate { get; set; } = DateTime.Now;
+
+        [StringLength(250, ErrorMessage = "ModifiedBy cannot exceed 250 characters.")]
+        public string? ModifiedBy { get; set; }
+
+        public DateTime? ModifiedDate { get; set; }
+    }
+
+}

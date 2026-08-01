@@ -1,0 +1,995 @@
+﻿@page "/ItemModificationReport"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel.LabourTrackViewModel
+
+
+@inject NavigationManager _navigation
+@inject ILoggingService LoggingService
+@inject IJSRuntime _js
+@inject IJSRuntime _JS
+@inject ExcelExportService ExcelExportService
+
+@inject IItemModificationReportServices reportService
+@inject IJSRuntime JS
+@inject IExcelTemplateService excelTemplateService
+@inherits BaseUserRightsComponent
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+
+    <div class="container-fluid px-2 px-md-4 mt-4">
+
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Item Modification Report"
+                        TitleIcon="bi bi-pencil-square"
+                        Breadcrumbs="@PoBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+
+                <div class="row g-3 align-items-end mb-4">
+
+                    <!-- From Date -->
+                    <div class="col-12 col-sm-6 col-md-3 col-lg-2">
+                        <label class="form-label fw-bold">From Date</label>
+                        <InputDate @bind-Value="fromDate"
+                                   @bind-Value:after="LoadReport"
+                                   class="form-control" />
+                    </div>
+
+                    <!-- To Date -->
+                    <div class="col-12 col-sm-6 col-md-3 col-lg-2">
+                        <label class="form-label fw-bold">To Date</label>
+                        <InputDate @bind-Value="toDate"
+                                   @bind-Value:after="OnDateChanged"
+                                   class="form-control" />
+                    </div>
+
+                    <!-- Report Type -->
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label fw-bold">Report Type</label>
+
+                        <InputRadioGroup @bind-Value="reportType"
+                                         @bind-Value:after="OnReportTypeChanged">
+
+                            <div class="d-flex flex-wrap gap-2">
+
+                                <div class="form-check">
+                                    <InputRadio TValue="string"
+                                                Value="@("Created")"
+                                                class="form-check-input" />
+                                    <label class="form-check-label">Created</label>
+                                </div>
+
+                                <div class="form-check">
+                                    <InputRadio TValue="string"
+                                                Value="@("Modified")"
+                                                class="form-check-input" />
+                                    <label class="form-check-label">Modified</label>
+                                </div>
+
+                                <div class="form-check">
+                                    <InputRadio TValue="string"
+                                                Value="@("Deleted")"
+                                                class="form-check-input" />
+                                    <label class="form-check-label">Deleted</label>
+                                </div>
+
+                                <div class="form-check">
+                                    <InputRadio TValue="string"
+                                                Value="@("All")"
+                                                class="form-check-input" />
+                                    <label class="form-check-label">All</label>
+                                </div>
+
+                            </div>
+
+                        </InputRadioGroup>
+                    </div>
+
+                    <!-- Item -->
+                    <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+                        <label class="form-label fw-bold">Item</label>
+
+                        <InputSelect @bind-Value="selectedItemCode"
+                                     @bind-Value:after="LoadReport"
+                                     class="form-select">
+
+                            <option value="">-- All Items --</option>
+
+                            @foreach (var item in itemList)
+                            {
+                                <option value="@item.ItemCode">
+                                    @item.ItemCode - @item.ItemName
+                                </option>
+                            }
+
+                        </InputSelect>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+                        <label class="form-label fw-bold">Search</label>
+
+                        <input type="text"
+                               class="form-control"
+                               placeholder="Search..."
+                               @bind="searchText"
+                               @bind:event="oninput" />
+                    </div>
+
+                    <!-- Column Menu -->
+                    <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible="int.MaxValue"
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <!-- Print Button -->
+                    <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+                        <button class="btn btn-outline-primary w-100"
+                                @onclick="@(async () => await ExportToExcel(true))"
+                                title="Print Report">
+                            <i class="bi bi-printer me-1"></i> Print
+                        </button>
+                    </div>
+
+                </div>
+
+                <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                    <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                        <thead class="custom-blue position-sticky top-0 z-3">
+                            <tr>
+
+                                @if (IsColumnVisible("SlNo"))
+                                {
+                                    <th>Sl No</th>
+                                }
+
+                                @if (IsColumnVisible("ItemCode"))
+                                {
+                                    <th>Item Code</th>
+                                }
+
+                                @if (IsColumnVisible("ItemName"))
+                                {
+                                    <th>Item Name</th>
+                                }
+
+                                @if (IsColumnVisible("CategoryName"))
+                                {
+                                    <th>Category</th>
+                                }
+
+                                @if (IsColumnVisible("MeasureUnit"))
+                                {
+                                    <th>UOM</th>
+                                }
+
+                                @if (IsColumnVisible("HSNCode"))
+                                {
+                                    <th>HSN Code</th>
+                                }
+
+                                @if (IsColumnVisible("SACCode"))
+                                {
+                                    <th>SAC Code</th>
+                                }
+
+                                @if (IsColumnVisible("Rate"))
+                                {
+                                    <th>Rate</th>
+                                }
+
+                                @if (IsColumnVisible("ROL"))
+                                {
+                                    <th>ROL</th>
+                                }
+
+                                @if (IsColumnVisible("MOL"))
+                                {
+                                    <th>MOL</th>
+                                }
+
+                                @if (IsColumnVisible("Specification"))
+                                {
+                                    <th>Specification</th>
+                                }
+
+                                @if (IsColumnVisible("CGST"))
+                                {
+                                    <th>CGST %</th>
+                                }
+
+                                @if (IsColumnVisible("SGST"))
+                                {
+                                    <th>SGST %</th>
+                                }
+
+                                @if (IsColumnVisible("IGST"))
+                                {
+                                    <th>IGST %</th>
+                                }
+
+                                @if (IsColumnVisible("Remarks"))
+                                {
+                                    <th>Remarks</th>
+                                }
+
+                                @if (IsColumnVisible("DrawingNo"))
+                                {
+                                    <th>Drawing No</th>
+                                }
+
+                                @if (IsColumnVisible("LeadTime"))
+                                {
+                                    <th>Lead Time</th>
+                                }
+
+                                @if (IsColumnVisible("RackNo"))
+                                {
+                                    <th>Rack No</th>
+                                }
+
+                                @if (IsColumnVisible("PartWeight"))
+                                {
+                                    <th>Part Weight</th>
+                                }
+
+                                @if (IsColumnVisible("TotalArea"))
+                                {
+                                    <th>Total Area</th>
+                                }
+
+                                @if (IsColumnVisible("Make"))
+                                {
+                                    <th>Make</th>
+                                }
+
+                                @if (IsColumnVisible("RmId"))
+                                {
+                                    <th>RM ID</th>
+                                }
+
+                                @if (IsColumnVisible("Shape"))
+                                {
+                                    <th>Shape</th>
+                                }
+
+                                @if (IsColumnVisible("Density"))
+                                {
+                                    <th>Density</th>
+                                }
+
+                                @if (IsColumnVisible("Length"))
+                                {
+                                    <th>Length</th>
+                                }
+
+                                @if (IsColumnVisible("Width"))
+                                {
+                                    <th>Width</th>
+                                }
+
+                                @if (IsColumnVisible("Height"))
+                                {
+                                    <th>Height</th>
+                                }
+
+                                @if (IsColumnVisible("Thickness"))
+                                {
+                                    <th>Thickness</th>
+                                }
+
+                                @if (IsColumnVisible("WallThickness"))
+                                {
+                                    <th>Wall Thickness</th>
+                                }
+
+                                @if (IsColumnVisible("OuterDia"))
+                                {
+                                    <th>Outer Dia</th>
+                                }
+
+                                @if (IsColumnVisible("InnerDia"))
+                                {
+                                    <th>Inner Dia</th>
+                                }
+
+                                @if (IsColumnVisible("Weight"))
+                                {
+                                    <th>Weight</th>
+                                }
+
+                                @if (IsColumnVisible("BatchNo"))
+                                {
+                                    <th>Batch No</th>
+                                }
+
+                                @if (reportType == "Created" || reportType == "All")
+                                {
+                                    <th>Created By</th>
+                                    <th>Created Date</th>
+                                }
+
+                                @if (reportType == "Modified" || reportType == "All")
+                                {
+                                    <th>Modified By</th>
+                                    <th>Modified Date</th>
+                                }
+
+                                @if (reportType == "Deleted" || reportType == "All")
+                                {
+                                    <th>Delete By</th>
+                                    <th>Delete Date</th>
+                                }
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            @if (FilteredReportList.Any())
+                            {
+                                int slNo = 1;
+
+                                @foreach (var item in FilteredReportList)
+                                {
+                                    <tr>
+                                        @if (IsColumnVisible("SlNo"))
+                                        {
+                                            <td>@slNo</td>
+                                        }
+
+                                        @if (IsColumnVisible("ItemCode"))
+                                        {
+                                            <td>@item.ItemCode</td>
+                                        }
+
+                                        @if (IsColumnVisible("ItemName"))
+                                        {
+                                            <td>@item.ItemName</td>
+                                        }
+
+                                        @if (IsColumnVisible("CategoryName"))
+                                        {
+                                            <td>@item.CategoryName</td>
+                                        }
+
+                                        @if (IsColumnVisible("MeasureUnit"))
+                                        {
+                                            <td>@item.MeasureUnit</td>
+                                        }
+
+                                        @if (IsColumnVisible("HSNCode"))
+                                        {
+                                            <td>@item.HSNCode</td>
+                                        }
+
+                                        @if (IsColumnVisible("SACCode"))
+                                        {
+                                            <td>@item.SACCode</td>
+                                        }
+
+                                        @if (IsColumnVisible("Rate"))
+                                        {
+                                            <td class="text-end">@item.Rate</td>
+                                        }
+
+                                        @if (IsColumnVisible("ROL"))
+                                        {
+                                            <td class="text-end">@item.ROL</td>
+                                        }
+
+                                        @if (IsColumnVisible("MOL"))
+                                        {
+                                            <td class="text-end">@item.MOL</td>
+                                        }
+
+                                        @if (IsColumnVisible("Specification"))
+                                        {
+                                            <td>@item.Specification</td>
+                                        }
+
+                                        @if (IsColumnVisible("CGST"))
+                                        {
+                                            <td class="text-end">@item.CGST</td>
+                                        }
+
+                                        @if (IsColumnVisible("SGST"))
+                                        {
+                                            <td class="text-end">@item.SGST</td>
+                                        }
+
+                                        @if (IsColumnVisible("IGST"))
+                                        {
+                                            <td class="text-end">@item.IGST</td>
+                                        }
+
+                                        @if (IsColumnVisible("Remarks"))
+                                        {
+                                            <td>@item.Remarks</td>
+                                        }
+
+                                        @if (IsColumnVisible("DrawingNo"))
+                                        {
+                                            <td>@item.DrawingNo</td>
+                                        }
+
+                                        @if (IsColumnVisible("LeadTime"))
+                                        {
+                                            <td>@item.LeadTime</td>
+                                        }
+
+                                        @if (IsColumnVisible("RackNo"))
+                                        {
+                                            <td>@item.RackNo</td>
+                                        }
+
+                                        @if (IsColumnVisible("PartWeight"))
+                                        {
+                                            <td class="text-end">@item.PartWeight</td>
+                                        }
+
+                                        @if (IsColumnVisible("TotalArea"))
+                                        {
+                                            <td class="text-end">@item.TotalArea</td>
+                                        }
+
+                                        @if (IsColumnVisible("Make"))
+                                        {
+                                            <td>@item.Make</td>
+                                        }
+
+                                        @if (IsColumnVisible("RmId"))
+                                        {
+                                            <td>@item.RmId</td>
+                                        }
+
+                                        @if (IsColumnVisible("Shape"))
+                                        {
+                                            <td>@item.Shape</td>
+                                        }
+
+                                        @if (IsColumnVisible("Density"))
+                                        {
+                                            <td class="text-end">@item.Density</td>
+                                        }
+
+                                        @if (IsColumnVisible("Length"))
+                                        {
+                                            <td class="text-end">@item.Length</td>
+                                        }
+
+                                        @if (IsColumnVisible("Width"))
+                                        {
+                                            <td class="text-end">@item.Width</td>
+                                        }
+
+                                        @if (IsColumnVisible("Height"))
+                                        {
+                                            <td class="text-end">@item.Height</td>
+                                        }
+
+                                        @if (IsColumnVisible("Thickness"))
+                                        {
+                                            <td class="text-end">@item.Thickness</td>
+                                        }
+
+                                        @if (IsColumnVisible("WallThickness"))
+                                        {
+                                            <td class="text-end">@item.WallThickness</td>
+                                        }
+
+                                        @if (IsColumnVisible("OuterDia"))
+                                        {
+                                            <td class="text-end">@item.OuterDia</td>
+                                        }
+
+                                        @if (IsColumnVisible("InnerDia"))
+                                        {
+                                            <td class="text-end">@item.InnerDia</td>
+                                        }
+
+                                        @if (IsColumnVisible("Weight"))
+                                        {
+                                            <td class="text-end">@item.Weight</td>
+                                        }
+
+                                        @if (IsColumnVisible("BatchNo"))
+                                        {
+                                            <td>@item.BatchNo</td>
+                                        }
+
+                                        @if (reportType == "Created" || reportType == "All")
+                                        {
+                                            <td>@item.CreatedBy</td>
+
+                                            <td>
+                                                @(item.CreatedDate?.ToString("dd/MM/yyyy"))
+                                            </td>
+                                        }
+
+                                        @if (reportType == "Modified" || reportType == "All")
+                                        {
+                                            <td>@item.ModifiedBy</td>
+
+                                            <td>
+                                                @(item.ModifiedDate?.ToString("dd/MM/yyyy"))
+                                            </td>
+                                        }
+
+                                        @if (reportType == "Deleted" || reportType == "All")
+                                        {
+                                            <td>@item.DeletedBy</td>
+
+                                            <td>
+                                                @(item.ActionDate?.ToString("dd/MM/yyyy"))
+                                            </td>
+                                        }
+
+                                    </tr>
+
+                                    slNo++;
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+
+                                    <td colspan="25"
+                                        class="text-center text-danger fw-bold">
+
+                                        No Records Found
+
+                                    </td>
+
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+            </div>
+
+
+        </div>
+
+    </div>
+    <!-- TABLE -->
+}
+
+@code
+{
+    protected override string ScreenName => "Item Modification";
+    private DateTime fromDate = DateTime.Today.AddDays(-30);
+    private DateTime toDate = DateTime.Today;
+
+    private bool isProcessing = true;
+
+    private string reportType = "Created";
+
+    private string searchText = string.Empty;
+
+    private string selectedItemCode = "";
+
+    private List<ItemModificationReportVM> itemList = new();
+    public List<GridColumn> Columns { get; set; } = new();
+    private string UserName { get; set; } = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = "";
+    private string btnColor = string.Empty;
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns();
+
+            await LoadReport();
+
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnReportTypeChanged()
+    {
+
+
+        await LoadReport();
+    }
+
+    private async Task OnDateChanged()
+    {
+
+
+        await LoadReport();
+    }
+
+    private Task HandleColumnChange(List<GridColumn> updated)
+    {
+        Columns = updated;
+        return Task.CompletedTask;
+    }
+
+    private bool IsColumnVisible(string field)
+    {
+        return Columns.Any(x => x.Field == field && x.IsVisible);
+    }
+
+    private List<PageHeader.BreadcrumbItem> PoBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem{Text = "Report"},
+        new PageHeader.BreadcrumbItem { Text = "Analysis Report" },
+        new PageHeader.BreadcrumbItem{Text = "Item Modification Report", IsLast = true}
+    };
+
+    private List<ItemModificationReportVM> reportList = new();
+
+    private async Task LoadReport()
+    {
+        var data = await reportService.GetReport(fromDate, toDate, reportType);
+
+        itemList = data.GroupBy(x => new { x.ItemCode, x.ItemName })
+            .Select(g => g.First()).OrderBy(x => x.ItemName).ToList();
+
+        if (!string.IsNullOrWhiteSpace(selectedItemCode))
+        {
+            data = data.Where(x => x.ItemCode == selectedItemCode).ToList();
+        }
+
+        reportList = data;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task InitializeColumns()
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "Sl No", Field = "SlNo", IsVisible = true },
+                new() { Title = "Item Code / Part No.", Field = "ItemCode", IsVisible = true },
+                new() { Title = "Item Name / Description", Field = "ItemName", IsVisible = true },
+                new() { Title = "Specification", Field = "Specification", IsVisible = true },
+                new() { Title = "Drawing No", Field = "DrawingNo", IsVisible = false },
+                new() { Title = "Barcode", Field = "Barcode", IsVisible = false },
+                new() { Title = "QRCode", Field = "QRCode", IsVisible = false },
+
+                // Item Type
+                new() { Title = "Item Type (BtoT / Mfg)", Field = "BtOtorMfg", IsVisible = true },
+
+                // Category
+                new() { Title = "Category Code", Field = "CategoryCode", IsVisible = true },
+                new() { Title = "Category Name", Field = "CategoryName", IsVisible = true },
+                new() { Title = "Hide", Field = "Hide", IsVisible = false },
+
+                // Units
+                new() { Title = "Measure Unit", Field = "MeasureUnit", IsVisible = true },
+                new() { Title = "Purchase Unit", Field = "PurchaseUnit", IsVisible = false },
+                new() { Title = "Unit Convert", Field = "UnitConvert", IsVisible = false },
+
+                // Inventory Details
+                new() { Title = "Rack No", Field = "RackNo", IsVisible = false },
+                new() { Title = "ROL", Field = "ROL", IsVisible = false },
+                new() { Title = "MOL", Field = "MOL", IsVisible = false },
+                new() { Title = "Lead Time", Field = "LeadTime", IsVisible = false },
+                new() { Title = "Part Weight", Field = "PartWeight", IsVisible = true },
+                new() { Title = "Bin Location", Field = "BinLocation", IsVisible = false },
+                new() { Title = "Consider as RM", Field = "ConsiderAsRm", IsVisible = false },
+
+                // Physical Properties
+                new() { Title = "Make", Field = "Make", IsVisible = false },
+                new() { Title = "Raw Material Name", Field = "RawMaterialName", IsVisible = false },
+                new() { Title = "Shape", Field = "Shape", IsVisible = false },
+                new() { Title = "Density", Field = "Density", IsVisible = false },
+                new() { Title = "Length", Field = "Length", IsVisible = false },
+                new() { Title = "Width", Field = "Width", IsVisible = false },
+                new() { Title = "Height", Field = "Height", IsVisible = false },
+                new() { Title = "Thickness", Field = "Thickness", IsVisible = false },
+                new() { Title = "Wall Thickness", Field = "WallThickness", IsVisible = false },
+                new() { Title = "Outer Dia", Field = "OuterDia", IsVisible = false },
+                new() { Title = "Inner Dia", Field = "InnerDia", IsVisible = false },
+                new() { Title = "Weight", Field = "Weight", IsVisible = false },
+                new() { Title = "Batch No", Field = "BatchNo", IsVisible = false },
+
+                new() { Title = "Assigned Customer", Field = "AssignedCustomerName", IsVisible = false },
+                // Rates
+                new() { Title = "Rate", Field = "Rate", IsVisible = true },
+                new() { Title = "Alternate Rate", Field = "AltRate", IsVisible = false },
+
+                // Tax
+                new() { Title = "HSN Code", Field = "HSNCode", IsVisible = true },
+                new() { Title = "SAC Code", Field = "SACCode", IsVisible = true },
+                new() { Title = "CGST %", Field = "CGST", IsVisible = false },
+                new() { Title = "SGST %", Field = "SGST", IsVisible = false },
+                new() { Title = "IGST %", Field = "IGST", IsVisible = false },
+
+                // Revision
+                new() { Title = "Rev", Field = "Rev", IsVisible = false },
+
+                // Audit Fields
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false }
+
+            };
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error initializing columns in ItemList");
+            await _js.ToastrError("Failed to initialize columns.");
+        }
+    }
+
+    private IEnumerable<ItemModificationReportVM> FilteredReportList => string.IsNullOrWhiteSpace(searchText)
+        ? reportList
+        : reportList.Where(x =>
+
+            (x.ItemCode?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.ItemName?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.Rate?.ToString().Contains(searchText) ?? false)
+
+            ||
+
+            (x.CreatedBy?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.ModifiedBy?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.DeletedBy?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.CategoryName?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.HSNCode?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            ||
+
+            (x.SACCode?.Contains(searchText,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+        );
+
+    private async Task HandleExport()
+    {
+
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+
+            // await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirm)
+                return;
+
+            if (reportList == null || !reportList.Any())
+            {
+                await _JS.ToastrWarning("No records available to export.");
+                return;
+            }
+
+            var visibleColumns = Columns
+                .Where(c => c.IsVisible)
+                .Select(c => c.Field)
+                .ToList();
+
+            int slNo = 1;
+
+            List<Dictionary<string, object>> exportData = new();
+
+            foreach (var x in FilteredReportList)
+            {
+                var row = new Dictionary<string, object>();
+
+                if (visibleColumns.Contains("SlNo"))
+                    row["Sl No"] = slNo++;
+
+                if (visibleColumns.Contains("ItemCode"))
+                    row["Item Code"] = x.ItemCode ?? "";
+
+                if (visibleColumns.Contains("ItemName"))
+                    row["Item Name"] = x.ItemName ?? "";
+
+                if (visibleColumns.Contains("CategoryName"))
+                    row["Category"] = x.CategoryName ?? "";
+
+                if (visibleColumns.Contains("MeasureUnit"))
+                    row["UOM"] = x.MeasureUnit ?? "";
+
+                if (visibleColumns.Contains("HSNCode"))
+                    row["HSN Code"] = x.HSNCode ?? "";
+
+                if (visibleColumns.Contains("SACCode"))
+                    row["SAC Code"] = x.SACCode ?? "";
+
+                if (visibleColumns.Contains("Rate"))
+                    row["Rate"] = x.Rate?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("ROL"))
+                    row["ROL"] = x.ROL?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("MOL"))
+                    row["MOL"] = x.MOL?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("Specification"))
+                    row["Specification"] = x.Specification ?? "";
+
+                if (visibleColumns.Contains("CGST"))
+                    row["CGST %"] = x.CGST?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("SGST"))
+                    row["SGST %"] = x.SGST?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("IGST"))
+                    row["IGST %"] = x.IGST?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("Remarks"))
+                    row["Remarks"] = x.Remarks ?? "";
+
+                if (visibleColumns.Contains("DrawingNo"))
+                    row["Drawing No"] = x.DrawingNo ?? "";
+
+                if (visibleColumns.Contains("LeadTime"))
+                    row["Lead Time"] = x.LeadTime;
+
+                if (visibleColumns.Contains("RackNo"))
+                    row["Rack No"] = x.RackNo ?? "";
+
+                if (visibleColumns.Contains("PartWeight"))
+                    row["Part Weight"] = x.PartWeight?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("TotalArea"))
+                    row["Total Area"] = x.TotalArea?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("Make"))
+                    row["Make"] = x.Make ?? "";
+
+                if (visibleColumns.Contains("RmId"))
+                    row["RM ID"] = x.RmId;
+
+                if (visibleColumns.Contains("Shape"))
+                    row["Shape"] = x.Shape ?? "";
+
+                if (visibleColumns.Contains("Density"))
+                    row["Density"] = x.Density?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("Length"))
+                    row["Length"] = x.Length?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("Width"))
+                    row["Width"] = x.Width?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("Height"))
+                    row["Height"] = x.Height?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("Thickness"))
+                    row["Thickness"] = x.Thickness?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("WallThickness"))
+                    row["Wall Thickness"] = x.WallThickness?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("OuterDia"))
+                    row["Outer Dia"] = x.OuterDia?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("InnerDia"))
+                    row["Inner Dia"] = x.InnerDia?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("Weight"))
+                    row["Weight"] = x.Weight?.ToString("0.000") ?? "0.000";
+
+                if (visibleColumns.Contains("BatchNo"))
+                    row["Batch No"] = x.BatchNo ?? "";
+
+                if (reportType == "Created" || reportType == "All")
+                {
+                    row["Created By"] = x.CreatedBy ?? "";
+                    row["Created Date"] = x.CreatedDate?.ToString("dd/MM/yyyy") ?? "";
+                }
+
+                if (reportType == "Modified" || reportType == "All")
+                {
+                    row["Modified By"] = x.ModifiedBy ?? "";
+                    row["Modified Date"] = x.ModifiedDate?.ToString("dd/MM/yyyy") ?? "";
+                }
+
+                if (reportType == "Deleted" || reportType == "All")
+                {
+                    row["Deleted By"] = x.DeletedBy ?? "";
+                    row["Deleted Date"] = x.ActionDate?.ToString("dd/MM/yyyy") ?? "";
+                }
+
+                exportData.Add(row);
+            }
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(
+                exportData,
+                "ItemModificationReport",
+                "Item Modification Report");
+
+            var base64 = Convert.ToBase64String(bytes);
+
+            await _JS.DownloadExcelAsync(base64, "ItemModificationReport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in Item Modification Report Export");
+
+            await _JS.ToastrError("Error while exporting Item Modification Report!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

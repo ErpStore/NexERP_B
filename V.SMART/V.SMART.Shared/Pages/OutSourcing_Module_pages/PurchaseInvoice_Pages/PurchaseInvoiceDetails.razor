@@ -1,0 +1,467 @@
+﻿@page "/purchaseInvoice/details/{InvId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchase_Invoice_Service
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchaseInvoiceVM
+
+@inherits BaseUserRightsComponent
+
+@inject IPurchaseInvoiceService _invService
+@inject IJSRuntime _JS
+@inject ReportService reportService
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <!-- Company Details Section -->
+            <MyCompanyDetails />
+
+            <!-- Cancelled Watermark -->
+            @if (PurchaseInvoiceVMVMs.InvCancel)
+            {
+                <div class="cancelWatermark ms-20 mt-10">CANCELLED</div>
+            }
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">Invoice Details</h4>
+            </div>
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <!-- Customer & Document Details Section -->
+            <div class="row g-3 mb-4">
+                <!-- Customer Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Vendor Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.VendorName) ? PurchaseInvoiceVMVMs.VendorName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.VendorAddress) ? PurchaseInvoiceVMVMs.VendorAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.VendorGstNo) ? PurchaseInvoiceVMVMs.VendorGstNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.VendorContactNo) ? PurchaseInvoiceVMVMs.VendorContactNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.KindofAttention) ? PurchaseInvoiceVMVMs.KindofAttention : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Document Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Purchase Inv No</strong></td>
+                                        <td>@(PurchaseInvoiceVMVMs != null ? $"{PurchaseInvoiceVMVMs.InvNo}{PurchaseInvoiceVMVMs.Suffix}" : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Purchase Inv Date</strong></td>
+                                        <td>@(PurchaseInvoiceVMVMs?.InvDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Currency</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.CurrName) ? PurchaseInvoiceVMVMs.CurrName : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Ref SCN No.</strong></td>
+                                        <td>@refSCNNosDisplay</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Ref SCN Dt.</strong></td>
+                                        <td>@refSCNDatesDisplay</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Consignee & Other Terms Section -->
+            <div class="row g-3 mb-4">
+                <!-- Consignee Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Consignee Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            @if (PurchaseInvoiceVMVMs.IsSameAsShipping)
+                            {
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.VendorName) ? PurchaseInvoiceVMVMs.VendorName : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.VendorAddress) ? PurchaseInvoiceVMVMs.VendorAddress : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.VendorGstNo) ? PurchaseInvoiceVMVMs.VendorGstNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.VendorContactNo) ? PurchaseInvoiceVMVMs.VendorContactNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.KindofAttention) ? PurchaseInvoiceVMVMs.KindofAttention : "N/A")</td></tr>
+                                    </tbody>
+                                </table>
+                            }
+                            else
+                            {
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.ShippingName) ? PurchaseInvoiceVMVMs.ShippingName : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.ShippingAddress) ? PurchaseInvoiceVMVMs.ShippingAddress : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.ShippingGstin) ? PurchaseInvoiceVMVMs.ShippingGstin : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseInvoiceVMVMs?.ShippingContactNo) ? PurchaseInvoiceVMVMs.ShippingContactNo : "N/A")</td></tr>
+                                    </tbody>
+                                </table>
+                            }
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment, Delivery, and Other Terms -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            TDS, and Other Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>TDS Amount(In ₹) </strong></td>
+                                        <td>@(PurchaseInvoiceVMVMs.TDSAmount)</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Remarks</strong></td>
+                                        <td>@(PurchaseInvoiceVMVMs?.MainRemarks ?? "N/A")</td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Quotation Items Section -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                    Purchase Invoice Items
+                </div>
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>UOM</th>
+                                <th>HSN</th>
+                                <th>Qty</th>
+                                <th>Unit Price</th>
+                                <th>Discount</th>
+                                <th>Basic Amount</th>
+                                @if (VendorVMs.TaxValidate == false)
+                                {
+                                    @if (VendorVMs.BusiType == "Local")
+                                    {
+                                        <th>CGST</th>
+                                        <th>SGST</th>
+                                    }
+                                    else if (VendorVMs.BusiType == "InterState")
+                                    {
+                                        <th>IGST</th>
+                                    }
+                                }
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (PurchaseInvoiceVMVMs?.PurchaseInvoiceSubVMs != null && PurchaseInvoiceVMVMs.PurchaseInvoiceSubVMs.Any())
+                            {
+                                @foreach (var item in PurchaseInvoiceVMVMs.PurchaseInvoiceSubVMs)
+                                {
+                                    <tr>
+                                        <td>@item.SlNo</td>
+                                        <td>@(item.ItemCode ?? "—")</td>
+                                        <td>@(item.ItemName ?? "—")</td>
+                                        <td>@item.MeasureUnit</td>
+                                        <td>@item.HSNCode</td>
+                                        <td>@FormatDecimal(item.Qty)</td>
+                                        <td>@FormatDecimal(item.UnitPrice)</td>
+                                        <td>@FormatDecimal(item.LineDiscountAmount)</td>
+                                        <td>@FormatDecimal(item.LineBasicAmount)</td>
+
+                                        @if (VendorVMs.TaxValidate == false)
+                                        {
+                                            @if (VendorVMs.BusiType == "Local")
+                                            {
+                                                <td class="text-end">@FormatDecimal(item.LineCGSTAmount)</td>
+                                                <td class="text-end">@FormatDecimal(item.LineSGSTAmount)</td>
+                                            }
+                                            else if (VendorVMs.BusiType == "InterState")
+                                            {
+                                                <td class="text-end">@FormatDecimal(item.LineIGSTAmount)</td>
+                                            }
+                                        }
+
+                                        <td>@item.Remarks</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="13" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Due Date & Tax Totals Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                </div>
+
+                <!-- Tax Totals -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-success-subtle text-success-emphasis fw-semibold p-2 small">
+                            Totals & Taxes
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary">Total Gross Amount</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.TotalLineGross)</td></tr>
+                                    <tr><td class="text-secondary">Total Discount</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.DiscountAmount)</td></tr>
+                                    <tr><td class="text-secondary">Total Basic Amount</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.TotalLineBasicAmount)</td></tr>
+                                    <tr><td class="text-secondary">Freight Charges</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.FreightCharges)</td></tr>
+                                    <tr><td class="text-secondary">Packing Charges</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.PackingCharges)</td></tr>
+                                    <tr><td class="text-secondary">Insurance Charges</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.InsuranceCharges)</td></tr>
+                                    <tr><td class="text-secondary">Total Taxable</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.TotalTaxable)</td></tr>
+                                    @if (VendorVMs.TaxValidate == false)
+                                    {
+                                        @if (VendorVMs.BusiType == "Local")
+                                        {
+                                            <tr><td class="text-secondary">Total CGST</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.TotalCGSTAmount)</td></tr>
+                                            <tr><td class="text-secondary">Total SGST</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.TotalSGSTAmount)</td></tr>
+                                        }
+                                        else if (VendorVMs.BusiType == "InterState")
+                                        {
+                                            <tr><td class="text-secondary">Total IGST</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.TotalIGSTAmount)</td></tr>
+                                        }
+                                    }
+                                    <tr><td class="text-secondary">TCS</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.TCSAmount)</td></tr>
+                                    <tr><td class="text-secondary">Other Charges</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.OtherCharges)</td></tr>
+                                    <tr><td class="text-secondary">Round Off</td><td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.RoundOff)</td></tr>
+                                    <tr class="fw-bold fs-6 text-primary">
+                                        <td>Grand Total</td>
+                                        <td class="text-end">@FormatDecimal(PurchaseInvoiceVMVMs.GrandTotal)</td>
+                                    </tr>
+
+                                    @if (PurchaseInvoiceVMVMs.CurrId > 1)
+                                    {
+                                        <tr>
+                                            <td colspan="2" class="text-end">
+                                                <small class="text-muted d-block">
+                                                    Today's value: @PurchaseInvoiceVMVMs.TodayVal
+                                                </small>
+                                                <small class="fw-bold text-success d-block">
+                                                    Converted Value in Rs: @((PurchaseInvoiceVMVMs.GrandTotal * PurchaseInvoiceVMVMs.TodayVal).ToString("0.00"))
+                                                </small>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <!-- Due Date & Terms and Conditions -->
+                <div class="col-md-12">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-warning-subtle text-warning-emphasis fw-semibold p-2 small">
+                            Total Amount in Words
+                        </div>
+                        <div class="card-body p-2 small">
+                            <p class="mb-0">
+                                @if (PurchaseInvoiceVMVMs.CurrId > 1 && PurchaseInvoiceVMVMs.TodayVal > 0)
+                                {
+                                    <small class="fw-bold text-success d-block">
+                                        Converted Value in Rs:
+                                        @NumberToWordsHelper.ConvertNumberToWords(PurchaseInvoiceVMVMs.GrandTotal * PurchaseInvoiceVMVMs.TodayVal)
+                                    </small>
+                                }
+                                else
+                                {
+                                    <strong>@NumberToWordsHelper.ConvertNumberToWords(PurchaseInvoiceVMVMs.GrandTotal)</strong>
+                                }
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="@($"/purchaseInvoiceList?currentPage={currentPage}")" class="btn btn-secondary  rounded-3" disabled="@isProcessing">
+                    <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                </a>
+                <a href="@($"/purchaseInvoice/update/{InvId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Purchase Invoice";
+
+    [Parameter]
+    public int InvId { get; set; }
+    string? pdfBase64;
+    private bool isProcessing { get; set; } = true;
+    private PurchaseInvoiceVM PurchaseInvoiceVMVMs { get; set; } = new PurchaseInvoiceVM();
+    private VendorVM VendorVMs { get; set; } = new VendorVM();
+
+    private Companydetails company { get; set; } = new Companydetails();
+    private List<PurchaseInvoiceSubVM> refSCNs = new();
+    private int Decimalplaces { get; set; } = 2;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private string refSCNNosDisplay = "N/A";
+    private string refSCNDatesDisplay = "N/A";
+
+    private string FormatDecimal(decimal? value)
+    {
+        try
+        {
+            if (value == null) return "0";
+            return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+        }
+        catch (Exception ex)
+        {
+            LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf OnInitializedAsync()");
+            _JS.ToastrError("An unexpected error occurred while generating the PDF in OnInitializedAsync()");
+            return "";
+        }
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+
+            }
+            company = await _invService.GetCompanyDetailsAsync();
+            await LoadPurchaseInvoice();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync() PurchaseInvoice");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadPurchaseInvoice()
+    {
+        try
+        {
+            if (InvId > 0)
+            {
+                var purchaseInv = await _invService.GetPurchaseInvoiceByIdAsync(InvId);
+                if (purchaseInv != null)
+                {
+                    PurchaseInvoiceVMVMs = purchaseInv;
+                }
+
+                Decimalplaces = await _invService.GetDecimalPlacesAsync();
+                VendorVMs = await _invService.GetVendorByIdAsync(PurchaseInvoiceVMVMs.VendorCode.Value);
+
+                refSCNs = await _invService.GetDistinctRefSCNByPurchaseInvIdAsync(PurchaseInvoiceVMVMs.InvId);
+
+                if (refSCNs.Any())
+                {
+                    // Only join the existing items, no extra commas
+                    refSCNNosDisplay = string.Join(", ", refSCNs.Select(e => e.RefSCNNo).Where(n => !string.IsNullOrEmpty(n)));
+                    refSCNDatesDisplay = string.Join(", ", refSCNs
+                        .Select(e => e.RefSCNDate.HasValue ? e.RefSCNDate.Value.ToString("dd/MM/yyyy") : null)
+                        .Where(d => !string.IsNullOrEmpty(d)));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadPurchaseInvoice() PurchaseInvoice");
+            await _JS.ToastrError("An unexpected error occurred while Loading  the LoadPurchaseInvoice in PurchaseInvoice.");
+        }
+    }
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(InvId, "PurchaseInvoice.frx", "InvId", PurchaseInvoiceVMVMs.InvCancel, "PurchaseInvoice", "Sp_Print_PurchaseInvoice");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf PurchaseInvoice");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in PurchaseInvoice.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

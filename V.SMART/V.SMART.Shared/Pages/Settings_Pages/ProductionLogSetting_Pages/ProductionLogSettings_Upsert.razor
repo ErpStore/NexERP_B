@@ -1,0 +1,189 @@
+﻿@page "/productionLogStop/create"
+@page "/productionLogStop/update/{Id:int}"
+
+@inherits BaseUserRightsComponent
+
+@inject IProdLogSettingsService prodLogSettingsService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@(ProductionLogSettings.Id > 0 ? "Update Production Stop Type" : "Create Production Stop Type")"
+                        TitleIcon="bi bi-gear"
+                        Breadcrumbs="@prodStopTypeFormBreadcrumbs" />
+
+            <div class="card-body">
+                <EditForm Model="ProductionLogSettings" OnValidSubmit="SaveProductionLogSettings">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 text-end">
+
+                        <!-- Production Stop Type -->
+                        <div class="col-12 col-md-6">
+                            <div class="form-floating">
+                                <TrimmedInputText @bind-Value="ProductionLogSettings.ProdStopType"
+                                                  Id="ProdStopType"
+                                                  Placeholder="Production Stop Type"
+                                                  CssClass="form-control" />
+                                <label for="ProdStopType">Production Stop Type</label>
+                                <ValidationMessage For="@(() => ProductionLogSettings.ProdStopType)" />
+                            </div>
+                        </div>
+
+                        <!-- Efficiency % -->
+                        <div class="col-12 col-md-6">
+                            <div class="form-floating">
+                                <InputNumber @bind-Value="ProductionLogSettings.EfficiencyPerc"
+                                             Id="EfficiencyPerc"
+                                             Placeholder="Efficiency %"
+                                             class="form-control" />
+                                <label for="EfficiencyPerc">Efficiency %</label>
+                                <ValidationMessage For="@(() => ProductionLogSettings.EfficiencyPerc)" />
+                            </div>
+                        </div>
+
+                        <!-- Definition -->
+                        <div class="col-12 col-md-6">
+                            <div class="form-floating">
+                                <InputTextArea @bind-Value="ProductionLogSettings.Definition"
+                                               Id="Definition"
+                                               Placeholder="Definition"
+                                               class="form-control"
+                                               rows="1"/>
+                                <label for="Definition">Definition</label>
+                                <ValidationMessage For="@(() => ProductionLogSettings.Definition)" />
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="d-flex align-items-center gap-3 p-2 rounded-3 bg-light border">
+                                <InputCheckbox @bind-Value="ProductionLogSettings.IsActive"
+                                               class="form-check-input form-check-input-lg"
+                                               id="IsActive" />
+
+                                <label class="fw-semibold" for="IsActive">Active</label>
+
+                                <span class="badge"
+                                      style="background-color:@(ProductionLogSettings.IsActive ? "#28a745" : "#dc3545")">
+                                    @(ProductionLogSettings.IsActive ? "Enabled" : "Disabled")
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Save Button -->
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i>
+                                    @(ProductionLogSettings.Id > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                        }
+
+                        <!-- Back -->
+                        <div class="col-6 col-md-3 mt-3">
+                            <a href="/production-log-settings" class="btn btn-secondary w-100">
+                                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                            </a>
+                        </div>
+
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Production Log Setting";
+
+    [Parameter] public int? Id { get; set; }
+
+    private ProductionLogSetting ProductionLogSettings { get; set; } = new();
+    private bool isProcessing = true;
+
+    private List<PageHeader.BreadcrumbItem> prodStopTypeFormBreadcrumbs = new()
+    {
+        new() { Text = "Settings" },
+        new() { Text = "Production Log Settings" },
+        new() { Text = "Production Stop Type", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        await LoadProductionLogSettings();
+        isProcessing = false;
+    }
+
+    private async Task LoadProductionLogSettings()
+    {
+        try
+        {
+            if (Id.HasValue && Id.Value > 0)
+            {
+                var existing = await prodLogSettingsService.GetProductionLogSettingsAsync(Id.Value);
+                ProductionLogSettings = existing ?? new ProductionLogSetting();
+            }
+        }
+        catch
+        {
+            await _js.ToastrError("Error loading Production Log Stop Type.");
+        }
+    }
+
+    private async Task SaveProductionLogSettings()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (await prodLogSettingsService.IsDuplicateProdTypeNameAsync(ProductionLogSettings.ProdStopType, ProductionLogSettings.Id == 0 ? null : ProductionLogSettings.Id))
+            {
+                await _js.ToastrError("Production Stop Type Name already exists.");
+                return;
+            }
+
+            if (ProductionLogSettings.Id == 0)
+                await prodLogSettingsService.CreateProdLogSettingsAsync(ProductionLogSettings);
+            else
+                await prodLogSettingsService.UpdateProdLogSettingsAsync(ProductionLogSettings);
+
+            await _js.ToastrSuccess($"Production Stop Type {(ProductionLogSettings.Id == 0 ? "created" : "updated")} successfully.");
+            _navigationManager.NavigateTo("/production-log-settings");
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch
+        {
+            await _js.ToastrError("An error occurred while saving.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

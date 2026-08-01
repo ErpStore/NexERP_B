@@ -1,0 +1,685 @@
+﻿@page "/LabourCostManagement"
+@inherits BaseUserRightsComponent
+
+@inject IUnitOfWork _unitOfWork
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject ILoggingService LoggingService
+@inject IItemService _ItemService
+@inject ExcelExportService ExcelExportService
+
+<BsModal OnModalConfirmation="@HandelModelConfirmation"
+         ButtonBootstrapStyle="@btnColour"
+         ButtonText="@buttontext"
+         Title="@ModalTitle">
+</BsModal>
+
+<style>
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@itemRateTitle"
+                        TitleIcon="@itemRateIcon"
+                        Breadcrumbs="@itemRateBreadcrumbs" />
+
+            <div class="card-body">
+
+                <!-- Top Controls -->
+                <div class="row mb-4">
+
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">Category</label>
+                        <select class="form-select" @onchange="OnCategoryChanged">
+                            <option disabled selected value="">-- Select Category --</option>
+                            @foreach (var cat in categories)
+                            {
+                                <option value="@cat.CategoryCode">@cat.CategoryName</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">Cycle Time (Min)</label>
+                        <input type="number" class="form-control" step="any"
+                               value="@DefaultCycleTimeSeconds"
+                               @oninput="e => ApplyDefaultCycleTimeToAllSafe(e.Value?.ToString())" />
+                    </div>
+
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">Labour Cost / Hr</label>
+                        <input type="number" class="form-control" step="any"
+                               value="@DefaultLabourCostPerHour"
+                               @oninput="e => ApplyDefaultLabourCostToAllSafe(e.Value?.ToString())" />
+                    </div>
+
+                    <!-- Search -->
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">Search</label>
+                        <input type="text"
+                               class="form-control"
+                               placeholder="Search..."
+                               @bind="searchText"
+                               @bind:event="oninput" />
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end mb-3">
+                        @* <button class="btn btn-success w-100" @onclick="SaveAllItems">
+                            <i class="bi bi-save"></i> Save All
+                        </button>
+                        <div class="col-md-4 col-lg-3"> *@
+
+                        <button type="button" class="btn btn-success d-flex align-items-center" @onclick="HandleExport">
+                            <i class="bi bi-download me-2"></i> Export Items
+                        </button>
+                        @* </div> *@
+                    </div>
+
+
+
+                </div>
+
+                @if (Items?.Any() == true)
+                {
+                    <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                        <table class="table table-bordered table-striped table-hover align-middle">
+
+                            <thead class="custom-blue">
+                                <tr>
+                                    <th>Sl. No.</th>
+                                    <th style="width:80px;">Item ID</th>
+                                    <th style="width:120px;">Item Code</th>
+                                    <th class="text-start">Item Description</th>
+                                    <th style="width:130px;">Labour Time (Min)</th>
+                                    <th style="width:130px;">Labour Rate (₹ / Hr)</th>
+                                    <th style="width:130px;">Total Labour Cost (₹)</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @{
+                                    int slno = 1;
+                                }
+                                @foreach (var item in FilteredItems)
+                                {
+                                    <tr>
+
+                                        <td class="text-center">@slno</td>
+                                        <td class="text-center">@item.ItemId</td>
+                                        <td class="text-center">@item.ItemCode</td>
+                                        <td class="text-start">@item.ItemName</td>
+
+                                        <td>
+                                            <input type="number"
+                                                   class="form-control form-control-sm text-end" 
+                                                   @bind="item.LabourTimeMinutes" />
+                                        </td>
+
+                                        <td>
+                                            <input type="number"
+                                                   class="form-control form-control-sm text-end"
+                                                   @bind="item.LabourPricePerHour" />
+                                        </td>
+
+                                        <td class="text-end fw-bold text-primary">
+                                            @CalculateTotalCost(item)
+                                        </td>
+                                    </tr>
+                                    slno++;
+                                }
+                            </tbody>
+
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle"></i> No items found for the selected category.
+                    </div>
+                }
+
+
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-3 p-3 bg-light">
+                <div class="row g-3 align-items-end">
+
+                    <!-- Upload Excel -->
+                    <div class="col-md-4 col-lg-3">
+                        <label class="form-label fw-semibold text-dark small mb-1 d-flex align-items-center">
+                            <i class="bi bi-file-earmark-excel text-success me-2 fs-5"></i>
+                            Upload Excel File
+                        </label>
+                        <label class="btn btn-outline-success w-100 rounded-pill">
+                            <i class="bi bi-upload me-1"></i> Browse
+                            <InputFile OnChange="OnFileSelected" class="d-none" accept=".xlsx,.xls,.xlsm" />
+                        </label>
+                    </div>
+
+                    <!-- Sheet Selection -->
+                    @if (SheetNames?.Any() == true)
+                    {
+                        <div class="col-md-4 col-lg-3">
+                            <label class="form-label fw-semibold text-dark small mb-1 d-flex align-items-center">
+                                <i class="bi bi-table me-2 text-primary fs-5"></i>
+                                Select Sheet
+                            </label>
+                            <select id="SelectSheet"
+                                    class="form-select rounded-pill"
+                                    value="@SelectedSheet"
+                                    @onchange="OnSelectedSheetChanged">
+                                <option value="">-- Choose Sheet --</option>
+                                @foreach (var sheet in SheetNames)
+                                {
+                                    <option value="@sheet">@sheet</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <!-- Update Button -->
+                    <div class="col-md-4 col-lg-3">
+                        <button class="btn btn-primary rounded-pill px-4 py-2 shadow-sm w-100"
+                                style="min-width: 160px;"
+                                @onclick="handleToUpdate" disabled="@isProcessing">
+                            <i class="bi bi-arrow-repeat me-1"></i> Update Data
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+}
+@code {
+
+    protected override string ScreenName => "LabourCostManagement";
+
+    private bool isProcessing = true;
+    private List<Category> categories = new();
+    private List<Item> Items = new();
+    private string searchText = string.Empty;
+
+    private decimal DefaultCycleTimeSeconds = 60m;
+    private decimal DefaultLabourCostPerHour = 0m;
+
+    private string itemRateIcon = "bi bi-tags-fill";
+    private string itemRateTitle = "Item Rate Updation";
+
+    private string ModalTitle = string.Empty;
+    private string buttontext = string.Empty;
+    private string btnColour = string.Empty;
+    private List<string> SheetNames = new();
+    private string Confirmation = "";
+
+    private bool IsExportVisible = false;
+    private string SelectedSheet { get; set; } = "";
+    private IBrowserFile uploadedFile;
+    private List<string> headers = new();
+    List<Dictionary<string, object>> excelData = new List<Dictionary<string, object>>();
+
+    private List<PageHeader.BreadcrumbItem> itemRateBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "Labour Cost Management", IsLast = true }
+    };
+    private readonly List<string> expectedItemHeaders = new()
+    {
+        "ItemCode","Itemname", "LabourTimeMinutes","LabourPricePerHour","LabourPrice"
+    };
+
+
+    private IEnumerable<Item> FilteredItems =>
+    string.IsNullOrWhiteSpace(searchText)
+        ? Items
+        : Items.Where(i =>
+            (i.ItemCode?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (i.ItemName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+
+        );
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView) return;
+
+            categories = await _unitOfWork.Categories.GetUsedCategoriesAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+
+    }
+    private async Task OnCategoryChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e?.Value?.ToString(), out int catCode))
+        {
+
+            Items = await _unitOfWork.ItemRepositories
+                                     .GetItemsByCategoryCodeAsync(catCode);
+
+
+            foreach (var item in Items)
+            {
+                if (item.CycleTime == 0 || item.CycleTime == 0m)
+                {
+                    item.CycleTime = DefaultCycleTimeSeconds;
+                }
+
+                if (item.LabourPricePerHour == 0 || item.LabourPricePerHour == 0m)
+                {
+                    item.LabourPricePerHour = DefaultLabourCostPerHour;
+                }
+
+                if (item.LabourTimeMinutes == 0)
+                {
+                    item.LabourTimeMinutes = 0m;
+                }
+            }
+
+        }
+    }
+
+
+    private void ApplyDefaultCycleTimeToAllSafe(string? value)
+    {
+        decimal seconds = 0m;
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            decimal.TryParse(value, out seconds);
+        }
+
+        DefaultCycleTimeSeconds = seconds;
+        foreach (var item in Items)
+        {
+            item.CycleTime = seconds;
+        }
+    }
+    private decimal CalculateTotalCost(Item item)
+    {
+        decimal time = item?.LabourTimeMinutes ?? 0;
+        decimal rate = item?.LabourPricePerHour ?? 0;
+
+        return Math.Round((time / 60m) * rate, 2);
+    }
+    private void ApplyDefaultLabourCostToAllSafe(string? value)
+    {
+
+        decimal cost = 0m;
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            decimal.TryParse(value, out cost);
+        }
+
+        DefaultLabourCostPerHour = cost;
+        foreach (var item in Items)
+        {
+            item.LabourPricePerHour = cost;
+        }
+    }
+
+    // private decimal CalculateTotalCost(Item item)
+    // {
+    //     decimal total = ((item.LabourTimeMinutes) / 60m) * (item.LabourPricePerHour);
+
+    //     return Math.Round(total, 2);
+    // }
+
+    private async Task SaveAllItems()
+    {
+        try
+        {
+            foreach (var item in Items)
+            {
+                var existing = await _unitOfWork.ItemRepositories.GetAsync(item.ItemId);
+                if (existing != null)
+                {
+                    // Null-safe calculation
+
+                    decimal labourTime = item.LabourTimeMinutes;
+                    decimal labourRate = item.LabourPricePerHour;
+                    decimal total = Math.Round((labourTime / 60m) * labourRate, 2);
+
+                    // Update existing entity (EF tracked)
+
+                    existing.LabourTimeMinutes = labourTime;
+                    existing.LabourPricePerHour = labourRate;
+                    existing.LabourPrice = total;
+
+                    // Optional: update your UI model as well
+
+                    item.LabourPrice = total;
+
+                    await _unitOfWork.ItemRepositories.UpdateAsync(existing);
+                }
+            }
+
+            await _unitOfWork.SaveAsync();
+
+            await _js.ToastrSuccess("All items updated successfully!");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error saving items");
+            await _js.ToastrError("Error updating items!");
+        }
+    }
+
+    private void HandleExport()
+    {
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColour = "btn-success";
+        buttontext = "Yes";
+        Confirmation = "Export";
+        _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+            var exportData = Items.Select(x => new ItemExportVM
+            {
+                ItemId = x.ItemId,
+                ItemCode = x.ItemCode,
+                ItemName = x.ItemName,
+                LabourTimeMinutes = x.LabourTimeMinutes,
+                LabourPricePerHour = x.LabourPricePerHour,
+                LabourPrice = x.LabourPrice
+            }).ToList();
+
+            var bytes = ExcelExportService.ExportListToExcel(exportData, "Items", "ItemId", "ItemCode", "ItemName");
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.DownloadExcelAsync(base64, "ItemLabourPriceUpdate.xlsx");
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Item Rate Updation ExportToExcel() Method");
+            await _js.ToastrError("Error While ExportToExcel!..");
+
+        }
+    }
+
+    // Step 1: User uploads file - only extract sheets here
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            if (e.File != null)
+            {
+                uploadedFile = e.File;
+
+                // Reset selected sheet and data
+                SelectedSheet = null;
+                SheetNames = new List<string>();
+                Items.Clear();
+                excelData.Clear();
+
+                // Load only sheet names (no data loading)
+                await LoadSheetNamesAsync(uploadedFile);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnFileSelected event");
+            await _js.ToastrError("Error While File Selecting!..");
+
+        }
+    }
+
+    private async Task LoadSheetNamesAsync(IBrowserFile file)
+    {
+        using var stream = file.OpenReadStream(10_000_000);
+        using var memoryStream = new MemoryStream();
+        await stream.CopyToAsync(memoryStream);
+        memoryStream.Position = 0;
+
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+        using var reader = ExcelReaderFactory.CreateReader(memoryStream);
+        var result = reader.AsDataSet();
+
+        SheetNames = result.Tables.Cast<DataTable>().Select(t => t.TableName).ToList();
+
+        if (!SheetNames.Any())
+        {
+            await _js.ToastrWarning("No sheets found in the uploaded file.");
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnSelectedSheetChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var selected = e.Value?.ToString();
+            if (string.IsNullOrWhiteSpace(selected))
+            {
+                await _js.ToastrError("Please select a valid sheet.");
+                return;
+            }
+
+            SelectedSheet = selected;
+
+            if (uploadedFile != null && !string.IsNullOrEmpty(SelectedSheet))
+            {
+                await LoadSheetDataAsync(uploadedFile, SelectedSheet);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnSelectedSheetChanged event");
+            await _js.ToastrError("Error While Selecting the Sheet");
+        }
+    }
+
+    private async Task LoadSheetDataAsync(IBrowserFile file, string sheetName)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream(10_000_000);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+            using var reader = ExcelReaderFactory.CreateReader(memoryStream);
+            var result = reader.AsDataSet();
+
+            var table = result.Tables[sheetName];
+
+            if (table == null || table.Rows.Count == 0)
+            {
+                await _js.InvokeVoidAsync("alert", "Selected sheet is empty or not found.");
+                return;
+            }
+
+            Items.Clear();
+            excelData.Clear();
+
+            headers = table.Rows[0].ItemArray.Select(x => x?.ToString()?.Trim() ?? "").ToList();
+            var columnIndex = headers.Select((name, index) => new { name, index })
+                                     .ToDictionary(x => x.name.ToLower(), x => x.index);
+
+            var missingHeaders = expectedItemHeaders.Except(headers, StringComparer.OrdinalIgnoreCase).ToList();
+            if (missingHeaders.Any())
+            {
+                await _js.ToastrError($"Missing headers: {string.Join(", ", missingHeaders)}");
+                return;
+            }
+
+            for (int row = 1; row < table.Rows.Count; row++)
+            {
+                var rowDict = new Dictionary<string, object>();
+                for (int col = 0; col < table.Columns.Count; col++)
+                {
+                    string header = headers[col];
+                    string value = table.Rows[row][col]?.ToString()?.Trim();
+
+                    if (decimal.TryParse(value, out var decimalValue))
+                        rowDict[header] = decimalValue;
+                    else
+                        rowDict[header] = value;
+                }
+                excelData.Add(rowDict);
+            }
+
+            Items = excelData.Select(row => new Item
+            {
+                ItemId = row.ContainsKey("ItemId") && int.TryParse(row["ItemId"]?.ToString(), out var itemId) ? itemId : 0,
+                ItemCode = row.ContainsKey("ItemCode") ? row["ItemCode"]?.ToString() : string.Empty,
+                ItemName = row.ContainsKey("ItemName") ? row["ItemName"]?.ToString() : string.Empty,
+                LabourTimeMinutes = row.ContainsKey("LabourTimeMinutes") && decimal.TryParse(row["LabourTimeMinutes"]?.ToString(), out var LabourTimeMinutes) ? LabourTimeMinutes : 0,
+                LabourPricePerHour = row.ContainsKey("LabourPricePerHour") && decimal.TryParse(row["LabourPricePerHour"]?.ToString(), out var LabourPricePerHour) ? LabourPricePerHour : 0,
+                LabourPrice = row.ContainsKey("LabourPrice") && decimal.TryParse(row["LabourPrice"]?.ToString(), out var LabourPrice) ? LabourPrice : 0
+            }).ToList();
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadSheetDataAsync event");
+            await _js.ToastrError("Error While Loading Selected Sheet data");
+        }
+
+    }
+
+    private async Task handleToUpdate()
+    {
+        ModalTitle = "Are you sure you want to update data?";
+        btnColour = "btn-success";
+        buttontext = "Yes";
+        Confirmation = "Update";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    
+
+    private async Task SaveGridEdits(bool isConfirm)
+    {
+        if (!isConfirm) return;
+
+        try
+        {
+            isProcessing = true;
+
+            int total = Items.Count;
+
+            foreach (var item in Items)
+            {
+                var existing = await _unitOfWork.ItemRepositories.GetAsync(item.ItemId);
+
+                if (existing != null)
+                {
+                    decimal labourTime = item.LabourTimeMinutes;
+                    decimal labourRate = item.LabourPricePerHour;
+
+                    decimal totalCost = Math.Round((labourTime / 60m) * labourRate, 2);
+
+                    existing.LabourTimeMinutes = labourTime;
+                    existing.LabourPricePerHour = labourRate;
+                    existing.LabourPrice = totalCost;
+
+                    item.LabourPrice = totalCost;
+
+                    await _unitOfWork.ItemRepositories.UpdateAsync(existing);
+                }
+
+            }
+
+            await _unitOfWork.SaveAsync();
+
+            await _js.ToastrSuccess("All Items Labour Price updated successfully!");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in SaveGridEdits");
+            await _js.ToastrError("Error While Rate Update!..");
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string GetValue(string header, List<string> row, Dictionary<string, int> columnIndex)
+    {
+        if (columnIndex.TryGetValue(header.ToLower().Trim(), out var index) && index < row.Count)
+            return row[index];
+        return "";
+    }
+
+    private async Task HandelModelConfirmation()
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            switch (Confirmation)
+            {
+                case "Export":
+                    await ExportToExcel(true);
+                    break;
+                case "Update":
+                    await SaveGridEdits(true);
+                    break;
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error in Item Rate Updation on  HandelModelConfirmation event");
+
+        }
+    }
+
+    public class ItemExportVM
+    {
+        public int ItemId { get; set; }
+        public string ItemCode { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+        public decimal LabourTimeMinutes { get; set; }
+        public decimal LabourPricePerHour { get; set; }
+        public decimal LabourPrice { get; set; }
+
+    }
+}
+
+

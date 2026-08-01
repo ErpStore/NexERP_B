@@ -1,0 +1,308 @@
+﻿@page "/enquiryPurchaseDetails/{EnquiryId:int}"
+@using DocumentFormat.OpenXml.ExtendedProperties
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchOrSubConEnquiryService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ISalesService
+@using V.SMART.Shared.Data.SalesAndLabour.SalesEnquiry
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesEnquiryVM
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchOrSubConEnquiryVM
+
+@inherits BaseUserRightsComponent
+
+@inject IEnquiryPurchaseService enquiryService
+@inject IJSRuntime _js
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject ReportService reportService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <!-- Header -->
+            <!-- Company Details Section -->
+            <MyCompanyDetails />
+
+            <!-- Cancelled Watermark -->
+            @if (EnquiryPurchaseVMs.Cancel)
+            {
+                <div class="cancelWatermark ms-20 mt-10">CANCELLED</div>
+            }
+            else if (EnquiryPurchaseVMs.EnquiryShortClose)
+            {
+                <div class="cancelWatermark ms-20 mt-10">SHORT CLOSED</div>
+            }
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <div class="text-center">
+                <h4 class="fw-semibold mt-1">Enquiry Details</h4>
+            </div>
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <!-- Customer & Document Info -->
+            <div class="row g-3 mb-4">
+                <!-- Customer Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Vendor Details
+                        </div>
+                        <div class="card-body small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Ref Vendors</strong></td><td>@(!string.IsNullOrEmpty(@refVendorsDisplay) ? refVendorsDisplay : "N/A")</td></tr>
+
+                                    @*   <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(EnquiryPurchaseVMs?.VendorAddress) ? EnquiryPurchaseVMs.VendorAddress : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(EnquiryPurchaseVMs?.VendorGSTNO) ? EnquiryPurchaseVMs.VendorGSTNO : "N/A")</td></tr> *@
+
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(EnquiryPurchaseVMs?.POCContactNo) ? EnquiryPurchaseVMs.POCContactNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(EnquiryPurchaseVMs?.KindOfAttention) ? EnquiryPurchaseVMs.KindOfAttention : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Document Details
+                        </div>
+                        <div class="card-body small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Document Type</strong></td>
+                                        <td>@(EnquiryPurchaseVMs != null ? (EnquiryPurchaseVMs.PurchORSubCon ? "Purchase" : "Subcontract") : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Enquiry No:</strong></td>
+                                        <td>@(EnquiryPurchaseVMs != null ? $"{EnquiryPurchaseVMs.Prefix}{EnquiryPurchaseVMs.EnquiryNo}{EnquiryPurchaseVMs.Suffix}" : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Enquiry Date:</strong></td>
+                                        <td>@(EnquiryPurchaseVMs?.EnquiryDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>POC Name:</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(EnquiryPurchaseVMs?.POCName) ? EnquiryPurchaseVMs.POCName : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>POC Contact:</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(EnquiryPurchaseVMs?.POCContactNo) ? EnquiryPurchaseVMs.POCContactNo : "N/A")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Expected Reply:</strong></td>
+                                        <td>@(EnquiryPurchaseVMs?.ExpactedReplayDate.HasValue == true ? EnquiryPurchaseVMs.ExpactedReplayDate.Value.ToString("dd/MM/yyyy") : "N/A")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enquiry Items -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info fw-semibold">
+                    Enquiry Items
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>UOM</th>
+                                <th>HSN</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Bal. Qty</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (EnquiryPurchaseVMs?.EnquiryPurchaseSubVMs != null && EnquiryPurchaseVMs.EnquiryPurchaseSubVMs.Any())
+                            {
+                                @foreach (var item in EnquiryPurchaseVMs.EnquiryPurchaseSubVMs)
+                                {
+                                    <tr>
+                                        <td class="text-center">@item.SlNo</td>
+                                        <td>@(item.ItemCode ?? "—")</td>
+                                        <td>@(item.ItemName ?? "—")</td>
+                                        <td class="text-center">@(!string.IsNullOrEmpty(item.UOM) ? item.UOM : "—")</td>
+                                        <td class="text-center">@(!string.IsNullOrEmpty(item.HsnCode) ? item.HsnCode : "—")</td>
+                                        <td class="text-end">@item.Qty</td>
+                                        <td class="text-end">@item.BalQty</td>
+                                        <td>@(item.Remark ?? "—")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+
+            <!-- Notes -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-warning-subtle text-primary fw-semibold">
+                    Notes / Remarks
+                </div>
+                <div class="card-body small">
+                    <p class="mb-0">@(string.IsNullOrWhiteSpace(EnquiryPurchaseVMs?.MainRemarks) ? "No remarks provided." : EnquiryPurchaseVMs.MainRemarks)</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="/EnquiryPurchase" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+                <a href="@($"/EnquiryPurchase/update/{EnquiryId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+                <button class="btn btn-success" @onclick="OpenPdf">
+                    <i class="bi bi-file-earmark-pdf"></i> Open PDF
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Enquiry Purchase";
+
+    [Parameter]
+    public int EnquiryId { get; set; }
+    private string? pdfBase64;
+
+    public bool isProcessing { get; set; } = true;
+    public List<EnquiryPurchaseVendorAssignVM>? RefVendors;
+    public String? refVendorsDisplay;
+    private EnquiryPurchaseVM EnquiryPurchaseVMs { get; set; } = new EnquiryPurchaseVM();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await GetDetails();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error Occured While Loading OnInitializedAsync() in PurchaseEnquiryDetails");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task GetDetails()
+    {
+        try
+        {
+            if (EnquiryId > 0)
+            {
+                var existEnquirySales = await enquiryService.GetEnquiryDetailsByEnqIdAsync(EnquiryId);
+                if (existEnquirySales != null)
+                {
+                    EnquiryPurchaseVMs = existEnquirySales;
+                }
+                await LoadRefVendors();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error Occured While Loading OnInitializedAsync() in PurchaseEnquiryDetails");
+            await _js.ToastrError("Error Occured While Loading OnInitializedAsync() in PurchaseEnquiryDetails");
+        }
+    }
+
+    private async Task OpenPdf()
+    {
+       
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(EnquiryId, "Enquiry.frx", "EnquiryId", EnquiryPurchaseVMs.Cancel, ScreenName, "Sp_Print_PurchaseEnquiry");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Purchase enquiry");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Purchase enquiry.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadRefVendors()
+    {
+        try
+        {
+            if (EnquiryId > 0)
+            {
+                RefVendors = await enquiryService.GetRefVendors(EnquiryId);
+
+                if (RefVendors.Any())
+                {
+                    // Only join the existing items, no extra commas
+                    refVendorsDisplay = string.Join(", ", RefVendors.Select(e => e.VendorName).Where(n => !string.IsNullOrEmpty(n)));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error Occured in LoadRefVendors() in PurchaseEnquiryDetails");
+            await LoggingService.LogDeveloperError(ex, "Error Occured in LoadRefVendors() in MfgDcDetails");
+        }
+    }
+
+}

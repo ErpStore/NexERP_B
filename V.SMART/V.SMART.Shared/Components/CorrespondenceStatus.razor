@@ -1,0 +1,111 @@
+﻿<div class="text-end">
+    @if (ReferenceType == "Item")
+    {
+        <a href="javascript:void(0)"
+           @onclick="@(() => OpenCorrespondenceScreen("Drawing"))"
+           title="Click to view uploaded drawings"
+           disabled="@IsLoading"
+           style="@(IsLoading ? "pointer-events: none; opacity: 0.6;" : "")"
+           class="me-3">
+            Drawing (@DrawingUploadedCount/@DrawingTotalCount)
+        </a>
+
+        <a href="javascript:void(0)"
+           @onclick="@(() => OpenCorrespondenceScreen("Correspondence"))"
+           title="Click to view uploaded correspondence"
+           disabled="@IsLoading"
+           style="@(IsLoading ? "pointer-events: none; opacity: 0.6;" : "")">
+            Correspondence (@CorrespondenceUploadedCount/@CorrespondenceTotalCount)
+        </a>
+    }
+    else
+    {
+        <a href="javascript:void(0)"
+           @onclick="@(() => OpenCorrespondenceScreen("Correspondence"))"
+           title="Click to view uploaded files"
+           disabled="@IsLoading"
+           style="@(IsLoading ? "pointer-events: none; opacity: 0.6;" : "")">
+            Correspondence (@CorrespondenceUploadedCount/@CorrespondenceTotalCount)
+        </a>
+    }
+</div>
+
+@code {
+    [Parameter] public string ReferenceType { get; set; } = string.Empty;
+    [Parameter] public int ReferenceId { get; set; }
+    [Parameter] public string ReferenceTypeName { get; set; } = string.Empty;
+
+    private int DrawingUploadedCount { get; set; }
+    private int DrawingTotalCount { get; set; }
+    private int CorrespondenceUploadedCount { get; set; }
+    private int CorrespondenceTotalCount { get; set; }
+
+
+    private bool IsLoading { get; set; } = true;
+    private bool IsNavigating { get; set; } = false;
+
+    [Inject] public IUnitOfWork _unitOfWork { get; set; }
+    [Inject] public NavigationManager _navigationManager { get; set; }
+    [Inject] public ILoggingService _logs { get; set; }
+
+   protected override async Task OnAfterRenderAsync(bool firstRender)
+{
+    if (firstRender)
+    {
+        try
+        {
+            IsLoading = true;
+
+            // Separate status fetches for Drawing and Correspondence
+            (DrawingUploadedCount, DrawingTotalCount) = await _unitOfWork.Correspondances
+                .GetCorrespondenceStatusAsync(ReferenceType, ReferenceId, "Drawing");
+
+            (CorrespondenceUploadedCount, CorrespondenceTotalCount) = await _unitOfWork.Correspondances
+                .GetCorrespondenceStatusAsync(ReferenceType, ReferenceId, "Correspondence");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error loading drawing/correspondence status");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+}
+
+
+    private async Task OpenCorrespondenceScreen(string docType)
+    {
+        if (IsLoading || IsNavigating)
+            return;
+
+        try
+        {
+            IsNavigating = true;
+
+            var existingCorres = await _unitOfWork.Correspondances
+                .FindAsync(c =>
+                    c.ReferenceType == ReferenceType &&
+                    c.ReferenceId == ReferenceId &&
+                    c.DocumentType == docType); // Assume you differentiate Drawing/Correspondence by DocumentType
+
+            var firstMatch = existingCorres?.FirstOrDefault();
+
+            var targetUrl = firstMatch != null
+                ? $"/correspondence/by-reference?refType={ReferenceType}&refId={ReferenceId}&refName={ReferenceTypeName}&docType={docType}"
+                : $"/correspondence/upload?refType={ReferenceType}&refId={ReferenceId}&refName={ReferenceTypeName}&docType={docType}";
+
+            _navigationManager.NavigateTo(targetUrl);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Error navigating to correspondence screen: " + ex.Message);
+        }
+        finally
+        {
+            IsNavigating = false;
+        }
+    }
+}

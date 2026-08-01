@@ -1,0 +1,413 @@
+﻿@page "/leaveApplication/create"
+@page "/leaveApplication/update/{LeaveAppID:int}"
+@page "/leaveApplication/authorize/{LeaveAppID:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IHRMasterservice
+
+@inject ILoggingService LoggingService
+@inherits BaseUserRightsComponent
+@inject ILeaveApplicationService _leaveApplicationService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@(LeaveAppID > 0 ? "Update Leave Application" : "Create Leave Application")"
+                            TitleIcon="bi bi-person"
+                            Breadcrumbs="@leaveBalanceBreadcrumbs" />
+
+                <div class="card-body p-4">
+
+                    @if (LeaveApplication != null && LeaveApplication.LeaveAppID > 0)
+                    {
+                        <div class="row align-items-center mb-4">
+                            <div class="col-12 col-lg-9">
+                                <div class="mb-2">
+                                    <span class="fw-semibold text-secondary" style="font-size: 0.85rem;">Application Status</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center status-bar-container">
+                                    @foreach (var status in new[] { "Applied", "Pending", "Approved", "Rejected" })
+                                    {
+                                        <div class="d-flex flex-column align-items-center flex-grow-1 text-center text-dark">
+                                            <span class="badge rounded-pill fw-semibold @(GetStatusClass(status))">
+                                                @status
+                                            </span>
+                                        </div>
+                                        @if (status != "Rejected")
+                                        {
+                                            <div class="status-bar-line"></div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-3 d-flex justify-content-center justify-content-lg-end mt-3 mt-lg-0">
+                                <div class="d-flex flex-column align-items-center">
+                                    @if (EmployeeImageBytes != null && EmployeeImageBytes.Length > 0)
+                                    {
+                                        <img src="@($"data:image/jpeg;base64,{Convert.ToBase64String(EmployeeImageBytes)}")"
+                                             alt="Employee Image"
+                                             class="rounded-circle shadow"
+                                             style="width: 60px; height: 60px; object-fit: cover;" />
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex justify-content-center align-items-center rounded-circle shadow bg-light text-muted"
+                                             style="width: 60px; height: 60px;">
+                                            <i class="bi bi-person-fill" style="font-size: 1.8rem;"></i>
+                                        </div>
+                                    }
+                                    <div class="fw-semibold text-muted mt-1" style="font-size: 0.7rem;">Employee</div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <EditForm Model="LeaveApplication" OnValidSubmit="HandleUpsert">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger" />
+
+                        <div class="row g-4 mb-4">
+                            <div class="col-12 col-lg-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="LeaveApplication.LeaveApplicationNo" id="LeaveApplicationNo" class="form-control" readonly />
+                                    <label for="LeaveApplicationNo">Application No.</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-lg-4">
+                                <div class="form-floating">
+                                    <select value="@LeaveApplication.EmployeeID" id="employeeName" class="form-select" @onchange="OnEmployeeChanged">
+                                        <option value="0">--Select Employee--</option>
+                                        @foreach (var employee in Staffs)
+                                        {
+                                            <option value="@employee.StaffID">@employee.StaffName</option>
+                                        }
+                                    </select>
+                                    <label for="employeeName">Employee Name</label>
+                                </div>
+                                <ValidationMessage For="@(() => LeaveApplication.EmployeeID)" class="text-danger small mt-1" />
+                            </div>
+
+                            <div class="col-12 col-lg-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="LeaveApplication.Department" id="department" class="form-control" readonly />
+                                    <label for="department">Department</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-4 mb-4">
+
+                            <div class="col-12 col-lg-4">
+                                <div class="form-floating">
+                                    <select value="@LeaveApplication.LeaveTypeId" id="LeaveType" class="form-select" @onchange="OnLeaveTypeChanged">
+                                        <option value="0">--Select Leave Type--</option>
+                                        @foreach (var leavetype in LeaveTypes)
+                                        {
+                                            <option value="@leavetype.LeaveTypeId">@leavetype.LeaveName</option>
+                                        }
+                                    </select>
+                                    <label for="LeaveType">Leave Type</label>
+                                </div>
+                                <ValidationMessage For="@(() => LeaveApplication.LeaveTypeId)" class="text-danger small mt-1" />
+                            </div>
+
+                            <div class="col-12 col-lg-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="LeaveApplication.BalDaysBeforeLeaveApp" id="BalDaysBeforeLeaveApp" class="form-control" readonly />
+                                    <label for="BalDaysBeforeLeaveApp">Balance Before Leave</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="LeaveApplication.TotalDays" id="TotalDays" class="form-control" readonly />
+                                    <label for="TotalDays">Total Days</label>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row g-4 mb-4">
+
+                            <div class="col-12 col-md-4">
+                                <div class="form-floating">
+                                    <input type="date" class="form-control" @bind="LeaveApplication.FromDate" @bind:event="oninput" @onchange="GenerateDailyLeaveRecords" />
+                                    <label for="FromDate">From Date</label>
+                                </div>
+                                <ValidationMessage For="@(() => LeaveApplication.FromDate)" class="text-danger small mt-1" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <div class="form-floating">
+                                    <input type="date" class="form-control" @bind="LeaveApplication.ToDate" @bind:event="oninput" @onchange="GenerateDailyLeaveRecords" />
+                                    <label for="ToDate">To Date</label>
+                                </div>
+                                <ValidationMessage For="@(() => LeaveApplication.ToDate)" class="text-danger small mt-1" />
+                            </div>
+
+                        </div>
+
+                        @if (LeaveApplication.DailyLeaveRecords.Any())
+                        {
+                            <div class="mb-4">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th class="text-end">Day Type</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var record in LeaveApplication.DailyLeaveRecords)
+                                        {
+                                            <tr>
+                                                <td>@record.Date.ToString("ddd dd-MMM-yyyy")</td>
+                                                <td class="text-end">
+                                                    @if (record.IsWeekend)
+                                                    {
+                                                        <span class="badge bg-secondary text-white">Weekend</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="dropdown">
+                                                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                                @(string.IsNullOrEmpty(record.DayType) ? "Select" : record.DayType)
+                                                            </button>
+                                                            <ul class="dropdown-menu">
+                                                                <li>
+                                                                    <button type="button" class="dropdown-item" @onclick='() => SetDayType(record, "Full Day")'>Full Day</button>
+                                                                </li>
+                                                                <li>
+                                                                    <button type="button" class="dropdown-item" @onclick='() => SetDayType(record, "Half Day")'>Half Day</button>
+                                                                </li>
+                                                            </ul>
+                                                        </div>
+
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+
+                        <div class="col-12 col-lg-12">
+                            <div class="form-floating">
+                                <InputTextArea @bind-Value="LeaveApplication.Reason" id="Reason" class="form-control" />
+                                <label for="Reason">Reason for Leave</label>
+                            </div>
+                            <ValidationMessage For="@(() => LeaveApplication.Reason)" class="text-danger small mt-1" />
+                        </div>
+
+                        <div class="d-flex flex-wrap align-items-center gap-3 mt-4 pt-3 border-top">
+                            @if (CanCreate || CanEdit)
+                            {
+                                <button type="submit" class="btn btn-primary px-4 py-2" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(LeaveAppID == 0 ? "Create" : "Update")
+                                </button>
+                            }
+                            <a href="/leaveApplication" class="btn btn-secondary px-4 py-2" disabled="@isProcessing">
+                                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                            </a>
+
+                            @if (LeaveAppID > 0 && LeaveApplication?.LeaveStatus == "Pending")
+                            {
+                                <div class="alert alert-warning small m-0 flex-grow-1 p-2 text-danger">
+                                    This Application needs Authorization
+                                </div>
+                            }
+
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Leave Application";
+
+    [Parameter] public int LeaveAppID { get; set; }
+
+    private bool isProcessing = true;
+    private LeaveApplication LeaveApplication { get; set; } = new();
+    private IEnumerable<Staff> Staffs { get; set; } = new List<Staff>();
+    private IEnumerable<LeaveType> LeaveTypes { get; set; } = new List<LeaveType>();
+    private IEnumerable<EmployeeLeaveBalance> EmployeeLeaveBalances { get; set; } = new List<EmployeeLeaveBalance>();
+    private byte[]? EmployeeImageBytes { get; set; }
+
+    private string ModalTitle = string.Empty;
+    private string ButtonText = string.Empty;
+    private string ConfirmationAction = string.Empty;
+    private string BtnColour = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> leaveBalanceBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Human Resource" },
+        new PageHeader.BreadcrumbItem { Text = "Leave Application", IsLast = true }
+    };
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        try
+        {
+            // The service call returns a tuple, which is being deconstructed.
+            (Staffs, LeaveTypes, EmployeeLeaveBalances, string appNo) = await _leaveApplicationService.GetFormDataAsync();
+
+            if (LeaveAppID > 0)
+            {
+                LeaveApplication = await _leaveApplicationService.GetLeaveApplicationWithDetailsAsync(LeaveAppID);
+                var employee = Staffs.FirstOrDefault(s => s.StaffID == LeaveApplication.EmployeeID);
+                EmployeeImageBytes = employee?.Img;
+                LeaveApplication.Department = employee?.Department;
+                GenerateDailyLeaveRecords();
+            }
+            else
+            {
+                LeaveApplication.LeaveApplicationNo = appNo;
+                GenerateDailyLeaveRecords();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Initialization error.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #region UI Helpers
+    private string GetStatusClass(string status) =>
+    LeaveApplication?.LeaveStatus == status
+        ? status switch
+        {
+            "Applied" => "bg-info text-white",
+            "Pending" => "bg-primary text-white",
+            "Approved" => "bg-success text-white",
+            "Rejected" => "bg-danger text-white",
+            _ => "bg-light text-dark"
+        }
+        : "bg-white text-dark";
+
+
+    private void GenerateDailyLeaveRecords()
+    {
+        // ✅ Deduplicate before converting to dictionary
+        var existingRecords = LeaveApplication.DailyLeaveRecords
+            .GroupBy(r => r.Date.Date)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        LeaveApplication.DailyLeaveRecords.Clear();
+
+        DateTime start = LeaveApplication.FromDate.Date;
+        DateTime end = LeaveApplication.ToDate.Date;
+
+        if (start <= end)
+        {
+            for (DateTime date = start; date <= end; date = date.AddDays(1))
+            {
+                if (existingRecords.TryGetValue(date.Date, out var existingRecord))
+                {
+                    LeaveApplication.DailyLeaveRecords.Add(existingRecord);
+                }
+                else
+                {
+                    bool isWeekend = date.DayOfWeek == DayOfWeek.Sunday; // adjust if Sat+Sun are weekends
+                    LeaveApplication.DailyLeaveRecords.Add(new DailyLeaveRecord
+                    {
+                        Date = date,
+                        IsWeekend = isWeekend,
+                        DayType = isWeekend ? "Weekend" : "Full Day"
+                    });
+                }
+            }
+        }
+
+        _leaveApplicationService.RecalculateTotalDays(LeaveApplication);
+    }
+
+    private void SetDayType(DailyLeaveRecord record, string dayType)
+    {
+        record.DayType = dayType;
+        _leaveApplicationService.RecalculateTotalDays(LeaveApplication);
+    }
+    #endregion
+
+    #region Events
+    private void OnEmployeeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int selectedId))
+        {
+            LeaveApplication.EmployeeID = selectedId;
+            var employee = Staffs.FirstOrDefault(emp => emp.StaffID == selectedId);
+            if (employee != null)
+            {
+                EmployeeImageBytes = employee.Img?.Length > 0 ? employee.Img : null;
+                LeaveApplication.Department = employee.Department ?? string.Empty;
+                var balance = EmployeeLeaveBalances.FirstOrDefault(lb => lb.LeaveTypeId == LeaveApplication.LeaveTypeId
+                    && lb.EmployeeID == LeaveApplication.EmployeeID
+                    && lb.Year == DateTime.Now.Year);
+                LeaveApplication.BalDaysBeforeLeaveApp = balance?.Balance ?? 0;
+            }
+        }
+    }
+
+    private void OnLeaveTypeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int selectedTypeId))
+        {
+            LeaveApplication.LeaveTypeId = selectedTypeId;
+            var balance = EmployeeLeaveBalances.FirstOrDefault(lb => lb.LeaveTypeId == selectedTypeId
+                && lb.EmployeeID == LeaveApplication.EmployeeID
+                && lb.Year == DateTime.Now.Year);
+            LeaveApplication.BalDaysBeforeLeaveApp = balance?.Balance ?? 0;
+        }
+    }
+    #endregion
+
+    #region CRUD & Authorization
+    private async Task HandleUpsert()
+    {
+        isProcessing = true;
+        var message = await _leaveApplicationService.CreateOrUpdateLeaveApplicationAsync(LeaveApplication);
+
+        if (message.Contains("Successfully"))
+        {
+            await _js.ToastrSuccess(message);
+            _navigationManager.NavigateTo("/leaveApplication");
+        }
+        else
+        {
+            await _js.ToastrError(message);
+        }
+        isProcessing = false;
+    }
+
+    #endregion
+}

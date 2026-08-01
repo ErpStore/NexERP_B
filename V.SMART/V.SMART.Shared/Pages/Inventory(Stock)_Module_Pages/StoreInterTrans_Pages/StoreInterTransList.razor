@@ -1,0 +1,671 @@
+﻿@page "/storeIntertransList"
+@using DocumentFormat.OpenXml.Spreadsheet
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IInventoryService
+@using V.SMART.Shared.Data.Inventory_Stock_.InterStoreTransfer
+@using V.SMART.Shared.ViewModels.InventoryViewModel.MaterialIssueNoteVM
+@using V.SMART.Shared.ViewModels.InventoryViewModel.SCNGenViewModel
+@using V.SMART.Shared.ViewModels.InventoryViewModel.StoreInterTransferViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.ManufacturingPoVM
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.QuotationVM
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject IColumnPreferenceService _preferenceService
+@inject NavigationManager _navigation
+
+@inject IStoreInterTransService _storeInterTransService
+
+<BsModal OnModalConfirmation="ConfirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Inter Store Transfer?">
+</BsModal>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        @* <InstantSearch screenName="@ScreenName"
+                       isInstantSearch="true"
+                       OnSearch="HandleInstantSearch" /> *@
+    }
+</MasterModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="IST List"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@ISTBreadcrumbs" />
+
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-center mb-3">
+
+                    <div class="col-12 col-lg-3">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="InterStoreTransList"
+                                    UserId="@UserName"
+                                    MaxVisible="int.MaxValue"
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-12 col-md-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text border-end-0"
+                                  style="background-color: #343a40; color: #ffffff; cursor: pointer;"
+                                  @onclick="OpenInstantSearch">
+                                <i class="bi bi-search me-1"></i> Search
+                            </span>
+
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-lg-2">
+                        <select class="form-select form-select-sm shadow-sm" 
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-lg-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                @onchange="OnStatusChanged" 
+                                value="@selectedStatus"
+                                title="Select status of records">
+                            <option value="">-- Select Status --</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-2 ms-md-auto text-end">
+                            <button type="button" class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewIST">
+                                <i class="bi bi-plus-square me-1"></i> Add New Inter-StoreTransfer
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                @if (FilteredIST.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid Items="FilteredIST.AsQueryable()"
+                                   
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            // 🔹 Primary Info
+                                            case "ISTId":
+                                                <PropertyColumn Title="IST Id" Property="@(c => c.ISTId)" Sortable="true" />
+                                                break;
+
+                                            case "ISTNo":
+                                                <PropertyColumn Title="IST No" Property="@(c => c.ISTNo)" Sortable="true" />
+                                                break;
+
+                                            case "Suffix":
+                                                <PropertyColumn Title="Suffix" Property="@(c => c.Suffix)" />
+                                                break;
+
+                                            case "ISTDate":
+                                                <PropertyColumn Title="IST Date" Property="@(c => c.ISTDate)" Format="dd/MM/yyyy" />
+                                                break;
+         
+                                            case "StoreIssueId":
+                                                <PropertyColumn Title="Store Issue Id" Property="@(c => c.StoreIdFrom)" Sortable="false" />
+                                                break;
+
+                                            case "StoreIssueName":
+                                                <PropertyColumn Title="Store Issue Name" Property="@(c => c.StoreIssName)" />
+                                                break;
+
+                                            case "StoreAddId":
+                                                <PropertyColumn Title="Store Add Id" Property="@(c => c.StoreIdTo)" Sortable="false" />
+                                                break;
+
+                                            case "StoreAddName":
+                                                <PropertyColumn Title="Store Add Name" Property="@(c => c.StoreAddName)" />
+                                                break;
+
+                                            case "NoOfItems":
+                                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+                                                break;
+
+                                            // 🔹 Remarks
+                                            case "MainRemark":
+                                                <PropertyColumn Title="Remarks" Property="@(c => c.MainRemark)" />
+                                                break;
+
+                                            case "InterStoreTransfer":
+                                                <TemplateColumn Title="InterStore Status" Context="c">
+                                                    @if (c.StoreInterTransSubVMs != null && c.StoreInterTransSubVMs.Any(x => x.BalQty == 0))
+                                                    {
+                                                        <span class="badge bg-success">Completed</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    }
+                                                </TemplateColumn>
+
+
+                                                break;
+
+                                            // 🔹 Audit Info
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "StoreInterTransSubVMs.Count":
+                                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <!-- Default minimal Inter Store Transfer grid -->
+                                <PropertyColumn Title="IST No" Property="@(c => c.ISTId)" Sortable="true" />
+                                <PropertyColumn Title="IST Date" Property="@(c => c.ISTDate)" Format="dd/MM/yyyy" />
+                                <PropertyColumn Title="Store IssueName" Property="@(c => c.StoreIdFrom)" Sortable="true" />
+                                <PropertyColumn Title="Store AddName" Property="@(c => c.StoreIdTo)" Sortable="true" />
+                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+                                <PropertyColumn Title="Remarks" Property="@(c => c.MainRemark)" />
+
+                                <TemplateColumn Title="InterStore Status" Context="c">
+                                    @if (c.StoreInterTransSubVMs != null && c.StoreInterTransSubVMs.Any(x => x.BalQty == 0))
+                                    {
+                                        <span class="badge bg-success">Completed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning">Pending</span>
+                                    }
+                                </TemplateColumn>
+
+
+
+
+                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                            }
+
+                            <!-- Actions -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"storeIntertrans/update/{c.ISTId}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit IST">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"storeIntertrans/details/{c.ISTId}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View IST">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete IST"
+                                                @onclick="() => HandleDelete(c)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+                    <div class="col-12 card-footer bg-white border-0 mt-3">
+                        <Paginator State="pagination" />
+                    </div>
+                }
+
+                else
+                {
+                    <p class="text-center">No Inter Store Transfer found.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Inter Store Transfer";
+    private int screenCode { get; set; }
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string searchText  = string.Empty;
+    private string? UserName;
+    private int DeleteISTId = 0;
+
+    private List<StoreInterTrans> interstoretrans = new();
+    private IQueryable<StoreInterTrans> ISTQueryable => interstoretrans.AsQueryable();
+    private List<StoreInterTrans> FilteredISTs = new();
+    private List<StoreInterTransVM> FilteredIST = new();
+    private Dictionary<string, string?> SearchFilters = new();
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    //Instant Search
+    [Parameter] public EventCallback<Dictionary<string, string?>> OnSearch { get; set; }
+
+    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    public List<GridColumn> Columns { get; set; } = new();
+
+
+    private IEnumerable<StoreInterTransVM> StoreInterTransVMs = new List<StoreInterTransVM>();
+    private string selectedStatus = string.Empty;
+    private int DecimalPlaces { get; set; } = 2;
+
+    private List<PageHeader.BreadcrumbItem> ISTBreadcrumbs { get; set; } = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Inventory(Stock)" },
+        new PageHeader.BreadcrumbItem { Text = "Inter Store Transfer", IsLast = true }
+
+    };
+
+    private IEnumerable<StoreInterTransVM> filteredIST =>
+        StoreInterTransVMs?.Where(c =>
+            (string.IsNullOrWhiteSpace(searchText) ||
+                (!string.IsNullOrWhiteSpace(c.ISTNo) && c.ISTNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.CreatedBy) && c.CreatedBy.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.ModifiedBy) && c.ModifiedBy.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            )
+            &&
+          (string.IsNullOrWhiteSpace(selectedStatus) ||
+    (selectedStatus == "Completed" && c.StoreInterTransSubVMs != null && c.StoreInterTransSubVMs.Any(x => x.BalQty == 0)) ||
+   (selectedStatus == "Pending" && c.StoreInterTransSubVMs != null && c.StoreInterTransSubVMs.All(x => x.BalQty > 0))
+
+)
+
+
+        ) ?? Enumerable.Empty<StoreInterTransVM>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        isProcessing = true;
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await InitializeColumns(IsHidden);
+
+            screenCode = await _storeInterTransService.GetScreenCodeByScreenNameAsync(ScreenName);
+            DecimalPlaces = await _storeInterTransService.GetDecimalPlacesAsync();
+            UserName = await _userService.GetUsernameAsync();
+
+            //await LoadAllISTDetailsAsync();
+
+            StoreInterTransVMs = (await _storeInterTransService.GetAllISTDetailsAsync()).ToList();
+            FilteredIST = StoreInterTransVMs.ToList();
+
+            var savedPreferences = await _preferenceService.LoadPreferencesAsync("storeIntertransList", UserName);
+            if (savedPreferences?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = savedPreferences.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null) col.IsVisible = match.IsVisible;
+                }
+            }
+
+            //isProcessing = false;
+            preferencesLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync");
+            await _js.ToastrError("Error initializing the storeinertrans  page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void OnStatusChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "";
+        FilteredIST = filteredIST.ToList();   // refresh list based on new status
+    }
+
+    private async Task LoadAllISTDetailsAsync()
+    {
+        isProcessing = true;
+        try
+        {
+            StoreInterTransVMs = await _storeInterTransService.GetAllISTDetailsAsync() ?? Enumerable.Empty<StoreInterTransVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "LoadAllISTDetailsAsync");
+            await _js.ToastrError("Failed to LoadAll IST DetailsAsync Data");
+            StoreInterTransVMs = Enumerable.Empty<StoreInterTransVM>();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task InitializeColumns(bool hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+        {
+            // 🔹 Primary Info
+            new() { Title = "IST ID", Field = "ISTId", IsVisible = false },
+            new() { Title = "IST No", Field = "ISTNo", IsVisible = true },
+            new() { Title = "Suffix", Field = "Suffix", IsVisible = true },
+            new() { Title = "IST Date", Field = "ISTDate", IsVisible = true },
+
+            // 🔹 Store Info
+            new() { Title = "Store IssueId", Field = "StoreIssueId", IsVisible = false },
+            new() { Title ="Store IssueName", Field = "StoreIssueName", IsVisible= true},
+            new() { Title = "Store AddId", Field = "StoreAddId", IsVisible = false },
+            new() { Title = "Store AddName", Field = "StoreAddName", IsVisible = true},
+
+            // 🔹 Calculated Info
+            new() { Title = "No. of Items", Field = "NoOfItems", IsVisible = true },
+             new() { Title = "InterStore Status", Field = "InterStoreTransfer", IsVisible = true },
+
+            // 🔹 Remarks
+            new() { Title = "Remark", Field = "MainRemark", IsVisible = true },
+
+            // 🔹 Audit Info
+            new() { Title = "Created By", Field = "CreatedBy", IsVisible = !hidden },
+            new() { Title = "Created Date", Field = "CreatedDate", IsVisible = !hidden },
+            new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = !hidden },
+            new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = !hidden }
+        };
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "InitializeColumns");
+            await _js.ToastrError("Failed to initialize Inter Store Transfer grid columns.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated ?? new List<GridColumn>();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "HandleColumnChange");
+            await _js.ToastrError("Failed to update column preferences.");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e?.Value is not null && int.TryParse(e.Value.ToString(), out int pageSize))
+            {
+                pagination.ItemsPerPage = pageSize;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPageSizeChanged");
+            await _js.ToastrError("Failed to update page size.");
+        }
+    }
+
+    private void AddNewIST()
+    {
+        _navigation.NavigateTo($"/storeIntertrans/create");
+    }
+
+    public void OpenInstantSearch()
+    {
+        isModalVisible = true;
+        ActiveModal = "InstantSearch";
+
+    }
+
+    private async Task HandleInstantSearch(Dictionary<string, string?> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+
+            var uiFiltered = ApplyFilters(StoreInterTransVMs).ToList();
+
+            if (uiFiltered.Any())
+            {
+                FilteredIST = uiFiltered;
+            }
+            else
+            {
+                StoreInterTransVMs = await _storeInterTransService.GetAllISTDetailsAsync();
+                FilteredIST = ApplyFilters(StoreInterTransVMs).ToList();
+            }
+
+            isModalVisible = false;
+            StateHasChanged();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    private IEnumerable<StoreInterTransVM> ApplyFilters(IEnumerable<StoreInterTransVM> query)
+    {
+        foreach (var f in SearchFilters)
+        {
+            string key = f.Key;
+            string? value = f.Value;
+
+            if (string.IsNullOrWhiteSpace(value))
+                continue;
+
+            switch (key)
+            {
+                case "ISTNo":
+                    query = query.Where(i =>
+                        !string.IsNullOrWhiteSpace(i.ISTNo) &&
+                        i.ISTNo.Trim().StartsWith(value.Trim())); 
+                    break;
+
+                case "ISTDate":
+                    if (DateTime.TryParse(value, out var istDate))
+                        query = query.Where(i => i.ISTDate.Date == istDate.Date);
+                    break;
+
+                case "StoreIssueId":
+                    if (int.TryParse(value, out var fromStore))
+                        query = query.Where(i => i.StoreIdFrom == fromStore);
+                    break;
+
+                case "StoreAddId":
+                    if (int.TryParse(value, out var toStore))
+                        query = query.Where(i => i.StoreIdTo == toStore);
+                    break;
+
+                case "StoreIssName":
+                    query = query.Where(i => i.StoreIssName != null &&
+                                             i.StoreIssName.Contains(value, StringComparison.OrdinalIgnoreCase));
+                    break;
+
+                case "StoreAddName":
+                    query = query.Where(i => i.StoreAddName != null &&
+                                             i.StoreAddName.Contains(value, StringComparison.OrdinalIgnoreCase));
+                    break;
+
+                case "MainRemark":
+                    query = query.Where(i => i.MainRemark != null &&
+                                             i.MainRemark.Contains(value, StringComparison.OrdinalIgnoreCase));
+                    break;
+
+                case "CreatedBy":
+                    query = query.Where(i => i.CreatedBy != null &&
+                                             i.CreatedBy.Contains(value, StringComparison.OrdinalIgnoreCase));
+                    break;
+
+                case "ModifiedBy":
+                    query = query.Where(i => i.ModifiedBy != null &&
+                                             i.ModifiedBy.Contains(value, StringComparison.OrdinalIgnoreCase));
+                    break;
+
+                case "FromDate":
+                    if (DateTime.TryParse(value, out var fromDate))
+                        query = query.Where(i => i.ISTDate.Date >= fromDate.Date);
+                    break;
+
+                case "ToDate":
+                    if (DateTime.TryParse(value, out var toDate))
+                        query = query.Where(i => i.ISTDate.Date <= toDate.Date);
+                    break;
+            }
+        }
+
+        return query;
+    }
+
+
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task HandleDelete(StoreInterTransVM inter)
+    {
+        try
+        {
+            var (canDelete, message) = await _storeInterTransService.ToCheck_Stock_Qty_Issued(inter.ISTId, screenCode, inter.ISTNo);
+            if (!canDelete)
+            {
+                await _js.ToastrWarning(message);
+                return;
+            }
+
+            DeleteISTId = inter.ISTId;
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error initiating delete for ISTId: {inter.ISTId}");
+            await _js.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            var deleted = await _storeInterTransService.DeleteISTByISTIdAsync(DeleteISTId, screenCode);
+            if (deleted)
+            {
+                await _js.ToastrSuccess("Inter Store Transfer deleted successfully.");
+                await LoadAllISTDetailsAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _js.ToastrWarning("IST could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error deleting ISTId: {DeleteISTId}");
+            await _js.ToastrError("Failed to delete Inter Store Transfer.");
+        }
+        finally
+        {
+            DeleteISTId = 0;
+        }
+    }
+}

@@ -1,0 +1,969 @@
+﻿@page "/productionLogList"
+@page "/productionLogList/{IsProduction:bool}"
+
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IProductionService
+@using V.SMART.Shared.Pages.InstantSearch_Pages
+@using V.SMART.Shared.ViewModels.InventoryViewModel.ToolCribViewModels
+@using V.SMART.Shared.ViewModels.PlanningViewModel.JobOrderViewModel
+@using V.SMART.Shared.ViewModels.ProductionViewModel.ProductionIssueWOAssyVM
+@using System.Text.Json
+@using V.SMART.Shared.ViewModels.ProductionViewModel.ProductionLogViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+
+@inject IProductionLogService productionLogService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true" 
+            Screen="@ScreenName" 
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            @if (!IsProduction)
+            {
+                <PageHeader TitleText="Daily Production Log List"
+                            TitleIcon="bi bi-receipt-cutoff"
+                            Breadcrumbs="@prouctionLogBreadcrumbs" />
+            }
+            
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                 value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+
+                            <option value="">All</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+                    </div>
+
+
+                    @if (CanCreate)
+                    {
+                        @if (!IsProduction)
+                        {
+                            <div class="col-12 col-md-2 ms-md-auto text-end">
+                                <a href="productionLog/create"
+                                   class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                   title="Create New">
+                                    <i class="bi-box-seam"></i> Add New
+                                </a>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="col-12 col-md-2 ms-md-auto text-end">
+                                <a href="@($"productionLog/create/{true}")"
+                                   class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                   title="Create New">
+                                    <i class="bi-box-seam"></i> Add New
+                                </a>
+                            </div>
+                           
+                        }
+
+                    }
+
+                </div>
+
+                @if (ProductionLogVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="ProductionLogVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    @switch (col.Field)
+                                    {
+                                        case "LogId":
+                                            <PropertyColumn Title="Log ID" Property="@(c => c.LogId)" />
+                                            break;
+
+                                        case "LogNo":
+                                            <PropertyColumn Title="Log No"
+                                                            Property="@(c => c.LogNo + " " + c.Suffix)"
+                                                            Sortable="true" />
+                                            break;
+
+                                        case "LogDate":
+                                            <PropertyColumn Title="Log Date"
+                                                            Property="@(c => c.LogDate)"
+                                                            Format="dd/MM/yyyy"
+                                                            Sortable="true" />
+                                            break;
+
+                                        case "RCNo":
+                                            <PropertyColumn Title="RC No"
+                                                            Property="@(c => c.RCNo)"
+                                                            Sortable="true" />
+                                            break;
+
+                                        case "ProcessName":
+                                            <PropertyColumn Title="Process"
+                                                            Property="@(c => c.ProcessName)" />
+                                            break;
+
+                                        case "ShiftName":
+                                            <PropertyColumn Title="Shift"
+                                                            Property="@(c => c.ShiftName)" />
+                                            break;
+
+                                        case "StartTime":
+                                            <PropertyColumn Title="Start Time"
+                                                            Property="@(c => c.StartTime)" />
+                                            break;
+
+                                        case "EndTime":
+                                            <PropertyColumn Title="End Time"
+                                                            Property="@(c => c.EndTime)" />
+                                            break;
+
+                                        case "TotalTime":
+                                            <PropertyColumn Title="Total Time"
+                                                            Property="@(c => c.TotalTime)"/>
+                                            break;
+
+                                        case "MachineName":
+                                            <PropertyColumn Title="Machine"
+                                                            Property="@(c => c.MachineName)" />
+                                            break;
+
+                                        case "OperatorName":
+                                            <PropertyColumn Title="Operator"
+                                                            Property="@(c => c.Operator)" />
+                                            break;
+
+                                        case "CustomerName":
+                                            <PropertyColumn Title="Customer"
+                                                            Property="@(c => c.CustomerName)" />
+                                            break;
+
+                                        case "ItemOutName":
+                                            <PropertyColumn Title="Output Item"
+                                                            Property="@(c => c.ItemOutName)" />
+                                            break;
+
+                                        case "QtyOut":
+                                            <PropertyColumn Title="Output Qty"
+                                                            Property="@(c => c.QtyOut)" />
+                                            break;
+
+                                        case "ItemInName":
+                                            <PropertyColumn Title="Input Item"
+                                                            Property="@(c => c.ItemInName)" />
+                                            break;
+
+                                        case "InputQty":
+                                            <PropertyColumn Title="Input Qty"
+                                                            Property="@(c => c.InputQty)" />
+                                            break;
+
+                                        case "AccQty":
+                                            <PropertyColumn Title="Accepted Qty"
+                                                            Property="@(c => c.AccQty)" />
+                                            break;
+
+                                        case "RejQty":
+                                            <PropertyColumn Title="Rejected Qty"
+                                                            Property="@(c => c.RejQty)" />
+                                            break;
+
+                                        case "ExpectedQty":
+                                            <PropertyColumn Title="Expected Qty"
+                                                            Property="@(c => c.ExpectedQty)" />
+                                            break;
+
+                                        case "TargetQtyForTotalHours":
+                                            <PropertyColumn Title="Target Qty"
+                                                            Property="@(c => c.TargetQtyForTotalHours)" />
+                                            break;
+
+                                        case "EfficiencyPercent":
+                                            <PropertyColumn Title="Efficiency %"
+                                                            Property="@(c => c.EfficiencyPercent)" />
+                                            break;
+
+                                        case "CreatedBy":
+                                            <PropertyColumn Title="Created By"
+                                                            Property="@(c => c.CreatedBy)" />
+                                            break;
+
+                                        case "CreatedDate":
+                                            <PropertyColumn Title="Created Date"
+                                                            Property="@(c => c.CreatedDate)"
+                                                            Format="dd/MM/yyyy" />
+                                            break;
+
+                                        case "UpdatedBy":
+                                            <PropertyColumn Title="Updated By"
+                                                            Property="@(c => c.UpdatedBy)" />
+                                            break;
+
+                                        case "UpdatedDate":
+                                            <PropertyColumn Title="Updated Date"
+                                                            Property="@(c => c.UpdatedDate)"
+                                                            Format="dd/MM/yyyy" />
+                                            break;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                <!-- Default fallback columns -->
+                                <PropertyColumn Title="Log No" Property="@(c => c.LogNo)" />
+                                <PropertyColumn Title="Suffix" Property="@(c => c.Suffix)" />
+                                <PropertyColumn Title="Log Date" Property="@(c => c.LogDate)" Format="dd/MM/yyyy" />
+                                <PropertyColumn Title="RC No" Property="@(c => c.RCNo)" />
+                                <PropertyColumn Title="Process" Property="@(c => c.ProcessName)" />
+                                <PropertyColumn Title="Operator" Property="@(c => c.Operator)" />
+                                <PropertyColumn Title="Expected Qty" Property="@(c => c.ExpectedQty)" />
+                            }
+
+                            <!-- ACTIONS -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex justify-content-end gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        @if (!IsProduction)
+                                        {
+                                            <a href="@($"productionLog/update/{c.LogId}")"
+                                               class="btn btn-sm btn-outline-primary"
+                                               title="Edit">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <a href="@($"productionLog/update/{c.LogId}/true")"
+                                               class="btn btn-sm btn-outline-primary"
+                                               title="Edit">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </a>
+                                        }
+
+                                    }
+                                    @if (CanView)
+                                    {
+                                        @if (!IsProduction)
+                                        {
+                                            <a href="@($"productionlog/details/{c.LogId}")"
+                                               class="btn btn-sm btn-outline-info"
+                                               title="View">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <a href="@($"productionlog/details/{c.LogId}/true")"
+                                               class="btn btn-sm btn-outline-info"
+                                               title="View">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        }
+
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete SCN"
+                                                @onclick="() => HandleDelete(c.LogId)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+                        <div class="d-flex align-items-center gap-2 justify-content-center">
+
+                            <button class="btn btn-outline-primary" title="First Page" @onclick="FirstPage" disabled="@(currentPage == 1)">
+                                <i class="bi bi-skip-backward-fill"></i>
+                            </button>
+
+                            <button class="btn btn-outline-primary" title="Previous Page" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                                <i class="bi bi-arrow-left-circle"></i>
+                            </button>
+
+                            <span class="px-3 fw-semibold">
+                                Page @currentPage of @totalPages
+                            </span>
+
+                            <button class="btn btn-outline-primary" title="Next Page" @onclick="NextPage" disabled="@(currentPage >= totalPages)">
+                                <i class="bi bi-arrow-right-circle"></i>
+                            </button>
+
+                            <button class="btn btn-outline-primary" title="Last Page" @onclick="LastPage" disabled="@(currentPage >= totalPages)">
+                                <i class="bi bi-skip-forward-fill"></i>
+                            </button>
+
+                        </div>
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Item available.</p>
+                }
+
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "Daily Production Log";
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public bool IsProduction { get; set; }
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private long DeleteLogId = 0;
+    private string selectedStatus = "";
+
+    private int screenCode{ get; set; }
+
+    private List<ProductionLogVM> ProductionLogVMs = new();
+
+    // === Paging & Search ===
+    private int totalItems;
+    private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+    // Instant Search filter parameter
+    [Parameter,SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    #endregion
+
+
+    #region === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    #endregion
+
+    private List<PageHeader.BreadcrumbItem> prouctionLogBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Production" },
+        new PageHeader.BreadcrumbItem { Text = "Daily Production Log", IsLast = true }
+    };
+
+    #region === initilization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            screenCode = await productionLogService.GetScreenCodeByScreenNameAsync(ScreenName);
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            //InstantSearch
+            //Important : Deserialize Filter parameter from query string if exists
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+
+            await LoadAllProuctionLogs();
+            await LoadColumnPreferences(UserName);
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+
+    #endregion
+
+
+    #region ===  Columns ===
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // =========================
+                // PRIMARY
+                // =========================
+                new() { Title = "Log ID", Field = "LogId", IsVisible = false },
+                new() { Title = "Log No", Field = "LogNo", IsVisible = true },
+                new() { Title = "Suffix", Field = "Suffix", IsVisible = true },
+                new() { Title = "Log Date", Field = "LogDate", IsVisible = true },
+
+                // =========================
+                // ROUTE CARD & PROCESS
+                // =========================
+                new() { Title = "RC No", Field = "RCNo", IsVisible = true },
+                new() { Title = "RC Qty", Field = "RCQty", IsVisible = true },
+                new() { Title = "Process", Field = "ProcessName", IsVisible = true },
+                new() { Title = "Cycle Time", Field = "CycleTime", IsVisible = false },
+                new() { Title = "Setting Time", Field = "SettingTime", IsVisible = false },
+
+                // =========================
+                // SHIFT & TIME
+                // =========================
+                new() { Title = "Shift", Field = "ShiftName", IsVisible = true },
+                new() { Title = "Start Time", Field = "StartTime", IsVisible = true },
+                new() { Title = "End Time", Field = "EndTime", IsVisible = true },
+                new() { Title = "Total Time", Field = "TotalTime", IsVisible = true },
+
+                // =========================
+                // MACHINE & OPERATOR
+                // =========================
+                new() { Title = "Machine", Field = "MachineName", IsVisible = true },
+                new() { Title = "Operator", Field = "OperatorName", IsVisible = true },
+
+                // =========================
+                // CUSTOMER
+                // =========================
+                new() { Title = "Customer", Field = "CustomerName", IsVisible = true },
+
+                // =========================
+                // ITEM DETAILS
+                // =========================
+                new() { Title = "Output Item", Field = "ItemOutName", IsVisible = true },
+                new() { Title = "Output Qty", Field = "QtyOut", IsVisible = true },
+                new() { Title = "Input Item", Field = "ItemInName", IsVisible = true },
+                new() { Title = "Input Qty", Field = "InputQty", IsVisible = true },
+
+                // =========================
+                // RESULT QUANTITIES
+                // =========================
+                new() { Title = "Accepted Qty", Field = "AccQty", IsVisible = true },
+                new() { Title = "Rejected Qty", Field = "RejQty", IsVisible = true },
+                new() { Title = "Returned Qty", Field = "ReturnQty", IsVisible = false },
+
+                // =========================
+                // PERFORMANCE
+                // =========================
+                new() { Title = "Expected Qty", Field = "ExpectedQty", IsVisible = true },
+                new() { Title = "Target Qty", Field = "TargetQtyForTotalHours", IsVisible = true },
+                new() { Title = "Efficiency %", Field = "EfficiencyPercent", IsVisible = true },
+                new() { Title = "Machine Util %", Field = "MachineUtilizationPercent", IsVisible = false },
+
+                // =========================
+                // AUDIT
+                // =========================
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = false },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = false },
+                new() { Title = "Updated By", Field = "UpdatedBy", IsVisible = false },
+                new() { Title = "Updated Date", Field = "UpdatedDate", IsVisible = false }
+            };
+
+            if (!Hidden)
+            {
+                // Optional: dynamically toggle visibility if required
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for JobOrderList");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ItemList HandleColumnChange() Method");
+        }
+    }
+
+    #endregion
+
+
+    #region === Data Loading ===
+
+    private async Task LoadAllProuctionLogs()
+    {
+        try
+        {
+            var result = await productionLogService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            ProductionLogVMs = result.logVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading Production Log");
+        }
+    }
+
+    #endregion
+
+    #region == PAGINATION ==
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllProuctionLogs();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in Production Logs");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllProuctionLogs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in Production Logs");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllProuctionLogs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Production Logs");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllProuctionLogs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in Production Logs");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllProuctionLogs();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Production Logs");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllProuctionLogs();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Production Logs page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+
+
+    #region Production Log Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SearchFilters = new();
+            selectedStatus = e.Value?.ToString() ?? "";
+
+            if (string.IsNullOrWhiteSpace(selectedStatus))
+                SearchFilters.Remove("Status");
+            else
+                SearchFilters["Status"] = selectedStatus;
+
+
+            currentPage = 1;
+            await LoadAllProuctionLogs();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error OnStatusChanged in Production Log");
+            await _JS.ToastrError("Failed to Load Production Log filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion 
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(long logId)
+    {
+        try
+        {
+            var (canDelete, message) = await productionLogService.CanDeleteProductionLog(logId, screenCode);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            ModalTitle = "Are you sure you want to delete this Production Log?";
+            btnColor = "btn-danger";
+            btnText = "Yes, Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            DeleteLogId = logId;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for LogId: {logId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    { 
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            var deleted = await productionLogService.DeleteProductionLogByLogId(DeleteLogId, screenCode);
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Production Log deleted successfully.");
+                await LoadAllProuctionLogs();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Production log could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting LogId: {DeleteLogId}");
+            await _JS.ToastrError("Failed to delete Production Logs.");
+        }
+        finally
+        {
+            isProcessing = false;
+            DeleteLogId = 0;
+        }
+    }
+
+    #endregion
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region SEARCH FILTER
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllProuctionLogs();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Production Logs");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    #endregion
+}

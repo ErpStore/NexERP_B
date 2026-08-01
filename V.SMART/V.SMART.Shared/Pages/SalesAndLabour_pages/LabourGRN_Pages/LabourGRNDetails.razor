@@ -1,0 +1,329 @@
+﻿@page "/labourGRN/details/{GRNId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ILabourServices
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.LabourGRN_VM
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ILabourGRNService _grnService
+@inject ReportService reportService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+        <!-- Company Details Section -->
+        <div class="row align-items-center mb-4 g-4">
+            <div class="col-12 col-lg-3 text-center">
+                @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                {
+                    <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid rounded-3" style="max-height:120px;" />
+                }
+            </div>
+            <div class="col-12 col-lg-9 text-lg-start text-center">
+                <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+                <p class="text-muted mb-0"><strong>GST No:</strong> @(company?.GSTIN ?? "N/A")</p>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <!-- Customer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Customer Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.CustName) ? LabourGRNVMs.CustName : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.CustAddress) ? LabourGRNVMs.CustAddress : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.CustGst) ? LabourGRNVMs.CustGst : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.CustContactNo) ? LabourGRNVMs.CustContactNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.KindofAttention) ? LabourGRNVMs.KindofAttention : "N/A")</td></tr>
+
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Mode Of Transport</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.TransportMode) ? LabourGRNVMs.TransportMode : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Vehicle No.</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.VehicleNo) ? LabourGRNVMs.VehicleNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Trans. From</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.TransFrom) ? LabourGRNVMs.TransFrom : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Trans. To</strong></td><td>@(!string.IsNullOrEmpty(LabourGRNVMs?.TransTo) ? LabourGRNVMs.TransTo : "N/A")</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Document Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>GRN No</strong></td>
+                                    <td>@(LabourGRNVMs != null ? $"{LabourGRNVMs.GRNNo}{LabourGRNVMs.Suffix}" : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>GRN Date</strong></td>
+                                    <td>@(LabourGRNVMs?.GRNDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Ref DC No.</strong></td>
+                                    <td>@(LabourGRNVMs?.RefDcNo.ToString() ?? "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Ref Dc Dt.</strong></td>
+                                    <td>@(LabourGRNVMs?.RefDcDate?.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Added Store Name</strong></td>
+                                    <td>@(LabourGRNVMs?.StoreName?.ToString() ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Remarks</strong></td>
+                                    <td>@(LabourGRNVMs?.Remarks?.ToString() ?? "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- DC Items Section -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                Labour GRN Items
+            </div>
+            <div class="table-responsive" style="overflow-x:auto;">
+                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th>Sl No.</th>
+                            <th>Item Code-In</th>
+                            <th>Description-In</th>
+                            <th>Item Specification</th>
+                            <th>UOM</th>
+                            <th>HSN</th>
+                            <th>Qty-In</th>
+                            <th>Item Code-Out</th>
+                            <th>Description-Out</th>
+                            <th>UOM</th>
+                            <th>HSN</th>
+                            <th>Qty-Out</th>
+                            <th>Unit Price</th>
+                            <th>Basic Amount</th>
+                            <th>PoBalQty</th>
+                            <th>Ref Po No.</th>
+                            <th>Ref Po Date</th>
+                            <th>Batch No.</th>
+                            <th>Heat No.</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (LabourGRNVMs?.LabourGRNSubVMs != null && LabourGRNVMs.LabourGRNSubVMs.Any())
+                        {
+                            @foreach (var item in LabourGRNVMs.LabourGRNSubVMs)
+                            {
+                                <tr>
+                                    <td>@item.SlNo</td>
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td>@(item.ItemSpecification ?? "—")</td>
+                                    <td>@item.MeasureUnit</td>
+                                    <td>@item.HSNCode</td>
+                                    <td>@FormatDecimal(item.Qty)</td>
+
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td>@item.MeasureUnit</td>
+                                    <td>@item.HSNCode</td>
+                                    <td>@FormatDecimal(item.Qty)</td>
+                                    <td>@FormatDecimal(item.UnitPrice)</td>
+                                    <td>@FormatDecimal(item.Qty * item.UnitPrice)</td>
+                                    <td>@item.POBalQty</td>
+                                    <td>@item.RefPoNo</td>
+                                    <td>@item.RefPoDate</td>
+                                    <td>@item.BatchNo</td>
+                                    <td>@item.HeatNo</td>
+                                    <td>@item.RowRemarks</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="13" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Actions -->
+
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="@($"/labourGRNList?currentPage={currentPage}")" class="btn btn-secondary rounded-3" disabled="@isProcessing">
+                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+            </a>
+            <a href="@($"/labourGRN/update/{GRNId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+
+
+            <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Labour GRN";
+    [Parameter]
+    public int GRNId { get; set; }
+    string? pdfBase64;
+    private bool isProcessing { get; set; } = true;
+
+    private LabourGRNVM LabourGRNVMs { get; set; } = new LabourGRNVM();
+    private CustomerVM CustomerVMs { get; set; } = new CustomerVM();
+
+    private Companydetails company { get; set; } = new Companydetails();
+    private List<LabourGRNSubVM> refPos = new();
+    private string refPoNosDisplay = "N/A";
+    private string refPoDatesDisplay = "N/A";
+    private int Decimalplaces { get; set; } = 2;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            company = await _grnService.GetCompanyDetailsAsync();
+            await LoadDcDetails();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Faild in OnInitializedAsync Labour GRN");
+        }
+    }
+
+    private async Task LoadDcDetails()
+    {
+        if (GRNId > 0)
+        {
+            var grn = await _grnService.GetLabourGRNByIdAsync(GRNId);
+            if (grn != null)
+            {
+                LabourGRNVMs = grn;
+                if (LabourGRNVMs.IsOutItemSameAsInItem)
+                {
+                    var filteredList = LabourGRNVMs.LabourGRNSubVMs?
+                        .Where(x => x.TransType == "In")
+                        .OrderBy(x => x.SlNo)
+                        .ToList();
+
+
+                    if (filteredList != null)
+                    {
+                        for (int i = 0; i < filteredList.Count; i++)
+                        {
+                            filteredList[i].SlNo = i + 1;
+                        }
+                    }
+
+                    LabourGRNVMs.LabourGRNSubVMs = filteredList;
+                }
+            }
+
+            Decimalplaces = await _grnService.GetDecimalPlacesAsync();
+
+            CustomerVMs = await _grnService.GetCustomerByIdAsync(LabourGRNVMs.CustId);
+
+            /// refPos = await _grnService.GetDistinctRefPoByDcIdAsync(MfgDcVMs.DcId);
+
+            if (refPos.Any())
+            {
+                // Only join the existing items, no extra commas
+                refPoNosDisplay = string.Join(", ", refPos.Select(e => e.RefPoNo).Where(n => !string.IsNullOrEmpty(n)));
+                refPoDatesDisplay = string.Join(", ", refPos
+                    .Select(e => e.RefPoDate.HasValue ? e.RefPoDate.Value.ToString("dd/MM/yyyy") : null)
+                    .Where(d => !string.IsNullOrEmpty(d)));
+            }
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        await GenerateAndOpenPdfCommon("LabourGRN.frx","LabourGRN","Sp_Print_LabourGRN",  "Error in GenerateAndOpenPdf Labour GRN");
+    }
+
+
+
+    private async Task GenerateAndOpenPdfCommon(string reportFileName,string screenName,string storedProcedure,string logMessage)
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(GRNId,reportFileName,"GRNId",LabourGRNVMs.DcCancel,screenName, storedProcedure);
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _JS.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _JS.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, logMessage);
+            await _JS.ToastrError("Unexpected error occurred while generating report.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

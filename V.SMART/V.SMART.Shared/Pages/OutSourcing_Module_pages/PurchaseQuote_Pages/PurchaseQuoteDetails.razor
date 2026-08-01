@@ -1,0 +1,488 @@
+﻿@page "/purchasequote/details/{QuoteId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IPurchaseService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.PurchAndSubConViewModel.Purch_QuotationVM
+
+@inherits BaseUserRightsComponent
+
+@inject IPurchaseQuoteService _purchQuotationService
+@inject IJSRuntime _js
+@inject ReportService reportService
+@inject NavigationManager _navigationManager
+@inject ILoggingService LoggingService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <!-- Company Details Section -->
+            <MyCompanyDetails />
+
+            <!-- Cancelled Watermark -->
+            @if (PurchaseQuoteVM.IsCancel)
+            {
+                <div class="cancelWatermark ms-20 mt-10">CANCELLED</div>
+            }
+            else if (PurchaseQuoteVM.QuoteShortClose)
+            {
+                <div class="cancelWatermark ms-20 mt-10">SHORT CLOSED</div>
+            }
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">Quotation Details</h4>
+            </div>
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <!-- Customer & Document Details Section -->
+            <div class="row g-3 mb-4">
+                <!-- Customer Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Vendor/Supplier Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.VendorName) ? PurchaseQuoteVM.VendorName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.VendorAddress) ? PurchaseQuoteVM.VendorAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.GSTNo) ? PurchaseQuoteVM.GSTNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.ContactNo) ? PurchaseQuoteVM.ContactNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.KindOfAttention) ? PurchaseQuoteVM.KindOfAttention : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Document Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Document Type</strong></td>
+                                        <td>@(PurchaseQuoteVM.PurchOrSub ? "Purchase" : "Subcontract")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Quotation No</strong></td>
+                                        <td>@(PurchaseQuoteVM != null ? $"{PurchaseQuoteVM.QuoteNo}{PurchaseQuoteVM.Suffix}" : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Quotation Date</strong></td>
+                                        <td>@(PurchaseQuoteVM?.QuoteDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Currency</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.CurrName) ? PurchaseQuoteVM.CurrName : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Ref Enq No.</strong></td>
+                                        <td>@refEnqNosDisplay</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Ref Enq Dt.</strong></td>
+                                        <td>@refEnqDatesDisplay</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Consignee & Other Terms Section -->
+            <div class="row g-3 mb-4">
+                <!-- Consignee Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Consignee Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            @if (PurchaseQuoteVM.IsSameAsShipping)
+                            {
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.VendorName) ? PurchaseQuoteVM.VendorName : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.VendorAddress) ? PurchaseQuoteVM.VendorAddress : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.GSTNo) ? PurchaseQuoteVM.GSTNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.ContactNo) ? PurchaseQuoteVM.ContactNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.KindOfAttention) ? PurchaseQuoteVM.KindOfAttention : "N/A")</td></tr>
+                                    </tbody>
+                                </table>
+                            }
+                            else
+                            {
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.ShippingName) ? PurchaseQuoteVM.ShippingName : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.ShippingAddress) ? PurchaseQuoteVM.ShippingAddress : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.ShippingGstin) ? PurchaseQuoteVM.ShippingGstin : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(PurchaseQuoteVM?.ShippingContactNo) ? PurchaseQuoteVM.ShippingContactNo : "N/A")</td></tr>
+                                    </tbody>
+                                </table>
+                            }
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment, Delivery, and Other Terms -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Remarks
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Main Remarks</strong></td>
+                                        <td>@(PurchaseQuoteVM?.MainRemark ?? "N/A")</td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Quotation Items Section -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                    Quotation Items
+                </div>
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th class="text-center">Sl No.</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th class="text-center">UOM</th>
+                                <th class="text-center">HSN</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Discount</th>
+                                <th class="text-end">Basic Amount</th>
+                                @if (VendorVM.TaxValidate == false)
+                                {
+                                    @if (VendorVM.BusiType == "Local")
+                                    {
+                                        <th class="text-end">CGST</th>
+                                        <th class="text-end">SGST</th>
+                                    }
+                                    else if (VendorVM.BusiType == "InterState")
+                                    {
+                                        <th class="text-end">IGST</th>
+                                    }
+                                }
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (PurchaseQuoteVM?.PurchaseQuoteSubVM != null && PurchaseQuoteVM.PurchaseQuoteSubVM.Any())
+                            {
+                                @foreach (var item in PurchaseQuoteVM.PurchaseQuoteSubVM)
+                                {
+                                    <tr>
+                                        <td class="text-center">@item.SlNo</td>
+                                        <td>@(item.ItemCode ?? "—")</td>
+                                        <td>@(item.ItemName ?? "—")</td>
+                                        <td class="text-center">@item.MeasureUnit</td>
+                                        <td class="text-center">@item.HsnCode</td>
+                                        <td class="text-end">@FormatDecimal(item.Qty)</td>
+                                        <td class="text-end">@FormatDecimal(item.UnitPrice)</td>
+                                        <td class="text-end">@FormatDecimal(item.LineDiscountAmount)</td>
+                                        <td class="text-end">@FormatDecimal(item.LineBasicAmount)</td>
+
+                                        @if (VendorVM.TaxValidate == false)
+                                        {
+                                            @if (VendorVM.BusiType == "Local")
+                                            {
+                                                <td class="text-end">@FormatDecimal(item.LineCGSTAmount)</td>
+                                                <td class="text-end">@FormatDecimal(item.LineSGSTAmount)</td>
+                                            }
+                                            else if (VendorVM.BusiType == "InterState")
+                                            {
+                                                <td class="text-end">@FormatDecimal(item.LineIGSTAmount)</td>
+                                            }
+                                        }
+
+                                        <td>@item.Remarks</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="13" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Due Date & Tax Totals Section -->
+            <div class="row g-3 mb-4">
+                <!-- Due Date & Terms and Conditions -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-warning-subtle text-warning-emphasis fw-semibold p-2 small">
+                            Terms and Conditions
+                        </div>
+                        <div class="card-body p-2 small">
+                            <p class="mb-0"><strong>Terms And Conditions:</strong></p>
+                            <p>@(string.IsNullOrWhiteSpace(PurchaseQuoteVM?.Details) ? "" : PurchaseQuoteVM.Details)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tax Totals -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-success-subtle text-success-emphasis fw-semibold p-2 small">
+                            Totals & Taxes
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary">Total Gross Amount</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.TotalGrossAmount)</td></tr>
+                                    <tr><td class="text-secondary">Total Discount</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.DiscountAmount)</td></tr>
+                                    <tr><td class="text-secondary">Total Basic Amount</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.TotalBasicAmount)</td></tr>
+                                    <tr><td class="text-secondary">Freight Charges</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.FreightCharges)</td></tr>
+                                    <tr><td class="text-secondary">Packing Charges</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.PackingCharges)</td></tr>
+                                    <tr><td class="text-secondary">Insurance Charges</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.InsuranceCharges)</td></tr>
+                                    <tr><td class="text-secondary">Total Taxable</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.TotalTaxable)</td></tr>
+                                    @if (VendorVM.TaxValidate == false)
+                                    {
+                                        @if (VendorVM.BusiType == "Local")
+                                        {
+                                            <tr><td class="text-secondary">Total CGST</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.TotalCGSTAmount)</td></tr>
+                                            <tr><td class="text-secondary">Total SGST</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.TotalSGSTAmount)</td></tr>
+                                        }
+                                        else if (VendorVM.BusiType == "InterState")
+                                        {
+                                            <tr><td class="text-secondary">Total IGST</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.TotalIGSTAmount)</td></tr>
+                                        }
+                                    }
+                                    <tr><td class="text-secondary">TCS</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.TCSAmount)</td></tr>
+                                    <tr><td class="text-secondary">Other Charges</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.OtherCharges)</td></tr>
+                                    <tr><td class="text-secondary">Round Off</td><td class="text-end">@FormatDecimal(PurchaseQuoteVM.RoundOff)</td></tr>
+                                    <tr class="fw-bold fs-6 text-primary">
+                                        <td>Grand Total</td>
+                                        <td class="text-end">@FormatDecimal(PurchaseQuoteVM.GrandTotal)</td>
+                                    </tr>
+
+                                    @if (PurchaseQuoteVM.CurrId > 1)
+                                    {
+                                        <tr>
+                                            <td colspan="2" class="text-end">
+                                                <small class="text-muted d-block">
+                                                    Today's value: @PurchaseQuoteVM.TodayVal
+                                                </small>
+                                                <small class="fw-bold text-success d-block">
+                                                    Converted Value in Rs: @((PurchaseQuoteVM.GrandTotal * PurchaseQuoteVM.TodayVal).ToString("0.00"))
+                                                </small>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <!-- Due Date & Terms and Conditions -->
+                <div class="col-md-12">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-warning-subtle text-warning-emphasis fw-semibold p-2 small">
+                            Total Amount in Words
+                        </div>
+                        <div class="card-body p-2 small">
+                            <p class="mb-0">
+                                @if (PurchaseQuoteVM.VendorCode > 1 && PurchaseQuoteVM.TodayVal > 0)
+                                {
+                                    <small class="fw-bold text-success d-block">
+                                        Converted Value in Rs:
+                                        @NumberToWordsHelper.ConvertNumberToWords(PurchaseQuoteVM.GrandTotal * PurchaseQuoteVM.TodayVal)
+                                    </small>
+                                }
+                                else
+                                {
+                                    <strong>@NumberToWordsHelper.ConvertNumberToWords(PurchaseQuoteVM.GrandTotal)</strong>
+                                }
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end">
+
+                <a href="/purchaseQuoteList" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+
+                <a href="@($"/PurchaseQuote/update/{QuoteId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+
+@*              <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button> *@
+
+            </div>
+        </div>
+    }
+}
+
+
+
+@code
+{
+
+    protected override string ScreenName => "Purchase-Quotation";
+
+    [Parameter]
+    public int QuoteId { get; set; }
+    string? pdfBase64;
+    private bool isProcessing { get; set; } = true;
+    private PurchaseQuoteVM PurchaseQuoteVM { get; set; } = new PurchaseQuoteVM();
+    private VendorVM VendorVM { get; set; } = new VendorVM();
+
+    private List<PurchaseQuoteSubVM> refEnquiries = new();
+    private string refEnqNosDisplay = "N/A";
+    private string refEnqDatesDisplay = "N/A";
+    private int Decimalplaces { get; set; } = 2;
+
+    private string FormatDecimal(decimal? value)
+    {
+        try
+        {
+            if (value == null) return "0";
+            return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+        }
+        catch (Exception ex)
+        {
+            LoggingService.LogDeveloperError(ex, "Error in FormatDecimal PurchaseQuotation");
+            _js.ToastrError("An Error in FormatDecimal PurchaseQuotation");
+            return "";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadQuotation();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync PurchaseQuotation");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadQuotation()
+    {
+        try
+        {
+            if (QuoteId > 0)
+            {
+                var quote = await _purchQuotationService.GetQuotationByQuoteIdAsync(QuoteId);
+                if (quote != null)
+                {
+                    PurchaseQuoteVM = quote;
+                }
+                Decimalplaces = await _purchQuotationService.GetDecimalPlacesAsync();
+                VendorVM = await _purchQuotationService.GetVendorByIdAsync(PurchaseQuoteVM.VendorCode);
+                //refEnquiries = await _purchQuotationService.GetDistinctRefEnquiriesByQuoteIdAsync(PurchaseQuoteVM.QuoteId);
+                if (refEnquiries.Any())
+                {
+                    // Only join the existing items, no extra commas
+                    refEnqNosDisplay = string.Join(", ", refEnquiries.Select(e => e.RefEnqNo).Where(n => !string.IsNullOrEmpty(n)));
+                    refEnqDatesDisplay = string.Join(", ", refEnquiries
+                        .Select(e => e.RefEnqDate.HasValue ? e.RefEnqDate.Value.ToString("dd/MM/yyyy") : null)
+                        .Where(d => !string.IsNullOrEmpty(d)));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadQuotation PurchaseQuotation");
+            await _js.ToastrError("An Error in LoadQuotation PurchaseQuotation");
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        // try
+        // {
+        //     isProcessing = true;
+        //     pdfBase64 = null;
+
+        //     var pdfBytes = await reportService.Generate_Report(QuoteId, "PurchaseOrder.frx", "QuoteId", Purch.PoCancl, ScreenName, "Sp_Print_PurchasePo");
+
+        //     if (pdfBytes == null || pdfBytes.Length == 0)
+        //     {
+        //         await _js.ToastrError("PDF generation failed.");
+        //         return;
+        //     }
+
+        //     pdfBase64 = Convert.ToBase64String(pdfBytes);
+        //     await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        // }
+        // catch (InvalidOperationException ex)
+        // {
+        //     await _js.ToastrError(ex.Message);
+        // }
+        // catch (Exception ex)
+        // {
+        //     await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Manufacturing Invoice");
+        //     await _js.ToastrError("An unexpected error occurred while generating the PDF in Manufacturing Invoice.");
+        // }
+        // finally
+        // {
+        //     isProcessing = false;
+        // }
+    }
+}

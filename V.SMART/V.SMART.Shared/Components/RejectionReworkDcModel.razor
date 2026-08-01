@@ -1,0 +1,442 @@
+﻿@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.LabourDc_VM
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesDCVM
+@inherits BaseUserRightsComponent
+
+@inject IMfgDcService mfgDcService
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<!-- SweetAlert -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    window.showUpdateConfirm = async function () {
+        const result = await Swal.fire({
+            title: 'Are you sure you want to Update Rejection / Rework Details?',
+            text: "Do you want to continue?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Update!',
+            cancelButtonText: 'Cancel'
+        });
+        return result.isConfirmed;
+    }
+</script>
+
+<div class="container-fluid px-2 px-md-5 mt-3">
+
+    <!-- PAGE TITLE -->
+    <div class="fw-bold fs-5 text-danger mb-3 border-bottom pb-1">
+        Rejection and Rework Details
+    </div>
+
+    <div class="card shadow-sm border">
+        <div class="card-body p-3">
+
+            <!-- HEADER INFO -->
+            <div class="row mb-1 align-items-center">
+                <label class="col-sm-3 col-form-label text-secondary fw-semibold">
+                    From Customer :-
+                </label>
+                <div class="col-sm-8">
+                    <span class="fw-bold text-primary">
+                        @MfgDcVMs.CustName
+                    </span>
+                </div>
+            </div>
+
+            <div class="row mb-3 align-items-center">
+                <label class="col-sm-3 col-form-label text-secondary fw-semibold">
+                    Towards DC No :-
+                </label>
+                <div class="col-sm-8">
+                    <span class="fw-bold text-dark">
+                        @MfgDcVMs.Prefix @MfgDcVMs.DcNo @MfgDcVMs.Suffix
+                    </span>
+                </div>
+            </div>
+
+            <!-- FORM -->
+            <EditForm Model="@MfgDcVMs">
+                <DataAnnotationsValidator />
+
+                <div class="card shadow-sm mb-2">
+                    <div class="card-header bg-primary-subtle fw-bold">
+                        DC Item Details
+                    </div>
+
+                    <div class="card-body p-2">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm align-middle text-center mb-0"
+                                   style="min-width:1200px">
+
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:60px">Sl.No</th>
+                                        <th style="width:200px">Item Code</th>
+                                        <th style="width:240px">Item Name</th>
+                                        <th style="width:100px">Qty</th>
+                                        <th style="width:140px">Rejection Qty</th>
+                                        <th style="width:140px">Rework Qty</th>
+                                        <th style="width:260px">Remarks</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    @foreach (var subitem in MfgDcVMs.MfgDcSubVMs)
+                                    {
+                                        <tr @key="subitem">
+                                            <td>@subitem.SlNo</td>
+                                            <td>@subitem.ItemCode</td>
+                                            <td class="text-start">@subitem.ItemName</td>
+                                            <td>@subitem.Qty</td>
+
+                                            <!-- Reject Qty -->
+                                            <td>
+                                                <input type="number"
+                                                       class="form-control form-control-sm text-end"
+                                                       @bind="subitem.RejectQty" @bind:event="oninput"
+                                                       @onchange="@(e => OnRejQtyChange(subitem.RejectQty, subitem))" step="any" />
+                                                <ValidationMessage For="@(() => subitem.RejectQty)" />
+                                            </td>
+
+                                            <!-- Rework Qty -->
+                                            <td>
+                                                <input type="number"
+                                                       class="form-control form-control-sm text-end"
+                                                       @bind="subitem.ReworkQty" @bind:event="oninput"
+                                                       @onchange="@(e => OnRewQtyChange(subitem.ReworkQty, subitem))" step="any" />
+                                                <ValidationMessage For="@(() => subitem.ReworkQty)" />
+                                            </td>
+
+                                            <!-- Remark (FIXED) -->
+                                            <td>
+                                                <textarea class="form-control form-control-sm"
+                                                          placeholder="Enter Remark"
+                                                          rows="1"
+                                                          @bind="subitem.RejRowRemark">
+                                                            </textarea>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3 align-items-center">
+                    <label class="col-sm-3 col-form-label text-secondary fw-semibold">
+                        Rejection Remark :-
+                    </label>
+                    <div class="col-sm-8">
+                        <textarea class="form-control form-control-sm"
+                                  placeholder="Enter Remark"
+                                  rows="1"
+                                  @bind="MfgDcVMs.RejRemark">
+                         </textarea>
+                    </div>
+                </div>
+
+                <div class="row mb-3 align-items-center">
+                    <label class="col-sm-3 col-form-label text-secondary fw-semibold">
+
+                    </label>
+                    <div class="col-sm-8">
+                        <input class="form-check-input border border-2 border-dark" type="checkbox" checked="@MfgDcVMs.ReduceInvAsPerRej"
+                               @onchange="OnReduceInvChanged" id="reduceInvoice" disabled="@isTrasactionmade">
+                        <label class="form-check-label note text-danger" for="reduceInvoice">
+                            Reduce Invoice Value as per above Rejections Rework Qty.
+                        </label>
+                    </div>
+                </div>
+
+
+
+                <!-- ACTION BUTTONS -->
+                <div class="row g-3 mt-3">
+
+                    <div class="col-6 col-md-3 mt-3">
+                        <button class="btn btn-primary me-2"
+                                disabled="@isProcessing"
+                                @onclick="updateExport">
+                            Update
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-3 mt-3">
+                        <button class="btn btn-danger"
+                                @onclick="OnClose">
+                            Close
+                        </button>
+                    </div>
+
+
+
+                </div>
+
+            </EditForm>
+
+        </div>
+    </div>
+</div>
+
+@code
+{
+    protected override string ScreenName => "Manufacturing DC";
+
+    [Parameter] public int DcId { get; set; }
+    [Parameter] public string DcType { get; set; }
+
+    [Parameter] public bool isRejectReworkDetailsModelVisible { get; set; } = false;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool isProcessing, isTrasactionmade;
+
+    private MfgDcVM MfgDcVMs { get; set; } = new();
+
+    private LabourDcOutgoingVM LabourDcOutgoingVMs { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        if (DcType == "MfgDc")
+            await LoadExistingDc(DcId);
+        else if (DcType == "MfgDc")
+        {
+            
+        }
+    }
+
+    private async Task LoadExistingDc(int dcId)
+    {
+        try
+        {
+            MfgDcVMs = await mfgDcService.GetMfgDcByDcIdAsync(dcId);
+
+            var dcSubIds = MfgDcVMs.MfgDcSubVMs.Select(x => x.DcSubId).ToList();
+
+            isTrasactionmade = await mfgDcService.CanMfgDcOutgoingTrasByDcsubIdAsync(dcSubIds);
+        }
+        catch (Exception ex)
+        {
+            await _js.InvokeVoidAsync("toastr.error", "Failed to load DC details");
+            await _logs.LogDeveloperError(ex, $"DcId: {dcId}");
+        }
+    }
+
+    private async Task OnSaveAsync()
+    {
+        bool confirm = await _js.InvokeAsync<bool>("showUpdateConfirm");
+        if (!confirm) return;
+
+        isProcessing = true;
+
+        try
+        {
+            //await mfgDcService.UpdateRejectReworkAsync(MfgDcVMs);
+            await _js.InvokeVoidAsync("toastr.success", "Updated successfully");
+        }
+        catch (Exception ex)
+        {
+            await _js.InvokeVoidAsync("toastr.error", "Update failed");
+            await _logs.LogDeveloperError(ex, "Reject/Rework Save Failed");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task updateExport()
+    {
+        try
+        {
+
+            bool confirmed = await _js.InvokeAsync<bool>("showUpdateConfirm");
+
+            if (!confirmed)
+                return;
+
+            await updateDetailsAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error while updating");
+            await _logs.LogDeveloperError(ex, "updateExport error");
+        }
+    }
+
+    public async Task updateDetailsAsync()
+    {
+        if (MfgDcVMs == null)
+            return;
+
+        try
+        {
+            await mfgDcService.UpdateMfgDCRejectRework(MfgDcVMs);
+            await CloseModal();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError(ex.Message);
+            return;
+        }
+        await _js.ToastrSuccess("Export Details updated successfully.");
+
+    }
+    private async Task<bool> ValidateAndAdjustAsync(MfgDcSubVM subVM, decimal newAccp, decimal newRej, decimal newRew, string fieldName, bool ReduceInvAsPerRej)
+    {
+
+        decimal total = newRej + newRew;
+
+        if (total > newAccp)
+        {
+            switch (fieldName)
+            {
+                case "Rejected":
+                    subVM.RejectQty = Math.Max(0, newAccp - newRew);
+                    break;
+                case "Rework":
+                    subVM.ReworkQty = Math.Max(0, newAccp - newRej);
+                    break;
+                case "Accepted":
+                    subVM.Qty = total;
+                    break;
+            }
+
+            await _js.ToastrWarning($"Rejected + Rework quantity cannot exceed Accepted Qty ({newAccp}).");
+
+            subVM.BalQty = ReduceInvAsPerRej ? Math.Max(0, newAccp - total) : newAccp;
+
+
+
+            return false;
+        }
+
+        var original = await mfgDcService.GetRejReworkDcSubItemDetailByDcSubIdAsync(subVM.DcSubId);
+        if (original == null)
+            return true;
+
+        decimal alreadyTransacted =
+            original.Qty.GetValueOrDefault() - original.BalQty;
+
+        decimal oldTotal =
+            original.RejectQty + original.ReworkQty;
+
+        decimal oldEffectiveQty = ReduceInvAsPerRej
+            ? original.Qty.GetValueOrDefault() - oldTotal
+            : original.Qty.GetValueOrDefault();
+
+        decimal newEffectiveQty = ReduceInvAsPerRej
+            ? newAccp - total
+            : newAccp;
+
+
+        if (newEffectiveQty < alreadyTransacted)
+        {
+            subVM.BalQty = 0;
+
+            await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+
+            return false;
+        }
+
+        subVM.BalQty = Math.Max(0, newEffectiveQty - alreadyTransacted);
+
+
+        return true;
+    }
+
+    private async Task OnRejQtyChange(decimal? newValue, MfgDcSubVM subVM)
+    {
+        try
+        {
+            var rej = newValue.GetValueOrDefault();
+            if (rej < 0)
+            {
+                subVM.RejectQty = 0;
+                await _js.ToastrWarning("Rejected Qty must be positive.");
+                return;
+            }
+
+            var accp = subVM.Qty;
+            var rew = subVM.ReworkQty;
+
+            if (await ValidateAndAdjustAsync(subVM, subVM.Qty ?? 0, rej, rew, "Rejected", MfgDcVMs.ReduceInvAsPerRej))
+                subVM.RejectQty = rej;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnRejQtyChange failed");
+            await _js.ToastrError("Failed to update Rejection Qty.");
+        }
+    }
+
+    private async Task OnRewQtyChange(decimal? newValue, MfgDcSubVM subVM)
+    {
+        try
+        {
+            var rew = newValue.GetValueOrDefault();
+            if (rew < 0)
+            {
+                subVM.ReworkQty = 0;
+                await _js.ToastrWarning("Rework Qty must be positive.");
+                return;
+            }
+
+            var accp = subVM.Qty;
+            var rej = subVM.RejectQty;
+
+            if (await ValidateAndAdjustAsync(subVM, subVM.Qty ?? 0, rej, rew, "Rework", MfgDcVMs.ReduceInvAsPerRej))
+                subVM.ReworkQty = rew;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnRewQtyChange failed");
+            await _js.ToastrError("Failed to update Rework Qty.");
+        }
+    }
+    private async Task CloseModal()
+    {
+        await OnClose.InvokeAsync();
+    }
+    private async Task OnReduceInvChanged(ChangeEventArgs e)
+    {
+
+        try
+        {
+
+            MfgDcVMs.ReduceInvAsPerRej = (bool)e.Value;
+
+            foreach (var sub in MfgDcVMs.MfgDcSubVMs)
+            {
+                await ValidateAndAdjustAsync(
+                    sub,
+                    sub.Qty ?? 0,
+                    sub.RejectQty,
+                    sub.ReworkQty,
+                    "Accepted",
+                    MfgDcVMs.ReduceInvAsPerRej
+                );
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnReduceInvChanged failed");
+            await _js.ToastrError("Failed to update OnReduceInvChanged");
+        }
+
+    }
+}

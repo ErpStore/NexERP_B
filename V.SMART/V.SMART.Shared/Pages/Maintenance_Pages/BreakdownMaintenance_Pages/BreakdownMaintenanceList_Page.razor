@@ -1,0 +1,734 @@
+﻿@page "/BreakdownMaintenance"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMaintenanceService
+@using V.SMART.Shared.BusinessLayer.BusinessService.MaintenanceService
+@using V.SMART.Shared.Data.Maintenance.BreakdownMaintenance
+@using V.SMART.Shared.Data.Master.Inventory
+@using V.SMART.Shared.ViewModels
+@using V.SMART.Shared.ViewModels.MaintenanceViewModel.BreakdownMaintenanceVM
+
+@inherits BaseUserRightsComponent
+
+@inject ICommonService _commonService
+@inject IBreakdownMaintenanceService BreakdownMaintenanceService 
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService currentUserService
+@inject ILoggingService LoggingService
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true"
+                       Screen="@ScreenName"
+                       Filters="SearchFilters"
+                       OnClose="CloseModal"
+                       OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Machine?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Card Header -->
+            <PageHeader TitleText="@MachineTitle"
+                        TitleIcon="@MachineIcon"
+                        Breadcrumbs="@machineBreadcrumbs" />
+            <div class="card-body">
+
+                <!-- Filter Controls -->
+                <div class="row g-3 align-items-center mb-2">
+
+                    <div class="col-6 col-md-2" ">
+                        <ColumnMenu Columns="Columns" 
+                                   ScreenName="BreakdownMaintenance" 
+                                   UserId="@UserName" MaxVisible="14" 
+                                   OnChanged="HandleColumnChange" />
+                    </div>
+
+                      <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <!-- DROPDOWN -->
+                    <div class="col-12 col-lg-2">
+                        <select class="form-select form-select-sm shadow-sm" @onchange="FilterRows">
+                            <option value="">-- All --</option>
+                            @foreach(var Machine in MachineList)
+                            {
+                                <option value="@Machine.MachineId">@Machine.MachineName</option>
+                            })
+                        </select>
+                    </div>
+
+
+                    <div class="col-12 col-lg-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                value="@pageSize" @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-2 ms-lg-auto text-end">
+                            <a href="/BreakdownMaintenance/create"
+                               class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                               title="Create New Breakdown">
+                                <i class="bi bi-plus-square me-1"></i> Add New Breakdown
+                            </a>
+                        </div>
+                    }
+                </div>
+
+
+                @if (BreakdownMaintenanceList.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid class="table table-striped table-bordered align-middle text-wrap"
+                                   Items="BreakdownMaintenanceList.AsQueryable()"
+                                   ItemKey="@(m => m.BreakdownId)">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+{
+                            foreach (var col in Columns.Where(c => c.IsVisible))
+                            {
+                                <div>
+                                    @switch (col.Field)
+                                    {
+                                        // Date
+                                        case "BreakdownDate":
+                                            <PropertyColumn Title="Date"
+                                                            Property="@(c => c.BreakdownDate)"
+                                                            Format="dd/MM/yyyy"
+                                                            Sortable="true" />
+                                            break;
+
+                                        // Machine Name (Assuming MachineId)
+                                        case "MachineId":
+                                            <PropertyColumn Title="Machine Name"
+                                                            Property="@(c => c.MachineName)"
+                                                            Sortable="true" />
+                                            break;
+
+                                        // Breakdown Happened Again (duplicate BreakdownDate)
+                                        case "BreakdownDateTime":  
+                                            <PropertyColumn Title="Breakdown Happened"
+                                                             Property="@(c => c.BreakdownDate)" />
+                                    
+                                            break;
+
+                                        // Breakdown Details
+                                        case "BreakdownDescription":
+                                            <PropertyColumn Title="Breakdown Details"
+                                                            Property="@(c => c.BreakdownDescription)" />
+                                            break;
+
+                                        // Breakdown Recovered
+                                        case "ResolutionDate":
+                                            <PropertyColumn Title="Breakdown Recovered"
+                                                            Property="@(c => c.ResolutionDate)"
+                                                            />
+                                            break;
+
+                                        // Corrective Action
+                                        case "ResolutionDescription":
+                                            <PropertyColumn Title="Corrective Action"
+                                                            Property="@(c => c.ResolutionDescription)" />
+                                            break;
+
+                                        // Amount Spent
+                                        case "Amount":
+                                            <PropertyColumn Title="Amount Spent"
+                                                            Property="@(c => c.Amount)" />
+                                            break;
+
+                                        // Time Spent (must calculate)
+                                        case "TimeSpent":
+                                            <TemplateColumn Title="Time Spent">
+                                                <Template>
+                                                    @{
+                                                        var ts = context.ResolutionDate - context.BreakdownDate;
+                                                    }
+                                                    @($"{ts.Days}d {ts.Hours}h {ts.Minutes}m")
+                                                </Template>
+                                            </TemplateColumn>
+                                            break;
+
+                                        // Machine Idle Cost
+                                        case "Idlecost":
+                                            <PropertyColumn Title="Machine Idle Cost"
+                                                            Property="@(c => c.Idlecost)" />
+                                            break;
+
+                                        // Remarks
+                                        case "Remarks":
+                                            <PropertyColumn Title="Remarks"
+                                                            Property="@(c => c.Remarks)" />
+                                            break;
+                                    }
+                                </div>
+                            }
+                        }
+
+                        <TemplateColumn Title="Actions" Context="c">
+                            <div class="d-flex gap-2">
+                                @if (CanEdit)
+                                {
+                                        <a href="@($"BreakdownMaintenance/update/{c.BreakdownId}")"
+                                        class="btn btn-sm btn-outline-primary"
+                                        title="Edit Item">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+                                }
+                                @if (CanDelete)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            title="Delete Item"
+                                            @onclick="() => HandleDelete(c.BreakdownId)">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                }
+                            </div>
+                        </TemplateColumn>
+                        </QuickGrid>
+                    </div>
+
+                    <div class="card-footer bg-white border-0 mt-2">
+                        <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+                            <div class="d-flex align-items-center gap-2 justify-content-center">
+
+                                <button class="btn btn-outline-primary" title="First Page" @onclick="FirstPage" disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary" title="Previous Page" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="px-3 fw-semibold">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary" title="Next Page" @onclick="NextPage" disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary" title="Last Page" @onclick="LastPage" disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mt-1">
+
+
+                            <!-- Left -->
+                            <div class="col-12 col-lg-4 text-start">
+                                <span class="badge fw-bold bg-warning text-dark w-100 py-2">
+                                    Total Spent Amount :
+                                    <i class="bi bi-currency-rupee"></i> @TotalAmount
+                                </span>
+                            </div>
+
+                            <!-- Center -->
+                            <div class="col-12 col-lg-4 text-center">
+                                <span class="badge fw-bold bg-info text-dark w-100 py-2">
+                                    Total Machine Idle Cost :
+                                    <i class="bi bi-currency-rupee"></i> @TotalAmountLost
+                                </span>
+                            </div>
+
+                            <!-- Right -->
+                            <div class="col-12 col-lg-4 text-end">
+                                <span class="badge fw-bold bg-danger text-white w-100 py-2">
+                                    Total Amount Lost :
+                                    <i class="bi bi-currency-rupee"></i> @(TotalAmountLost + TotalAmount)
+                                </span>
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center mt-4 text-muted">No categories available.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+
+
+
+@code {
+    #region Declarations and Properties
+    // User Rights
+    protected override string ScreenName => "BreakdownMaintenance";
+    private DateTime? todate = DateTime.Now;
+    private DateTime? fromdate = DateTime.Now;
+    private bool isProcessing = true;
+    private string? UserName;
+    private int DeleteID = 0;
+
+    private IEnumerable<BreakdownMaintenanceVM> BreakdownMaintenanceList = new List<BreakdownMaintenanceVM>();
+    private IEnumerable<BreakdownMaintenanceVM> TempBreakdownMaintenanceList = new List<BreakdownMaintenanceVM>();
+    private string? machineNameFilter;
+    private List<Machine> MachineList = new();
+    private Timer? debounceTimer;
+
+    // === Paging & Search ===
+    private int totalItems;
+    private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    // Instant Search filter parameter
+    [Parameter, SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> machineBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Maintenance" },
+        new PageHeader.BreadcrumbItem { Text = "BreakDown Maintenance", IsLast = true }
+    };
+
+    private string MachineTitle => "BreakDown Maintenance";
+    private string MachineIcon => "bi bi-tools";
+    public List<GridColumn> Columns { get; set; }
+
+    private Decimal? TotalAmount => BreakdownMaintenanceList.Sum(b => b.Amount);
+    private Decimal? TotalAmountLost => BreakdownMaintenanceList.Sum(b => b.Idlecost);
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "Date", Field = "BreakdownDate", IsVisible = true },
+                new() { Title = "Machine Name", Field = "MachineId", IsVisible = true },
+                new() { Title = "Breakdown Happened", Field = "BreakdownDateTime", IsVisible = true },
+                new() { Title = "Breakdown Details", Field = "BreakdownDescription", IsVisible = true },
+                new() { Title = "Breakdown Recovered", Field = "ResolutionDate", IsVisible = false },
+                new() { Title = "Corrective Action", Field = "ResolutionDescription", IsVisible = false },
+                new() { Title = "Amount Spent", Field = "Amount", IsVisible = false },
+                new() { Title = "Time Spent", Field = "Time Spent", IsVisible = false },
+                new() { Title = "Machine Idle Cost", Field = "Idlecost", IsVisible = false },
+                new() { Title = "Remarks", Field = "Remarks", IsVisible = true},
+            };
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ItemList InitializeColumns() Method");
+        }
+    }
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            UserName = await currentUserService.GetUsernameAsync();
+            await InitializeColumns(IsHidden);
+            var savedPreferences = await PreferenceService
+                .LoadPreferencesAsync("BreakdownMaintenance", UserName);
+            if (savedPreferences?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = savedPreferences.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+            MachineList = await _commonService.GetAllMachineAsync();
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+            await loadBreakdownMaintenance();
+            TempBreakdownMaintenanceList = BreakdownMaintenanceList;
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() method for Loading Data");
+        }
+    }
+    #endregion
+
+    #region Load BreakDown Maintenance
+    private async Task loadBreakdownMaintenance()
+    {
+        try
+        {
+            var result = await BreakdownMaintenanceService.SearchWithDynamicFilterAsync(
+                            currentPage,
+                            pageSize,
+                            SearchFilters
+                        );
+
+            BreakdownMaintenanceList = result.BreakdownVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the loadBreakdownMaintenance()");
+            await _js.ToastrError("An error occurred while handling the loadBreakdownMaintenance()");
+        }
+    }
+    #endregion
+
+    #region HandleDelete
+    private async Task HandleDelete(int id)
+    {
+        try
+        {
+            DeleteID = id;
+
+            var machine = BreakdownMaintenanceService.GetBreakdownMaintenanceById(DeleteID);
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the HandleDelete()");
+            await _js.ToastrError("An error occurred while handling the HandleDelete()");
+        }
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && DeleteID != 0)
+            {
+                var mach = await BreakdownMaintenanceService.GetBreakdownMaintenanceById(DeleteID);
+                await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress,
+                screen: "MaintenanceBreakdown", action: $"User Deleted an existing Breakdown of a Machine. {mach.MachineName}",
+                additionalInfo: $"MachineName: {mach.MachineName}");
+                var deleted = await BreakdownMaintenanceService.DeleteBreakdownMaintenance(DeleteID);
+                if (deleted)
+                {
+                    await _js.ToastrSuccess("Breakdown deleted successfully.");
+                }
+                else
+                {
+                    await _js.ToastrError("Error encountered while deleting Breakdown.");
+                }
+
+                await loadBreakdownMaintenance();
+                isProcessing = false;
+            }
+
+            DeleteID = 0;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the confirmDelete_Click()");
+            await _js.ToastrError("An error occurred while handling the confirmDelete_Click()");
+        }
+    }
+    #endregion
+
+    #region HandleColumnChange
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ItemList HandleColumnChange() Method");
+            await _js.ToastrError("An error occurred while handling the ItemList HandleColumnChange() Method");
+        }
+    }
+    #endregion
+
+    #region Closemodel
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+    #endregion
+
+    #region Dispose
+    public void Dispose()
+    {
+        debounceTimer?.Dispose();
+    }
+    #endregion
+
+    #region FilterRows
+    private async Task FilterRows(ChangeEventArgs e)
+    {
+        try
+        {
+            var value = e.Value?.ToString();
+
+            if (string.IsNullOrEmpty(value))
+            {
+                // Load full data again
+                BreakdownMaintenanceList = TempBreakdownMaintenanceList.ToList();
+                return;
+            }
+
+            // Convert MachineId
+            int selectedMachineId = int.Parse(value);
+
+            // Filter by selected MachineId
+            BreakdownMaintenanceList = TempBreakdownMaintenanceList
+                .Where(x => x.MachineId == selectedMachineId)
+                .ToList();
+        }
+        catch(Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ItemList FilterRows() Method");
+            await _js.ToastrError("An error occurred while handling the ItemList FilterRows() Method");
+        }
+    }
+    #endregion
+
+    #region SEARCH FILTERS
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await loadBreakdownMaintenance();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Sales Order List");
+            await _js.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    #endregion
+
+    #region Opening the Instant Search Modal
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+    #endregion
+
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await loadBreakdownMaintenance();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in BreakDown Maintenance");
+            await _js.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await loadBreakdownMaintenance();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in BreakDown Maintenance");
+            await _js.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await loadBreakdownMaintenance();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in BreakDown Maintenance");
+            await _js.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await loadBreakdownMaintenance();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in BreakDown Maintenance");
+            await _js.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await loadBreakdownMaintenance();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in BreakDown Maintenance");
+            await _js.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await loadBreakdownMaintenance();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing BreakDown Maintenance page");
+            await _js.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+}

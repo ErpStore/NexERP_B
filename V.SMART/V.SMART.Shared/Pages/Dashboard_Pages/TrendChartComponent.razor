@@ -1,0 +1,127 @@
+﻿@using ApexCharts
+@using V.SMART.Shared.ViewModels.DashboadrViewModel
+
+<div class="glass-card h-100">
+
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+
+        <h5 class="gc-title mb-0">
+            <i class="@Icon me-2" style="color:@IconColor"></i>
+            @Title
+        </h5>
+
+        <div class="chart-type-bar d-flex gap-1">
+            @foreach (var ct in ChartTypes)
+            {
+                <button class="chart-type-btn @(SelectedType == ct.Key ? "active" : "")"
+                        title="@ct.Label"
+                        @onclick="() => ChangeChart(ct.Key)">
+
+                    <i class="bi @ct.Icon"></i>
+                </button>
+            }
+        </div>
+
+    </div>
+
+    @if (SelectedType == "bar")
+    {
+        <ApexChart TItem="ChartPointDto"
+                   Height="@Height"
+                   Options="BarOptions">
+
+            <ApexPointSeries TItem="ChartPointDto"
+                             Items="Series1"
+                             Name="@Series1Name"
+                             SeriesType="SeriesType.Bar"
+                             XValue="@(e => e.Label)"
+                             YValue="@(e => e.Value)" />
+
+            <ApexPointSeries TItem="ChartPointDto"
+                             Items="Series2"
+                             Name="@Series2Name"
+                             SeriesType="SeriesType.Bar"
+                             XValue="@(e => e.Label)"
+                             YValue="@(e => e.Value)" />
+
+        </ApexChart>
+    }
+    else if (SelectedType == "area")
+    {
+        <ApexChart TItem="ChartPointDto"
+                   Height="@Height"
+                   Options="AreaOptions">
+
+            <ApexPointSeries TItem="ChartPointDto"
+                             Items="Series1"
+                             Name="@Series1Name"
+                             SeriesType="SeriesType.Area"
+                             XValue="@(e => e.Label)"
+                             YValue="@(e => e.Value)" />
+
+            <ApexPointSeries TItem="ChartPointDto"
+                             Items="Series2"
+                             Name="@Series2Name"
+                             SeriesType="SeriesType.Area"
+                             XValue="@(e => e.Label)"
+                             YValue="@(e => e.Value)" />
+
+        </ApexChart>
+    }
+    else
+    {
+        <ApexChart TItem="ChartPointDto"
+                   Height="@Height"
+                   Options="LineOptions">
+
+            <ApexPointSeries TItem="ChartPointDto"
+                             Items="Series1"
+                             Name="@Series1Name"
+                             XValue="@(e => e.Label)"
+                             YValue="@(e => e.Value)" />
+
+            <ApexPointSeries TItem="ChartPointDto"
+                             Items="Series2"
+                             Name="@Series2Name"
+                             XValue="@(e => e.Label)"
+                             YValue="@(e => e.Value)" />
+
+        </ApexChart>
+    }
+
+</div>
+
+@code
+{
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "";
+    [Parameter] public string IconColor { get; set; } = "#0ea5e9";
+
+    [Parameter] public string Series1Name { get; set; } = "";
+    [Parameter] public string Series2Name { get; set; } = "";
+
+    [Parameter] public List<ChartPointDto> Series1 { get; set; } = [];
+    [Parameter] public List<ChartPointDto> Series2 { get; set; } = [];
+
+    [Parameter] public string SelectedType { get; set; } = "line";
+    [Parameter] public EventCallback<string> SelectedTypeChanged { get; set; }
+
+    [Parameter] public ApexChartOptions<ChartPointDto> LineOptions { get; set; } = default!;
+    [Parameter] public ApexChartOptions<ChartPointDto> AreaOptions { get; set; } = default!;
+    [Parameter] public ApexChartOptions<ChartPointDto> BarOptions { get; set; } = default!;
+
+    [Parameter] public int Height { get; set; } = 280;
+
+    private async Task ChangeChart(string type)
+    {
+        SelectedType = type;
+        await SelectedTypeChanged.InvokeAsync(type);
+    }
+
+    private readonly List<dynamic> ChartTypes =
+    [
+        new { Key = "line", Label = "Line", Icon = "bi-graph-up" },
+        new { Key = "area", Label = "Area", Icon = "bi-area-chart" },
+        new { Key = "bar", Label = "Bar", Icon = "bi-bar-chart" }
+    ];
+}

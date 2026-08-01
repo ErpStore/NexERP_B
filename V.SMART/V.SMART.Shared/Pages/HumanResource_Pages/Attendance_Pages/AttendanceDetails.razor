@@ -1,0 +1,299 @@
+﻿@page "/attendance/details/{Id:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService.IAttendanceService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.AttendanceeVM
+
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject IAttendanceService _attendanceService
+@inject ReportService reportService
+
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." class="img-fluid" style="max-height: 100px;" />
+    </div>
+}
+else
+{
+    <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+        <!-- Company Details Section -->
+        <div class="row align-items-center mb-4 g-4">
+            <div class="col-12 col-lg-3 text-center">
+                @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                {
+                    <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid rounded-3" style="max-height:120px;" />
+                }
+            </div>
+            <div class="col-12 col-lg-9 text-lg-start text-center">
+                <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+                <p class="text-muted mb-0"><strong>GST No:</strong> @(company?.GSTIN ?? "N/A")</p>
+            </div>
+        </div>
+        <div class="row g-3 mb-4">
+            <!-- Employee Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Employee Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Employee Name</strong></td>
+                                    <td>@(AttendanceVMs.StaffName ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>Attendance Month</strong></td>
+                                    <td>@(AttendanceVMs != null ? AttendanceVMs.MonthName.ToString() : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>Attendance Year</strong></td>
+                                    <td>@(AttendanceVMs != null ? AttendanceVMs.Year.ToString() : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>Reporting To</strong></td>
+                                    <td>@(AttendanceVMs != null ? AttendanceVMs.Reporting : "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ATTENDANCE GRID -->
+        <div class="card mt-3 shadow-sm">
+            <div class="card-header" style="background-color:#1d7f36; color:white;">
+                <span class="fw-bold small">Attendance Sheet</span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm mb-0 attendance-table">
+
+                    @{
+                        var statusList = (AttendanceVMs?.Ldetail ?? "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                        var inList = (AttendanceVMs?.InTime ?? "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                        var outList = (AttendanceVMs?.OutTime ?? "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                        var otList = (AttendanceVMs?.OtDetail ?? "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                        int year = AttendanceVMs?.Year ?? DateTime.Now.Year;
+                        int month = AttendanceVMs?.MonthId ?? DateTime.Now.Month;
+
+                        // Get actual days for the saved month/year
+                        int totalDays = DateTime.DaysInMonth(year, month);
+
+                        var empName = AttendanceVMs?.StaffName
+                        ?? Staffs?.StaffName
+                        ?? "Employee";
+
+                        int sl = 1;
+                    }
+
+                    <!-- HEADER -->
+                    <thead class="table-light">
+                        <tr>
+                            <th style="min-width:50px;">Sl</th>
+                            <th style="min-width:180px;">Name</th>
+
+                            @for (int d = 1; d <= totalDays; d++)
+                            {
+                                <th class="text-center" style="min-width:50px;">
+                                    @d
+                                </th>
+                            }
+                        </tr>
+                    </thead>
+
+                    <!-- BODY -->
+                    <tbody>
+                        @if (totalDays > 0)
+                        {
+                            <!-- Status Row -->
+                            <tr>
+                                <td>@sl</td>
+                                <td class="fw-bold">@empName</td>
+
+                                @for (int i = 0; i < totalDays; i++)
+                                {
+                                    <td class="text-center">
+                                        @(i<statusList.Length? statusList[i] : "")
+                                    </td>
+                                }
+                            </tr>
+
+                            <!-- In Time Row -->
+                            <tr class="table-light">
+                                <td></td>
+                                <td class="fw-bold">In Time</td>
+
+                                @for (int i = 0; i < totalDays; i++)
+                                {
+                                    <td class="text-center">
+                                        @(i<inList.Length? inList[i] : "")
+                                    </td>
+                                }
+                            </tr>
+
+                            <!-- Out Time Row -->
+                            <tr>
+                                <td></td>
+                                <td class="fw-bold">Out Time</td>
+
+                                @for (int i = 0; i < totalDays; i++)
+                                {
+                                    <td class="text-center">
+                                        @(i<outList.Length? outList[i] : "")
+                                    </td>
+                                }
+                            </tr>
+
+                            <!-- OT Row -->
+                            <tr class="table-light">
+                                <td></td>
+                                <td class="fw-bold">OT</td>
+
+                                @for (int i = 0; i < totalDays; i++)
+                                {
+                                    <td class="text-center">
+                                        @(i<otList.Length? otList[i] : "")
+                                    </td>
+                                }
+                            </tr>
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="100" class="text-center text-danger fw-bold">
+                                    No attendance data found
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="/attendanceList" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left-circle"></i> Back To List
+            </a>
+            <a href="@($"/attendance/update/{Id}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+        </div>
+    </div>
+
+}
+
+@code
+{
+    protected override string ScreenName => "Salary";
+
+    [Parameter]
+    public int Id { get; set; }
+    private bool isProcessing { get; set; } = true;
+
+    private Staff Staffs { get; set; } = new();
+    private AttendanceVM AttendanceVMs { get; set; } = new AttendanceVM();
+    string? pdfBase64;
+    private Companydetails company { get; set; } = new Companydetails();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            company = await _attendanceService.GetCompanyDetailsAsync();
+            await LoadSalaryDetails();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Faild in OnInitializedAsync Salary");
+        }
+    }
+
+    private async Task LoadSalaryDetails()
+    {
+        if (Id > 0)
+        {
+            var attend = await _attendanceService.GetAttendanceByIdAsync(Id);
+            if (attend != null)
+            {
+                AttendanceVMs = attend;
+
+            }
+        }
+    }
+
+    // ✅ FIXED TYPE HERE
+    private string GetOT(EmployeeAttendanceRow emp, int day)
+    {
+        if (!emp.InTime.ContainsKey(day) || !emp.OutTime.ContainsKey(day))
+            return "";
+
+        if (TimeSpan.TryParse(emp.InTime[day], out var inTime) &&
+            TimeSpan.TryParse(emp.OutTime[day], out var outTime))
+        {
+            var diff = outTime - inTime;
+
+            return diff.TotalHours > 9
+                ? (diff.TotalHours - 9).ToString("0.##")
+                : "0";
+        }
+
+        return "";
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            // string Reportname = await _attendanceService.GetReportNameBySceenNameAsync(ScreenName);
+            var pdfBytes = await reportService.Generate_Report(Id, "Attendance.frx", "Id", AttendanceVMs.AttendanceCancel, "Attendance", "Sp_AttendanceReport");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Attendance");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in Attendance.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

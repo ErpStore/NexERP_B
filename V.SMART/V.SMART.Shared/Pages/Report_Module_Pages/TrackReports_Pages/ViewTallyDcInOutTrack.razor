@@ -1,0 +1,1431 @@
+﻿@page "/dc-inout-report"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel.LabourTrackViewModel
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+@inject IViewTallyDCInOutTrackService _tallyTrack
+@inject ExcelExportService ExcelExportService
+
+<BsModal OnModalConfirmation="confirmation_Click"
+         ButtonBootstrapStyle="@(confirmation != "Export" ? "btn-danger" : btnColor)"
+         ButtonText="@(confirmation != "Export" ? "Delete" : btnText)"
+         Title="@(confirmation != "Export"
+        ? "Are you sure you want to delete this Labour Dc In_Out?"
+        : ModalTitle)">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="View DC In_Out Tally"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@ViewDcInOutBreadcrumbs" />
+
+            <div class="card-body  bg-light">
+
+                <!-- Date Section -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">From Date</label>
+                        <input type="date" class="form-control shadow-sm" @bind="FromDate" @bind:after="OnDateChanged" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">To Date</label>
+                        <input type="date" class="form-control shadow-sm" @bind="ToDate" @bind:after="OnDateChanged" />
+                    </div>
+                </div>
+
+                <div class="row row g-3">
+
+                    <div class="col-12 col-md-4">
+
+                        <div class="card shadow-sm border-0 h-100">
+
+                            <div class="card-header fw-semibold p-2 small d-flex align-items-center gap-2 text-white " style="background:#2c6fdb;">
+                                <i class="bi bi-diagram-3"></i>
+                                Topic
+                            </div>
+
+
+                            <div class="card-body py-2">
+                                <InputRadioGroup TValue="string"
+                                                 Value="Topic"
+                                                 ValueChanged="OnTopicChanged"
+                                                 ValueExpression="() => Topic">
+
+                                    <div class="d-flex flex-column flex-md-row gap-3">
+
+                                        <div class="form-check">
+                                            <InputRadio TValue="string"
+                                                        Value="@("Sales")"
+                                                        class="form-check-input border border-2 border-dark" />
+                                            <label class="form-check-label">
+                                                Labour Job (Sales)
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check">
+                                            <InputRadio TValue="string"
+                                                        Value="@("SubContract")"
+                                                        class="form-check-input border border-2 border-dark" />
+                                            <label class="form-check-label">
+                                                SubContract
+                                            </label>
+                                        </div>
+
+                                    </div>
+
+                                </InputRadioGroup>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <div class="card shadow-sm border-0 h-100">
+
+                            <!-- Header -->
+                            <div class="card-header text-white fw-semibold small d-flex align-items-center border-0"
+                                 style="background-color: #0a535d;">
+                                <i class="bi bi-people me-2 text-light fs-6"></i>
+                                Select Party
+                            </div>
+
+                            <!-- Body -->
+                            <div class="card-body py-2 d-flex flex-column" style="height:200px;">
+
+                                @if (Topic == "Sales")
+                                {
+                                    <!-- Search -->
+                                    <input class="form-control form-control-sm mb-2"
+                                           placeholder="Search Customer..."
+                                           @oninput="OnCustomerSearchChange"
+                                           value="@customerSearch" />
+
+                                    <!-- Scroll Area -->
+                                    <div class="list-group flex-grow-1 overflow-auto">
+
+                                        <!-- ALL -->
+                                        <button type="button" class="list-group-item list-group-item-action small
+                                                                                             @(SelectedCustomer?.CustId == 0 ? "bg-info bg-opacity-25 border-info" : "")"
+                                                @onclick="() => SelectCustomer(AllCustomer)">
+                                            ALL
+                                        </button>
+
+                                        <!-- Customers -->
+                                        @foreach (var customer in FilteredCustomers)
+                                        {
+                                            <button type="button"
+                                                    class="list-group-item list-group-item-action small
+                                                     @(SelectedCustomer?.CustId == customer.CustId ? "bg-info bg-opacity-25 border-info" : "")"
+                                                    @onclick="() => SelectCustomer(customer)">
+
+                                                @customer.CustName
+
+                                            </button>
+                                        }
+
+                                    </div>
+                                }
+                                else if (Topic == "SubContract")
+                                {
+                                    <!-- Search -->
+                                    <input class="form-control form-control-sm mb-2"
+                                           placeholder="Search Supplier..."
+                                           @oninput="OnSupplierSearchChange"
+                                           value="@vendorSearch" />
+
+                                    <!-- Scroll Area -->
+                                    <div class="list-group flex-grow-1 overflow-auto">
+
+                                        <!-- ALL -->
+                                        <button type="button"
+                                                class="list-group-item list-group-item-action small
+                                                                                                @(SelectedSupplier?.VendorCode == 0 ? "bg-info bg-opacity-25 border-info" : "")"
+                                                @onclick="() => SelectSupplier(AllVendor)">
+                                            ALL
+                                        </button>
+
+                                        <!-- Suppliers -->
+                                        @foreach (var supplier in FilteredSuppliers)
+                                        {
+                                            <button type="button"
+                                                    class="list-group-item list-group-item-action small
+                                                     @(SelectedSupplier?.VendorCode == supplier.VendorCode ? "bg-info bg-opacity-25 border-info" : "")"
+                                                    @onclick="() => SelectSupplier(supplier)">
+
+                                                @supplier.VendorName
+
+                                            </button>
+                                        }
+
+                                    </div>
+                                }
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card border-secondary h-100">
+
+                            <div class="card-header fw-semibold p-2 small d-flex align-items-center gap-2 text-white " style="background:#f28c28;">
+                                <i class="bi bi-box-seam"></i>
+                                Select Item
+                            </div>
+
+                            <div class="card-body py-2 d-flex flex-column" style="height:200px;">
+
+                                <input class="form-control form-control-sm mb-2"
+                                       placeholder="Search ItemCode..."
+                                       @oninput="OnItemSearchChange"
+                                       value="@itemSearch" />
+
+                                <div class="list-group flex-grow-1 overflow-auto">
+
+                                    <!-- ALL -->
+                                    <button type="button"
+                                            class="list-group-item list-group-item-action small
+                                                                            @(SelectedItem?.ItemId == 0 ? "bg-info bg-opacity-25 border-info" : "")"
+                                            @onclick="() => SelectItem(AllItem)">
+                                        ALL
+                                    </button>
+
+                                    <!-- Suppliers -->
+                                    @foreach (var item in FilteredItems)
+                                    {
+                                        <button type="button"
+                                                class="list-group-item list-group-item-action small
+                                                @(SelectedItem?.ItemId == item.ItemId ? "bg-info bg-opacity-25 border-info" : "")"
+                                                @onclick="() => SelectItem(item)">
+
+                                            @item.ItemCode
+
+                                        </button>
+                                    }
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+                @if ((CustomerViewTallyInOut != null && CustomerViewTallyInOut.Any()) || (SupplierViewTallyInOut != null && SupplierViewTallyInOut.Any()))
+                {
+                    <div class="col-12 mt-3 mb-2">
+
+                        <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                            <div class="card-header bg-primary-subtle text-dark">
+
+                                <div class="row g-3 align-items-center mb-1">
+
+                                    <!-- Title -->
+                                    <div class="col-12 col-lg-3">
+                                        <span class="fw-bold fs-6">
+                                            Tally Dc Item Details
+                                        </span>
+                                    </div>
+
+                                    <div class="col-12 col-lg-2">
+                                        <div class="dropdown position-relative" style="z-index:1055;">
+                                            <ColumnMenu Columns="@(Topic != "SubContract" ? CustomerColumns : SupplierColumns)"
+                                                        ScreenName="@ScreenName"
+                                                        UserId="@UserName"
+                                                        MaxVisible="@int.MaxValue"
+                                                        OnChanged="HandleColumnChange" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Print -->
+                                    <div class="col-12 col-lg-2 ps-3">
+                                        <button class="btn btn-outline-primary w-100 text-nowrap"
+                                                @onclick="HandleExport"
+                                                title="Export Report to Excel">
+                                            <i class="bi bi-printer me-1"></i> Print
+                                        </button>
+                                    </div>
+
+                                    <!-- Search -->
+                                    <div class="col-12 col-lg-3">
+                                        <div class="input-group w-100">
+                                            <span class="input-group-text bg-white">
+                                                <i class="bi bi-search text-muted"></i>
+                                            </span>
+
+                                            <input type="text"
+                                                   class="form-control"
+                                                   placeholder="Search here..."
+                                                   value="@searchText"
+                                                   @oninput="OnInputChanged" />
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                            <div class="card-body p-2">
+
+                                @*  <div class="table-responsive" style="overflow-x:auto;"> *@
+                                <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                    <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                                        <thead class="custom-blue text-center align-middle sticky-top">
+
+                                            <tr>
+                                                @if (Topic == "Sales")
+                                                {
+                                                    @foreach (var col in CustomerColumns.Where(x => x.IsVisible))
+                                                    {
+                                                        <th style="min-width:@col.Width;">
+                                                            @col.Title
+                                                        </th>
+                                                    }
+
+                                                }
+                                                else if (Topic == "SubContract")
+                                                {
+                                                    @foreach (var col in SupplierColumns.Where(x => x.IsVisible))
+                                                    {
+                                                        <th style="min-width:@col.Width;">
+                                                            @col.Title
+                                                        </th>
+                                                    }
+                                                }
+
+
+                                            </tr>
+
+                                        </thead>
+                                        <tbody class="custom-size">
+
+                                            @if (Topic == "Sales")
+                                            {
+                                                i = 1;
+
+                                                @foreach (var row in FilteredTallyInOutCustomerData)
+                                                {
+                                                    <tr>
+
+                                                        @foreach (var col in CustomerColumns.Where(x => x.IsVisible))
+                                                        {
+                                                            <td class="@col.Align">
+
+                                                                @switch (col.Field)
+                                                                {
+                                                                    case "SlNo":
+                                                                        <text>@i</text>
+                                                                        break;
+
+                                                                    case "Customer":
+                                                                        @row.Customer
+                                                                        break;
+
+                                                                    case "GRNNo":
+                                                                        @row.GRNNo
+                                                                        break;
+
+                                                                    case "GRNDate":
+                                                                        @row.GRNDate
+                                                                        break;
+
+                                                                    case "RefDcNo":
+                                                                        @row.RefDcNo
+                                                                        break;
+
+                                                                    case "RefDcDate":
+                                                                        @row.RefDcDate
+                                                                        break;
+
+                                                                    case "BatchNo":
+                                                                        @row.BatchNo
+                                                                        break;
+
+                                                                    case "TransType":
+                                                                        @row.TransType
+                                                                        break;
+
+                                                                    case "ItemCode_In":
+                                                                        @row.ItemCode_In
+                                                                        break;
+
+                                                                    case "ItemName":
+                                                                        @row.ItemName
+                                                                        break;
+
+                                                                    case "MeasureUnit":
+                                                                        @row.MeasureUnit
+                                                                        break;
+
+                                                                    case "HSNCode":
+                                                                        @row.HSNCode
+                                                                        break;
+
+                                                                    case "ReceivedQty":
+                                                                        @row.ReceivedQty
+                                                                        break;
+
+                                                                    case "BalQty":
+                                                                        @row.BalQty
+                                                                        break;
+
+                                                                    case "SCNNo":
+                                                                        @row.SCNNo
+                                                                        break;
+
+                                                                    case "SCNDate":
+                                                                        @row.SCNDate
+                                                                        break;
+
+                                                                    case "WOPQty":
+                                                                        @row.WOPQty
+                                                                        break;
+
+                                                                    case "RejQty":
+                                                                        @row.RejQty
+                                                                        break;
+
+                                                                    case "RewQty":
+                                                                        @row.RewQty
+                                                                        break;
+
+                                                                    case "PONo":
+                                                                        @row.PONo
+                                                                        break;
+
+                                                                    case "PODate":
+                                                                        @row.PODate
+                                                                        break;
+                                                                    case "LineNo":
+                                                                        @row.LineNo
+                                                                        break;
+
+                                                                    case "DcNoOut":
+                                                                        @row.DcNoOut
+                                                                        break;
+
+                                                                    case "DcDate":
+                                                                        @row.DcDate
+                                                                        break;
+
+                                                                    case "Qty_Out":
+                                                                        @row.Qty_Out
+                                                                        break;
+
+                                                                    @*            case "ItemCode_Out":
+                                                                        @row.ItemCode_Out
+                                                                        break;
+
+                                                                    case "ItemName_Out":
+                                                                        @row.ItemName_Out
+                                                                        break;
+
+                                                                    case "MeasureUnit_Out":
+                                                                        @row.MeasureUnit_Out
+                                                                        break;
+
+                                                                    case "HSNCode_Out":
+                                                                        @row.HSNCode_Out
+                                                                        break; *@
+
+                                                                    case "InvoiceNo":
+                                                                        @row.InvoiceNo
+                                                                        break;
+
+                                                                    case "InvDate":
+                                                                        @row.InvDate
+                                                                        break;
+
+                                                                    case "Qty":
+                                                                        @row.Qty
+                                                                        break;
+                                                                    case "Process":
+                                                                        @row.Process
+                                                                        break;
+
+                                                                    @* Sathish *@
+                                                                    case "Duedays":
+                                                                        @row.Duedays
+                                                                        break;
+                                                                 }
+
+                                                            </td>
+                                                        }
+
+                                                    </tr>
+                                                    i++;
+                                                }
+
+                                            }
+                                            else if (Topic == "SubContract")
+                                            {
+                                                i = 1;
+                                                @foreach (var row in FilteredTallyInOutSupplierData)
+                                                {
+                                                    <tr>
+
+                                                        @foreach (var col in SupplierColumns.Where(x => x.IsVisible))
+                                                        {
+                                                            <td class="@col.Align">
+
+                                                                @switch (col.Field)
+                                                                {
+                                                                    case "SlNo":
+                                                                        <text>@i</text>
+                                                                        break;
+
+                                                                    case "Supplier":
+                                                                        @row.Supplier
+                                                                        break;
+
+                                                                    case "DcNo":
+                                                                        @row.DcNo
+                                                                        break;
+
+                                                                    case "DcDate":
+                                                                        @row.DcDate
+                                                                        break;
+                                                                    case "TransType":
+                                                                        @row.TransType
+                                                                        break;
+
+                                                                    case "ItemCodeOut":
+                                                                        @row.ItemCodeOut
+                                                                        break;
+
+                                                                    case "ItemName":
+                                                                        @row.ItemName
+                                                                        break;
+
+                                                                    case "MeasureUnit":
+                                                                        @row.MeasureUnit
+                                                                        break;
+
+                                                                    case "HSNCode":
+                                                                        @row.HSNCode
+                                                                        break;
+
+                                                                    case "QtyOut":
+                                                                        @row.QtyOut
+                                                                        break;
+
+                                                                    case "BalQty":
+                                                                        @row.BalQty
+                                                                        break;
+
+                                                                    case "GRNNo":
+                                                                        @row.GRNNo
+                                                                        break;
+
+                                                                    case "GRNDate":
+                                                                        @row.GRNDate
+                                                                        break;
+
+                                                                    case "RefDcNo":
+                                                                        @row.RefDcNo
+                                                                        break;
+
+                                                                    case "RefDcDate":
+                                                                        @row.RefDcDate
+                                                                        break;
+
+                                                                    case "QtyIn":
+                                                                        @row.QtyIn
+                                                                        break;
+
+                                                                    case "SCNNo":
+                                                                        @row.SCNNo
+                                                                        break;
+
+                                                                    case "SCNDate":
+                                                                        @row.SCNDate
+                                                                        break;
+
+                                                                    case "WOPQty":
+                                                                        @row.WOPQty
+                                                                        break;
+
+                                                                    case "RejQty":
+                                                                        @row.RejQty
+                                                                        break;
+
+                                                                    case "RewQty":
+                                                                        @row.RewQty
+                                                                        break;
+
+                                                                    case "RefPoNo":
+                                                                        @row.RefPoNo
+                                                                        break;
+
+                                                                    case "RefPoDate":
+                                                                        @row.RefPoDate
+                                                                        break;
+
+                                                                    case "InvoiceNo":
+                                                                        @row.InvoiceNo
+                                                                        break;
+
+                                                                    case "InvoiceDate":
+                                                                        @row.InvoiceDate
+                                                                        break;
+
+                                                                    case "InvQty":
+                                                                        @row.InvQty
+                                                                        break;
+                                                                }
+
+                                                            </td>
+                                                        }
+
+                                                    </tr>
+                                                    i++;
+                                                }
+                                            }
+
+
+                                        </tbody>
+
+
+                                    </table>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning mt-3">
+                        No records found.
+                    </div>
+                }
+
+
+
+            </div>
+        </div>
+    </div>
+}
+
+
+@code
+{
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "ViewTallyDc-In-Out";
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+
+    private DateTime FromDate = DateTime.Today.AddDays(-7);
+    private DateTime ToDate = DateTime.Today;
+
+    int i = 0;
+
+    private string Topic = "Sales";
+    private string searchText = string.Empty;
+
+    public List<CustomerVM> Customers { get; set; } = new();
+    public List<VendorVM> Suppliers { get; set; } = new();
+    public List<ItemVM> Items { get; set; } = new();
+
+    public List<LabourDcInOutTallyVM> CustomerViewTallyInOut { get; set; } = new();
+    public List<SubContractDcInOutVM> SupplierViewTallyInOut { get; set; } = new();
+
+    private int SelectedCustId { get; set; }
+    private int SelectedSupplierCode { get; set; }
+    private int SelectedItemId { get; set; }
+
+    private CustomerVM? SelectedCustomer { get; set; }
+    private VendorVM? SelectedSupplier { get; set; }
+    private ItemVM? SelectedItem { get; set; }
+
+    private CustomerVM AllCustomer = new CustomerVM { CustId = 0, CustName = "ALL" };
+    private VendorVM AllVendor = new VendorVM { VendorCode = 0, VendorName = "ALL" };
+    private ItemVM AllItem = new ItemVM { ItemId = 0, ItemCode = "ALL" };
+
+    private string customerSearch { get; set; } = string.Empty;
+    private string vendorSearch { get; set; } = string.Empty;
+    private string itemSearch { get; set; } = string.Empty;
+
+    public List<ItemVM> AllCustomerItems { get; set; } = new();
+    public List<ItemVM> AllSupplierItems { get; set; } = new();
+
+    public List<GridColumn> CustomerColumns { get; set; } = new();
+    public List<GridColumn> SupplierColumns { get; set; } = new();
+    private string? UserName;
+
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = "";
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private List<PageHeader.BreadcrumbItem> ViewDcInOutBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Track Reports" },
+        new PageHeader.BreadcrumbItem { Text = "View DC In_Out Tally", IsLast = true }
+    };
+    #endregion
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await OnTopicChanged("Sales");
+            await InitializeColumns(IsHidden);
+            UserName = await CurrentUserService.GetUsernameAsync();
+            await LoadCustomerColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in View DC In_Out Tally Track OnInitializedAsync");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            if (Topic == "Sales")
+            {
+                CustomerColumns = new List<GridColumn>
+                {
+                    new() { Title="Sl No.", Field="SlNo", Width="60px", IsVisible = true },
+
+                    new() { Title="Customer", Field="Customer", Width="220px", Align="text-start", IsVisible = true },
+
+                    new() { Title="GRN No.", Field="GRNNo", Width="120px", IsVisible = true },
+
+                    new() { Title="GRN Date", Field="GRNDate", Width="120px" , IsVisible = true},
+
+                    new() { Title="Ref DC No.", Field="RefDcNo", Width="130px", IsVisible = true },
+
+                    new() { Title="Ref DC Date", Field="RefDcDate", Width="130px" , IsVisible = true},
+
+                    new() { Title="Batch No.", Field="BatchNo", Width="100px" },
+
+                    new() { Title="TransType", Field="TransType", Width="50px", Align="text-start", IsVisible = true },
+
+                    new() { Title="Item Code", Field="ItemCode_In", Width="150px", Align="text-start", IsVisible = true },
+
+                    new() { Title="Item Name", Field="ItemName", Width="250px", Align="text-start", IsVisible = true },
+
+                    new() { Title="UOM", Field="MeasureUnit", Width="80px", IsVisible = true },
+
+                    new() { Title="HSN Code", Field="HSNCode", Width="120px" },
+
+                    new() { Title="Received Qty", Field="ReceivedQty", Width="120px", Align="text-end", IsVisible = true },
+
+                    new() { Title="Bal Qty", Field="BalQty", Width="100px", Align="text-end", IsVisible = true },
+
+                    new() { Title="SCN No.", Field="SCNNo", Width="120px" },
+
+                    new() { Title="SCN Date", Field="SCNDate", Width="120px" },
+
+                    new() { Title="WOP Qty", Field="WOPQty", Width="100px", Align="text-end" },
+
+                    new() { Title="Rej Qty", Field="RejQty", Width="100px", Align="text-end" },
+
+                    new() { Title="Rew Qty", Field="RewQty", Width="100px", Align="text-end" },
+
+                    new() { Title="PO No.", Field="PONo", Width="120px" },
+
+                    new() { Title="PO Date", Field="PODate", Width="120px" },
+
+                    new() { Title="Line No.", Field="LineNo", Width="120px" },
+
+                    new() { Title="DC Out No.", Field="DcNoOut", Width="120px" },
+
+                    new() { Title="DC Date", Field="DcDate", Width="120px" },
+
+                    new() { Title="Qty Out", Field="Qty_Out", Width="100px", Align="text-end" },
+
+
+                    // new() { Title="Item Code_Out", Field="ItemCode_Out", Width="150px", Align="text-start", IsVisible = true },
+
+                    // new() { Title="Item Name_Out", Field="ItemName_Out", Width="250px", Align="text-start", IsVisible = true },
+
+                    // new() { Title="UOM_Out", Field="MeasureUnit_Out", Width="80px", IsVisible = true },
+
+                    // new() { Title="HSN Code_Out", Field="HSNCode_Out", Width="120px" },
+
+
+                    new() { Title="Invoice No.", Field="InvoiceNo", Width="130px" },
+
+                    new() { Title="Invoice Date", Field="InvDate", Width="130px" },
+
+                    new() { Title="Invoice Qty", Field="Qty", Width="120px", Align="text-end" },
+
+                    new() { Title="Process", Field="Process", Width="120px" },
+
+                    new() { Title="Invoice Delay (Days)", Field="Duedays", Width="120px" , IsVisible = false}
+                };
+            }
+            else if (Topic == "SubContract")
+            {
+                SupplierColumns = new List<GridColumn>
+                {
+                    new() { Title="Sl No.", Field="SlNo", Width="60px", IsVisible = true },
+
+                    new() { Title="Supplier", Field="Supplier", Width="220px", Align="text-start", IsVisible = true },
+
+                    new() { Title="Dc No.", Field="DcNo", Width="120px", IsVisible = true },
+
+                    new() { Title="Dc Date", Field="DcDate", Width="120px" , IsVisible = true},
+
+                    new() { Title="TransType", Field="TransType", Width="50px", Align="text-start", IsVisible = true },
+
+                    new() { Title="Item Code Out", Field="ItemCodeOut", Width="150px", Align="text-start", IsVisible = true },
+
+                    new() { Title="Item Name", Field="ItemName", Width="250px", Align="text-start", IsVisible = true },
+
+                    new() { Title="UOM", Field="MeasureUnit", Width="80px", IsVisible = true },
+
+                    new() { Title="HSN Code", Field="HSNCode", Width="120px" },
+
+                    new() { Title="Qty Out", Field="QtyOut", Width="120px", Align="text-end", IsVisible = true },
+
+                    new() { Title="Bal Qty", Field="BalQty", Width="100px", Align="text-end", IsVisible = true },
+
+                    new() { Title="GRN No.", Field="GRNNo", Width="120px" },
+
+                    new() { Title="GRN Date", Field="GRNDate", Width="120px" },
+
+                    new() { Title="Ref DC No.", Field="RefDcNo", Width="130px", IsVisible = true },
+
+                    new() { Title="Ref DC Date", Field="RefDcDate", Width="130px" , IsVisible = true},
+
+                    new() { Title="Qty In", Field="QtyIn", Width="100px", Align="text-end" },
+
+                    new() { Title="SCN No.", Field="SCNNo", Width="120px" },
+
+                    new() { Title="SCN Date", Field="SCNDate", Width="120px" },
+
+                    new() { Title="WOP Qty", Field="WOPQty", Width="100px", Align="text-end" },
+
+                    new() { Title="Rej Qty", Field="RejQty", Width="100px", Align="text-end" },
+
+                    new() { Title="Rew Qty", Field="RewQty", Width="100px", Align="text-end" },
+
+                    new() { Title="PO No.", Field="PONo", Width="120px" },
+
+                    new() { Title="PO Date", Field="PODate", Width="120px" },
+
+
+                    new() { Title="Invoice No.", Field="InvoiceNo", Width="130px" },
+
+                    new() { Title="Invoice Date", Field="InvoiceDate", Width="130px" },
+
+                    new() { Title="Invoice Qty", Field="InvQty", Width="120px", Align="text-end" },
+                };
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadCustomerColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in CustomerColumns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for JobOrderList");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task LoadSupplierColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in SupplierColumns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for JobOrderList");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            if (Topic == "Sales")
+            {
+                CustomerColumns = updated;
+
+            }
+            else if (Topic == "SubContract")
+            {
+                SupplierColumns = updated;
+            }
+
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ViewDcTallyInOut HandleColumnChange() Method");
+        }
+    }
+
+    #region Filter all stores,category and item
+    IEnumerable<CustomerVM> FilteredCustomers =>
+    Customers.Where(s =>
+        string.IsNullOrWhiteSpace(customerSearch) ||
+        s.CustName.Contains(customerSearch, StringComparison.OrdinalIgnoreCase)
+    );
+
+    IEnumerable<VendorVM> FilteredSuppliers =>
+    Suppliers.Where(s =>
+        string.IsNullOrWhiteSpace(vendorSearch) ||
+        s.VendorName.Contains(vendorSearch, StringComparison.OrdinalIgnoreCase)
+    );
+
+
+    IEnumerable<ItemVM> FilteredItems =>
+    Items.Where(s =>
+        string.IsNullOrWhiteSpace(itemSearch) ||
+        s.ItemCode.Contains(itemSearch, StringComparison.OrdinalIgnoreCase)
+    );
+
+
+    IEnumerable<LabourDcInOutTallyVM> FilteredTallyInOutCustomerData =>
+    CustomerViewTallyInOut?
+    .Where(s =>
+       string.IsNullOrWhiteSpace(searchText) ||
+
+       (!string.IsNullOrEmpty(s.ItemCode_In) &&
+        s.ItemCode_In.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.ItemName) &&
+        s.ItemName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.HSNCode) &&
+        s.HSNCode.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.MeasureUnit) &&
+        s.MeasureUnit.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.Customer) &&
+        s.Customer.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.GRNNo) &&
+        s.GRNNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.GRNDate) &&
+        s.GRNDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.RefDcNo) &&
+        s.RefDcNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.RefDcDate) &&
+        s.RefDcDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.SCNNo) &&
+        s.SCNNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.SCNDate) &&
+        s.SCNDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+
+       (!string.IsNullOrEmpty(s.PONo) &&
+        s.PONo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.PODate) &&
+        s.PODate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+
+       (!string.IsNullOrEmpty(s.DcNoOut) &&
+        s.DcNoOut.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.DcDate) &&
+        s.DcDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+
+       (!string.IsNullOrEmpty(s.InvoiceNo) &&
+        s.InvoiceNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+       (!string.IsNullOrEmpty(s.InvDate) &&
+        s.InvDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+        (!string.IsNullOrEmpty(s.Process) &&
+        s.Process.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+        //  (!string.IsNullOrEmpty(s.ItemCode_Out) &&
+        // s.ItemCode_Out.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+        // (!string.IsNullOrEmpty(s.ItemName_Out) &&
+        // s.ItemName_Out.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+        // (!string.IsNullOrEmpty(s.HSNCode_Out) &&
+        // s.HSNCode_Out.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+        // (!string.IsNullOrEmpty(s.MeasureUnit_Out) &&
+        // s.MeasureUnit_Out.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+        )
+        ?? Enumerable.Empty<LabourDcInOutTallyVM>();
+
+
+    IEnumerable<SubContractDcInOutVM> FilteredTallyInOutSupplierData =>
+    SupplierViewTallyInOut?
+    .Where(s =>
+    string.IsNullOrWhiteSpace(searchText) ||
+
+    (!string.IsNullOrEmpty(s.ItemCodeOut) &&
+    s.ItemCodeOut.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.ItemName) &&
+    s.ItemName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.HSNCode) &&
+    s.HSNCode.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.MeasureUnit) &&
+    s.MeasureUnit.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.Supplier) &&
+    s.Supplier.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.GRNNo) &&
+    s.GRNNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.GRNDate) &&
+    s.GRNDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.RefDcNo) &&
+    s.RefDcNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.RefDcDate) &&
+    s.RefDcDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.SCNNo) &&
+    s.SCNNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.SCNDate) &&
+    s.SCNDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+
+    (!string.IsNullOrEmpty(s.RefPoNo) &&
+    s.RefPoNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.RefPoDate) &&
+    s.RefPoDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+
+    (!string.IsNullOrEmpty(s.DcNo) &&
+    s.DcNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.DcDate) &&
+    s.DcDate.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+
+    (!string.IsNullOrEmpty(s.InvoiceNo) &&
+    s.InvoiceNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+    (!string.IsNullOrEmpty(s.InvoiceDate) &&
+    s.InvoiceDate.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+    )
+    ?? Enumerable.Empty<SubContractDcInOutVM>();
+
+
+    #endregion
+
+    public async Task LoadParties()
+    {
+        try
+        {
+            Items.Clear();
+            if (Topic == "Sales")
+            {
+                Customers = await _tallyTrack.GetCustomersByDate(FromDate, ToDate);
+                if (Customers == null || !Customers.Any())
+                {
+                    await _JS.ToastrWarning($"No Data view between {FromDate} and {ToDate}");
+                    return;
+                }
+                await LoadCustomerColumnPreferences(UserName);
+
+            }
+            else if (Topic == "SubContract")
+            {
+                Suppliers = await _tallyTrack.GetSupplierByDate(FromDate, ToDate);
+
+                if (Suppliers == null || !Suppliers.Any())
+                {
+                    await _JS.ToastrWarning($"No Data view between {FromDate} and {ToDate}");
+                    return;
+                }
+                await LoadSupplierColumnPreferences(UserName);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadParties in View Tally DC In_Out Track");
+            await _JS.ToastrError($"{ex.Message} ,Failed to LoadParties in View Tally DC In_Out Track");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task SelectCustomer(CustomerVM customer)
+    {
+        try
+        {
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+
+
+            Items.Clear();
+
+            if (customer != null)
+            {
+
+                SelectedCustomer = customer;
+                SelectedCustId = customer.CustId;
+
+                Items = await _tallyTrack.GetItemsByCustomer(FromDate, ToDate, SelectedCustId);
+
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "SelectCustomer");
+            await _JS.ToastrError($"{ex.Message}Failed to LoadAll SelectCustomer Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+    }
+    public async Task SelectSupplier(VendorVM vendor)
+    {
+        try
+        {
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+
+
+            Items.Clear();
+
+            if (vendor != null)
+            {
+
+                SelectedSupplier = vendor;
+                SelectedSupplierCode = vendor.VendorCode;
+
+                Items = await _tallyTrack.GetItemsBySupplier(FromDate, ToDate, SelectedSupplierCode);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "SelectCustomer");
+            await _JS.ToastrError($"{ex.Message}Failed to LoadAll SelectCustomer Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+    }
+    public async Task SelectItem(ItemVM item)
+    {
+        try
+        {
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+
+            SelectedItem = item;
+            SelectedItemId = item.ItemId;
+            CustomerViewTallyInOut.Clear();
+            SupplierViewTallyInOut.Clear();
+            if (Topic == "Sales")
+            {
+                CustomerViewTallyInOut = await _tallyTrack.GetViewTallyDcInOutByCustomerAsync(FromDate, ToDate, SelectedCustId, SelectedItemId);
+            }
+            else
+            {
+                SupplierViewTallyInOut = await _tallyTrack.GetViewTallyDcInOutBySupplierAsync(FromDate, ToDate, SelectedSupplierCode, SelectedItemId);
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "SelectItem");
+            await _JS.ToastrError("Failed to LoadAll selectedItem Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+    }
+
+    private void OnCustomerSearchChange(ChangeEventArgs e)
+    {
+        customerSearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(customerSearch))
+            return;
+    }
+    private void OnSupplierSearchChange(ChangeEventArgs e)
+    {
+        vendorSearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(vendorSearch))
+            return;
+    }
+
+    private void OnItemSearchChange(ChangeEventArgs e)
+    {
+        itemSearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(itemSearch))
+            return;
+    }
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString() ?? "";
+
+        if (string.IsNullOrWhiteSpace(searchText))
+            return;
+
+        if (CustomerViewTallyInOut is null || !CustomerViewTallyInOut.Any() && Topic == "Sales")
+        {
+            await _JS.ToastrWarning("No data available to search.");
+            return;
+        }
+        else if (SupplierViewTallyInOut is null || !SupplierViewTallyInOut.Any() && Topic == "SubContract")
+        {
+            await _JS.ToastrWarning("No data available to search.");
+            return;
+        }
+    }
+
+    private async Task OnTopicChanged(string value)
+    {
+        Topic = value;
+
+        Customers.Clear();
+        Suppliers.Clear();
+        CustomerViewTallyInOut.Clear();
+        SupplierViewTallyInOut.Clear();
+
+        SelectedCustomer = null;
+        SelectedSupplier = null;
+
+        await LoadParties();
+
+        await InitializeColumns(IsHidden);
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnDateChanged()
+    {
+        await LoadParties();
+    }
+
+    private async Task HandleExport()
+    {
+
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+            List<Dictionary<string, object>> exportData = new();
+
+            if (Topic == "Sales")
+            {
+                if (FilteredTallyInOutCustomerData != null
+                    && FilteredTallyInOutCustomerData.Any())
+                {
+                    exportData = GetExportData(
+                        FilteredTallyInOutCustomerData.ToList());
+                }
+            }
+            else if (Topic == "SubContract")
+            {
+                if (FilteredTallyInOutSupplierData != null
+                    && FilteredTallyInOutSupplierData.Any())
+                {
+                    exportData = GetExportData(
+                        FilteredTallyInOutSupplierData.ToList());
+                }
+            }
+
+            if (!exportData.Any())
+                return;
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "ViewDcTally_In_Out", "ViewDcTally_In_Out List");
+
+            var base64 = Convert.ToBase64String(bytes);
+
+            await _JS.DownloadExcelAsync(base64, "ViewDcTally_In_Out.xlsx");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in LabourDc_In_Out (Dc's)");
+            await _JS.ToastrError("Error while exporting LabourDc_In_Out!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task confirmation_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && confirmation == "Export")
+            {
+                await ExportToExcel(isConfirmed);
+                confirmation = "";
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Export TallyDC In_Out Data confirmation_Click() method");
+            await _JS.ToastrError("An error occurred while handling the TallyDC In_Out Data  confirmation_Click() method");
+        }
+    }
+
+    private List<Dictionary<string, object>> GetExportData<T>(List<T> data)
+    {
+        return data
+        .Select(row =>
+        {
+            var dict = new Dictionary<string, object>();
+
+            if (Topic == "Sales")
+            {
+                foreach (var col in CustomerColumns.Where(x => x.IsVisible))
+                {
+                    var prop = typeof(T).GetProperty(col.Field);
+
+                    if (prop != null)
+                    {
+                        dict[col.Title] = prop.GetValue(row);
+                    }
+                }
+            }
+            else if (Topic == "SubContract")
+            {
+                foreach (var col in SupplierColumns.Where(x => x.IsVisible))
+                {
+                    var prop = typeof(T).GetProperty(col.Field);
+
+                    if (prop != null)
+                    {
+                        dict[col.Title] = prop.GetValue(row);
+                    }
+                }
+            }
+
+            return dict;
+        })
+        .ToList();
+    }
+
+}

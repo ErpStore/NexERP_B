@@ -1,0 +1,575 @@
+﻿@page "/StockAnalysis"
+@using V.SMART.Shared.ViewModels.ReportViewModel.AnalysisReportViewModel
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.IAnalysisReportService
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject IStockAnalysisService _stockAnalysis
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Stock Analysis"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@StockAnalysisBreadcrumbs" />
+            
+            <div class="card-body bg-light">
+
+                <div class="row g-3">
+
+                    <!-- STORES -->
+                    <div class="col-12 col-md-4">
+                        <div class="card shadow-sm border-0 h-100">
+
+                            
+                            <div class="card-header text-white fw-semibold small d-flex align-items-center border-0" 
+                                    style="background-color: #0a535d;">
+                                <i class="bi bi-shop me-2 text-light fs-6"></i>
+                                Stores
+                            </div>
+
+
+                            <div class="card-body p-2">
+
+                                <input class="form-control form-control-sm mb-2"
+                                       placeholder="Search stores..."
+                                       @oninput="OnStoreSearchChange"
+                                       value="@storeSearch" />
+
+                                <div class="list-group" style="max-height:270px; overflow-y:auto;">
+
+                                    @* <button type="button"
+                                            class="list-group-item list-group-item-action small d-flex justify-content-between
+                                                    @(SelectedStore?.StoreId == 0 ? "bg-info bg-opacity-25 border-info" : "")"
+                                            @onclick="() => SelectStore(AllStore)">
+                                        ALL
+                                    </button> *@
+
+
+                                    @foreach (var store in FilteredStores)
+                                    {
+                                        <button type="button"
+                                                class="list-group-item list-group-item-action small 
+                                                @(SelectedStore?.StoreId == store.StoreId ? "bg-info bg-opacity-25 border-info" : "")"
+                                                @onclick="() => SelectStore(store)">
+                                            @store.StoreName
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CATEGORIES -->
+                    <div class="col-12 col-md-4">
+                        <div class="card shadow-sm border-0 h-100">
+
+                            <div class="card-header text-white fw-semibold small d-flex align-items-center border-0" 
+                                 style="background-color: #b57281;">
+                                <i class="bi bi-grid-fill me-2 text-light fs-6"></i>
+                                Categories
+                            </div>
+
+
+                            <div class="card-body p-2">
+
+                                <input class="form-control form-control-sm mb-2"
+                                       placeholder="Search categories..."
+                                       @oninput="OnCategorySearchChange"
+                                       value="@categorySearch" />
+
+                                <div class="list-group" style="max-height:270px; overflow-y:auto;">
+
+                                    @* <button type="button"
+                                            class="list-group-item list-group-item-action small 
+                                                   @(SelectedCategory?.CategoryCode == 0 ? "bg-success bg-opacity-25 border-success" : "")"
+                                            @onclick="() => SelectCategory(AllCategory)">
+                                        ALL
+                                    </button> *@
+
+                                    @foreach (var cat in FilteredCategories)
+                                    {
+                                        <button type="button"
+                                                class="list-group-item list-group-item-action small 
+                                                @(SelectedCategory?.CategoryCode == cat.CategoryCode ? "bg-success bg-opacity-25 border-success" : "")"
+                                                @onclick="() => SelectCategory(cat)">
+                                            @cat.CategoryName
+                                        </button>
+                                    }
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Date Filters (NEW COLUMN) -->
+                    <div class="col-md-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-secondary text-white">
+                                Date Filters
+                            </div>
+                            <div class="card-body">
+
+                                <!-- From Date -->
+                                <div class="mb-3">
+                                    <label class="form-label small">From Date</label>
+                                    <InputDate @bind-Value="FromDate" class="form-control" />
+                                </div>
+
+                                <!-- To Date -->
+                                <div class="mb-3">
+                                    <label class="form-label small">To Date</label>
+                                    <InputDate @bind-Value="ToDate" class="form-control" />
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                
+            </div>
+        </div>
+        <div class="card shadow-sm border-1">
+            
+            <div class="card-body bg-light">
+                <div class="row mb-2">
+                    <div class="col-md-6">
+                        <!-- Export Button -->
+                        <button class="btn btn-sm btn-success rounded-3 d-flex align-items-center fw-semibold"
+                                id="btnPRPrint" @onclick="Print"
+                                title="Export data to Excel from data grid">
+                            <i class="bi bi-file-earmark-excel-fill me-2"></i>
+                            Export to Excel
+                        </button>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <input type="text"
+                       class="form-control border-start-0"
+                       placeholder="Search here..."
+                       value="@searchText"
+                       @oninput="OnInputChanged"
+                       title="Filter data by Item Code, Item Description, UOM, Category..." />
+                    </div>
+                </div>
+                <!-- STOCKANALYSIS TABLE -->
+                <div class="card shadow-sm">
+
+                    <div class="card-header bg-success text-white small fw-semibold">
+                        Stock Analysis
+                    </div>
+
+                    <div class="card-body p-2">
+
+                        @if (S_Analysis_Data == null || !S_Analysis_Data.Any())
+                        {
+                            <div class="text-center text-muted">
+                                Select Store and Category to view data
+                            </div>
+                        }
+                        else
+                        {
+
+                            <div class="table-responsive" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                @* <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;"> *@
+                                @* <table class="table table-bordered table-striped small table" style="table-layout: fixed; min-width: 1700px;"> *@
+
+                               <table class="table table-bordered table-sm mb-0 align-middle"  style="min-width:1900px; white-space:nowrap;">
+
+                                    <thead class="custom-blue text-center align-middle sticky-top">
+                                        <tr>
+                                            <th style="width:50px;">SlNo</th>
+                                            <th  style="width:120px;">Item Code</th>
+                                            <th  style="width:150px;">Item Description</th>
+                                            <th style="width:60px;">UOM</th>
+                                            <th style="width:130px;">Category</th>
+                                            <th style="width:70px;">Unit Rate (Master)</th>
+                                            <th style="width:70px;">Unit Price (Avg.)</th>
+                                            <th style="width:70px;">Opening Stock Qty</th>
+                                            <th style="width:130px;">Opening Stock Value</th>
+                                            <th style="width:70px;">Received Qty</th>
+                                            <th style="width:130px;">Received Qty Value</th>
+                                            <th style="width:70px;">Issued Qty</th>
+                                            <th style="width:130px;">Issued Qty Value</th>
+                                            <th style="width:70px;">Closing Stock Qty</th>
+                                            <th style="width:130px;">Closing Stock Value</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        @* @foreach (var row in S_Analysis_Data)
+                                        { *@
+                                       @if (FilteredStockData is not null && FilteredStockData.Any())
+                                        {
+                                            @foreach (var row in FilteredStockData)
+                                            { 
+                                            <tr>
+                                                <td>@row.SlNo</td>
+                                                <td>@row.ItemCode</td>
+                                                <td>@row.ItemName</td>
+                                                <td>@row.MeasureUnit</td>
+                                                <td>@row.CategoryName</td>
+                                                <td>@row.UnitRate</td>
+                                                <td>@row.UnitPrice</td>
+                                                <td>@row.OpeningStockQty</td>
+                                                <td>@row.OpeningStockValue</td>
+                                                <td>@row.ReceivedQty</td>
+                                                <td>@row.ReceivedQtyValue</td>
+                                                <td>@row.IssuedQty</td>
+                                                <td>@row.IssuedQtyValue</td>
+                                                <td>@row.ClosingStockQty</td>
+                                                <td>@row.ClosingStockValue</td>
+                                            </tr>
+                                            }
+                                          }
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+                        }
+
+                    </div>
+                </div>
+
+            </div>
+         </div>
+    </div>
+}
+@code 
+{
+    protected override string ScreenName => "Stock Analysis";
+
+    private bool isProcessing = true;
+    private string searchText = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> StockAnalysisBreadcrumbs { get; set; } = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+         new PageHeader.BreadcrumbItem { Text = "Analysis Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Stock Analysis", IsLast = true }
+    };
+
+    private IEnumerable<StockAnalysisVM> StockAnalysisVM = new List<StockAnalysisVM>();
+
+    public List<Store> Stores { get; set; } = new();
+    public List<Category> Categories { get; set; } = new();
+    public List<ItemVM> Items { get; set; } = new();
+
+    public List<StockAnalysisVM> StockAnalysisVMs { get; set; } = new();
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private int SelectedStoreId { get; set; }
+    private int SelectedCategoryCode { get; set; }
+    private int SelectedItemId { get; set; }
+
+    private Store AllStore = new Store { StoreId = 0, StoreName = "ALL" };
+    private Category AllCategory = new Category { CategoryCode = 0, CategoryName = "ALL" };
+    private ItemVM AllItem = new ItemVM { ItemId = 0, ItemCode = "ALL" };
+
+    private Store? SelectedStore { get; set; }
+    private Category? SelectedCategory { get; set; }
+    private ItemVM? SelectedItem { get; set; }
+
+    private string storeSearch { get; set; } = string.Empty;
+    private string categorySearch { get; set; } = string.Empty;
+    private string itemSearch { get; set; } = string.Empty;
+
+    private DateTime FromDate { get; set; }
+    private DateTime ToDate { get; set; }
+
+    public List<StockAnalysisVM> S_Analysis_Data { get; set; } = new();
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadAllStoresDetailsAsync();
+            await LoadAllStoresDetailsAsync();
+            await LoadAllCategoryDetailsAsync();
+            FromDate = DateTime.Today.AddDays(-30);
+            ToDate = DateTime.Today;
+
+            S_Analysis_Data = new List<StockAnalysisVM>();
+
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync in Stock Analysis");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    IEnumerable<Store> FilteredStores =>
+    Stores.Where(s =>
+        string.IsNullOrWhiteSpace(storeSearch) ||
+        s.StoreName.Contains(storeSearch, StringComparison.OrdinalIgnoreCase)
+    );
+
+    IEnumerable<Category> FilteredCategories =>
+    Categories.Where(s =>
+        string.IsNullOrWhiteSpace(categorySearch) ||
+        s.CategoryName.Contains(categorySearch, StringComparison.OrdinalIgnoreCase)
+    );
+
+    IEnumerable<StockAnalysisVM> FilteredStockData =>
+    S_Analysis_Data?
+    .Where(s =>
+        string.IsNullOrWhiteSpace(searchText) ||
+
+        (!string.IsNullOrEmpty(s.ItemCode) &&
+         s.ItemCode.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+        (!string.IsNullOrEmpty(s.ItemName) &&
+         s.ItemName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+
+
+        (!string.IsNullOrEmpty(s.MeasureUnit) &&
+         s.MeasureUnit.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+
+        (!string.IsNullOrEmpty(s.CategoryName) &&
+         s.CategoryName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) 
+
+
+)
+    ?? Enumerable.Empty<StockAnalysisVM>();
+
+    private async Task LoadAllCategoryDetailsAsync()
+    {
+        isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            Categories = await _stockAnalysis.GetAllActiveCategoriesAsync(0);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "LoadAllCategoryDetailsAsync");
+            await _js.ToastrError("Failed to LoadAll LoadAllCategoryDetailsAsync Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    private async Task LoadAllStoresDetailsAsync()
+    {
+        isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            Stores = (await _stockAnalysis.GetAllActiveStoresAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "LoadAllStoresDetailsAsync");
+            await _js.ToastrError("Failed to LoadAll LoadAllStoresDetailsAsync Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnStoreSearchChange(ChangeEventArgs e)
+    {
+        storeSearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(storeSearch))
+            return;
+    }
+
+    public async Task SelectStore(Store store)
+    {
+        try
+        {
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+            Items.Clear();
+            Categories.Clear();
+            StockAnalysisVMs.Clear();
+            if (store != null)
+            {
+                SelectedCategory = null;
+                SelectedStore = store;
+                SelectedStoreId = store.StoreId;
+
+                if (SelectedStoreId > 0 || SelectedStoreId == 0)
+                {
+                    Categories = await _stockAnalysis.GetAllActiveCategoriesAsync(SelectedStoreId);
+                }
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "SelectStore");
+            await _js.ToastrError("Failed to LoadAll SelectStore Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+    }
+
+
+    public async Task SelectCategory(Category category)
+    {
+        try
+        {
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+
+            Items.Clear();
+            StockAnalysisVMs.Clear();
+            if (category != null)
+            {
+                SelectedItem = null;
+                SelectedCategory = category;
+                SelectedCategoryCode = category.CategoryCode;
+
+                if (SelectedCategoryCode > 0 )//|| SelectedCategoryCode == 0)
+                {
+                    Items = await _stockAnalysis.GetStockItemsAsync(SelectedStoreId, SelectedCategoryCode);
+                    S_Analysis_Data = await _stockAnalysis.GetStockAnalysisAsync(SelectedStoreId, SelectedCategoryCode, FromDate, ToDate);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "SelectCategory");
+            await _js.ToastrError("Failed to LoadAll SelectCategory Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+    }
+
+    private void OnCategorySearchChange(ChangeEventArgs e)
+    {
+        categorySearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(categorySearch))
+            return;
+    }
+
+    private async Task Print()
+    {
+        if (FilteredStockData == null || !FilteredStockData.Any())
+        {
+            await _js.ToastrWarning("Sorry, no data available to print");
+            return;
+        }
+  
+        await ExportStockDataToExcel();
+    }
+
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString() ?? "";
+
+        if (string.IsNullOrWhiteSpace(searchText))
+            return;
+
+        if (FilteredStockData is null || !FilteredStockData.Any())
+        {
+            await _js.ToastrWarning("No data available to search.");
+            return;
+        }
+    }
+
+    #region Print Work
+    private async Task ExportStockDataToExcel()
+    {
+        try
+        {
+            if (FilteredStockData == null || !FilteredStockData.Any())
+                return;
+
+            isProcessing=true;
+            await InvokeAsync(StateHasChanged); 
+
+            var headers = FilteredStockData.First().GetType()
+                             .GetProperties()
+                             .Select(p => p.Name)
+                             .ToArray();
+
+            // Call your service
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Stock Analysis Data",
+                headers: headers,
+                sampleData: FilteredStockData
+            );
+
+            // Convert to Base64 and trigger download via JS
+            var base64 = Convert.ToBase64String(fileBytes);
+            await _js.InvokeVoidAsync("downloadExcelFile", base64, "StockAnalysisData.xlsx");
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"ExportStockAnalysisDataToExcel in StockAnalysis");
+            await _js.ToastrError("An error occurred while processing your action ExportStockAnalysisDataToExcel in StockAnalysis. Please try again.");
+
+        }
+        finally
+        {
+            isProcessing=false;
+            await InvokeAsync(StateHasChanged); 
+        }
+    }
+    #endregion
+}

@@ -1,0 +1,195 @@
+﻿@page "/leaveDetails/{leaveAppId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IHRMasterservice
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ISalesService
+@using V.SMART.Shared.Services.ReportViewer
+@inject ILeaveApplicationService leaveAppService
+@inject ICommonService commonService
+
+@inject JSRuntime _js
+@inject ReportService reportService
+@inject ILoggingService _logs
+
+@if (LeaveApplication == null)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2">Loading...</p>
+    </div>
+}
+else
+{
+    <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+
+        <!-- Header -->
+        @if (!isOtherScreen)
+        {
+            <div class="text-center mb-4">
+                @if (!string.IsNullOrEmpty(company?.LogoPath))
+                {
+                    <img src="@company.LogoPath" alt="Company Logo" style="max-height:80px;" class="mb-2" />
+                }
+                <h2 class="text-primary fw-bold">@company.CompanyName</h2>
+                <p class="text-muted mb-0">@company.RegisteredAddress</p>
+                <h4 class="fw-semibold mt-3">Leave Application Details</h4>
+            </div>
+            <hr class="border-2 border-primary-subtle mb-4" />
+        }
+
+        <!-- Employee & Application Info -->
+        <div class="row g-3 mb-4">
+            <!-- Employee Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                        Employee Details
+                    </div>
+                    <div class="card-body small">
+                        <p><strong>Name:</strong> @LeaveApplication.Staff?.StaffName</p>
+                        <p><strong>Department:</strong> @LeaveApplication.Department</p>
+                        <p><strong>Application No:</strong> @LeaveApplication.LeaveApplicationNo</p>
+                        <p>
+                            <strong>Status:</strong>
+                            <span class="badge bg-@(GetStatusBadgeClass(LeaveApplication.LeaveStatus))">
+                                @LeaveApplication.LeaveStatus
+                            </span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leave Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                        Leave Details
+                    </div>
+                    <div class="card-body small">
+                        <p><strong>Leave Type:</strong> @LeaveApplication.LeaveType?.LeaveName</p>
+                        <p><strong>From:</strong> @LeaveApplication.FromDate.ToString("dd-MM-yyyy")</p>
+                        <p><strong>To:</strong> @LeaveApplication.ToDate.ToString("dd-MM-yyyy")</p>
+                        <p><strong>Total Days:</strong> @LeaveApplication.TotalDays</p>
+                        <p><strong>Balance Before Leave:</strong> @LeaveApplication.BalDaysBeforeLeaveApp</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily Records -->
+        @if (LeaveApplication.DailyLeaveRecords?.Any() == true)
+        {
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info fw-semibold">
+                    Daily Leave Records
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th>Date</th>
+                                <th>Day Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var record in LeaveApplication.DailyLeaveRecords)
+                            {
+                                <tr>
+                                    <td>@record.Date.ToString("ddd dd-MMM-yyyy")</td>
+                                    <td class="text-center">
+                                        @if (record.IsWeekend)
+                                        {
+                                            <span class="badge bg-secondary">Weekend</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@record.DayType</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <!-- Notes -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-warning-subtle text-primary fw-semibold">
+                Reason / Remarks
+            </div>
+            <div class="card-body small">
+                <p class="mb-0">@(string.IsNullOrEmpty(LeaveApplication.Reason) ? "No remarks provided." : LeaveApplication.Reason)</p>
+            </div>
+        </div>
+
+        @if (!isOtherScreen)
+        {
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end no-print">
+                <a href="/leaveApplication" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+
+                <a href="@($"/leaveApplication/update/{leaveAppId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+
+
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int leaveAppId { get; set; }
+    [Parameter] public bool isOtherScreen { get; set; }
+
+    private string? pdfBase64;
+
+    private LeaveApplication LeaveApplication { get; set; }
+    private Companydetails company { get; set; } = new Companydetails();
+
+    protected override async Task OnInitializedAsync()
+    {
+        company = await commonService.GetCompanyDetailsAsync();
+        await GetDetails();
+    }
+
+    private async Task GetDetails()
+    {
+        LeaveApplication = await leaveAppService.GetLeaveApplicationWithDetailsAsync(leaveAppId);
+    }
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "Applied" => "primary",
+        "Pending" => "warning",
+        "Approved" => "success",
+        "Rejected" => "danger",
+        _ => "secondary"
+    };
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(leaveAppId, "LeaveApplication.frx", "leaveAppId", false, "Leave Application", "Sp_Print_LeaveApplication");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf JobOrder");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in JobOrder.");
+        }
+    }
+
+}

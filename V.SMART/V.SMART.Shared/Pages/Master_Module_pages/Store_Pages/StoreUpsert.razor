@@ -1,0 +1,232 @@
+﻿@page "/store/create"
+@page "/store/update/{StoreId:int}"
+@using V.SMART.Shared.Data.Master.Inventory
+@using V.SMART.Shared.ViewModels.MasterViewModel.InventoryViewModel
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@inject IStoreService storeService
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@StoreTitle"
+                            TitleIcon="bi bi-box-seam"
+                            Breadcrumbs="@storeBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="storesVMs" OnValidSubmit="UpsertStore">
+                        <DataAnnotationsValidator />
+                        <div class="row g-3">
+
+                            @if (storesVMs != null && storesVMs.StoreId > 0 && !string.IsNullOrWhiteSpace(storesVMs.StoreName))
+                            {
+                                <CorrespondenceStatus ReferenceType="@ScreenName"
+                                                      ReferenceId="@storesVMs.StoreId"
+                                                      ReferenceTypeName="@storesVMs.StoreName" />
+                            }
+
+                            <div class="row mt-3">
+                                <div class="col col-md-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="CanAdd" @bind="storesVMs.CanAdd" disabled>
+                                        <label class="form-check-label fw-medium px-2 text-white bg-success rounded" for="CanAdd">Can Add</label>
+                                    </div>
+                                </div>
+
+                                <div class="col col-md-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="CanIssue" @bind="storesVMs.CanIssue">
+                                        <label class="form-check-label fw-medium px-2 text-white bg-danger rounded" for="CanIssue">Can Issue</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="storesVMs.StoreName" class="form-control" id="StoreName" placeholder="Store Name" CssClass="form-control" />
+                                    <label for="StoreName">Store Name</label>
+                                    <ValidationMessage for="@(() => storesVMs.StoreName)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="storesVMs.StoreDesc" class="form-control" id="StoreDesc" placeholder="Store Description" CssClass="form-control" />
+                                    <label for="StoreDesc">Store Description</label>
+                                    <ValidationMessage for="@(() => storesVMs.StoreDesc)" />
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-2">
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="storesVMs.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="CreatedDate" value="@storesVMs.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="storesVMs.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="ModifiedDate" value="@storesVMs.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6 col-md-3 mt-3">
+                                @if (CanCreate || CanEdit)
+                                {
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(StoreId == 0 || StoreId == null ? "Create" : "Update")
+                                    </button>
+                                }
+                            </div>
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/stores" />
+                            </div>
+
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+@code {
+    //User Rights
+    protected override string ScreenName => "Store";
+
+    [Parameter]
+    public int? StoreId { get; set; }
+
+    private bool isProcessing = true;
+
+    private StoreVM storesVMs { get; set; } = new StoreVM();
+
+    private List<PageHeader.BreadcrumbItem> storeBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory Master" },
+        new PageHeader.BreadcrumbItem { Text = "Store Master", IsLast = true }
+    };
+    private string StoreTitle => StoreId == 0 || StoreId == null ? "Create Store" : "Update Store";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadStores();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() method for StoreUpsert");
+        }
+    }
+
+    private async Task LoadStores()
+    {
+        try
+        {
+            if (StoreId > 0)
+            {
+                var existing = await storeService.GetStoreDataByStoreId(StoreId.Value);
+                if (existing != null)
+                {
+                    storesVMs = existing;
+                }
+            }
+            else
+            {
+                storesVMs.CanAdd = true;
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LoadStores() method for StoreUpsert");
+        }
+    }
+
+    private async Task UpsertStore()
+    {
+        if (isProcessing)
+            return;
+
+        isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var result = await storeService.UpsertStoreAsync(storesVMs);
+
+            if (!result.Success)
+            {
+                await _js.ToastrWarning(result.Message);
+                return;
+            }
+
+            await _js.ToastrSuccess(result.Message);
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/stores");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertStore UI Error");
+            await _js.ToastrError("Unexpected error occurred.");
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+}

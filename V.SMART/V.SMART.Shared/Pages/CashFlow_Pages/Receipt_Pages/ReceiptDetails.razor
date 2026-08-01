@@ -1,0 +1,204 @@
+﻿@page "/ReceiptDetails/{ReceiptId:int}"
+
+
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IAccountsService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.AccountsViewModel
+
+
+@inherits BaseUserRightsComponent
+
+@inject IReceiptsService _ReceiptsService
+
+@inject IJSRuntime _js
+
+@inject ILoggingService _logs
+
+@inject ReportService _reportService
+@inject NavigationManager _navigation
+
+@if (IsLoading)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2">Loading...</p>
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+
+        <!-- Header -->
+        <div class="row align-items-center mb-4">
+            <!-- Logo -->
+            <div class="col-12 col-lg-3 text-center">
+                @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                {
+                    <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid" style="max-height:120px;" />
+                }
+            </div>
+
+            <!-- Company Info -->
+            <div class="col-12 col-lg-9 text-start">
+                <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+            </div>
+        </div>
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        <div class="text-center">
+            <h4 class="fw-semibold mt-3">Receipt Details</h4>
+        </div>
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        <!-- Customer & Document Info -->
+        <div class="row g-3 mb-4">
+            <!-- Customer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                        Customer Details
+                    </div>
+                    <div class="card-body small">
+                        <p><strong>Receipt to:</strong> @(!string.IsNullOrEmpty(ReceiptsVM?.PayFromName) ? ReceiptsVM.PayFromName : "N/A")</p>
+                        <p><strong>Receipt Type Name:</strong> @(!string.IsNullOrEmpty(ReceiptsVM?.PaymentTypeName) ? ReceiptsVM.PaymentTypeName : "N/A")</p>
+                        <p><strong>Amount:</strong> @(!string.IsNullOrEmpty(ReceiptsVM?.Amount.ToString()) ? ReceiptsVM.Amount.ToString("C")     : "N/A")</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                        Document Details
+                    </div>
+                    <div class="card-body small">
+                        <p><strong>Receipt No:</strong> @(ReceiptsVM != null ? $"{ReceiptsVM.ReceiptNo} {ReceiptsVM.ReceiptNo} {ReceiptsVM.Suffix}" : "N/A")</p>
+                        <p><strong>Receipt Date:</strong> @(ReceiptsVM?.ReceiptDate != null ? ReceiptsVM.ReceiptDate.ToString("dd/MM/yyyy") : "N/A")</p>
+                        <p><strong>Check No:</strong> @(!string.IsNullOrEmpty(ReceiptsVM?.ChequeNo) ? ReceiptsVM.ChequeNo : "N/A")</p>
+                        <p><strong>Check Date:</strong> @(ReceiptsVM?.ChequeDate.HasValue == true ? ReceiptsVM.ChequeDate.Value.ToString("dd/MM/yyyy") : "N/A")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enquiry Items -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info fw-semibold">
+                Enquiry Items
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle mb-0">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th>Bill No</th>
+                            <th>Amount Paid</th>
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (ReceiptsVM?.ReceiptsSubVMs != null && ReceiptsVM.ReceiptsSubVMs.Any())
+                        {
+                            @foreach (var item in ReceiptsVM.ReceiptsSubVMs)
+                            {
+                                <tr>
+                                    <td class="text-center">@item.BillNo</td>
+                                    <td>@(item.AdjustAmount.ToString("C") ?? "—")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+ 
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="/ReceiptList" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left-circle"></i> Back To List
+            </a>
+            <a href="@($"/Receipts/update/{ReceiptId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+            <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Receipts";
+    [Parameter]
+    public int ReceiptId { get; set; }
+
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    public bool IsLoading { get; set; } = true;
+
+    private ReceiptsVM ReceiptsVM { get; set; } = new ReceiptsVM();
+    private Companydetails company { get; set; } = new Companydetails();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+
+        if (!CanView)
+        {
+            _navigation.NavigateTo("/access-denied");
+            return;
+        }
+        company = await _ReceiptsService.GetCompanyDetailsAsync();
+        await GetDetails();
+        IsLoading = false;
+    }
+
+    public async Task GetDetails()
+    {
+        if (ReceiptId > 0)
+        {
+            var receipts = await _ReceiptsService.GetReceiptsByIdAsync(ReceiptId);
+            if (receipts != null)
+            {
+                ReceiptsVM = receipts;
+            }
+        }
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            var pdfBytes = await _reportService.Generate_Report(ReceiptId, "Receipt.frx", "ReceiptId", false, "Receipts", "Sp_Print_Receipts");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf PaymentDetails");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in PaymentDetails.");
+        }
+    }
+
+}
+

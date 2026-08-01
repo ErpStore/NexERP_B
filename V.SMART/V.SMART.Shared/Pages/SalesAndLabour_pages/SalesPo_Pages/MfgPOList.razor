@@ -1,0 +1,1318 @@
+﻿@page "/mfgPOList"
+@using V.SMART.Shared.ViewModels.ReportViewModel.PoPendingModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ExcelExportService ExcelExportService
+
+@inject IMfgPoService mfgPoService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true"
+                       Screen="@ScreenName"
+                       Filters="SearchFilters"
+                       OnClose="CloseModal"
+                       OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Sales Order List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@QuoteBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+
+                            <option value="">All</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Short Closed">Short Closed</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-6 col-md-2 ms-md-auto text-end">
+                            <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewPo">
+                                <i class="bi bi-plus-square me-1"></i> Add New
+                            </button>
+                        </div>
+                    }
+
+                </div>
+
+                @if (MfgPoVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="MfgPoVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            case "PoId":
+                                                <PropertyColumn Title="PO ID" Property="@(x => x.PoId)" />
+                                                break;
+
+                                            case "PONo":
+                                                <PropertyColumn Title="PO No"
+                                                                Property="@(x => $"{x.PONo}{x.Suffix}")"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "PODate":
+                                                <PropertyColumn Title="PO Date"
+                                                                Property="@(x => x.PODate)"
+                                                                Format="dd/MM/yyyy"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "MfgORLab":
+                                                <TemplateColumn Title="Manufacturing / Labour" Context="x">
+                                                    @if (x.IsServiceBill ?? false)
+                                                    {
+                                                        <span class="badge bg-success">
+                                                            <i class="bi bi-person-raised-hand"></i>Service Bill
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        @if (x.MfgORLab)
+                                                        {
+                                                            <span class="badge bg-primary rounded-pill px-3">
+                                                                <i class="bi bi-gear-fill me-1"></i> Manufacturing
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-info rounded-pill px-3">
+                                                                <i class="bi bi-people-fill me-1"></i> Labour
+                                                            </span>
+                                                        }
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+
+                                            case "CustId":
+                                                <PropertyColumn Title="Customer ID" Property="@(x => x.CustId)" />
+                                                break;
+
+                                            case "CustName":
+                                                <PropertyColumn Title="Customer Name"
+                                                                Property="@(x => x.CustName)"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "CustAddress":
+                                                <PropertyColumn Title="Customer Address"
+                                                                Property="@(x => x.CustAddress)" />
+                                                break;
+
+                                            case "CorrespondenceStatus":
+                                                <TemplateColumn Title="Correspondence Status">
+                                                    @if (UploadStatus.ContainsKey(context.PoId)
+                                                                                && UploadStatus[context.PoId])
+                                                    {
+                                                        <span class="badge bg-success">Uploaded</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark">Not Uploaded</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "CustGst":
+                                                <PropertyColumn Title="GST No"
+                                                                Property="@(x => x.CustGst)" />
+                                                break;
+
+                                            case "CustContactNo":
+                                                <PropertyColumn Title="Contact No"
+                                                                Property="@(x => x.CustContactNo)" />
+                                                break;
+
+                                            case "KindOfAttention":
+                                                <PropertyColumn Title="Kind Of Attention"
+                                                                Property="@(x => x.KindOfAttention)" />
+                                                break;
+
+                                            case "ShippingName":
+                                                <PropertyColumn Title="Shipping Name" Property="@(x => x.ShippingName)" />
+                                                break;
+
+                                            case "ShippingAddress":
+                                                <PropertyColumn Title="Shipping Address" Property="@(x => x.ShippingAddress)" />
+                                                break;
+
+                                            case "ShippingGstin":
+                                                <PropertyColumn Title="Shipping GSTIN" Property="@(x => x.ShippingGstin)" />
+                                                break;
+
+                                            case "ShippingContactNo":
+                                                <PropertyColumn Title="Shipping Contact No" Property="@(x => x.ShippingContactNo)" />
+                                                break;
+
+
+                                            case "PoTypename":
+                                                <PropertyColumn Title="PO Type" Property="@(x => x.PoTypename)" />
+                                                break;
+
+                                            case "SaleOrderNo":
+                                                <PropertyColumn Title="Sale Order No" Property="@(x => x.SaleOrderNo)" />
+                                                break;
+
+                                            case "NoOfItems":
+                                                <PropertyColumn Title="No Of Items" Property="@(x => x.NoOfItems)" />
+                                                break;
+
+
+                                            case "CurrName":
+                                                <PropertyColumn Title="Currency" Property="@(x => x.CurrName)" />
+                                                break;
+
+                                            case "Symbol":
+                                                <PropertyColumn Title="Symbol" Property="@(x => x.Symbol)" />
+                                                break;
+
+                                            case "TodayVal":
+                                                <PropertyColumn Title="Today's Value"
+                                                                Property="@(x => x.TodayVal)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "TotalGrossAmount":
+                                                <PropertyColumn Title="Total Gross Amount"
+                                                                Property="@(x => x.TotalGrossAmount)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "DiscountPercent":
+                                                <PropertyColumn Title="Discount %"
+                                                                Property="@(x => x.DiscountPercent)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "DiscountAmount":
+                                                <PropertyColumn Title="Discount Amount"
+                                                                Property="@(x => x.DiscountAmount)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "TotalBasicAmount":
+                                                <PropertyColumn Title="Total Basic Amount"
+                                                                Property="@(x => x.TotalBasicAmount)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "FreightCharges":
+                                                <PropertyColumn Title="Freight Charges"
+                                                                Property="@(x => x.FreightCharges)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "PackingCharges":
+                                                <PropertyColumn Title="Packing Charges"
+                                                                Property="@(x => x.PackingCharges)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "InsuranceCharges":
+                                                <PropertyColumn Title="Insurance Charges"
+                                                                Property="@(x => x.InsuranceCharges)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "TotalTaxable":
+                                                <PropertyColumn Title="Total Taxable Amount"
+                                                                Property="@(x => x.TotalTaxable)"
+                                                                Format="N2" />
+                                                break;
+
+
+                                            case "CGstRate":
+                                                <PropertyColumn Title="CGST Rate" Property="@(x => x.CGstRate)" Format="N2" />
+                                                break;
+
+                                            case "SGstRate":
+                                                <PropertyColumn Title="SGST Rate" Property="@(x => x.SGstRate)" Format="N2" />
+                                                break;
+
+                                            case "IGstRate":
+                                                <PropertyColumn Title="IGST Rate" Property="@(x => x.IGstRate)" Format="N2" />
+                                                break;
+
+                                            case "TotalCGSTAmount":
+                                                <PropertyColumn Title="Total CGST Amount" Property="@(x => x.TotalCGSTAmount)" Format="N2" />
+                                                break;
+
+                                            case "TotalSGSTAmount":
+                                                <PropertyColumn Title="Total SGST Amount" Property="@(x => x.TotalSGSTAmount)" Format="N2" />
+                                                break;
+
+                                            case "TotalIGSTAmount":
+                                                <PropertyColumn Title="Total IGST Amount" Property="@(x => x.TotalIGSTAmount)" Format="N2" />
+                                                break;
+
+                                            case "OtherCharges":
+                                                <PropertyColumn Title="Other Charges"
+                                                                Property="@(x => x.OtherCharges)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "TCSPercent":
+                                                <PropertyColumn Title="TCS %"
+                                                                Property="@(x => x.TCSPercent)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "TCSAmount":
+                                                <PropertyColumn Title="TCS Amount"
+                                                                Property="@(x => x.TCSAmount)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "RoundOff":
+                                                <PropertyColumn Title="Round Off"
+                                                                Property="@(x => x.RoundOff)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "GrandTotal":
+                                                <PropertyColumn Title="Grand Total"
+                                                                Property="@(x => x.GrandTotal)"
+                                                                Format="N2" />
+                                                break;
+
+                                            case "PayTerms":
+                                                <PropertyColumn Title="Payment Terms"
+                                                                Property="@(x => x.PayTerms)" />
+                                                break;
+
+                                            case "DeliveryTerms":
+                                                <PropertyColumn Title="Delivery Terms"
+                                                                Property="@(x => x.DeliveryTerms)" />
+                                                break;
+
+                                            case "MainRemark":
+                                                <PropertyColumn Title="Remarks"
+                                                                Property="@(x => x.MainRemark)" />
+                                                break;
+
+
+                                            case "OANo":
+                                                <PropertyColumn Title="OA No" Property="@(x => x.OANo)" />
+                                                break;
+
+                                            case "OADate":
+                                                <PropertyColumn Title="OA Date"
+                                                                Property="@(x => x.OADate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "OARemarks":
+                                                <PropertyColumn Title="OA Remarks" Property="@(x => x.OARemarks)" />
+                                                break;
+
+                                            case "LevelStatus":
+                                                <TemplateColumn Title="Level Status" Context="c">
+                                                    @{
+                                                        string levelText = "-";
+                                                        if (c.IsLevel3) levelText = "Level 3";
+                                                        else if (c.IsLevel2) levelText = "Level 2";
+                                                        else if (c.IsLevel1) levelText = "Level 1";
+                                                    }
+                                                    <span class="badge bg-primary">@levelText</span>
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "Level1Sign":
+                                                <PropertyColumn Title="L1 Approved By" Property="@(c => c.Level1Sign)" />
+                                                break;
+
+                                            case "Level2Sign":
+                                                <PropertyColumn Title="L2 Approved By" Property="@(c => c.Level2Sign)" />
+                                                break;
+
+                                            case "Level3Sign":
+                                                <PropertyColumn Title="L3 Approved By" Property="@(c => c.Level3Sign)" />
+                                                break;
+
+                                            case "LastApproved":
+                                                <PropertyColumn Title="Last Approved" Property="@(c => c.LastApproved)" />
+                                                break;
+
+                                            case "ApprovedDate":
+                                                <PropertyColumn Title="Approved Date" Property="@(c => c.ApprovedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ApprovalStatus":
+                                                <TemplateColumn Title="Approval Status" Context="c">
+                                                    @if (c.IsAuthorized)
+                                                    {
+                                                        <span class="badge text-bg-success bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-check-circle me-1"></i> Authorized
+                                                        </span>
+                                                    }
+                                                    else if (c.IsRejected)
+                                                    {
+                                                        <span class="badge text-bg-danger bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-x-circle me-1"></i> Rejected
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge text-bg-warning bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                        </span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+
+                                            case "RejectReason":
+                                                <PropertyColumn Title="Reject Reason" Property="@(c => c.RejectReason)" />
+                                                break;
+
+
+                                            case "IsOpenPO":
+                                                <TemplateColumn Title="Open PO" Context="x">
+                                                    @if (x.IsOpenPO)
+                                                    {
+                                                        <span class="badge bg-success rounded-pill">Open</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary rounded-pill">Closed</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "status":
+                                                <TemplateColumn Title="PO Status" Context="x">
+                                                    @if (x.PoCancl)
+                                                    {
+                                                        <span class="badge bg-danger rounded-pill px-3">
+                                                            <i class="bi bi-x-circle me-1"></i> Cancelled
+                                                        </span>
+                                                    }
+                                                    else if (x.ShortClose)
+                                                    {
+                                                        <span class="badge bg-secondary rounded-pill px-3">
+                                                            <i class="bi bi-slash-circle me-1"></i> Short Closed
+                                                        </span>
+                                                    }
+                                                    else if (x.PoTally)
+                                                    {
+                                                        <span class="badge bg-success rounded-pill px-3">
+                                                            <i class="bi bi-check-circle me-1"></i> Completed
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                            <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                        </span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "CancelReason":
+                                                <PropertyColumn Title="Cancel Reason"
+                                                                Property="@(x => x.CancelReason)" />
+                                                break;
+
+                                            case "CancelDate":
+                                                <PropertyColumn Title="Cancel Date"
+                                                                Property="@(c => c.CancelDate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "CancelBy":
+                                                <PropertyColumn Title="Cancel By"
+                                                                Property="@(x => x.CancelBy)" />
+                                                break;
+
+
+                                            // =========================
+                                            // AUDIT
+                                            // =========================
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(x => x.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date"
+                                                                Property="@(x => x.CreatedDate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(x => x.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date"
+                                                                Property="@(x => x.ModifiedDate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+
+                            }
+
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"MfgPO/update/{c.PoId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Sales Order">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"MfgPO/details/{c.PoId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View Sales Orer">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Sales Order"
+                                                @onclick="() => HandleDelete(c.PoId)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </QuickGrid>
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+                                       
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5"
+                                        @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export Po's
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Item available.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "Sales Order";
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private int DeletePoId = 0;
+    private string searchText = string.Empty;
+    private string selectedStatus = "";
+
+    private List<MfgPoVM> MfgPoVMs = new();
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    // === Paging & Search ===
+    private int totalItems;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+    // === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    // Instant Search filter parameter
+    [Parameter, SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+     private bool IsDocumentUploaded { get; set; } = false;
+     private Dictionary<int, bool> UploadStatus = new();
+
+
+    private List<PageHeader.BreadcrumbItem> QuoteBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Sales" },
+        new PageHeader.BreadcrumbItem { Text = "Sales Order-Inward", IsLast = true }
+    };
+
+    #endregion
+
+    #region === initilization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+            //Sathish
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+            await LoadAllPos();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Sales Order OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+
+    private void AddNewPo()
+    {
+        var returnUrl = Uri.EscapeDataString("MfgPO/create/{id}");
+        _navigation.NavigateTo($"/Customer/Select?ReturnUrl={returnUrl}");
+    }
+
+    #endregion
+
+    #region === Data Loading ===
+
+    private async Task LoadAllPos()
+    {
+        try
+        {
+            var result = await mfgPoService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            MfgPoVMs = result.mfgPoVMs;
+            totalItems = result.TotalCount;
+            foreach (var item in MfgPoVMs)
+            {
+                UploadStatus[item.PoId] = await mfgPoService.IsDocumentUploaded(item.PoId);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading data in Sales Order List");
+            await _JS.ToastrError("Failed to load Sales Quotation List.");
+        }
+    }
+
+    private void AddNewQuote()
+    {
+        _navigation.NavigateTo("/Customer/Select?ReturnUrl=MfgQuote/create/{id}");
+    }
+
+    #endregion
+
+
+
+    #region ===  Columns ===
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+
+                new() { Title = "PO ID", Field = "PoId", IsVisible = false },
+
+                new() { Title = "PO No", Field = "PONo", IsVisible = true },
+                new() { Title = "PO Date", Field = "PODate", IsVisible = true },
+                new() { Title = "Manufacturing / Labour", Field = "MfgORLab", IsVisible = true },
+
+                new() { Title = "Customer ID", Field = "CustId", IsVisible = false },
+                new() { Title = "Customer Name", Field = "CustName", IsVisible = true },
+                new() { Title = "Customer Address", Field = "CustAddress", IsVisible = false },
+                new() { Title = "Correspondence Status", Field = "CorrespondenceStatus", IsVisible = false },
+                new() { Title = "GST No", Field = "CustGst", IsVisible = false },
+                new() { Title = "Contact No", Field = "CustContactNo", IsVisible = false },
+                new() { Title = "Kind Of Attention", Field = "KindOfAttention", IsVisible = false },
+
+                new() { Title = "Shipping Name", Field = "ShippingName", IsVisible = false },
+                new() { Title = "Shipping Address", Field = "ShippingAddress", IsVisible = false },
+                new() { Title = "Shipping GSTIN", Field = "ShippingGstin", IsVisible = false },
+                new() { Title = "Shipping Contact No", Field = "ShippingContactNo", IsVisible = false },
+
+                new() { Title = "PO Type", Field = "PoTypename", IsVisible = false },
+                new() { Title = "Sale Order No", Field = "SaleOrderNo", IsVisible = false },
+                new() { Title = "No Of Items", Field = "NoOfItems", IsVisible = false },
+
+                new() { Title = "Currency", Field = "CurrName", IsVisible = false },
+                new() { Title = "Symbol", Field = "Symbol", IsVisible = false },
+                new() { Title = "Today's Value", Field = "TodayVal", IsVisible = false },
+
+                new() { Title = "Total Gross Amount", Field = "TotalGrossAmount", IsVisible = false },
+                new() { Title = "Total Basic Amount", Field = "TotalBasicAmount", IsVisible = false },
+                new() { Title = "Total Taxable Amount", Field = "TotalTaxable", IsVisible = false },
+
+                new() { Title = "Discount %", Field = "DiscountPercent", IsVisible = false },
+                new() { Title = "Discount Amount", Field = "DiscountAmount", IsVisible = false },
+                new() { Title = "Freight Charges", Field = "FreightCharges", IsVisible = false },
+                new() { Title = "Packing Charges", Field = "PackingCharges", IsVisible = false },
+                new() { Title = "Insurance Charges", Field = "InsuranceCharges", IsVisible = false },
+                new() { Title = "Other Charges", Field = "OtherCharges", IsVisible = false },
+
+                new() { Title = "CGST Rate", Field = "CGstRate", IsVisible = false },
+                new() { Title = "SGST Rate", Field = "SGstRate", IsVisible = false },
+                new() { Title = "IGST Rate", Field = "IGstRate", IsVisible = false },
+
+                new() { Title = "Total CGST Amount", Field = "TotalCGSTAmount", IsVisible = false },
+                new() { Title = "Total SGST Amount", Field = "TotalSGSTAmount", IsVisible = false },
+                new() { Title = "Total IGST Amount", Field = "TotalIGSTAmount", IsVisible = false },
+
+                new() { Title = "TCS %", Field = "TCSPercent", IsVisible = false },
+                new() { Title = "TCS Amount", Field = "TCSAmount", IsVisible = false },
+
+                new() { Title = "Round Off", Field = "RoundOff", IsVisible = false },
+                new() { Title = "Grand Total", Field = "GrandTotal", IsVisible = false },
+
+                new() { Title = "Payment Terms", Field = "PayTerms", IsVisible = false },
+                new() { Title = "Delivery Terms", Field = "DeliveryTerms", IsVisible = false },
+                new() { Title = "Remarks", Field = "MainRemark", IsVisible = false },
+
+                new() { Title = "Level Status", Field = "LevelStatus", IsVisible = false },
+
+                new() { Title = "L1 Approved By", Field = "Level1Sign", IsVisible = false },
+                new() { Title = "L2 Approved By", Field = "Level2Sign", IsVisible = false },
+                new() { Title = "L3 Approved By", Field = "Level3Sign", IsVisible = false },
+
+
+                new() { Title = "Approval Status", Field = "ApprovalStatus", IsVisible = true },
+                new() { Title = "Reject Reason", Field = "RejectReason", IsVisible = false },
+
+                new() { Title = "Last Approved", Field = "LastApproved", IsVisible = false },
+                new() { Title = "Approved Date", Field = "ApprovedDate", IsVisible = false },
+
+
+                new() { Title = "Open PO", Field = "IsOpenPO", IsVisible = false },
+
+                new() { Title = "PO Status", Field = "status", IsVisible = true },
+
+                new() { Title = "Cancel Reason", Field = "CancelReason", IsVisible = false },
+                new() { Title = "Cancel Date", Field = "CancelDate", IsVisible = false },
+                new() { Title = "Cancel By", Field = "CancelBy", IsVisible = false },
+
+                new() { Title = "OA No", Field = "OANo", IsVisible = false },
+                new() { Title = "OA Date", Field = "OADate", IsVisible = false },
+
+                new() { Title = "OA Remarks", Field = "OARemarks", IsVisible = false },
+
+
+
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false }
+            };
+
+
+            if (!Hidden)
+            {
+                // Columns.AddRange(new[]
+                // {
+                //     new GridColumn { Title = "Extra Column 1", Field = "Extra1", IsVisible = false },
+                //     new GridColumn { Title = "Extra Column 2", Field = "Extra2", IsVisible = false },
+                // });
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for Sales Quoatation List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the SalesEnquiryList HandleColumnChange() Method");
+        }
+    }
+
+    #endregion
+
+
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllPos();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in Sales Order List");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllPos();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in Sales Order List");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllPos();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Sales Order List");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllPos();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in Sales Order List");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllPos();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Sales Order List");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllPos();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Salies Order List page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(int poId)
+    {
+        try
+        {
+            var (canDelete, message) = await mfgPoService.CanDeleteSalesOrderAsync(poId);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeletePoId = poId;
+
+            ModalTitle = "Are you sure you want to delete this Quotation";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for PoId: {poId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+
+            var deleted = await mfgPoService.DeletePOByPOIdAsync(DeletePoId);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Sales Quoatation deleted successfully.");
+                await LoadAllPos();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Sales Order could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting PoId: {DeletePoId}");
+            await _JS.ToastrError("Failed to delete Sales Order.");
+        }
+        finally
+        {
+            DeletePoId = 0;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else if (confirmation == "Export")
+            {
+                isProcessing = true;
+                await ExportToExcel(isConfirmed);
+            }
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region SEARCH FILTERS
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllPos();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Sales Order List");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    #endregion
+
+
+    #region Job order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SearchFilters = new();
+            selectedStatus = e.Value?.ToString() ?? "";
+
+            if (string.IsNullOrWhiteSpace(selectedStatus))
+                SearchFilters.Remove("Status");
+            else
+                SearchFilters["Status"] = selectedStatus;
+
+
+            currentPage = 1;
+            await LoadAllPos();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error OnStatusChanged in Sales Order List");
+            await _JS.ToastrError("Failed to Load Sales Order List filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    private async Task HandleExport()
+    {
+        selectedStatus =selectedStatus==""?"All":selectedStatus;
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+
+            var exportData = await mfgPoService.GetMfgPosPendingList(selectedStatus);
+
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData,"MfgPo", "Sales and Labour Po's Pending List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.DownloadExcelAsync(base64, "ManufacturingPoExport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (MfgPo)");
+            await _JS.ToastrError("Error while exporting MfgPo!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+}

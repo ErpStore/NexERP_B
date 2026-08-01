@@ -1,0 +1,1849 @@
+﻿@page "/Ratings"
+@using System.Dynamic
+@using System.Collections.Generic;
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.RatingsVM
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject IRatingService ratingService
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+
+<style>
+    .table-responsive {
+        max-height: 75vh;
+        overflow-y: auto;
+    }
+
+        .table-responsive thead th {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #0d6efd;
+            color: #fff;
+            border-bottom: 2px solid #0a58ca;
+        }
+
+        .small-autocomplete .mud-input-control {
+            min-height: 32px;
+        }
+
+        .small-autocomplete .mud-input-slot {
+            min-height: 32px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+
+        .small-autocomplete input {
+            padding: 4px 8px !important;
+            font-size: 13px;
+        }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid mt-4">
+
+        <!-- Header -->
+        <div class="card border-0 shadow-lg mb-4">
+
+            <div class="card-header bg-light border-bottom">
+
+                <div class="card shadow-sm border-0 mb-3">
+                    <div class="card-body bg-primary text-white rounded">
+
+                        <div class="row align-items-center">
+
+                            <div class="col-md-8">
+
+                                <h4 class="fw-bold mb-1">
+                                    <i class="bi bi-speedometer2 me-2"></i>
+                                    Performance Ratings
+                                </h4>
+
+                                <small class="opacity-75">
+                                    Rating Dashboard
+                                </small>
+
+                            </div>
+
+                            <div class="col-md-4 text-md-end mt-3 mt-md-0">
+
+                                <span class="badge bg-light text-primary fs-6 px-3 py-2 shadow-sm">
+                                    <i class="bi bi-calendar-event me-1"></i>
+                                    @DateTime.Today.ToString("dd MMM yyyy")
+                                </span>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+            
+
+            <div class="card-body bg-light">
+
+                <div class="row g-3">
+
+                    <!-- From Date -->
+                    <div class="col-lg-2 col-md-6">
+                        <label class="form-label fw-bold text-dark">
+                            From Date
+                        </label>
+
+                        <InputDate class="form-control shadow-sm"
+                                   @bind-Value="FromDate" />
+                    </div>
+
+                    <!-- To Date -->
+                    <div class="col-lg-2 col-md-6">
+                        <label class="form-label fw-bold text-dark">
+                            To Date
+                        </label>
+
+                        <InputDate class="form-control shadow-sm"
+                                   @bind-Value="ToDate" />
+                    </div>
+
+                    <!-- Type -->
+                    <div class="col-lg-2 col-md-6">
+                        <label class="form-label fw-bold text-primary">
+                            Type
+                        </label>
+@* 
+                        <InputSelect class="form-select shadow-sm"
+                                     @bind-Value="SelectedType">
+
+                            <option value="">Select Type</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Purchase">Purchase</option>
+                            <option value="Labour">Labour</option>
+                            <option value="Subcontract">Subcontract</option>
+
+                        </InputSelect> *@
+
+                      @*   <InputSelect class="form-select shadow-sm"
+                                     Value="SelectedType"
+                                     ValueChanged="OnTypeChanged"
+                                     ValueExpression="() => SelectedType">
+
+                            <option value="">Select Type</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Purchase">Purchase</option>
+                            <option value="Labour">Labour</option>
+                            <option value="Subcontract">Subcontract</option>
+
+                        </InputSelect> *@
+
+                        <InputSelect class="form-select shadow-sm"
+                                     Value="@SelectedType"
+                                     ValueChanged="@(async (string value) => await OnTypeChanged(value))"
+                                     ValueExpression="() => SelectedType">
+
+                            <option value="">Select Type</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Purchase">Purchase</option>
+                            <option value="Labour">Labour</option>
+                            <option value="Subcontract">Subcontract</option>
+
+                        </InputSelect>
+                    </div>
+
+                   @*  <!-- Party -->
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label fw-bold text-success">
+                            @PartyLabel
+                        </label>
+
+                        <InputSelect class="form-select shadow-sm"
+                                     @bind-Value="SelectedParty">
+                                    
+
+
+                            <option value="">Select Party</option>
+
+                            @foreach (var item in Parties)
+                            {
+                                <option value="@item.Id">@item.Name</option>
+                            }
+
+                        </InputSelect>
+                    </div> *@
+
+
+                   @*  <div class="col-lg-2 col-md-6">
+                       
+                        <label class="form-label fw-bold text-success">
+                            @PartyLabel
+                        </label>
+                        
+                        <InputSelect class="form-select shadow-sm"
+                                     Value="@SelectedParty"
+                                     ValueChanged="@(async (string value) => await OnPartyChanged(value))"
+                                     ValueExpression="() => SelectedParty">
+
+                            <option value="">All Partys</option>
+
+                            @foreach (var item in Parties)
+                            {
+                                <option value="@item.Id">@item.Name</option>
+                            }
+
+                        </InputSelect>
+
+                    </div> *@
+
+                     <div class="col-lg-2 col-md-6">
+                        <label class="form-label fw-bold text-success">
+                            @PartyLabel
+                        </label>
+
+                        <MudBlazor.MudAutocomplete T="PartyVM"
+                                         Class="small-autocomplete"
+                                         Value="@SelectedPartyVM"
+                                         ValueChanged="@OnPartyChanged"
+                                         SearchFunc="@SearchCustomers"
+                                         ToStringFunc="@(new Func<PartyVM?, string>(x => x?.Name ?? string.Empty))"
+                                         Placeholder="Search or select party"
+                                         Variant="MudBlazor.Variant.Outlined"
+                                         Dense="true"
+                                         Clearable="true" />
+                    </div>
+
+
+                   @*  <div class="col-lg-2 col-md-6">
+                        <label class="form-label fw-bold text-success">
+                            Item
+                        </label>
+
+                        <InputSelect class="form-select shadow-sm"
+                                     @bind-Value="SelectedItem">
+
+
+                            @foreach (var item in Items)
+                            {
+                                <option value="@item.Id">
+                                    @item.Name
+                                </option>
+                            }
+
+                        </InputSelect>
+                    </div> *@
+
+                <div class="col-lg-2 col-md-6">
+                    <label class="form-label fw-bold text-success">
+                        Item
+                    </label>
+
+                <MudBlazor.MudAutocomplete T="ItemVM"
+                                     Value="@SelectedItemVM"
+                                     ValueChanged="@OnItemChanged"
+                                     SearchFunc="@SearchItems"
+                                     ToStringFunc="@(x => x?.ItemCode ?? string.Empty)" 
+                                     Placeholder="Search or select Item"
+                                     Variant="MudBlazor.Variant.Outlined"
+                                     Dense="true"
+                                     Clearable="true"
+                                     ResetValueOnEmptyText="true"
+                                     Class="w-100 small-autocomplete" />
+                </div>
+
+
+
+                    <!-- Search -->
+                    <div class="col-lg-2 col-md-12 d-flex align-items-end gap-2" ">
+                        <button class="btn btn-success w-100 shadow-sm"
+                                @onclick="GetRatings">
+
+                            <i class="bi bi-search me-2"></i>
+                            Ratings View
+
+                        </button>
+
+                        <button class="btn btn-secondary w-100 shadow-sm"
+                                @onclick="GetFPYReport">
+
+                            <i class="bi bi-search me-2"></i>
+                            FPY View
+
+                        </button>
+                    </div>
+
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Results -->
+        @if ((ShowRatings && RatingVMs.Any()) || (ShowFPY && FPYReport.Any()))
+        {
+            <div class="card border-0 shadow-lg">
+
+                <!-- Header -->
+                @if (ShowRatings)
+                {
+                    <div class="card-header bg-success text-white py-2">
+
+                        <div class="row align-items-center g-2">
+
+                            <div class="col-12 col-lg-3">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-table me-2"></i>
+                                    Rating Details
+                                </h5>
+                            </div>
+
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+
+                                    <InputText class="form-control"
+                                               placeholder="Search..."
+                                               @bind-Value="searchText"
+                                               @oninput="e => searchText = e.Value?.ToString()" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-3 col-lg-2">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       checked="@DetailsView"
+                                       @onchange="OnDetailViewChanged" />
+
+                                <label class="form-check-label ms-1">
+                                    Detail View
+                                </label>
+                            </div>
+
+                            <div class="col-12 col-md-3 col-lg-2">
+                                <ColumnMenu Columns="Columns"
+                                            ScreenName="@ScreenName"
+                                            UserId="@UserName"
+                                            MaxVisible="int.MaxValue"
+                                            OnChanged="HandleColumnChange" />
+                            </div>
+
+
+
+
+                            <div class="col-12 col-md-3 col-lg-2">
+                                <button class="btn btn-light w-100"
+                                        @onclick="OnPrintPendingTrack">
+                                    <i class="bi bi-download me-2"></i>
+                                    Export Excel
+                                </button>
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+                else if (ShowFPY)
+                {
+                    <div class="card-header bg-success text-white py-2">
+
+                        <div class="row align-items-center">
+
+                            <div class="col-lg-4 col-md-4">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-pie-chart me-2"></i>
+                                    First Pass Yield (FPY) Report
+                                </h5>
+                            </div>
+
+
+
+                            <div class="col-lg-4 col-md-4">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+
+                                    <InputText class="form-control"
+                                               placeholder="Search..."
+                                               @bind-Value="searchText1"
+                                               @oninput="e => searchText1 = e.Value?.ToString()" />
+                                </div>
+                            </div>
+
+                            <div class="col-lg-4 col-md-4 text-end">
+                                <button class="btn btn-light"
+                                        @onclick="OnPrintPendingTrack1">
+                                    <i class="bi bi-download me-2"></i>
+                                    Export Excel
+                                </button>
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+
+                <!-- Body -->
+                <div class="card-body">
+
+                    @if (ShowRatings)
+                    {
+                        <!-- Put your existing Rating table here -->
+                        @* <table class="table table-hover table-striped table-bordered align-middle"> *@
+
+                        <div class="table-responsive table-scroll">
+
+                            <table class="table table-bordered table-striped table-hover mb-0 py-2">
+
+
+                             <thead class="table-primary">
+                                <tr>
+                                    @if (IsVisible("SlNo"))
+                                    {
+                                        <th>Sl No</th>
+                                    }
+                                    @if (IsVisible("CustName"))
+                                    {
+                                        <th>Customer Name</th>
+                                    }
+                                    @if (IsVisible("PONo"))
+                                    {
+                                        <th>PO No</th>
+                                    }
+                                    @if (IsVisible("PODate"))
+                                    {
+                                        <th>PO Date</th>
+                                    }
+                                    @if (DetailsView && IsVisible("ItemCode"))
+                                    {
+                                        <th>Item Code</th>
+                                    }
+
+                                    @if (DetailsView && IsVisible("ItemName"))
+                                    {
+                                        <th>Item Name</th>
+                                    }
+
+                                    @if (IsVisible("Qty"))
+                                    {
+                                        <th>Qty</th>
+                                    }
+                                    @*   @if (DetailsView && IsVisible("WoNo"))
+                                    {
+                                        <th>WO No</th>
+                                    } *@
+                                    @if (IsVisible("PoDueDate"))
+                                    {
+                                        <th>Due Date</th>
+                                    }
+                                    @if (IsVisible("DcNo"))
+                                    {
+                                        <th>DC No</th>
+                                    }
+                                    @if (IsVisible("DCDate"))
+                                    {
+                                        <th>DC Date</th>
+                                    }
+                                    @if (IsVisible("DcQty"))
+                                    {
+                                        <th>DC Qty</th>
+                                    }
+                                    @if (IsVisible("RejectQty"))
+                                    {
+                                        <th>Reject Qty</th>
+                                    }
+                                    @if (IsVisible("ReworkQty"))
+                                    {
+                                        <th>R/W Qty</th>
+                                    }
+                                    @if (IsVisible("InvNo"))
+                                    {
+                                        <th>Inv No</th>
+                                    }
+                                    @if (IsVisible("InvDate"))
+                                    {
+                                        <th>Inv Date</th>
+                                    }
+                                    @if (IsVisible("INVQty"))
+                                    {
+                                        <th>Inv Qty</th>
+                                    }
+                                    @if (IsVisible("TotalDays"))
+                                    {
+                                        <th>Delay Days</th>
+                                    }
+                                    @if (IsVisible("Perfarmence Rating"))
+                                    {
+                                        <th>Perfarmence Rating</th>
+                                    }
+                                    @if (IsVisible("DeliveryRating"))
+                                    {
+                                        <th>Delivery Rating</th>
+                                    }
+                                    @if (IsVisible("QualityRating"))
+                                    {
+                                        <th>Quality Rating</th>
+                                    }
+                                    @if (IsVisible("SalesRating"))
+                                    {
+                                        <th>Sales Rating</th>
+                                    }
+                                    @if (IsVisible("VendorRating"))
+                                    {
+                                        <th>Vendor Rating</th>
+                                    }
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @foreach (var item in FilteredRatings.Select((x, i) => new { x, i }))
+                                {
+                                    <tr>
+                                        @if (IsVisible("SlNo"))
+                                        {
+                                            <td>@(item.i + 1)</td>
+                                        }
+
+                                        @if (IsVisible("CustName"))
+                                        {
+                                            <td class="fw-semibold">@item.x.CustName</td>
+                                        }
+
+                                        @if (IsVisible("PONo"))
+                                        {
+                                            <td>@item.x.PONo</td>
+                                        }
+
+                                        @if (IsVisible("PODate"))
+                                        {
+                                            <td>@item.x.PODate?.ToString("dd/MM/yyyy")</td>
+                                        }
+
+                                        @if (DetailsView && IsVisible("ItemCode"))
+                                        {
+                                            <td>@item.x.ItemCode</td>
+                                        }
+
+                                        @if (DetailsView && IsVisible("ItemName"))
+                                        {
+                                            <td>@item.x.ItemName</td>
+                                        }
+
+                                        @if (IsVisible("Qty"))
+                                        {
+                                            <td>@item.x.Qty</td>
+                                        }
+
+                                        @*  @if (DetailsView && IsVisible("WoNo"))
+                                        {
+                                            <td>@item.x.WoNo</td>
+                                        } *@
+
+                                        @if (IsVisible("PoDueDate"))
+                                        {
+                                            <td>@item.x.PoDueDate?.ToString("dd/MM/yyyy")</td>
+                                        }
+
+                                        @if (IsVisible("DcNo"))
+                                        {
+                                            <td>@item.x.DcNo</td>
+                                        }
+
+                                        @if (IsVisible("DCDate"))
+                                        {
+                                            <td>@item.x.DCDate?.ToString("dd/MM/yyyy")</td>
+                                        }
+
+                                        @if (IsVisible("DcQty"))
+                                        {
+                                            <td>@item.x.DcQty</td>
+                                        }
+
+                                        @if (IsVisible("RejectQty"))
+                                        {
+                                            <td>@item.x.RejectQty</td>
+                                        }
+
+                                        @if (IsVisible("ReworkQty"))
+                                        {
+                                            <td>@item.x.ReworkQty</td>
+                                        }
+
+                                        @if (IsVisible("InvNo"))
+                                        {
+                                            <td>@item.x.InvNo</td>
+                                        }
+
+                                        @if (IsVisible("InvDate"))
+                                        {
+                                            <td>@item.x.InvDate?.ToString("dd/MM/yyyy")</td>
+                                        }
+
+                                        @if (IsVisible("INVQty"))
+                                        {
+                                            <td>@item.x.INVQty</td>
+                                        }
+
+                                        @if (IsVisible("TotalDays"))
+                                        {
+                                            <td>
+                                                <span class="badge bg-info">
+                                                    📅 @item.x.TotalDays
+                                                </span>
+                                            </td>
+                                        }
+
+                                        @if (IsVisible("Perfarmence Rating"))
+                                        {
+                                            <td>
+                                                <span class="badge bg-warning text-dark">
+                                                    ⭐ @item.x.Rating
+                                                </span>
+                                            </td>
+                                        }
+
+                                        @if (IsVisible("DeliveryRating"))
+                                        {
+                                            <td>
+                                                <span class="badge bg-primary">
+                                                    ⭐ @item.x.DeliveryRating
+                                                </span>
+                                            </td>
+                                        }
+
+                                        @if (IsVisible("QualityRating"))
+                                        {
+                                            <td>
+                                                <span class="badge bg-success">
+                                                    ⭐  @item.x.QualityRating
+                                                </span>
+                                            </td>
+                                        }
+
+                                        @if (IsVisible("SalesRating"))
+                                        {
+                                            <td>
+                                                <span class="badge bg-secondary">
+                                                    ⭐ @item.x.SalesRating
+                                                </span>
+                                            </td>
+                                        }
+
+                                        @if (IsVisible("VendorRating"))
+                                        {
+                                            <td>
+                                                <span class="badge bg-danger">
+                                                    ⭐ @item.x.VendorRating
+                                                </span>
+                                            </td>
+                                        }
+
+
+                                    </tr>
+                                }
+
+                            </tbody>
+
+                        </table>
+                        </div>
+                    }
+
+                    @if (ShowFPY)
+                    {
+                        <div class="table-responsive table-scroll">
+
+                            <table class="table table-bordered table-striped table-hover mb-0 py-2">
+
+                                <thead class="table-success">
+
+                                    <tr>
+                                        <th>Party</th>
+                                        <th>Item code</th>
+                                        <th>Item Name</th>
+                                        <th class="text-end">Production Qty</th>
+                                        <th class="text-end">Reject Qty</th>
+                                        <th class="text-end">Rework Qty</th>
+                                        <th class="text-end">FPY Qty</th>
+                                        <th class="text-end">FPY %</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody>
+
+                                    @foreach (var item in FilteredFPYReport)
+                                    {
+                                        <tr>
+
+                                            <td>@item.PartyName</td>
+                                           
+                                            <td>@item.Itemcode</td>
+
+                                            <td>@item.ItemName</td>
+
+                                            <td class="text-end">
+                                                @item.ProductionQty
+                                            </td>
+
+                                            <td class="text-end">
+                                                @item.RejectionQty
+                                            </td>
+
+                                            <td class="text-end">
+                                                @item.ReworkQty
+                                            </td>
+
+                                            <td class="text-end fw-bold text-success">
+                                                @item.FPYQty
+                                            </td>
+
+                                            <td class="text-end fw-bold">
+                                                @item.FPYPercentage.ToString("0.00") %
+                                            </td>
+
+                                        </tr>
+                                    }
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                         <div class="row mt-4">
+
+                            <div class="col-md-4">
+                                <div class="card border-primary shadow">
+                                    <div class="card-body text-center">
+                                        <h6>Production Qty</h6>
+                                        <h3 class="text-primary">
+                                            @FPYReport.Sum(x => x.ProductionQty)
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-2">
+                                <div class="card border-danger shadow">
+                                    <div class="card-body text-center">
+                                        <h6>Reject Qty</h6>
+                                        <h3 class="text-danger">
+                                            @FPYReport.Sum(x => x.RejectionQty)
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-2">
+                                <div class="card border-warning shadow">
+                                    <div class="card-body text-center">
+                                        <h6>Rework Qty</h6>
+                                        <h3 class="text-warning">
+                                            @FPYReport.Sum(x => x.ReworkQty)
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-2">
+                                <div class="card border-success shadow">
+                                    <div class="card-body text-center">
+                                        <h6>FPY Qty</h6>
+                                        <h3 class="text-success">
+                                            @FPYReport.Sum(x => x.FPYQty)
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <div class="col-md-2">
+                                <div class="card border-info shadow">
+                                    <div class="card-body text-center">
+                                        <h6>FPY %</h6>
+                                        <h3 class="text-info">
+                                            @{
+                                                var totalProduction = FPYReport.Sum(x => x.ProductionQty);
+                                                var totalFPYQty = FPYReport.Sum(x => x.FPYQty);
+
+                                                var overallFPY = totalProduction > 0
+                                                ? Math.Round((totalFPYQty / totalProduction) * 100, 2)
+                                                : 0;
+                                            }
+
+                                            @overallFPY.ToString("0.00")%
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-warning mt-3">
+                No data available.
+            </div>
+        }
+
+  
+       
+    </div>
+}
+
+
+@code {
+
+    protected override string ScreenName => "Ratings";
+    private List<PartyVM> Parties = new();
+
+    private List<ItemVM> Items = new();
+
+    private List<FPYVM> FPYReport = new();
+
+    public decimal FPYPercent { get; set; }
+
+    private bool isProcessing = false;
+
+
+    private decimal OverallFPYPercentage;
+
+    private bool ShowRatings = false;
+    private bool ShowFPY = false;
+
+    private string SelectedType = "";
+    private string SelectedParty = "";
+
+    private string SelectedItem = "";
+
+    private string PartyLabel = "Party";
+
+    public bool DetailsView { get; set; }
+
+    private string? UserName;
+
+    private bool IsLoading { get; set; }
+
+    private string searchText;
+
+    private string searchText1 = string.Empty;
+
+    public List<GridColumn> Columns { get; set; }
+
+    private DateTime? FromDate = DateTime.Today.AddMonths(-1);
+    private DateTime? ToDate = DateTime.Today;
+
+
+    private List<RatingVM> RatingVMs = new();
+
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error loading Ratings page");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private List<PageHeader.BreadcrumbItem> RatingBreadcrumbs = new()
+    {
+        new() { Text = "Reports" },
+        new() { Text = "Ratings" },
+        new() { Text = "Rating", IsLast = true }
+    };
+
+
+    private bool IsVisible(string field)
+    {
+        return Columns?.FirstOrDefault(x => x.Field == field)?.IsVisible ?? true;
+    }
+
+
+    public async Task InitializeColumns(bool hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>();
+
+            if (SelectedType == "Sales" ||
+                SelectedType == "Labour" ||
+                SelectedType == "Subcontract" ||
+                SelectedType == "Purchase")
+            {
+                Columns.AddRange(new[]
+                {
+                new GridColumn { Title = "Sl No", Field = "SlNo", IsVisible = true },
+
+                new GridColumn { Title = "Customer Name", Field = "CustName", IsVisible = true },
+
+                new GridColumn { Title = "PO No", Field = "PONo", IsVisible = true },
+
+                new GridColumn { Title = "PO Date", Field = "PODate", IsVisible = true },
+
+                new GridColumn { Title = "Item Code", Field = "ItemCode", IsVisible = true },
+
+                new GridColumn { Title = "Item Name", Field = "ItemName", IsVisible = true },
+
+                new GridColumn { Title = "Qty", Field = "Qty", IsVisible = true },
+
+                new GridColumn { Title = "WO No", Field = "WoNo", IsVisible = true },
+
+                new GridColumn { Title = "Due Date", Field = "PoDueDate", IsVisible = true },
+
+                new GridColumn { Title = "DC No", Field = "DcNo", IsVisible = true },
+
+                new GridColumn { Title = "DC Date", Field = "DCDate", IsVisible = true },
+
+                new GridColumn { Title = "DC Qty", Field = "DcQty", IsVisible = true },
+
+                new GridColumn { Title = "Reject Qty", Field = "RejectQty", IsVisible = true },
+
+                new GridColumn { Title = "Rework Qty", Field = "ReworkQty", IsVisible = true },
+
+                new GridColumn { Title = "Invoice No", Field = "InvNo", IsVisible = true },
+
+                new GridColumn { Title = "Invoice Date", Field = "InvDate", IsVisible = true },
+
+                new GridColumn { Title = "Invoice Qty", Field = "INVQty", IsVisible = true },
+
+                new GridColumn { Title = "Delay Days", Field = "TotalDays", IsVisible = true },
+
+                new GridColumn { Title = "Rating", Field = "Rating", IsVisible = true },
+
+                new GridColumn { Title = "Delivery Rating", Field = "DeliveryRating", IsVisible = true },
+
+                new GridColumn { Title = "Quality Rating", Field = "QualityRating", IsVisible = true },
+
+                new GridColumn { Title = "Sales Rating", Field = "SalesRating", IsVisible = true },
+
+                new GridColumn { Title = "Vendor Rating", Field = "VendorRating", IsVisible = true }
+            });
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error initializing columns");
+        }
+    }
+
+    
+
+    
+    private ItemVM? SelectedItemVM;
+
+    private PartyVM? SelectedPartyVM;
+
+    private async Task<IEnumerable<PartyVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Parties;
+
+        return Parties.Where(x =>
+            x.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
+    }
+
+
+
+    private Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken cancellationToken)
+    {
+        IEnumerable<ItemVM> result;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            result = Items;
+        }
+        else
+        {
+            result = Items.Where(x =>
+                x.ItemCode.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult(result);
+    }
+
+
+    private async Task OnDetailViewChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            IsLoading = true;
+
+            DetailsView = Convert.ToBoolean(e.Value);
+
+            RatingVMs = await ratingService.GetRatings(
+                DetailsView,
+                SelectedType,
+                SelectedParty,
+                FromDate,
+                ToDate);
+
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+
+    private async Task OnTypeChanged(string value)
+    {
+        SelectedType = value;
+        DetailsView = false;
+        SelectedParty = "";
+        Parties.Clear();
+
+        // Clear Party
+        SelectedParty = "";
+        SelectedPartyVM = null;
+        Parties.Clear();
+
+        // Clear Item
+        SelectedItem = "";
+        SelectedItemVM = null;
+        Items.Clear();
+
+        if (FromDate == null || ToDate == null)
+            return;
+
+        switch (SelectedType)
+        {
+            case "Sales":
+
+                PartyLabel = "Customer";
+
+                var customers = await ratingService.GetAllCustomersAsync(
+                    "SALES",
+                    FromDate.Value,
+                    ToDate.Value);
+
+                Parties = customers.Select(x => new PartyVM
+                {
+                    Id = x.CustId,
+                    Name = x.CustName
+                }).ToList();
+
+                break;
+
+            case "Labour":
+
+                PartyLabel = "Labour";
+
+                var labours = await ratingService.GetAllCustomersAsync(
+                    "LABOUR WORK",
+                    FromDate.Value,
+                    ToDate.Value);
+
+                Parties = labours.Select(x => new PartyVM
+                {
+                    Id = x.CustId,
+                    Name = x.CustName
+                }).ToList();
+
+                break;
+
+            case "Purchase":
+
+                PartyLabel = "Supplier";
+
+                var vendors = await ratingService.GetAllVendorsAsync(
+                    "PURCHASE",
+                    FromDate.Value,
+                    ToDate.Value);
+
+                Parties = vendors.Select(x => new PartyVM
+                {
+                    Id = x.VendorCode,
+                    Name = x.VendorName
+                }).ToList();
+
+                break;
+
+            case "Subcontract":
+
+                PartyLabel = "Subcontractor";
+
+                var subcontractors = await ratingService.GetAllVendorsAsync(
+                    "SUBCONTRACT",
+                    FromDate.Value,
+                    ToDate.Value);
+
+                Parties = subcontractors.Select(x => new PartyVM
+                {
+                    Id = x.VendorCode,
+                    Name = x.VendorName
+                }).ToList();
+
+                break;
+        }
+
+
+    }
+
+
+    private async Task GetRatings()
+    {
+        try
+        {
+            isProcessing = true;
+            ShowRatings = true;
+            ShowFPY = false;
+            DetailsView = false;
+            if (SelectedParty == "") { SelectedParty = null; }
+            RatingVMs = await ratingService.GetRatings(
+                DetailsView,
+                SelectedType,
+                SelectedParty,
+                FromDate,
+                ToDate);
+        }
+
+
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error loading Ratings");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+
+        await InitializeColumns(true);
+
+        StateHasChanged();
+    }
+
+
+
+ 
+
+
+    private IEnumerable<RatingVM> FilteredRatings
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText) || searchText.Length < 3)
+                return RatingVMs;
+
+            return RatingVMs.Where(x =>
+
+                (x.CustName ?? string.Empty)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.ItemCode ?? string.Empty)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.ItemName ?? string.Empty)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.PONo ?? string.Empty)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.WoNo ?? string.Empty)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.DcNo ?? string.Empty)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+                ||
+
+                (x.InvNo ?? string.Empty)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+            );
+        }
+    }
+
+
+
+
+    private IEnumerable<FPYVM> FilteredFPYReport =>
+        string.IsNullOrWhiteSpace(searchText1)
+            ? FPYReport
+            : FPYReport.Where(x =>
+                (!string.IsNullOrWhiteSpace(x.PartyName) &&
+                 x.PartyName.Contains(searchText1, StringComparison.OrdinalIgnoreCase))
+                ||
+                (!string.IsNullOrWhiteSpace(x.Itemcode) &&
+                 x.Itemcode.Contains(searchText1, StringComparison.OrdinalIgnoreCase))
+                ||
+                x.ProductionQty.ToString().Contains(searchText1)
+                ||
+                x.RejectionQty.ToString().Contains(searchText1)
+                ||
+                x.ReworkQty.ToString().Contains(searchText1)
+                ||
+                x.FPYQty.ToString().Contains(searchText1)
+                ||
+                x.FPYPercentage.ToString("0.00").Contains(searchText1));
+
+
+
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the SalesEnquiryList HandleColumnChange() Method");
+        }
+    }
+
+    
+
+    private async Task OnPartyChanged(PartyVM? value)
+    {
+        SelectedPartyVM = value;
+        if (value == null)
+        {
+            SelectedParty = "";      // or null
+            SelectedItem = "";
+            SelectedItemVM = null;
+            Items.Clear();
+
+            // Load all parties data
+
+
+            RatingVMs = await ratingService.GetRatings(
+             DetailsView,
+             SelectedType,
+             SelectedParty,
+             FromDate,
+             ToDate);
+
+            return;
+        }
+
+
+        SelectedParty = value.Id.ToString();
+        // Select it automatically
+       
+        
+        // Clear Item
+        SelectedItem = "";
+        SelectedItemVM = null;
+        Items.Clear();
+
+        if (string.IsNullOrWhiteSpace(SelectedParty))
+            return;
+
+        int partyId = Convert.ToInt32(SelectedParty);
+
+      
+
+        if (SelectedType == "Sales")
+        {
+            Items = await _unitOfWork.MfgDcs
+                .GetQueryable()
+                .Where(dc =>
+                    dc.CustId == partyId &&
+                    (!FromDate.HasValue || dc.DcDate >= FromDate.Value) &&
+                    (!ToDate.HasValue || dc.DcDate < ToDate.Value.AddDays(1)))
+                .SelectMany(dc => dc.MfgDcSubs)
+                .Select(x => new ItemVM
+                {
+                    ItemId = x.Item.ItemId,
+                    ItemCode = x.Item.ItemCode
+                })
+                .Distinct()
+                .OrderBy(x => x.ItemCode)
+                .ToListAsync();
+        }
+        else if (SelectedType == "Purchase")
+        {
+            Items = await _unitOfWork.PurchaseGRNs
+                .GetQueryable()
+                .Where(grn =>
+                    grn.VendorCode == partyId &&
+                    (!FromDate.HasValue || grn.GRNDate >= FromDate.Value) &&
+                    (!ToDate.HasValue || grn.GRNDate < ToDate.Value.AddDays(1)))
+                .SelectMany(grn => grn.PurchaseGRNSubs)
+                .Select(x => new ItemVM
+                {
+                    ItemId = x.ItemId,
+                    ItemCode = x.Item.ItemCode
+                })
+                .Distinct()
+                .OrderBy(x => x.ItemCode)
+                .ToListAsync();
+        }
+        else if (SelectedType == "SubContract")
+        {
+            Items = await _unitOfWork.SubConGRNs
+                .GetQueryable()
+                .Where(grn =>
+                    grn.VendorCode == partyId &&
+                    (!FromDate.HasValue || grn.GRNDate >= FromDate.Value) &&
+                    (!ToDate.HasValue || grn.GRNDate < ToDate.Value.AddDays(1)))
+                .SelectMany(grn => grn.SubConGRNSubs)
+                .Select(x => new ItemVM
+                {
+                    ItemId = x.ItemId!.Value,
+                    ItemCode = x.Item.ItemCode
+                })
+                .Distinct()
+                .OrderBy(x => x.ItemCode)
+                .ToListAsync();
+        }
+        else if (SelectedType == "Labour")
+        {
+            Items = await _unitOfWork.LabourGRNs
+                .GetQueryable()
+                .Where(grn =>
+                    grn.CustId == partyId &&
+                    (!FromDate.HasValue || grn.GRNDate >= FromDate.Value) &&
+                    (!ToDate.HasValue || grn.GRNDate < ToDate.Value.AddDays(1)))
+                .SelectMany(grn => grn.LabourGRNSubs)
+                .Select(x => new ItemVM
+                {
+                    ItemId = x.ItemId!.Value,
+                    ItemCode = x.Item.ItemCode
+                })
+                .Distinct()
+                .OrderBy(x => x.ItemCode)
+                .ToListAsync();
+        }
+
+        Items.Insert(0, new ItemVM
+        {
+            ItemId = 0,
+            ItemCode = "All Items"
+        });
+        SelectedItem = "0"; // Select "All Items" by default
+
+        StateHasChanged();
+    }
+
+    private async Task OnItemChanged(ItemVM? value)
+    {
+        SelectedItemVM = value;
+
+        if (value == null)
+        {
+            SelectedItem = "";
+            return;
+        }
+
+        SelectedItem = value.ItemId.ToString();
+
+        // Your existing code after selecting an item
+    }
+
+   
+
+    private async Task GetFPYReport()
+    {
+        ShowRatings = false;
+        ShowFPY = true;
+
+        FPYReport.Clear();
+
+        int partyId = string.IsNullOrWhiteSpace(SelectedParty)
+            ? 0
+            : Convert.ToInt32(SelectedParty);
+
+        int itemId = string.IsNullOrWhiteSpace(SelectedItem)
+            ? 0
+            : Convert.ToInt32(SelectedItem);
+
+        var fromDate = FromDate.Value.Date;
+        var toDate = ToDate.Value.Date.AddDays(1).AddTicks(-1);
+
+        switch (SelectedType)
+        {
+            case "Sales":
+
+                var sales = await _unitOfWork.MfgDcSubs
+                    .GetQueryable()
+                    .Where(x =>
+                        (partyId == 0 || x.MfgDc.CustId == partyId) &&
+                        (itemId == 0 || x.ItemId == itemId) &&
+                        x.MfgDc.DcDate >= fromDate &&
+                        x.MfgDc.DcDate <= toDate)
+                    .GroupBy(x => new
+                    {
+                        x.ItemId,
+                        x.Item.ItemCode,
+                        x.Item.ItemName
+                    })
+                    .Select(g => new
+                    {
+                        g.Key.ItemId,
+                        g.Key.ItemCode,
+                        g.Key.ItemName,
+                        ProductionQty = g.Sum(x => x.Qty),
+                        RejectQty = g.Sum(x => x.RejectQty),
+                        ReworkQty = g.Sum(x => x.ReworkQty)
+                    })
+                    .ToListAsync();
+
+                foreach (var x in sales)
+                {
+                    AddFPYRow(partyId, x.ItemCode, x.ItemName, x.ProductionQty, x.RejectQty, x.ReworkQty);
+                }
+
+                break;
+
+            case "Purchase":
+
+                var purchase = await _unitOfWork.PurchaseGRNSubs
+                    .GetQueryable()
+                    .Where(x =>
+                        (partyId == 0 || x.PurchaseGRN.VendorCode == partyId) &&
+                        (itemId == 0 || x.ItemId == itemId) &&
+                        x.PurchaseGRN.GRNDate >= fromDate &&
+                        x.PurchaseGRN.GRNDate <= toDate)
+                    .GroupBy(x => new
+                    {
+                        x.ItemId,
+                        x.Item.ItemCode,
+                        x.Item.ItemName
+                    })
+                    .Select(g => new
+                    {
+                        g.Key.ItemId,
+                        g.Key.ItemCode,
+                        g.Key.ItemName,
+                        ProductionQty = g.Sum(x => x.Qty)
+                    })
+                    .ToListAsync();
+
+                foreach (var p in purchase)
+                {
+                    decimal reject = await _unitOfWork.PurchaseSCNSubs
+                        .GetQueryable()
+                        .Where(x =>
+                            (partyId == 0 || x.PurchaseSCN.VendorCode == partyId) &&
+                            x.ItemId == p.ItemId &&
+                            x.PurchaseSCN.SCNDate >= fromDate &&
+                            x.PurchaseSCN.SCNDate <= toDate)
+                        .SumAsync(x => (decimal?)x.RejectQty) ?? 0;
+
+                    decimal rework = await _unitOfWork.PurchaseSCNSubs
+                        .GetQueryable()
+                        .Where(x =>
+                            (partyId == 0 || x.PurchaseSCN.VendorCode == partyId) &&
+                            x.ItemId == p.ItemId &&
+                            x.PurchaseSCN.SCNDate >= fromDate &&
+                            x.PurchaseSCN.SCNDate <= toDate)
+                        .SumAsync(x => (decimal?)x.ReworkQty) ?? 0;
+
+                    AddFPYRow(partyId, p.ItemCode, p.ItemCode, p.ProductionQty, reject, rework);
+                }
+
+                break;
+
+            case "Subcontract":
+
+                var subcontract = await _unitOfWork.SubConGRNSubs
+                    .GetQueryable()
+                    .Where(x =>
+                       (partyId == 0 || x.SubConGRNs.VendorCode == partyId) &&
+                        (itemId == 0 || x.ItemId == itemId) &&
+                        x.SubConGRNs.GRNDate >= fromDate &&
+                        x.SubConGRNs.GRNDate <= toDate)
+                    .GroupBy(x => new
+                    {
+                        x.ItemId,
+                        x.Item.ItemCode,
+                        x.Item.ItemName
+                    })
+                    .Select(g => new
+                    {
+                        g.Key.ItemId,
+                        g.Key.ItemCode,
+                        g.Key.ItemName,
+                        ProductionQty = g.Sum(x => x.Qty)
+                    })
+                    .ToListAsync();
+
+                foreach (var s in subcontract)
+                {
+                    decimal reject = await _unitOfWork.SubConSCNSubs
+                        .GetQueryable()
+                        .Where(x =>
+                            (partyId == 0 || x.SubConSCN.VendorCode == partyId) &&
+                            x.ItemId == s.ItemId &&
+                            x.SubConSCN.SCNDate >= fromDate &&
+                            x.SubConSCN.SCNDate <= toDate)
+                        .SumAsync(x => (decimal?)x.RejQty) ?? 0;
+
+                    decimal rework = await _unitOfWork.SubConSCNSubs
+                        .GetQueryable()
+                        .Where(x =>
+                            (partyId == 0 || x.SubConSCN.VendorCode == partyId) &&
+                            x.ItemId == s.ItemId &&
+                            x.SubConSCN.SCNDate >= fromDate &&
+                            x.SubConSCN.SCNDate <= toDate)
+                        .SumAsync(x => (decimal?)x.RewQty) ?? 0;
+
+                    AddFPYRow(partyId, s.ItemCode, s.ItemName, s.ProductionQty ?? 0, reject, rework);
+                }
+
+                break;
+
+            case "Labour":
+
+                var labour = await _unitOfWork.LabourGRNSubs
+                    .GetQueryable()
+                    .Where(x =>
+                        (partyId == 0 || x.LabourGRN.CustId == partyId) &&
+                        (itemId == 0 || x.ItemId == itemId) &&
+                        x.LabourGRN.GRNDate >= fromDate &&
+                        x.LabourGRN.GRNDate <= toDate)
+                    .GroupBy(x => new
+                    {
+                        x.ItemId,
+                        x.Item.ItemCode,
+                        x.Item.ItemName
+                    })
+                    .Select(g => new
+                    {
+                        g.Key.ItemId,
+                        g.Key.ItemCode,
+                        g.Key.ItemName,
+                        ProductionQty = g.Sum(x => x.Qty)
+                    })
+                    .ToListAsync();
+
+                foreach (var l in labour)
+                {
+                    decimal reject = await _unitOfWork.LabourSCNSubs
+                        .GetQueryable()
+                        .Where(x =>
+                            (partyId == 0 || x.LabourSCN.CustId == partyId) &&
+                            x.ItemId == l.ItemId &&
+                            x.LabourSCN.SCNDate >= fromDate &&
+                            x.LabourSCN.SCNDate <= toDate)
+                        .SumAsync(x => (decimal?)x.RejectQty) ?? 0;
+
+                    decimal rework = await _unitOfWork.LabourSCNSubs
+                        .GetQueryable()
+                        .Where(x =>
+                            (partyId == 0 || x.LabourSCN.CustId == partyId) &&
+                            x.ItemId == l.ItemId &&
+                            x.LabourSCN.SCNDate >= fromDate &&
+                            x.LabourSCN.SCNDate <= toDate)
+                        .SumAsync(x => (decimal?)x.ReworkQty) ?? 0;
+
+                    AddFPYRow(partyId, l.ItemCode, l.ItemName, l.ProductionQty, reject, rework);
+                }
+
+                break;
+        }
+
+        StateHasChanged();
+    }
+
+    private void AddFPYRow(
+      int partyId,
+      string itemCode,
+      string itemName,
+      decimal productionQty,
+      decimal rejectionQty,
+      decimal reworkQty)
+    {
+        decimal fpyQty = productionQty - rejectionQty - reworkQty;
+
+        decimal fpyPercentage = productionQty > 0
+            ? Math.Round((fpyQty / productionQty) * 100, 2)
+            : 0;
+
+        FPYReport.Add(new FPYVM
+        {
+            PartyName = partyId == 0
+                ? "All Parties"
+                : Parties.FirstOrDefault(x => x.Id == partyId)?.Name,
+
+            Itemcode = itemCode,
+            ItemName = itemName,
+            ProductionQty = productionQty,
+            RejectionQty = rejectionQty,
+            ReworkQty = reworkQty,
+            FPYQty = fpyQty,
+            FPYPercentage = fpyPercentage
+        });
+        decimal totalProduction = FPYReport.Sum(x => x.ProductionQty);
+        decimal totalReject = FPYReport.Sum(x => x.RejectionQty);
+        decimal totalRework = FPYReport.Sum(x => x.ReworkQty);
+
+        decimal totalFPYQty = totalProduction - totalReject - totalRework;
+
+        OverallFPYPercentage = totalProduction > 0
+            ? Math.Round((totalFPYQty / totalProduction) * 100, 2)
+            : 0;
+    }
+
+    
+    private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            if (!FilteredRatings.Any())
+            {
+                await _JS.InvokeVoidAsync("alert", "No data found to export.");
+                return;
+            }
+
+            if (SelectedType != "Sales" &&
+                SelectedType != "Labour" &&
+                SelectedType != "Purchase" &&
+                SelectedType != "Subcontract")
+            {
+                return;
+            }
+
+            var exportData = FilteredRatings.Select((x, i) => new
+            {
+                SlNo = IsVisible("SlNo") ? (int?)(i + 1) : null,
+
+                CustomerName = IsVisible("CustName") ? x.CustName : null,
+
+                PONo = IsVisible("PONo") ? x.PONo : null,
+
+                PODate = IsVisible("PODate")
+                            ? x.PODate?.ToString("dd/MM/yyyy")
+                            : null,
+
+                ItemCode = DetailsView && IsVisible("ItemCode")
+                            ? x.ItemCode
+                            : null,
+
+                ItemName = DetailsView && IsVisible("ItemName")
+                            ? x.ItemName
+                            : null,
+
+                Qty = IsVisible("Qty")
+                        ? x.Qty
+                        : null,
+
+                WoNo = DetailsView && IsVisible("WoNo")
+                        ? x.WoNo
+                        : null,
+
+                DueDate = IsVisible("PoDueDate")
+                            ? x.PoDueDate?.ToString("dd/MM/yyyy")
+                            : null,
+
+                DcNo = IsVisible("DcNo")
+                        ? x.DcNo
+                        : null,
+
+                DCDate = IsVisible("DCDate")
+                            ? x.DCDate?.ToString("dd/MM/yyyy")
+                            : null,
+
+                DcQty = IsVisible("DcQty")
+                            ? x.DcQty
+                            : null,
+
+                RejectQty = IsVisible("RejectQty")
+                            ? x.RejectQty
+                            : null,
+
+                ReworkQty = IsVisible("ReworkQty")
+                            ? x.ReworkQty
+                            : null,
+
+                InvoiceNo = IsVisible("InvNo")
+                                ? x.InvNo
+                                : null,
+
+                InvoiceDate = IsVisible("InvDate")
+                                ? x.InvDate?.ToString("dd/MM/yyyy")
+                                : null,
+
+                InvoiceQty = IsVisible("INVQty")
+                                ? x.INVQty
+                                : null,
+
+                DelayDays = IsVisible("TotalDays")
+                                ? x.TotalDays
+                                : null,
+
+                PerformanceRating = IsVisible("Rating")
+                                        ? x.Rating
+                                        : null,
+
+                DeliveryRating = IsVisible("DeliveryRating")
+                                        ? x.DeliveryRating
+                                        : null,
+
+                QualityRating = IsVisible("QualityRating")
+                                        ? x.QualityRating
+                                        : null,
+
+                SalesRating = IsVisible("SalesRating")
+                                        ? x.SalesRating
+                                        : null,
+
+                VendorRating = IsVisible("VendorRating")
+                                        ? x.VendorRating
+                                        : null
+            }).Cast<object>().ToList();
+
+            string[] headers = Columns
+                .Where(x => x.IsVisible)
+                .Select(x => x.Title)
+                .ToArray();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Rating Report",
+                headers: headers,
+                sampleData: exportData);
+
+            await _JS.InvokeVoidAsync(
+                "downloadExcelFile",
+                Convert.ToBase64String(fileBytes),
+                $"Rating_{SelectedType}.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, ex.Message);
+        }
+    }
+  
+
+
+    private async Task OnPrintPendingTrack1()
+    {
+        try
+        {
+            if (FPYReport == null || !FPYReport.Any())
+            {
+                await _JS.InvokeVoidAsync(
+                    "alert",
+                    "No paid bills found to export."
+                );
+
+                return;
+            }
+
+            string[] headers =
+            {
+                "Party",
+                "Item Code",
+                "Item Name",
+                "Production Qty",
+                "Reject Qty",
+                "Rework Qty",
+                "FPY Qty",
+                "FPY %"
+            };
+
+            var exportData = FPYReport
+                .Select(x => new
+                {
+                    x.PartyName,
+                    x.Itemcode,
+                    x.ItemName,
+                    x.ProductionQty,
+                    x.RejectionQty,
+                    x.ReworkQty,
+                    x.FPYQty,
+                    x.FPYPercentage
+                })
+                .ToList();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "FPY_Report",
+                headers: headers,
+                sampleData: exportData
+            );
+
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                await _JS.InvokeVoidAsync(
+                    "alert",
+                    "Failed to generate Excel file."
+                );
+
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync(
+                "downloadExcelFile",
+                base64,
+                "FPY_Report.xlsx"
+            );
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error while exporting Paid Bills Excel"
+            );
+
+            await _JS.InvokeVoidAsync(
+                "alert",
+                "Error occurred while exporting Excel."
+            );
+        }
+    }
+
+}

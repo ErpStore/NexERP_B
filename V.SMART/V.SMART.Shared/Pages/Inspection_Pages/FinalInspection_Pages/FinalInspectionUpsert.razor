@@ -1,0 +1,1769 @@
+﻿@page "/FinalInspection/create"
+@page "/FinalInspection/update/{InspectId:int}"
+
+@using System.Text.Json
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IInspectionService
+@using V.SMART.Shared.Data.SalesAndLabour.SalesDC
+@using V.SMART.Shared.ViewModels.InspectionViewModel.FinalInspectionVM
+@using V.SMART.Shared.ViewModels.InspectionViewModel.MasterInspectionVM
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesDCVM
+@using Microsoft.AspNetCore.Components.Forms
+
+@inherits BaseUserRightsComponent
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IFinalInspectionService FinalInspectionService
+@inject ILoggingService LoggingService
+
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/V.SMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-3 px-md-5 mt-4">
+
+        <div class="card shadow-sm border-0">
+
+            <PageHeader TitleText="@(FinalInspectionVM.Id > 0 ? "Update Inspection" : "Create Inspection")"
+                        TitleIcon="bi bi-clipboard-check"
+                        Breadcrumbs="@ScreenBreadcrumbs" />
+
+            <EditForm Model="FinalInspectionVM" OnValidSubmit="SaveInspection">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <!-- 🔀 Inspection Type Toggle -->
+                <div class="d-flex justify-content-center my-3">
+                    <div class="btn-group shadow-sm rounded-pill">
+                        <button type="button"
+                                class="btn px-4 py-2 rounded-start-pill
+                                            @(Mode == InspectionMode.Random ? "btn-primary" : "btn-outline-primary")"
+                                @onclick="RandomInspectionClick">
+                            <i class="bi bi-shuffle me-1"></i>
+                            Random Inspection
+                        </button>
+
+                        <button type="button"
+                                class="btn px-4 py-2 rounded-end-pill
+                                            @(Mode == InspectionMode.Individual ? "btn-primary" : "btn-outline-primary")"
+                                @onclick="IndividualInspectionClick">
+                            <i class="bi bi-person-check me-1"></i>
+                            Individual Inspection
+                        </button>
+                    </div>
+                </div>
+                <div class="row g-3 px-3">
+
+                    <div class="col-12 col-lg-6 mb-2">
+                        <div class="card h-100 shadow-sm">
+
+                            <div class="card-header bg-primary-subtle fw-bold">
+                                Customer And Item Details
+                            </div>
+
+                            <div class="card-body">
+
+                                <!-- DC Type -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">
+                                        DC Type <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="col-sm-9">
+                                        <select class="form-select form-select-sm border-primary"
+                                                value="@FinalInspectionVM.DcType"
+                                                @onchange="GetDcNos">
+                                            <option value="">-- Select --</option>
+                                            <option value="Manufacturing">Manufacturing</option>
+                                            <option value="Labour">Labour</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- DC No -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">
+                                        DC No <span class="text-danger">*</span>
+                                    </label>
+
+                                    <div class="col-sm-9">
+                                        <div class="input-group input-group-sm">
+
+                                            @if (!IsAddNewDC)
+                                            {
+                                                @if (!IsEditingMode)
+                                                {
+                                                    <!-- SELECT EXISTING DC -->
+                                                    <select class="form-select"
+                                                            value="@FinalInspectionVM.DcId" @onchange="OnTextOrSelectChange">
+                                                        <option value="">-- Select DC No --</option>
+                                                        @foreach (var detail in DcNoList)
+                                                        {
+                                                            <option value="@detail.DcId">@detail.DcNo</option>
+                                                        }
+                                                    </select>
+                                                }
+                                                else
+                                                {
+                                                    <input type="text" class="form-control" @bind-value=FinalInspectionVM.DCNo readonly />
+                                                }
+                                            }
+                                            else
+                                            {
+                                                @if (!IsEditingMode)
+                                                {
+                                                    <!-- ADD NEW DC -->
+                                                    <input type="text" class="form-control border-primary" placeholder="Enter new DC No" @bind-Value="FinalInspectionVM.DCNo"
+                                                           @bind-Value:event="oninput" @onchange="OnTextBoxTyping" />
+                                                }
+                                                else
+                                                {
+                                                    <input type="text" class="form-control" @bind-value=FinalInspectionVM.DCNo />
+                                                }
+                                            }
+                                            @if (!IsEditingMode)
+                                            {
+                                                <!-- TOGGLE BUTTON -->
+                                                <button class="btn btn-outline-primary"
+                                                        type="button"
+                                                        title="Add new DC"
+                                                        @onclick="ToggleAddNewDC">
+                                                    <i class="bi @(IsAddNewDC ? "bi-x-lg" : "bi-plus-lg")"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PO No -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">PO No</label>
+                                    <div class="col-sm-9">
+                                        <InputText class="form-control form-control-sm"
+                                                   @bind-value="FinalInspectionVM.PONo" />
+                                    </div>
+                                </div>
+
+                                <!-- Customer -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">Customer</label>
+                                    <div class="col-sm-9">
+                                        @if (!string.IsNullOrEmpty(FinalInspectionVM.CustomerName))
+                                        {
+                                            <InputText class="form-control form-control-sm bg-light"
+                                                       @bind-Value="FinalInspectionVM.CustomerName"
+                                                       readonly />
+                                        }
+                                        else
+                                        {
+                                            <select class="form-select form-select-sm"
+                                                    @bind="FinalInspectionVM.CustId">
+                                                <option value="">-- Select Customer --</option>
+                                                @foreach (var customer in AllCustomers)
+                                                {
+                                                    <option value="@customer.CustId">@customer.CustName</option>
+                                                }
+                                            </select>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Item Code -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">
+                                        Item Code <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="col-sm-9">
+                                        @if (IsEditingMode)
+                                        {
+                                            <input type="text"
+                                                   class="form-control form-control-sm rounded-3"
+                                                   @bind-value="FinalInspectionVM.ItemCode"
+                                                   readonly />
+                                        }
+
+                                        @if (IsnotDc)
+                                        {
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    value=@FinalInspectionVM.ItemId @onchange="OnItemCodeChanged">
+
+                                                <option value="">--Select Item Code--</option>
+
+                                                @foreach (var item in AllItems)
+                                                {
+                                                    <option value="@item.ItemId">@item.ItemCode</option>
+                                                }
+                                            </select>
+                                        }
+                                        @if (!IsnotDc && !IsEditingMode)
+                                        {
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    value=@FinalInspectionVM.RefMfgDcSubID @onchange="OnItemCodeChanged">
+                                                <option value="">--Select Item Code--</option>
+
+                                                @foreach (var item in dcSubVMList)
+                                                {
+                                                    <option value="@item.DcSubId">@item.ItemCode</option>
+                                                }
+                                            </select>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Item Name & Cost Centre -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">Item Name</label>
+                                    <div class="col-sm-9">
+                                        <InputText class="form-control form-control-sm bg-light"
+                                                   @bind-Value="FinalInspectionVM.ItemName" />
+                                    </div>
+                                </div>
+
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">Cost Centre</label>
+                                    <div class="col-sm-9">
+                                        <InputSelect class="form-select form-select-sm"
+                                                     @bind-Value="FinalInspectionVM.CostCenter">
+                                            <option value="">-- Select Cost Center --</option>
+
+                                            @foreach (var center in AllcostCenterVMs)
+                                            {
+                                                <option value="@center.CostCenterName">
+                                                    @center.CostCenterName
+                                                </option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                </div>
+
+                                <!-- Inspected By -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">Inspected By</label>
+                                    <div class="col-sm-9">
+                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                @bind="@FinalInspectionVM.InspectBy">
+                                            <option value="">-- Select Staff --</option>
+                                            @foreach (var staff in AllStaff)
+                                            {
+                                                <option value="@staff.StaffName">@staff.StaffName</option>
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-lg-6 mb-2">
+                        <div class="card h-100 shadow-sm">
+
+                            <!-- Header -->
+                            <div class="card-header bg-primary-subtle fw-bold">
+                                Inspection Details
+                            </div>
+
+                            <div class="card-body">
+
+                                <!-- Inspection No -->
+                                <div class="mb-2 row">
+                                    <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                        <small>Inspection No</small>
+                                    </label>
+                                    <div class="col-12 col-sm-9">
+                                        <div class="input-group input-group-sm w-100 rounded-3">
+                                            <InputText class="form-control form-control-sm rounded-3"
+                                                       placeholder="Inspection No"
+                                                       maxlength="30"
+                                                       @bind-Value="@FinalInspectionVM.InspectNo" />
+                                            <span class="input-group-text rounded-3">@FinalInspectionVM.Suffix</span>
+                                        </div>
+                                        <ValidationMessage For="@(() => FinalInspectionVM.InspectNo)" />
+                                    </div>
+                                </div>
+
+                                <!-- Inspection Date -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">
+                                        Inspection Date
+                                    </label>
+
+                                    <div class="col-sm-9">
+                                        <InputDate class="form-control form-control-sm"
+                                                   @bind-Value="FinalInspectionVM.InspectDate" />
+                                        <ValidationMessage For="@(() => FinalInspectionVM.InspectDate)" />
+                                    </div>
+                                </div>
+
+                                <!-- DC Qty -->
+                                <div class="row mb-2 align-items-center">
+                                    <div class="col-12 col-md-6">
+                                        <div class="row align-items-center">
+                                            <label class="col-6 col-form-label">
+                                                DC Qty <span class="text-danger">*</span>
+                                            </label>
+                                            <div class="col-6">
+                                                @if (IsnotDc)
+                                                {
+                                                    <input type="number" class="form-control form-control-sm text-end" step="any"
+                                                           @bind-value="FinalInspectionVM.Qty" @bind-value:event="oninput" @onchange="GenerateAllSheets" />
+                                                }
+                                                else
+                                                {
+                                                    <input type="number" class="form-control form-control-sm text-end" step="any"
+                                                           @bind-value="FinalInspectionVM.Qty" readonly="@IsEditingMode" />
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Item UOM -->
+                                    <div class="col-12 col-md-6">
+                                        <div class="row align-items-center">
+                                            <label class="col-6 col-form-label text-nowrap">
+                                                Item Units
+                                            </label>
+                                            <div class="col-6">
+                                                <InputText class="form-control form-control-sm"
+                                                           @bind-Value="FinalInspectionVM.ItemUOM"
+                                                           readonly />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-2 align-items-center">
+
+                                    <!-- Accept Qty -->
+                                    <div class="col-12 col-md-6">
+                                        <div class="row align-items-center">
+                                            <label class="col-6 col-form-label text-success fw-semibold text-nowrap">
+                                                Accept Qty
+                                            </label>
+                                            <div class="col-6">
+                                                <InputNumber class="form-control form-control-sm text-end border-success"
+                                                             @bind-Value="FinalInspectionVM.AcceptQty" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Rework Qty -->
+                                    <div class="col-12 col-md-6">
+                                        <div class="row align-items-center">
+                                            <label class="col-6 col-form-label fw-semibold text-nowrap" style="color:slateblue;">
+                                                Rework Qty
+                                            </label>
+                                            <div class="col-6">
+                                                <InputNumber class="form-control form-control-sm  fw-semibold" style="border-color:slateblue;"
+                                                             @bind-Value="FinalInspectionVM.ReWork" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Reject Qty -->
+                                <div class="row mb-2 align-items-center">
+                                    <div class="col-12 col-md-6">
+                                        <div class="row align-items-center">
+                                            <label class="col-6 col-form-label fw-semibold text-nowrap" style="color:#FF1D8D;">
+                                                Reject Qty
+                                            </label>
+                                            <div class="col-6">
+                                                <InputNumber class="form-control form-control-sm text-end"
+                                                             style="border-color:#FF1D8D;"
+                                                             @bind-Value="FinalInspectionVM.RejQty" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                @if (Mode == InspectionMode.Individual)
+                                {
+                                    <!-- Select Sheet -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-sm-3 col-form-label">
+                                            Sheet <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="col-sm-9">
+                                            @if (IsSheetEditable)
+                                            {
+                                                <InputText class="form-control form-control-sm bg-light"
+                                                           @bind-Value="FinalInspectionVM.SheetName"
+                                                           readonly />
+                                            }
+                                            else
+                                            {
+                                                <select class="form-select form-select-sm rounded-3 w-100"
+                                                        @bind="FinalInspectionVM.SheetSlNo"
+                                                        @bind:event="onselect"
+                                                        @onchange="LoadTableheadings">
+
+                                                    <option value="">-- Select Sheet --</option>
+
+                                                    @foreach (var sheet in SheetList)
+                                                    {
+                                                        <option value="@sheet.SheetSlNo">@sheet.SheetName</option>
+                                                    }
+                                                </select>
+
+                                            }
+                                        </div>
+                                    </div>
+                                }
+
+                                <!-- Remarks -->
+                                <div class="row mb-2 align-items-center">
+                                    <label class="col-sm-3 col-form-label">
+                                        Remarks
+                                    </label>
+
+                                    <div class="col-sm-9">
+                                        <textarea class="form-control form-control-sm rounded-3"
+                                                  rows="1"
+                                                  @bind="FinalInspectionVM.Remarks"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= DIMENSION TABLE ================= -->
+                <div class="row g-3 px-3">
+                    <div class="col-12">
+                        <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                            <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                <span class="fw-bold fs-6">Inspection Dimensions</span>
+                            </div>
+                            <div class="card-body px-1 py-1 bg-light">
+
+                                <div class="table-responsive" style="overflow-x:auto">
+                                    <table class="table table-bordered table-sm text-center align-middle mb-0" style="min-width:2000px;">
+                                        <thead class="table-info align-middle">
+                                            <tr class="text-center fw-semibold" style="font-size:13px;">
+                                                <th style="width:60px;">Sl No.</th>
+                                                <th style="width:120px;">Description</th>
+                                                <th style="width:70px;">Dimens</th>
+                                                <th style="width:90px;white-space:nowrap;">Lo Tol</th>
+                                                <th style="width:90px; white-space:nowrap;">Hi Tol</th>
+
+                                                @if (Mode == InspectionMode.Individual)
+                                                {
+                                                    @for (int i = 1; i <= noofsamples; i++)
+                                                    {
+                                                        <th style="width:70px; white-space:nowrap;">
+                                                            Sample @(((SelectedSheetNo - 1) * noofsamples) + i)
+                                                        </th>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    @for (int i = 1; i <= noofsamples; i++)
+                                                    {
+                                                        <th style="width:70px; white-space:nowrap;">
+                                                            Sample @i
+                                                        </th>
+                                                    }
+                                                }
+
+                                                <th style="width:90px;">Instrument</th>
+                                                <th style="width:90px;">Defect Name</th>
+                                                <th style="width:90px;">Remarks</th>
+                                                <th style="width:80px;" class="text-end">Action</th>
+                                            </tr>
+                                        </thead>
+
+
+
+                                        <tbody>
+                                            @foreach (var row in InspectionData)
+                                            {
+                                                <tr @key="row.RowId">
+
+                                                    @if (row.IsEditable)
+                                                    {
+
+                                                        <td class="bg-warning-subtle text-center">
+                                                            <input type="number" class="form-control form-control-sm"
+                                                                   @bind-value="row.SlNo" readonly />
+                                                        </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input class="form-control form-control-sm"
+                                                                   @bind="row.Desc" />
+                                                        </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="number" class="form-control form-control-sm" step="any"
+                                                                   @bind="row.Dimens" />
+                                                        </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="number" class="form-control form-control-sm" step="any"
+                                                                   @bind="row.LoTol" />
+                                                        </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="number" class="form-control form-control-sm" step="any"
+                                                                   @bind="row.HiTol" />
+                                                        </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                    @(row.Comp1 != null
+                                                                                                                                                           ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp1)
+                                                                                                                                                               ? "text-danger"
+                                                                                                                                                               : "text-success")
+                                                                                                                                                           : "")"
+                                                                                                                                                                @bind="row.Comp1" />
+                                                                                                                                                     </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                    @(row.Comp2 != null
+                                                                                                                                                           ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp2)
+                                                                                                                                                               ? "text-danger"
+                                                                                                                                                               : "text-success")
+                                                                                                                                                           : "")"
+                                                                                                                                                                @bind="row.Comp2" />
+                                                                                                                                                     </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                   @(row.Comp3 != null
+                                                                                                                                                       ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp3)
+                                                                                                                                                           ? "text-danger"
+                                                                                                                                                           : "text-success")
+                                                                                                                                                       : "")"
+                                                                                                                                                            @bind="row.Comp3" />
+                                                                                                                                                 </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                    @(row.Comp4 != null
+                                                                                                                                                           ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp4)
+                                                                                                                                                               ? "text-danger"
+                                                                                                                                                               : "text-success")
+                                                                                                                                                           : "")"
+                                                                                                                                                                @bind="row.Comp4" />
+                                                                                                                                                     </td>
+
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                    @(row.Comp5 != null
+                                                                                                                                                           ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp5)
+                                                                                                                                                               ? "text-danger"
+                                                                                                                                                               : "text-success")
+                                                                                                                                                           : "")"
+                                                                                                                                                                @bind="row.Comp5" />
+                                                                                                                                                     </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                                    @(row.Comp6 != null
+                                                                                                                                                                           ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp6)
+                                                                                                                                                                               ? "text-danger"
+                                                                                                                                                                               : "text-success")
+                                                                                                                                                                           : "")"
+                                                                                                                                                                                @bind="row.Comp6" />
+                                                                                                                                                                     </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                                @(row.Comp7 != null
+                                                                                                                                                                       ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp7)
+                                                                                                                                                                           ? "text-danger"
+                                                                                                                                                                           : "text-success")
+                                                                                                                                                                       : "")"
+                                                                                                                                                                            @bind="row.Comp7" />
+                                                                                                                                                                 </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                    @(row.Comp8 != null
+                                                                                                                                                           ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp8)
+                                                                                                                                                               ? "text-danger"
+                                                                                                                                                               : "text-success")
+                                                                                                                                                           : "")"
+                                                                                                                                                                @bind="row.Comp8" />
+                                                                                                                                                     </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                    @(row.Comp9 != null
+                                                                                                                                                           ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp9)
+                                                                                                                                                               ? "text-danger"
+                                                                                                                                                               : "text-success")
+                                                                                                                                                           : "")"
+                                                                                                                                                                @bind="row.Comp9" />
+                                                                                                                                                     </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <input type="text"
+                                                                   inputmode="decimal"
+                                                                   class="form-control form-control-sm text-center
+                                                                                                    @(row.Comp10 != null
+                                                                                                                                                           ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp10)
+                                                                                                                                                               ? "text-danger"
+                                                                                                                                                               : "text-success")
+                                                                                                                                                           : "")"
+                                                       @bind="row.Comp10" />
+                                            </td>
+                                            @if (noofsamples == 15)
+                                                        {
+
+                                                            <td class="bg-warning-subtle">
+                                                                <input type="text"
+                                                                       inputmode="decimal"
+                                                                       class="form-control form-control-sm text-center
+                                                                                                                                        @(row.Comp11 != null
+                                                                                                                                                                                               ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp11)
+                                                                                                                                                                                                   ? "text-danger"
+                                                                                                                                                                                                   : "text-success")
+                                                                                                                                                                                               : "")"
+                                                                                                                                                                                                    @bind="row.Comp11" />
+                                                                                                                                                                                         </td>
+
+                                                            <td class="bg-warning-subtle">
+                                                                <input type="text"
+                                                                       inputmode="decimal"
+                                                                       class="form-control form-control-sm text-center
+                                                                                                                @(row.Comp12 != null
+                                                                                                                                                                       ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp12)
+                                                                                                                                                                           ? "text-danger"
+                                                                                                                                                                           : "text-success")
+                                                                                                                                                                       : "")"
+                                                                                                                                                                            @bind="row.Comp12" />
+                                                                                                                                                                 </td>
+
+                                                            <td class="bg-warning-subtle">
+                                                                <input type="text"
+                                                                       inputmode="decimal"
+                                                                       class="form-control form-control-sm text-center
+                                                                                                                @(row.Comp13 != null
+                                                                                                                                                                       ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp13)
+                                                                                                                                                                           ? "text-danger"
+                                                                                                                                                                           : "text-success")
+                                                                                                                                                                       : "")"
+                                                                                                                                                                            @bind="row.Comp13" />
+                                                                                                                                                                 </td>
+
+                                                            <td class="bg-warning-subtle">
+                                                                <input type="text"
+                                                                       inputmode="decimal"
+                                                                       class="form-control form-control-sm text-center
+                                                                                                                @(row.Comp14 != null
+                                                                                                                                                                       ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp14)
+                                                                                                                                                                           ? "text-danger"
+                                                                                                                                                                           : "text-success")
+                                                                                                                                                                       : "")"
+                                                                                                                                                                            @bind="row.Comp14" />
+                                                                                                                                                                 </td>
+
+                                                            <td class="bg-warning-subtle">
+                                                                <input type="text"
+                                                                       inputmode="decimal"
+                                                                       class="form-control form-control-sm text-center
+                                                                                                                @(row.Comp15 != null
+                                                                                                                                                                       ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp15)
+                                                                                                                                                                           ? "text-danger"
+                                                                                                                                                                           : "text-success")
+                                                                                                                                                                       : "")"
+                                                       @bind="row.Comp15" />
+                                            </td>
+                                                                                        }
+                                                        <td class="bg-warning-subtle">
+                                                            <select class="form-select form-select-sm"
+                                                                    @bind="row.Instrument">
+                                                                <option value="">--Select Instrument--</option>
+                                                                @foreach (var item in InstrumentList)
+                                                                {
+                                                                    <option value="@item.ItemName">@item.ItemName</option>
+                                                                }
+                                                            </select>
+                                                        </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <select class="form-select form-select-sm"
+                                                                    @bind="row.DefectName">
+                                                                <option value="">--Select Defect--</option>
+                                                                @foreach (var item in AllDefectInfoList)
+                                                                {
+                                                                    <option value="@item.DefectName">@item.DefectName</option>
+                                                                }
+                                                            </select>
+
+                                                        </td>
+
+                                                        <td class="bg-warning-subtle">
+                                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                                      rows="1"
+                                                                      @bind="row.Remark" data-enter-nav></textarea>
+                                                        </td>
+
+
+                                                        <td class="freeze-last-col text-end bg-warning-subtle">
+                                                            <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                    @onclick="() => SaveRow(row)">
+                                                                <i class="bi bi-check-lg"></i>
+                                                            </button>
+
+                                                            <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel"
+                                                                    @onclick="() => CancelEdit(row)">
+                                                                <i class="bi bi-x-lg"></i>
+                                                            </button>
+                                                        </td>
+
+                                                    }
+                                                    else
+                                                    {
+                                                        <td>@row.SlNo</td>
+                                                        <td>@row.Desc</td>
+                                                        <td>@row.Dimens</td>
+                                                        <td>@row.LoTol</td>
+                                                        <td>@row.HiTol</td>
+                                                        <td class="@(row.Comp1 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp1) ? "text-danger" : "text-success") : "")">@row.Comp1</td>
+
+                                                        <td class="@(row.Comp2 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp2) ? "text-danger" : "text-success") : "")">@row.Comp2</td>
+
+                                                        <td class="@(row.Comp3 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp3) ? "text-danger" : "text-success") : "")">@row.Comp3</td>
+
+                                                        <td class="@(row.Comp4 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp4) ? "text-danger" : "text-success") : "")">@row.Comp4</td>
+
+                                                        <td class="@(row.Comp5 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp5) ? "text-danger" : "text-success") : "")">@row.Comp5</td>
+
+                                                        <td class="@(row.Comp6 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp6) ? "text-danger" : "text-success") : "")">@row.Comp6</td>
+
+                                                        <td class="@(row.Comp7 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp7) ? "text-danger" : "text-success") : "")">@row.Comp7</td>
+
+                                                        <td class="@(row.Comp8 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp8) ? "text-danger" : "text-success") : "")">@row.Comp8</td>
+
+                                                        <td class="@(row.Comp9 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp9) ? "text-danger" : "text-success") : "")">@row.Comp9</td>
+
+                                                        <td class="@(row.Comp10 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp10) ? "text-danger" : "text-success") : "")">@row.Comp10</td>
+
+                                                        @if (noofsamples == 15)
+                                                        {
+                                                            <td class="@(row.Comp11 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp11) ? "text-danger" : "text-success") : "")">@row.Comp11</td>
+
+                                                            <td class="@(row.Comp12 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp12) ? "text-danger" : "text-success") : "")">@row.Comp12</td>
+
+                                                            <td class="@(row.Comp13 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp13) ? "text-danger" : "text-success") : "")">@row.Comp13</td>
+
+                                                            <td class="@(row.Comp14 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp14) ? "text-danger" : "text-success") : "")">@row.Comp14</td>
+
+                                                            <td class="@(row.Comp15 != null ? (IsOutOfRange(row.Dimens, row.LoTol, row.HiTol, row.Comp15) ? "text-danger" : "text-success") : "")">@row.Comp15</td>
+                                                        }
+                                                        <td>@row.Instrument</td>
+                                                        <td>@row.DefectName</td>
+                                                        <td>@row.Remark</td>
+
+                                                        <td class="freeze-last-col text-end ">
+                                                            <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                    @onclick="async () => await EditRowAsync(row)">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </button>
+
+                                                            <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                    @onclick="async () => await RemoveRow(row)">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </td>
+                                                    }
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-success btn-sm mt-2"
+                                        @onclick="AddRow">
+                                    + Add Dimension
+                                </button>
+
+                            </div>
+                        </div>
+                    </div>
+                    <!--Action Buttons -->
+                    @if (CanCreate || CanEdit)
+                    {
+                        <div class="col-6 col-md-3 mt-3">
+                            <button type="submit" class="btn btn-primary w-100 rounded-3"
+                                    @onclick="SaveInspection"
+                                    disabled="@isProcessing">
+                                <i class="bi bi-floppy2-fill me-1"></i> @(FinalInspectionVM.Id > 0 ? "Update" : "Create")
+                            </button>
+                        </div>
+
+                    }
+
+                    <div class="col-6 col-md-3 mt-3">
+                        <SmartBackButton Url="/FinalInspection" />
+                    </div>
+
+                </div>
+
+            </EditForm>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region Variables and Properties
+    // User Rights
+    protected override string ScreenName => "FinalInspection";
+    [Parameter]
+    public int InspectId { get; set; }
+    private FinalInspectionVM FinalInspectionVM = new();
+    private bool isProcessing = true;
+    private bool IsEditingMode = false;
+    private bool IsSheetEditable = false;
+    private bool IsnotDc = false;
+    private bool IsAddNewDC;
+    private int noofsamples = 0;
+    private Decimal? dcQty;
+    private int SelectedSheetNo = 1;
+    private InspectionMode Mode = InspectionMode.Random;
+
+    private InspectionRowVM? rowToDelete;
+    private List<InspectionRowVM> InspectionData = new();
+    private List<SheetVM> SheetList = new();
+    private List<ItemVM> InstrumentList = new();
+    private List<DefectInfo> AllDefectInfoList = new();
+    private List<CostCenterVM> AllcostCenterVMs = new();
+    private List<ItemVM> AllItems = new();
+    private IEnumerable<MfgDcVM> DcNoList = Enumerable.Empty<MfgDcVM>();
+    private List<MfgDcSubVM> dcSubVMList = new();
+    private List<CustomerVM> AllCustomers = new();
+    private List<Staff> AllStaff = new();
+
+    public class SheetVM
+    {
+        public int SheetSlNo { get; set; }
+        public string SheetName { get; set; } = string.Empty;
+    }
+
+    private List<PageHeader.BreadcrumbItem> ScreenBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Inspection" },
+        new PageHeader.BreadcrumbItem { Text = "Final Inspection", IsLast = true }
+    };
+
+    private string ScreenTitle => "Final Inspection";
+    private string MachineIcon => "bi bi-tools";
+    private enum InspectionMode
+    {
+        Random,
+        Individual
+    }
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            FinalInspectionVM.InspectDate = DateTime.Now;
+            noofsamples = await FinalInspectionService.GetNoOfSamples();
+            InstrumentList = await FinalInspectionService.GetAllInstrumentsAsync();
+            AllDefectInfoList = await FinalInspectionService.GetAllActiveDefectsAsync();
+            AllCustomers = await FinalInspectionService.GetAllActiveCustomersAsync();
+            AllcostCenterVMs = await FinalInspectionService.GetAllCostCenterDetails();
+            AllItems = await FinalInspectionService.GetAllComponentsAsync();
+            AllStaff = await FinalInspectionService.GetAllStaffAsync();
+            FinalInspectionVM.InspectNo = await FinalInspectionService.GenerateNewInspectionNoAsync(Mode == InspectionMode.Random ? "Random" : "Individual");
+            FinalInspectionVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            FinalInspectionVM.SheetSlNo = 0;
+            if (InspectId > 0)
+            {
+                await LoadExistingInspect(InspectId);
+                if (noofsamples == 15)
+                {
+                    int? SheetSlNo = FinalInspectionVM.SheetSlNo;
+                    int? start = (SheetSlNo - 1) * 15 + 1;
+                    int? end = SheetSlNo * 15;
+                    FinalInspectionVM.SheetName = $"Sheet-{SheetSlNo} ({start}-{end})";
+                }
+                else
+                {
+                    int? SheetSlNo = FinalInspectionVM.SheetSlNo;
+                    int? start = (SheetSlNo - 1) * 10 + 1;
+                    int? end = SheetSlNo * 10;
+                    FinalInspectionVM.SheetName = $"Sheet-{SheetSlNo} ({start}-{end})";
+                }
+                IsEditingMode = true;
+                IsSheetEditable = true;
+                IsnotDc = false;
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+            await _js.InvokeVoidAsync("alert", "An error occurred while loading the page. Please try again later.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    #endregion
+
+    #region to Load Existing Inspection
+    private async Task LoadExistingInspect(int? InspectId)
+    {
+        try
+        {
+            if (InspectId == null || InspectId <= 0)
+            {
+                await _js.ToastrWarning("Invalid Inspection Id.");
+                return;
+            }
+            FinalInspectionVM = await FinalInspectionService.GetInspectionByIdAsync(InspectId.Value);
+
+            if (FinalInspectionVM.IsRandom == false)
+            {
+                Mode = InspectionMode.Individual;
+            }
+
+            // Converting Json data to Dimensions
+            InspectionData = string.IsNullOrWhiteSpace(FinalInspectionVM.InspectData) ? new List<InspectionRowVM>()
+                    : JsonSerializer.Deserialize<List<InspectionRowVM>>(FinalInspectionVM.InspectData)
+                        ?? new List<InspectionRowVM>();
+            if (FinalInspectionVM == null)
+            {
+                await _js.ToastrWarning("Inspection not found.");
+                return;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing Inspection.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExisting Data failed for Inspection Id: {InspectId}");
+        }
+    }
+    #endregion
+
+    #region On DcNo Typing
+    private async Task OnTextBoxTyping(ChangeEventArgs e)
+    {
+        try
+        {
+            FinalInspectionVM.DCNo = e.Value?.ToString();
+            IsnotDc = true;
+            IsEditingMode = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnTextBoxTyping failed to Load");
+            await _js.InvokeVoidAsync("alert", "An error occurred in OnTextBoxTyping method");
+        }
+    }
+    #endregion
+
+    #region On Item Code Change
+    private async Task OnItemCodeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int DcSubId))
+            {
+                if (IsnotDc)
+                {
+                    var selectedItem = AllItems.FirstOrDefault(x => x.ItemId == DcSubId);
+                    if (selectedItem != null)
+                    {
+                        FinalInspectionVM.ItemCode = selectedItem.ItemCode;
+                        FinalInspectionVM.ItemName = selectedItem.ItemName;
+                        FinalInspectionVM.ItemUOM = selectedItem.MeasureUnit;
+                    }
+                }
+                else
+                {
+                    var selectedItem = dcSubVMList.FirstOrDefault(x => x.DcSubId == DcSubId);
+                    if (selectedItem != null)
+                    {
+                        FinalInspectionVM.RefMfgDcSubID = selectedItem.DcSubId;
+                        FinalInspectionVM.ItemId = selectedItem.ItemId;
+                        FinalInspectionVM.ItemCode = selectedItem.ItemCode;
+                        FinalInspectionVM.ItemName = selectedItem.ItemName;
+                        FinalInspectionVM.ItemUOM = selectedItem.MeasureUnit;
+                        FinalInspectionVM.PONo = selectedItem.RefPoNo;
+                        FinalInspectionVM.Qty = selectedItem.Qty;
+                        dcQty = selectedItem.Qty;
+                        @if (Mode == InspectionMode.Individual)
+                        {
+                            await GenerateSheets(selectedItem.Qty);
+                        }
+                    }
+                }
+
+
+                InspectionData = await FinalInspectionService.GetInspectionRowVMsAsync(DcSubId);
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnItemCodeChanged failed to Load");
+            await _js.InvokeVoidAsync("alert", "An error occurred in OnItemCodeChanged method");
+        }
+    }
+    #endregion
+
+    #region GET DC Nos
+    private async Task GetDcNos(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            var selectedValue = e.Value?.ToString();
+            if (string.IsNullOrEmpty(selectedValue))
+                return;
+            InspectionData = new List<InspectionRowVM>();
+            SheetList = new List<SheetVM>();
+            FinalInspectionVM = await FinalInspectionService.ClearInspection(FinalInspectionVM);
+            FinalInspectionVM.DcType = selectedValue;
+            if (selectedValue == "Manufacturing")
+            {
+                //Taking All Dcs from Manufaturing
+                DcNoList = (await FinalInspectionService.GetAllDcDetailsAsync()).ToList();
+            }
+            else
+            {
+                //Mode = InspectionMode.Individual;
+            }
+            isProcessing = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "GetDcNos failed.");
+            await _js.ToastrError("An error occurred while loading DC Nos. Please try again.");
+        }
+    }
+    #endregion
+
+    #region Edit Row
+    private async Task EditRowAsync(InspectionRowVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for Inspection");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region On Entering Dc or Selecting the Dc No
+    private async Task OnTextOrSelectChange(ChangeEventArgs e)
+    {
+        try
+        {
+            InspectionData = new List<InspectionRowVM>();
+            SheetList = new List<SheetVM>();
+            FinalInspectionVM = await FinalInspectionService.ClearInspection(FinalInspectionVM);
+            var DcId = Convert.ToInt32(e.Value);
+            FinalInspectionVM.DcId = DcId;
+            //It will filter the items which Inspectons are not happened
+            var selecteddc = DcNoList.FirstOrDefault(dc => dc.DcId == DcId);
+
+            FinalInspectionVM.DCNo = selecteddc.DcNo;
+            if (selecteddc != null)
+            {
+                // Update only the required fields → Do NOT replace object
+                FinalInspectionVM.CustId = selecteddc.CustId;
+                FinalInspectionVM.DcDate = selecteddc.DcDate;
+                FinalInspectionVM.CustomerName = selecteddc.CustName;
+                dcSubVMList = selecteddc.MfgDcSubVMs;
+                if (selecteddc.MfgDcSubVMs.Count == 1)
+                {
+                    FinalInspectionVM.RefMfgDcSubID = selecteddc.MfgDcSubVMs[0].DcSubId;
+                    FinalInspectionVM.ItemCode = selecteddc.MfgDcSubVMs[0].ItemCode;
+                    FinalInspectionVM.ItemName = selecteddc.MfgDcSubVMs[0].ItemName;
+                    FinalInspectionVM.ItemId = selecteddc.MfgDcSubVMs[0].ItemId;
+                    FinalInspectionVM.PONo = selecteddc.MfgDcSubVMs[0].RefPoNo;
+                    FinalInspectionVM.Qty = selecteddc.MfgDcSubVMs[0].Qty;
+                    FinalInspectionVM.ItemUOM = selecteddc.MfgDcSubVMs[0].MeasureUnit;
+                    if (Mode == InspectionMode.Individual)
+                    {
+                        await GenerateSheets(FinalInspectionVM.Qty);
+                    }
+                    InspectionData = await FinalInspectionService.GetInspectionRowVMsAsync(FinalInspectionVM.ItemId ?? 0);
+
+                }
+                else if (selecteddc.MfgDcSubVMs.Count > 1)
+                {
+                    IsnotDc = false;
+                }
+                else
+                {
+                    IsEditingMode = false;
+                }
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnTextOrSelectChange() event for Final Inspection");
+            await _js.ToastrError("An error occurred while selecting the DC No.");
+        }
+    }
+    #endregion
+
+    #region Checking Dimensions Out of Range
+    private bool IsOutOfRange(decimal? dim, decimal? lo, decimal? hi, String? comp)
+    {
+        if (!decimal.TryParse(comp, out var number))
+            return false; // ignore text values
+        if (!dim.HasValue || !lo.HasValue || !hi.HasValue)
+            return false;
+        var min = dim.Value - Math.Abs(lo.Value);
+        var max = dim.Value + hi.Value;
+
+        return number < min || number > max;
+    }
+    #endregion
+
+    #region Saving the current row
+    private async Task SaveRow(InspectionRowVM row)
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync())
+            {
+                return;
+            }
+            row.IsEditable = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "SaveRow failed for Dimensions");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+    #endregion
+
+    #region Save Inspection
+    private async Task SaveInspection()
+    {
+        try
+        {
+            isProcessing = true;
+            if (!await Validation())
+            {
+                return;
+            }
+
+            bool isValid = await ValidateLastRowAsync();
+            if (!isValid) return;
+
+            var qty = FinalInspectionVM.Qty ?? 0;
+            var acc = FinalInspectionVM.AcceptQty ?? 0;
+            var rej = FinalInspectionVM.RejQty ?? 0;
+            var rework = FinalInspectionVM.ReWork ?? 0;
+            var errors = new List<string>();
+            if (!FinalInspectionVM.AcceptQty.HasValue || acc < 0)
+                errors.Add("Please enter the Accepted Quantity");
+
+            if (rej < 0)
+                errors.Add("Rejected Quantity cannot be negative");
+
+            if (rework < 0)
+                errors.Add("Rework Quantity cannot be negative");
+
+            if (acc + rej + rework == 0)
+                errors.Add("Enter at least one accepted quantity");
+
+            if (acc + rej + rework > qty)
+                errors.Add("Accepted + Rejected + Rework quantity cannot exceed DC Quantity");
+
+            if (acc + rej + rework < qty)
+                errors.Add("Accepted Quantity cannot be Lesser than DC Quantity");
+
+            if (FinalInspectionVM.Qty > dcQty)
+                errors.Add("Qty should not be more than Dc Quantity");
+
+            if (FinalInspectionVM.Qty > dcQty)
+                errors.Add("Qty should not be more than Dc Quantity");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrWarning(message);
+                return;
+            }
+
+            if (FinalInspectionVM.InspectBy == null || FinalInspectionVM.InspectBy == "")
+            {
+                await _js.ToastrError("Please select the Inspected By field.");
+                return;
+            }
+
+            if (!InspectionData.Any())
+            {
+                await _js.ToastrError("Cannot save a Inspection without valid Dimensions.");
+                return;
+            }
+
+            // Save
+            FinalInspectionVM.IsRandom = Mode == InspectionMode.Random ? true : false;
+            FinalInspectionVM.TotRows = InspectionData.Count;
+            FinalInspectionVM.BalQty = (FinalInspectionVM.Qty ?? 0)
+                                        - ((FinalInspectionVM.RejQty ?? 0)
+                                        + (FinalInspectionVM.ReWork ?? 0)
+                                        + (FinalInspectionVM.AcceptQty ?? 0));
+            var isNewInspect = FinalInspectionVM.Id == 0;
+            if (isNewInspect)
+            {
+                var isDuplicate = await FinalInspectionService.CheckDuplicateRandom(FinalInspectionVM.InspectNo, Mode == InspectionMode.Random ? "Random" : "Individual", FinalInspectionVM.Suffix);
+
+                if (isDuplicate)
+                {
+                    var msg = Mode == InspectionMode.Random
+                        ? "A Random Inspection already exists. Cannot create duplicate."
+                        : "An Individual Inspection already exists. Cannot create duplicate.";
+
+                    await _js.ToastrError(msg);
+                    return;
+                }
+            }
+
+            string jsonData = JsonSerializer.Serialize(InspectionData);
+            FinalInspectionVM.InspectData = jsonData;
+            try
+            {
+                await FinalInspectionService.UpsertInspectAsync(FinalInspectionVM);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewInspect)
+            {
+                await _js.ToastrSuccess("Inspection saved successfully.");
+            }
+            else
+            {
+                await _js.ToastrSuccess("Inspection updated successfully.");
+            }
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/FinalInspection");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Upsert Final-Inspection failed.");
+            await _js.ToastrError("Error in saving Final-Inspection.");
+        }
+
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region Add New Row
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await Validation())
+            {
+                return;
+            }
+
+            if (!await ValidateLastRowAsync())
+            {
+                return;
+            }
+            var row = new InspectionRowVM
+            {
+                SlNo = InspectionData.Count + 1,
+                IsEditable = true
+            };
+
+            InspectionData = InspectionData.Append(row).ToList();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+    #endregion
+
+    #region Validate Last Row
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = InspectionData.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateRowAsync(InspectionRowVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.SlNo <= 0)
+                errors.Add("Invalid serial number");
+
+            if (string.IsNullOrWhiteSpace(row.Desc) || row.Desc.Length < 2)
+                errors.Add("Description is required");
+
+            if (row.Dimens.HasValue && row.LoTol.HasValue && row.HiTol.HasValue)
+            {
+                var min = row.Dimens.Value - Math.Abs(row.LoTol.Value);
+                var max = row.Dimens.Value + row.HiTol.Value;
+
+                if (min > max)
+                    errors.Add("Invalid tolerance range");
+            }
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrWarning(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+    #endregion
+
+    #region validations
+    private async Task<bool> Validation()
+    {
+        try
+        {
+            var errors = new List<string>();
+            if (String.IsNullOrEmpty(FinalInspectionVM.DcType))
+            {
+                await _js.ToastrWarning("Please Select the DC Type");
+                return false;
+            }
+
+            if (String.IsNullOrEmpty(FinalInspectionVM.DCNo))
+            {
+                errors.Add("Please Select the DC No");
+            }
+
+            if (String.IsNullOrEmpty(FinalInspectionVM.ItemCode))
+            {
+                errors.Add("Please Select the Item");
+            }
+            if (!FinalInspectionVM.Qty.HasValue || FinalInspectionVM.Qty <= 0)
+                errors.Add("Please enter the DC Quantity");
+
+            if (Mode == InspectionMode.Individual)
+            {
+                if (FinalInspectionVM.SheetSlNo <= 0)
+                {
+                    errors.Add("Please Select Sheet");
+                }
+            }
+            else
+            {
+                FinalInspectionVM.SheetSlNo = 0;
+            }
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrWarning(message);
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating rows.");
+            await LoggingService.LogDeveloperError(ex, "Validation failed.");
+            return false;
+        }
+    }
+    #endregion
+
+    #region Cancel OR Edit Row
+    private async Task CancelEdit(InspectionRowVM? row)
+    {
+        try
+        {
+
+            InspectionData = InspectionData
+           .Where(r => r.RowId != row.RowId)
+           .ToList();
+
+            ResetSlNo();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for Inspection");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+    #endregion
+
+    #region Removing a Row
+    private async Task RemoveRow(InspectionRowVM item)
+    {
+        try
+        {
+            if (InspectionData.Count == 1)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+            InspectionData.Remove(item);
+            await _js.ToastrSuccess("item row removed successfully.");
+
+            if (!InspectionData.Any())
+                InspectionData = new List<InspectionRowVM>();
+
+            await ResetSlNo();
+            StateHasChanged();
+            return;
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for Inspection");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+    #endregion
+
+    #region Resetting SlNo
+    private async Task ResetSlNo()
+    {
+        try
+        {
+
+            int i = 1;
+            foreach (var r in InspectionData)
+                r.SlNo = i++;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+    #endregion
+
+    #region Generate Sheets
+    private async Task GenerateSheets(decimal? Qty)
+    {
+        try
+        {
+            isProcessing = true;
+            if (Qty == null || Qty <= 0)
+            {
+                SheetList.Clear();
+                await _js.ToastrInfo("Please enter a valid Quantity to generate Sheets.");
+                SelectedSheetNo = 0;
+                isProcessing = false;
+                return;
+            }
+
+            if (Qty <= 15)
+            {
+                if (noofsamples == 15)
+                {
+                    SheetList.Clear();
+                    SheetList.Add(new SheetVM
+                    {
+                        SheetSlNo = 1,
+                        SheetName = "Sheet-1 (1-" + 15 + ")"
+                    });
+                }
+                else
+                {
+                    SheetList.Clear();
+                    SheetList.Add(new SheetVM
+                    {
+                        SheetSlNo = 1,
+                        SheetName = "Sheet-1 (1-" + 10 + ")"
+                    });
+
+                }
+            }
+            else
+            {
+                SheetList.Clear();
+
+                int qty = (int)(Qty ?? 0);
+
+                if (qty <= 0)
+                {
+                    SelectedSheetNo = 0;
+                    return;
+                }
+                int totalSheets = 0;
+                if (noofsamples == 15)
+                {
+                    totalSheets = (int)Math.Ceiling(qty / 15.0);
+                }
+                else
+                {
+                    totalSheets = (int)Math.Ceiling(qty / 10.0);
+                }
+
+                for (int sheetNo = 1; sheetNo <= totalSheets; sheetNo++)
+                {
+                    int start = ((sheetNo - 1) * 15) + 1;
+                    int end = Math.Min(sheetNo * 15, qty); // IMPORTANT
+
+                    SheetList.Add(new SheetVM
+                    {
+                        SheetSlNo = sheetNo,
+                        SheetName = $"Sheet-{sheetNo} ({start}-{end})"
+                    });
+                }
+            }
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "GenerateSheets failed.");
+            await _js.ToastrError("Failed to Generate Sheets.");
+        }
+    }
+
+    #endregion
+
+    #region RandomInspection
+    public async Task RandomInspectionClick()
+    {
+        try
+        {
+            Mode = InspectionMode.Random;
+            SheetList = new List<SheetVM>();
+            FinalInspectionVM = new FinalInspectionVM();
+            FinalInspectionVM.PONo = String.Empty;
+            FinalInspectionVM.Qty = null;
+            FinalInspectionVM.SheetSlNo = 0;
+            FinalInspectionVM.CustomerName = string.Empty;
+            FinalInspectionVM.AcceptQty = 0;
+            FinalInspectionVM.RejQty = 0;
+            FinalInspectionVM.ReWork = 0;
+            InspectionData = new List<InspectionRowVM>();
+            IsEditingMode = false;
+            FinalInspectionVM.InspectNo = await FinalInspectionService.GenerateNewInspectionNoAsync("Random");
+            FinalInspectionVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error Occured in RandomInspectionClick()");
+            await _js.ToastrError("Error Occured in RandomInspectionClick()");
+        }
+    }
+    #endregion
+
+    #region IndividualInspection
+    public async Task IndividualInspectionClick()
+    {
+        try
+        {
+            Mode = InspectionMode.Individual;
+            FinalInspectionVM = new FinalInspectionVM();
+            InspectionData = new List<InspectionRowVM>();
+            FinalInspectionVM.SheetSlNo = 0;
+            FinalInspectionVM.Qty = null;
+            FinalInspectionVM.AcceptQty = 0;
+            FinalInspectionVM.CustomerName = string.Empty;
+            FinalInspectionVM.RejQty = 0;
+            FinalInspectionVM.ReWork = 0;
+            FinalInspectionVM.PONo = String.Empty;
+            IsEditingMode = false;
+            SheetList = new List<SheetVM>();
+            FinalInspectionVM.InspectNo = await FinalInspectionService.GenerateNewInspectionNoAsync("Individual");
+            FinalInspectionVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error Occured in IndividualInspection()");
+            await _js.ToastrError("Error Occured in IndividualInspection()");
+        }
+    }
+    #endregion
+
+    #region Generete Sheets Based on Qty
+    public async Task GenerateAllSheets(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            FinalInspectionVM.Qty = Convert.ToInt32(e.Value);
+            if (!IsnotDc)
+            {
+                if (FinalInspectionVM.Qty > dcQty)
+                {
+                    FinalInspectionVM.Qty = dcQty;
+                    await _js.ToastrError("Qty should not be more than Dc Quantity");
+                    return;
+                }
+            }
+            await GenerateSheets(FinalInspectionVM.Qty);
+            StateHasChanged();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "Error Occured in GenerateAllSheets()");
+            await _js.ToastrError("Error Occured in GenerateAllSheets()");
+        }
+    }
+    #endregion
+
+    #region  Load Table headings
+    public async Task LoadTableheadings(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int sheetno))
+            {
+                FinalInspectionVM.SheetSlNo = sheetno;
+                SelectedSheetNo = sheetno;
+                if (noofsamples == 15)
+                {
+                    int? SheetSlNo = sheetno;
+                    int? start = (SheetSlNo - 1) * 15 + 1;
+                    int? end = SheetSlNo * 15;
+                    FinalInspectionVM.SheetName = $"Sheet-{SheetSlNo} ({start}-{end})";
+                }
+                else
+                {
+                    int? SheetSlNo = sheetno;
+                    int? start = (SheetSlNo - 1) * 10 + 1;
+                    int? end = SheetSlNo * 10;
+                    FinalInspectionVM.SheetName = $"Sheet-{SheetSlNo} ({start}-{end})";
+                }
+
+            }
+
+            await InvokeAsync(StateHasChanged);
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error Occured in LoadTableheadings()");
+            await _js.ToastrError("Error Occured in LoadTableheadings()");
+        }
+    }
+    #endregion
+
+    #region Converting Selecting option to input text box for DC No
+    void ToggleAddNewDC()
+    {
+        IsEditingMode = false;
+        InspectionData = new List<InspectionRowVM>();
+        IsAddNewDC = !IsAddNewDC;
+        FinalInspectionVM.DCNo = string.Empty;
+        FinalInspectionVM.CustomerName = string.Empty;
+        FinalInspectionVM.CustId = null;
+        FinalInspectionVM.ItemId = null;
+        FinalInspectionVM.ItemCode = string.Empty;
+        FinalInspectionVM.ItemName = string.Empty;
+        FinalInspectionVM.CostCenter = string.Empty;
+        FinalInspectionVM.Qty = null;
+        FinalInspectionVM.AcceptQty = null;
+        FinalInspectionVM.RejQty = null;
+        FinalInspectionVM.ReWork = null;
+        FinalInspectionVM.SheetSlNo = 0;
+        FinalInspectionVM.ItemUOM = string.Empty;
+        FinalInspectionVM.PONo = String.Empty;
+    }
+    #endregion
+
+}

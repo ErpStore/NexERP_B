@@ -1,0 +1,623 @@
+﻿@page "/candidate/create"
+@page "/candidate/update/{CandidateID:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IHRMasterservice
+@using V.SMART.Shared.Data.Master.HumanResourceMaster_Module
+@inject HttpClient Http
+
+@inject CurrentUserService CurrentUserService
+@inject ILoggingService loggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@inherits BaseUserRightsComponent
+
+@inject  ICandidateService candidateService
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <PageHeader TitleText="@(candidate.CandidateID > 0 ? "Update Candidate" : "Create Candidate")"
+                            TitleIcon="bi bi-tag"
+                            Breadcrumbs="@CandidateFormBreadcrumbs" />
+                <div class="card-body">
+                    <EditForm Model="candidate" OnValidSubmit="UpsertCandidate">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                        <div class="row g-3">
+                            @if (candidate != null && candidate.CandidateID > 0 && !string.IsNullOrWhiteSpace(candidate.CandidateName))
+                            {
+                                <CorrespondenceStatus ReferenceType="Candidate"
+                                                      ReferenceId="@candidate.CandidateID"
+                                                      ReferenceTypeName="@candidate.CandidateName" />
+                            }
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="candidate.CandidateName" id="CandidateName" class="form-control" placeholder="Candidate Name" CssClass="form-control" />
+                                    <label for="CandidateName">Candidate Name</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.CandidateName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="candidate.Address" id="Address" class="form-control" placeholder="candidate Address" style="height: 50px;" />
+                                    <label for="Address">candidate Address</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Address)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputDate id="DOB" @bind-Value="candidate.DOB" class="form-control" />
+                                    <label for="DOB">Date of Birth</label>
+                                    <ValidationMessage For="@(() => candidate.DOB)" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputSelect id="Gender" @bind-Value="candidate.Gender" class="form-select">
+                                        <option value="">-- Select Gender --</option>
+                                        @foreach (var sex in GenderList)
+                                        {
+                                            <option value="@sex">@sex</option>
+                                        }
+                                    </InputSelect>
+                                    <label for="Gender">Gender</label>
+                                    <ValidationMessage For="@(() => candidate.Gender)" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="candidate.PhoneNo" id="PhoneNo" class="form-control" placeholder="Mobile No." maxlength="13"
+                                               oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                                    <label for="PhoneNo">Mobile No.</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.PhoneNo)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="candidate.Gmail" id="Email" class="form-control" placeholder="Email" />
+                                    <label for="Email">Email</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Gmail)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputSelect @bind-Value="candidate.Qualification"
+                                                 id="Qualification"
+                                                 class="form-select">
+                                        <option value="">-- Select Qualification --</option>
+                                        <option value="SSLC">SSLC</option>
+                                        <option value="PUC">PUC</option>
+                                        <option value="ITI">ITI</option>
+                                        <option value="Diploma">Diploma</option>
+                                        <option value="Degree">Degree</option>
+                                        <option value="BE">BE</option>
+                                        <option value="Master">Master</option>
+                                        <option value="Others">Others</option>
+                                    </InputSelect>
+                                    <label for="Qualification">Qualification</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Qualification)" />
+                            </div>
+
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="candidate.Experience" id="Experience" class="form-control" placeholder="Experience" onkeypress="return isNumericWithDot(event)" />
+                                    <label for="Experience">Experience</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Experience)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="candidate.Source" id="Source" class="form-control" placeholder="Source" />
+                                    <label for="Source">Source</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Source)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="candidate.Notice_Period" id="Notice_Period" class="form-control" placeholder="Notice Period" />
+                                    <label for="Notice_Period">Notice Period</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Notice_Period)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="candidate.Current_Salary" id="Current_Salary" class="form-control" placeholder="Current Salary" onkeypress="return isNumericWithDot(event)" />
+                                    <label for="Current_Salary">Current Salary</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Current_Salary)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="candidate.Expected_Salary" id="Expected_Salary" class="form-control" placeholder="Expected Salary" onkeypress="return isNumericWithDot(event)" />
+                                    <label for="Expected_Salary">Expected Salary</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Expected_Salary)" />
+                            </div>
+
+                          @*   <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="candidate.Position" id="Source" class="form-control" placeholder="Position" />
+                                    <label for="Position">Position</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Position)" />
+                            </div> *@
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <input list="designationList" class="form-control" id="Designation" @bind="candidate.Position"
+                                           placeholder="Type or select Position" @onkeydown="HandleEnter" />
+                                    <label for="Designation">Position</label>
+                                    <datalist id="designationList">
+                                        @foreach (var item in DesignationList)
+                                        {
+                                            <option value="@item" />
+                                        }
+                                    </datalist>
+                                    <ValidationMessage For="@(() => candidate.Position)" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <input list="departmentList" class="form-control" id="Department" @bind="candidate.Department"
+                                           placeholder="Type or select department" @onkeydown="HandleDepartmentEnter" />
+                                    <label for="Department">Department</label>
+                                    <datalist id="departmentList">
+                                        @foreach (var item in DepartmentList)
+                                        {
+                                            <option value="@item" />
+                                        }
+                                    </datalist>
+                                    <ValidationMessage For="@(() => candidate.Department)" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="candidate.Skills" id="Skills" class="form-control" placeholder="Skills" style="height: 50px;" />
+                                    <label for="Skills">Skills</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Skills)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputSelect @bind-Value="candidate.Status"
+                                                 id="Status"
+                                                 class="form-select"
+                                                 disabled="@IsStatusLocked">
+                                        <option value="">-- Select Status --</option>
+                                        <option value="Applied">Applied</option>
+                                        <option value="Shortlisted">Shortlisted</option>
+                                        <option value="Interview">Interview Scheduled</option>
+                                        <option value="Selected">Selected</option>
+                                        <option value="Hold">Hold</option>
+                                        <option value="Rejected">Rejected </option>
+                                        <option value="Offer Sent">Offer Sent</option>
+                                        <option value="Joined">Joined</option>
+                                    </InputSelect>
+                                    <label for="Status">Status</label>
+                                </div>
+                                <ValidationMessage For="@(() => candidate.Status)" />
+                            </div>
+
+                           
+
+                       
+
+                        </div>
+                        <!-- Buttons -->
+                        <div class="row mt-4">
+
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-md-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(CandidateID == 0 || CandidateID == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+
+                            <div class=" col-md-3"">
+                                <SmartBackButton Url="/candidate" />
+                            </div>
+
+                            @if (CandidateID > 0 && candidate.Status == "Joined" && !StaffExists)
+                            {
+                                <div class="col-md-3">
+                                    <button type="button"
+                                            class="btn btn-warning w-100 h-100"
+                                            disabled="@isProcessing" @onclick="ConvertToStaff">
+                                        <i class="bi bi-arrow-right-circle-fill me-1"></i>
+                                        Convert To Staff
+                                    </button>
+                                </div>
+                            }
+                            
+                        </div>
+                        
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+@code {
+    //UserRights
+    protected override string ScreenName => "Candidate";
+
+    [Parameter]
+    public int? CandidateID { get; set; }
+
+    private bool isProcessing = true;
+
+    private Candidate candidate  { get; set; } = new Candidate();
+
+    private string username;
+
+    private bool StaffExists =false;
+
+
+
+    private bool IsStatusLocked =>
+        candidate.Status == "Selected" ||
+        candidate.Status == "Offer Sent" ||
+        candidate.Status == "Joined";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private List<string> DepartmentList = new();
+    private List<string> DesignationList = new();
+
+    private List<string> GenderList = new()
+    {
+        "Male","Female","Other"
+
+    };
+
+
+
+    private List<PageHeader.BreadcrumbItem> CandidateFormBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "General" },
+        new PageHeader.BreadcrumbItem { Text = "Candidate", IsLast = true }
+
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            username = await _userService.GetUsernameAsync();
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            LoadCandidateData();
+            DepartmentList = await LoadDepartmentsAsync();
+            DesignationList = await LoadDesignationsAsync();
+
+
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occurred while handling the Customer OnInitializedAsync event");
+            isProcessing = false;
+        }
+    }
+    private async Task UpsertCandidate()
+    {
+        isProcessing = true;
+        using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            bool isDuplicate = await _unitOfWork.Candidate.ExistsByNameAsync("CandidateName", candidate.CandidateName?.Trim(), "CandidateID", candidate.CandidateID == 0 ? null : candidate.CandidateID);
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Candidate name already exists.");
+                isProcessing = false;
+                return;
+            }
+
+            var errors = ValidateCadidate(candidate);
+            if (errors.Any())
+            {
+                foreach (var err in errors)
+                {
+                    await _js.ToastrError(err);
+                }
+                isProcessing = false;
+                return;
+            }
+
+            var currentUsername = await _userService.GetUsernameAsync();
+
+
+            if (candidate.CandidateID == 0)
+            {
+                candidate.Status = "Applied";
+                candidate.CreatedBy = currentUsername;
+                candidate.CreatedDate = DateTime.Now;
+
+                await _unitOfWork.Candidate.CreateAsync(candidate);
+                await _unitOfWork.SaveAsync();
+
+
+                await _unitOfWork.SaveAsync();
+                await transaction.CommitAsync();
+
+                await loggingService.LogUserAction(
+                    UserName: currentUsername,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Candidate",
+                    action: $"Candidate Created: {candidate.CandidateName}",
+                    additionalInfo: $"Candidate name: {candidate.CandidateName}");
+
+                await _js.ToastrSuccess(" Candidate Created Successfully");
+            }
+            else
+            {
+
+                candidate.ModifiedBy = currentUsername;
+                candidate.ModifiedDate = DateTime.Now;
+
+                await _unitOfWork.Candidate.UpdateAsync(candidate);
+
+                await _unitOfWork.SaveAsync();
+                await transaction.CommitAsync();
+
+                await loggingService.LogUserAction(
+                    UserName: currentUsername,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Candidate",
+                    action: $"Candidate Updated: {candidate.CandidateName}",
+                    additionalInfo: $"Candidate Name: {candidate.CandidateName}");
+
+                await _js.ToastrSuccess("Candidate Updated Successfully");
+            }
+
+
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/candidate");
+
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            await _js.ToastrError("An error occurred while saving the Candidate.");
+            await loggingService.LogDeveloperError(ex, "An error occurred in UpsertCandidate()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private List<string> ValidateCadidate(Candidate candidate)
+    {
+        var errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(candidate.CandidateName))
+        {
+            errors.Add("candidate Name is required.");
+        }
+
+        return errors;
+    }
+
+    private async Task LoadCandidateData()
+    {
+        try
+        {
+            if (CandidateID.HasValue && CandidateID.Value > 0)
+            {
+                var existingcandidate = await _unitOfWork.Candidate.GetCandidateDataAsync(CandidateID.Value);
+
+                if (existingcandidate != null)
+                {
+                    candidate = existingcandidate;
+
+                }
+                else
+                {
+                    candidate = new Candidate();
+
+                }
+                //StaffExists = await _unitOfWork.Staffs.ExistsByNameAsync( "StaffName",candidate.CandidateName);
+
+                StaffExists = (await _unitOfWork.Staffs.FindAsync(x => x.StaffName == candidate.CandidateName)).Any();
+            }
+            else
+            {
+                candidate = new Candidate();
+                candidate.Status = "Applied";
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occurred while handling the Candidate LoadCandidateData() Method");
+        }
+    }
+    private async void ConvertToStaff()
+    {
+        try
+        {
+            ModalTitle = "Are you sure you want Convert the Staff ?";
+            btnColor = "btn-primary";
+            btnText = "Yes, Create";
+            confirmation = "Create";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+          
+        }
+        catch (Exception)
+        {
+                
+           
+        }                 
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+               
+
+                case "OpenFiles":
+                    
+                    break;
+
+                case "Cancel":
+                case "Revert":
+                  
+                    break;
+
+                case "ItemCancel":
+                    
+                    break;
+
+                case "ShortClose":
+                   
+                    break;
+
+                case "Create":              
+                    await ConfirmCreate_Click(isConfirmed);
+                    break;
+
+                
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+    private async Task ConfirmCreate_Click(bool isConfirmed)  //SBM
+    {
+        try
+        {
+            if (!isConfirmed)
+                return;
+
+            _navigationManager.NavigateTo($"/employee-details/create/candidate/{candidate.CandidateID}");
+
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occurred while handling the Candidate ConfirmCreate_Click() Method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void HandleDepartmentEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            if (!string.IsNullOrWhiteSpace(candidate.Department) &&
+                !DepartmentList.Contains(candidate.Department, StringComparer.OrdinalIgnoreCase))
+            {
+                DepartmentList.Add(candidate.Department);
+            }
+
+            Console.WriteLine($"Entered/Selected Department: {candidate.Department}");
+        }
+    }
+
+    private async Task<List<string>> LoadDesignationsAsync()
+    {
+        var staffList = await _unitOfWork.Staffs.GetAllAsync();
+        return staffList
+            .Where(s => !string.IsNullOrWhiteSpace(s.Designation))
+            .Select(s => s.Designation!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+    }
+
+    private async Task<List<string>> LoadDepartmentsAsync()
+    {
+        var staffList = await _unitOfWork.Staffs.GetAllAsync();
+
+        return staffList
+            .Where(s => !string.IsNullOrWhiteSpace(s.Department))
+            .Select(s => s.Department!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(d => d)
+            .ToList();
+    }
+    private void HandleEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            if (!string.IsNullOrWhiteSpace(candidate.Position) &&
+                !DesignationList.Contains(candidate.Position, StringComparer.OrdinalIgnoreCase))
+            {
+                DesignationList.Add(candidate.Position); // Optional: Add new
+            }
+
+            Console.WriteLine($"Entered: {candidate.Position}");
+        }
+    }
+}

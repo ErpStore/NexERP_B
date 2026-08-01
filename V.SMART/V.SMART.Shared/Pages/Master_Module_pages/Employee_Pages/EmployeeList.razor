@@ -1,0 +1,842 @@
+﻿@page "/Staff"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IHRMasterservice
+@using V.SMART.Shared.ViewModels.MasterViewModel.HumanResourceViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject IJSRuntime _js
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService currentUserService
+@inject NavigationManager _navigation
+@inject IEmployeeService employeeService
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Employee?">
+</BsModal>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true" 
+            Screen="@ScreenName" 
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Employee List"
+                        TitleIcon="bi bi-card-list"
+                        Breadcrumbs="@employeeBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName=@ScreenName
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-12 col-md"></div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                 value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+
+                            <option value="10">10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-6 col-md-2 text-end">
+                            <a href="/employee-details/create"
+                                class="btn btn-success btn-sm w-100 shadow-sm">
+                                <i class="bi bi-plus-square"></i>  Add New
+                            </a>
+                        </div>
+                    }
+
+                </div>
+
+                <!-- Grid -->
+                @if (staffVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="staffVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            // ===== BASIC DETAILS =====
+
+                                            case "StaffRefId":
+                                                <PropertyColumn Title="Employee Code"
+                                                                Property="@(c => c.StaffRefId)"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "StaffName":
+                                                    <TemplateColumn Title="Employee Name" Context="c">
+
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            @if (c.Img?.Length > 0)
+                                                            {
+                                                                var base64 = $"data:image/png;base64,{Convert.ToBase64String(c.Img)}";
+                                                                <img src="@base64" class="rounded-circle" style="width:40px;height:40px;" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <div class="bg-secondary text-white rounded-circle d-flex justify-content-center align-items-center" style="width:40px;height:40px;">
+                                                                    @GetInitials(c.StaffName)
+                                                                </div>
+                                                            }
+                                                            <div class="text-start">
+                                                                <b>@c.StaffName</b><br />
+                                                                <small>@c.Designation</small>
+                                                            </div>
+                                                        </div>
+
+                                                    </TemplateColumn>
+                                                break;
+
+                                            case "Gender":
+                                                <PropertyColumn Title="Gender"
+                                                                Property="@(c => c.Gender)" />
+                                                break;
+
+                                            case "DOB":
+                                                <PropertyColumn Title="Date of Birth"
+                                                                Property="@(c => c.DOB)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "Designation":
+                                                <PropertyColumn Title="Designation"
+                                                                Property="@(c => c.Designation)"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "Department":
+                                                <PropertyColumn Title="Department"
+                                                                Property="@(c => c.Department)"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "DOJ":
+                                                <PropertyColumn Title="Date of Joining"
+                                                                Property="@(c => c.DOJ)"
+                                                                Format="dd/MM/yyyy"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "PhoneNo":
+                                                <PropertyColumn Title="Phone No"
+                                                                Property="@(c => c.PhoneNo)" />
+                                                break;
+
+                                            case "Gmail":
+                                                <PropertyColumn Title="Email"
+                                                                Property="@(c => c.Gmail)" />
+                                                break;
+
+                                            case "City":
+                                                <PropertyColumn Title="City"
+                                                                Property="@(c => c.City)" />
+                                                break;
+
+                                            case "Status":
+                                                <TemplateColumn Title="Status" Context="c">
+                                                    <span class="badge rounded-pill px-3 py-2 fw-semibold
+                                                        @(string.Equals(c.Status, "Active", StringComparison.OrdinalIgnoreCase)
+                                                            ? "bg-success"
+                                                            : "bg-danger")">
+
+                                                        @(string.Equals(c.Status, "Active", StringComparison.OrdinalIgnoreCase)
+                                                            ? "Active"
+                                                            : "Inactive")
+                                                    </span>
+                                                </TemplateColumn>
+                                                break;
+
+
+                                            case "Reporting":
+                                                <PropertyColumn Title="Reporting To"
+                                                                Property="@(c => c.Reporting)" />
+                                                break;
+
+                                            // ===== ADDRESS =====
+
+                                            case "PresentAddr":
+                                                <PropertyColumn Title="Present Address"
+                                                                Property="@(c => c.PresentAddr)" />
+                                                break;
+
+                                            case "PermanentAddr":
+                                                <PropertyColumn Title="Permanent Address"
+                                                                Property="@(c => c.PermanentAddr)" />
+                                                break;
+
+                                            case "RelationType":
+                                                <PropertyColumn Title="Relation Type"
+                                                                Property="@(c => c.RelationType)" />
+                                                break;
+
+                                            case "FatherHusbName":
+                                                <PropertyColumn Title="Father / Husband Name"
+                                                                Property="@(c => c.FatherHusbName)" />
+                                                break;
+
+                                            // ===== PERSONAL =====
+
+                                            case "Height":
+                                                <PropertyColumn Title="Height"
+                                                                Property="@(c => c.Height)" />
+                                                break;
+
+                                            case "BloodGroup":
+                                                <PropertyColumn Title="Blood Group"
+                                                                Property="@(c => c.BloodGroup)" />
+                                                break;
+
+                                            case "IsUser":
+                                                <PropertyColumn Title="Is User"
+                                                                Property="@(c => c.IsUser)" />
+                                                break;
+
+                                            case "OtCount":
+                                                <PropertyColumn Title="OT Count"
+                                                                Property="@(c => c.OtCount)" />
+                                                break;
+
+                                            // ===== BANK DETAILS =====
+
+                                            case "AccNo":
+                                                <PropertyColumn Title="Account No"
+                                                                Property="@(c => c.AccNo)" />
+                                                break;
+
+                                            case "IFSC":
+                                                <PropertyColumn Title="IFSC Code"
+                                                                Property="@(c => c.IFSC)" />
+                                                break;
+
+                                            case "BankName":
+                                                <PropertyColumn Title="Bank Name"
+                                                                Property="@(c => c.BankName)" />
+                                                break;
+
+                                            case "BranchName":
+                                                <PropertyColumn Title="Branch Name"
+                                                                Property="@(c => c.BranchName)" />
+                                                break;
+
+                                            // ===== GOVT IDS =====
+
+                                            case "Aadhaar":
+                                                <PropertyColumn Title="Aadhaar"
+                                                                Property="@(c => c.Aadhaar)" />
+                                                break;
+
+                                            case "PAN":
+                                                <PropertyColumn Title="PAN"
+                                                                Property="@(c => c.PAN)" />
+                                                break;
+
+                                            case "UANNo":
+                                                <PropertyColumn Title="UAN No"
+                                                                Property="@(c => c.UANNo)" />
+                                                break;
+
+                                            case "ESICodeNo":
+                                                <PropertyColumn Title="ESI Code"
+                                                                Property="@(c => c.ESICodeNo)" />
+                                                break;
+
+                                            case "PFCodeNo":
+                                                <PropertyColumn Title="PF Code"
+                                                                Property="@(c => c.PFCodeNo)" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            <!-- ACTIONS COLUMN -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"employee-details/update/{c.StaffID}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => OpenDelete(c.StaffID)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+                        <div class="d-flex align-items-center gap-2 justify-content-center">
+
+                            <button class="btn btn-outline-primary" title="First Page" @onclick="FirstPage" disabled="@(currentPage == 1)">
+                                <i class="bi bi-skip-backward-fill"></i>
+                            </button>
+
+                            <button class="btn btn-outline-primary" title="Previous Page" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                                <i class="bi bi-arrow-left-circle"></i>
+                            </button>
+
+                            <span class="px-3 fw-semibold">
+                                Page @currentPage of @totalPages
+                            </span>
+
+                            <button class="btn btn-outline-primary" title="Next Page" @onclick="NextPage" disabled="@(currentPage >= totalPages)">
+                                <i class="bi bi-arrow-right-circle"></i>
+                            </button>
+
+                            <button class="btn btn-outline-primary" title="Last Page" @onclick="LastPage" disabled="@(currentPage >= totalPages)">
+                                <i class="bi bi-skip-forward-fill"></i>
+                            </button>
+
+                        </div>
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Category available.</p>
+                }
+
+
+            </div>
+        </div>
+
+    </div>
+}
+
+
+@code {
+    #region STATE VARIABLES
+
+    protected override string ScreenName => "Staff";
+
+    private bool isProcessing = true;
+    private int DeleteEmployeeId = 0;
+    private string UserName { get; set; } = "";
+
+    private List<StaffVM> staffVMs = new();
+
+    private int currentPage = 1;
+    private int totalItems;
+    private int pageSize { get; set; } = 10;
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; } = new();
+
+    // Instant Search filter parameter
+    [SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    // Breadcrumb
+    private List<PageHeader.BreadcrumbItem> employeeBreadcrumbs = new()
+    {
+        new() { Text = "Master" },
+        new() { Text = "Human Resource Master" },
+        new() { Text = "Employee Master", IsLast = true }
+    };
+    #endregion
+
+    #region INITIALIZATION
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns();
+
+            UserName = await currentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+
+            await LoadAllStaffs();
+            await LoadColumnPreferences();
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ItemList OnInitializedAsync()");
+            await _js.ToastrError("Failed to initialize Employee page.");
+        }
+    }
+    #endregion
+    
+    private string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "NA";
+        return string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(n => n[0])).ToUpper();
+    }
+
+    #region COLUMNS
+
+    private async Task InitializeColumns()
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // ===== BASIC DETAILS =====
+                new() { Title = "Employee Code", Field = "StaffRefId", IsVisible = true },
+                new() { Title = "Employee Name", Field = "StaffName", IsVisible = true },
+                new() { Title = "Gender", Field = "Gender", IsVisible = true },
+                new() { Title = "Date of Birth", Field = "DOB", IsVisible = false },
+                new() { Title = "Designation", Field = "Designation", IsVisible = true },
+                new() { Title = "Department", Field = "Department", IsVisible = true },
+                new() { Title = "Date of Joining", Field = "DOJ", IsVisible = true },
+                new() { Title = "Phone No", Field = "PhoneNo", IsVisible = true },
+                new() { Title = "Email", Field = "Gmail", IsVisible = false },
+                new() { Title = "City", Field = "City", IsVisible = true },
+                new() { Title = "Status", Field = "Status", IsVisible = true },
+                new() { Title = "Reporting To", Field = "Reporting", IsVisible = true },
+
+                // ===== ADDRESS =====
+                new() { Title = "Present Address", Field = "PresentAddr", IsVisible = false },
+                new() { Title = "Permanent Address", Field = "PermanentAddr", IsVisible = false },
+                new() { Title = "Relation Type", Field = "RelationType", IsVisible = false },
+                new() { Title = "Father / Husband Name", Field = "FatherHusbName", IsVisible = false },
+
+                // ===== PERSONAL =====
+                new() { Title = "Height", Field = "Height", IsVisible = false },
+                new() { Title = "Blood Group", Field = "BloodGroup", IsVisible = false },
+                new() { Title = "Is User", Field = "IsUser", IsVisible = false },
+                new() { Title = "OT Count", Field = "OtCount", IsVisible = false },
+
+                // ===== BANK DETAILS =====
+                new() { Title = "Account No", Field = "AccNo", IsVisible = false },
+                new() { Title = "IFSC Code", Field = "IFSC", IsVisible = false },
+                new() { Title = "Bank Name", Field = "BankName", IsVisible = false },
+                new() { Title = "Branch Name", Field = "BranchName", IsVisible = false },
+
+                // ===== GOVT IDS =====
+                new() { Title = "Aadhaar", Field = "Aadhaar", IsVisible = false },
+                new() { Title = "PAN", Field = "PAN", IsVisible = false },
+                new() { Title = "UAN No", Field = "UANNo", IsVisible = false },
+                new() { Title = "ESI Code", Field = "ESICodeNo", IsVisible = false },
+                new() { Title = "PF Code", Field = "PFCodeNo", IsVisible = false },
+            };
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error initializing columns in StaffList");
+            await _js.ToastrError("Failed to initialize employee columns.");
+        }
+    }
+
+
+    private async Task LoadColumnPreferences()
+    {
+        try
+        {
+            var user = await currentUserService.GetUsernameAsync();
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, user);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for EmployeeList");
+            await _js.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private Task HandleColumnChange(List<GridColumn> updated)
+    {
+        Columns = updated;
+        return Task.CompletedTask;
+    }
+    #endregion
+
+    #region DATA LOADING
+
+    private async Task LoadAllStaffs()
+    {
+        try
+        {
+            var result = await employeeService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            staffVMs = result.staffVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading Employees in EmployeeList");
+            await _js.ToastrError("Failed to load Employees.");
+        }
+    }
+
+    private void GoToInstantSearch()
+    {
+        _navigation.NavigateTo($"/instantSearch?screen={ScreenName}");
+    }
+    #endregion
+
+    #region PAGINATION
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllStaffs();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in EmployeeList");
+            await _js.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllStaffs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in EmployeeList");
+            await _js.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllStaffs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Employeelist");
+            await _js.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllStaffs();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in EmployeeList");
+            await _js.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllStaffs();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in EmployeeList");
+            await _js.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllStaffs();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing EmployeeList page");
+            await _js.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region DELETE
+    private async Task OpenDelete(int id)
+    {
+        try
+        {
+
+            var (canDelete, message) = await employeeService.CanDeleteEmployeeAsync(id);
+
+            if (!canDelete)
+            {
+                await _js.ToastrWarning(message);
+                return;
+            }
+
+
+            DeleteEmployeeId = id;
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error opening delete modal for ItemId: {id}");
+            await _js.ToastrError("Failed to open delete confirmation.");
+        }
+    }
+
+    private async Task confirmDelete_Click(bool confirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+
+        if (!confirmed || DeleteEmployeeId == 0)
+            return;
+
+        isProcessing = true;
+
+        try
+        {
+            var result = await employeeService.DeleteEmployeeAsync(DeleteEmployeeId);
+
+            if (result.Success)
+            {
+                await _js.ToastrSuccess(result.Message);
+                await LoadAllStaffs();
+            }
+            else
+            {
+                await _js.ToastrWarning(result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error deleting Employee");
+            await _js.ToastrError("Unexpected error occurred while deleting employee.");
+        }
+        finally
+        {
+            DeleteEmployeeId = 0;
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+
+    #region MODAL HANDLERS
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+    #endregion
+
+    #region SEARCH FILTERS
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllStaffs();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Employeelist");
+            await _js.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+    #endregion
+}

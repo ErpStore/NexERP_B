@@ -1,0 +1,2679 @@
+﻿@page "/purchaseGRN/create"
+@page "/purchaseGRN/create/{VendorCode:int}"
+@page "/purchaseGRN/update/{GRNId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchaseGRN_Service
+@using V.SMART.Shared.Pages.Master_Module_pages.VendorSupplier_Pages
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchaseGRNVM
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject IPurchaseGRNService _grnService
+@inject ReportService reportService
+
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+
+</BsModal>
+
+<DetailsModal Title="PO Details"
+              Columns="@PoColumns"
+              ColumnFields="@PoFields"
+              HiddenColumns="@PoHiddenColumns"
+              Data="@PoData"
+              IsVisible="@IsPoModalVisible"
+              IsVisibleChanged="@((val) => IsPoModalVisible = val)"
+              OnSelectedItems="OnPoSelectedAsync">
+</DetailsModal>
+
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Vendor")
+    {
+        <VendorUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Cancelled Watermark -->
+            @if (PurchaseGRNVMs.GRNCancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+            else if (PurchaseGRNVMs.ShortClose)
+            {
+                <div class="cancelWatermark">SHORT CLOSED</div>
+            }
+
+            <PageHeader TitleText="@(PurchaseGRNVMs.GRNId > 0 ? "Update Purchase GRN" : "Create Purchase GRN")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@PurchaseGRNBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="PurchaseGRNVMs" OnValidSubmit="UpsertGRN">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <!-- Correspondence Status -->
+                        @if (PurchaseGRNVMs.GRNId > 0 && !string.IsNullOrWhiteSpace(PurchaseGRNVMs.GRNNo))
+                        {
+                            <CorrespondenceStatus ReferenceType="@ScreenName"
+                                                  ReferenceId="@PurchaseGRNVMs.GRNId"
+                                                  ReferenceTypeName="@PurchaseGRNVMs.GRNNo" />
+                        }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+                        <!-- =================== Vendor Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header equal-card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Vendor Information</span>
+                                    <button type="button" class="btn btn-sm btn-success rounded-3"
+                                            @onclick='() => OpenModal("Vendor")'>
+                                        <i class="bi bi-person-add me-1"></i> Add Vendor
+                                    </button>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- Vendor/Supplier Autocomplete -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="VendorVM"
+                                                    Value="SelectedVendor"
+                                                    ValueChanged="@(async c => await OnVendorChanged(c))"
+                                                    ToStringFunc="@(c => c?.VendorName ?? string.Empty)"
+                                                    SearchFunc="SearchVendors"
+                                                    Dense="true"
+                                                    Variant="Variant.Outlined"
+                                                    Placeholder="Search Customer"
+                                                    Title="Search atleast 3 letters in Vendor"
+                                                    Class="w-100 autocomplete-sm"
+                                                    MaxItems="50"
+                                                    Clearable="true"
+                                                    ResetValueOnEmptyText="true"
+                                                    Required="true"
+                                                    AvoidSubmit="true"
+                                                    Disabled="@IsSomeItemsTransMade" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1" readonly>@PurchaseGRNVMs?.VendorAddress</textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- GSTIN -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GSTIN</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@PurchaseGRNVMs?.VendorGstNo" readonly />
+                                        </div>
+                                    </div>
+                                    <!-- Contact Person -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Contact Person</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    @bind="@PurchaseGRNVMs.KindofAttention">
+                                                <option disabled value="">Select Contact Person</option>
+                                                @foreach (var cp in contactPersons)
+                                                {
+                                                    <option value="@cp.ContactPerson">@cp.ContactPerson</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => PurchaseGRNVMs.KindofAttention)" />
+                                        </div>
+                                    </div>
+                                    <!-- Phone -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Phone No</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@PurchaseGRNVMs?.VendorContactNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-2 mb-2">
+                                        
+                                        <div class="col-6 form-check form-switch">
+                                            <input class="form-check-input"
+                                                    type="checkbox"
+                                                    checked="@PurchaseGRNVMs.IsWithoutPoGRN"
+                                                    @onchange="e => ToggleGRN((bool)e.Value)"
+                                                    disabled="@PurchaseGRNVMs.PurchaseGRNSubVMs.Any(x => x.RefPoSubId > 0)">
+                                            <label class="form-check-label fw-semibold">
+                                                Without PO GRN
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="col-6 form-check form-switch">
+                                            <input class="form-check-input"
+                                                    type="checkbox"
+                                                    checked="@PurchaseGRNVMs.IsWithoutInspection"
+                                                    @onchange="e => ToggleNoInspection((bool)e.Value)"
+                                                    disabled ="@IsSomeItemsTransMade">
+                                            <label class="form-check-label fw-semibold">
+                                                No Inspection
+                                            </label>
+                                        </div>
+                                        
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== GRN Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-success-subtle text-dark">
+                                    <span class="fw-bold fs-6">Purchase GRN Details</span>
+
+                                    @if (PurchaseGRNVMs.GRNId > 0 && (CanCreate || CanEdit))
+                                    {
+                                        <div class="d-flex gap-2">
+
+                                            @if (PurchaseGRNVMs.PurchaseGRNSubVMs == null || !PurchaseGRNVMs.PurchaseGRNSubVMs.Any(x => x.ItemCancel))
+                                            {
+                                                <!-- Cancel / Revert -->
+                                                <button type="button"
+                                                        class="btn btn-sm rounded-3 @(PurchaseGRNVMs.GRNCancel ? "btn-success" : "btn-danger")"
+                                                        @onclick="Cancel"
+                                                        disabled="@PurchaseGRNVMs.ShortClose">
+
+                                                    @if (!PurchaseGRNVMs.GRNCancel)
+                                                    {
+                                                        <i class="bi bi-x-circle me-1"></i>
+                                                        <span>Cancel</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                        <span>Revert</span>
+                                                    }
+                                                </button>
+                                            }
+
+                                            <!-- Short Closed / Re-Open -->
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(PurchaseGRNVMs.ShortClose ? "btn-success" : "btn-warning")"
+                                                    @onclick="() => AskToShortCloseAsync()"
+                                                    disabled="@PurchaseGRNVMs.GRNCancel">
+
+                                                @if (!PurchaseGRNVMs.ShortClose)
+                                                {
+                                                    <i class="bi bi-box-seam me-1"></i>
+                                                    <span>Short Closed</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Re-Open</span>
+                                                }
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+
+
+                                <div class="card-body">
+
+                                    <!-- Dc No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GRN No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm flex-wrap w-100">
+                                                <input type="text"
+                                                       class="form-control form-control-sm"
+                                                       placeholder="GRN No."
+                                                       @bind="PurchaseGRNVMs.GRNNo" />
+
+                                                <span class="input-group-text rounded-end">@PurchaseGRNVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => PurchaseGRNVMs.GRNNo)" />
+                                            <ValidationMessage For="@(() => PurchaseGRNVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- GRN Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GRN Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@PurchaseGRNVMs.GRNDate" />
+                                            <ValidationMessage For="@(() => PurchaseGRNVMs.GRNDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Add to Store -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Add To Store</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select @bind="PurchaseGRNVMs.AddStoreId"
+                                                    class="form-select form-select-sm rounded-3 w-100"
+                                                    id="PurchaseGRN" disabled>
+                                                <option value="0">--Select Store--</option>
+                                                @foreach (var storeid in stores)
+                                                {
+                                                    <option value="@storeid.StoreId">@storeid.StoreName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => PurchaseGRNVMs.AddStoreId)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- PO Details -->
+                                    @if (!PurchaseGRNVMs.IsWithoutPoGRN)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. PO</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center rounded-3"
+                                                        @onclick="ShowPoDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> PO Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- DC No -->
+                                    <div class="mb-2 row align-items-center g-2">
+                                        <label class="col-12 col-md-3 col-form-label text-dark">
+                                            <small>DC No.</small>
+                                        </label>
+
+                                        <div class="col-12 col-md-5">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="PurchaseGRNVMs.RefDcNo" />
+                                            <ValidationMessage For="@(() => PurchaseGRNVMs.RefDcNo)" />
+                                        </div>
+
+                                        <div class="col-12 col-md-4">
+                                            <InputDate class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="PurchaseGRNVMs.RefDcDate" />
+                                            <ValidationMessage For="@(() => PurchaseGRNVMs.RefDcDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Invoice No -->
+                                    <div class="mb-2 row align-items-center g-2">
+                                        <label class="col-12 col-md-3 col-form-label text-dark">
+                                            <small>Invoice No.</small>
+                                        </label>
+
+                                        <div class="col-12 col-md-5">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="PurchaseGRNVMs.RefInvNo" />
+                                        </div>
+
+                                        <div class="col-12 col-md-4">
+                                            <InputDate class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="PurchaseGRNVMs.RefInvDate" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      @bind="PurchaseGRNVMs.MainRemarks"></textarea>
+                                            <ValidationMessage For="@(() => PurchaseGRNVMs.MainRemarks)" />
+                                        </div>
+                                    </div>
+
+                                    @if(PurchaseGRNVMs.GRNCancel)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-danger fw-bold">
+                                                <small>Cancel Reason</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                            rows="1"
+                                                            @bind="PurchaseGRNVMs.CancelReason"
+                                                            readonly ></textarea>
+                                                <ValidationMessage For="@(() => PurchaseGRNVMs.CancelReason)" />
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header bg-primary-subtle text-dark">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+
+                                        <!-- Title -->
+                                        <span class="fw-bold fs-6">Item Details</span>
+
+                                        <!-- Right Controls -->
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                            <!-- Add Item Button -->
+                                            <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                                <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                            </button>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:170px;">Specification</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:70px;">HSN</th>
+                                                    <th style="width:170px;">Category</th>
+                                                    <th style="width:120px;">DNQty</th>
+                                                    <th style="width:120px;">Qty Received</th>
+                                                    <th style="width:120px;">Bal Qty</th>
+                                                    <th style="width:120px;">Unit Price</th>
+                                                    <th style="width:120px;">PO Bal. Qty</th>
+                                                    <th style="width:110px;">Ref PO No.</th>
+                                                    <th style="width:110px;">Ref PO Dt.</th>
+                                                    <th style="width:110px;">PO Due Dt.</th>
+                                                    <th style="width:120px;">Extra Qty</th>
+                                                    <th style="width:120px;">Heat No.</th>
+                                                    <th style="width:120px;">Batch No.</th>
+                                                    <th style="width:200px;">Remarks</th>
+                                                    <th style="width:150px;">Cost-Center</th>
+
+                                                    @if((GRNId.HasValue|| GRNId> 0) && (!PurchaseGRNVMs.GRNCancel))
+                                                    {
+                                                        <th style="width:150px;">Item Cancel</th>
+                                                    }
+
+                                                    @if (!PurchaseGRNVMs.GRNCancel && !PurchaseGRNVMs.ShortClose)
+                                                    {
+                                                        <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in PurchaseGRNVMs.PurchaseGRNSubVMs)
+                                                {
+                                                    <tr class="@(subitem.ItemCancel ? "table-danger" : "")" @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @if (subitem.IsEditable && (subitem.RefPoSubId == 0 || subitem.RefPoSubId == null)
+                                                                            && subitem.Qty.GetValueOrDefault() == subitem.BalQty.GetValueOrDefault())
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                         Value="subitem.SelectedItem"
+                                                                                         ValueChanged="@(async item => await OnItemChanged(subitem, item))"
+                                                                                         ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                         SearchFunc="SearchItems"
+                                                                                         Dense="true"
+                                                                                         Variant="Variant.Outlined"
+                                                                                         Placeholder="Search Item Code"
+                                                                                         Title="Search Atleast 3 Letters in Item-Code"
+                                                                                         Class="w-100 autocomplete-sm"
+                                                                                         MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0  && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                       Size="Size.Small"
+                                                                                       Color="Color.Primary"
+                                                                                       OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                       Edge="Edge.End"
+                                                                                       Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.Specification</td>
+                                                        <td>@subitem.MeasureUnit</td>
+                                                        <td>@subitem.HSNCode</td>
+                                                        <td>@subitem.Category</td>
+                                                       <!-- DNQty-->
+                                                        <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                
+                                                                    <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="DN Qty"
+                                                                           step="any"
+                                                                           min="0.01"
+                                                                           title="Enter DNQuantity"
+                                                                           value="@subitem.DNQty"
+                                                                           @oninput="@(e => OnDCQtyChanged(e, subitem))" />
+                                                               
+                                                                @* <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="DN Qty"
+                                                                       title="Enter DNQuantity"
+                                                                       min="0"
+                                                                       step="any"
+                                                                       @bind="subitem.DNQty" />
+                                                                <ValidationMessage For="@(() => subitem.DNQty)" /> *@
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.DNQty</span>
+                                                            }
+                                                        </td>
+
+                                                        <!-- Qty -->
+                                                        <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Qty"
+                                                                       title="Enter Quantity"
+                                                                       step="any"
+                                                                       min="0"
+                                                                       @bind="subitem.Qty"
+                                                                       @bind:event="oninput"
+                                                                       @onchange="@(e => OnQtyChange(e, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.Qty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.Qty</span>
+                                                            }
+                                                        </td>
+
+                                                        <td>@subitem.BalQty</td>
+
+
+                                                        <td>
+                                                            @if (subitem.IsEditable && PurchaseGRNVMs.IsWithoutPoGRN)
+                                                            {
+                                                                <input type="number" class="form-control form-control-sm"
+                                                                        placeholder="Price" title="Enter Unit Price"
+                                                                        step="any"
+                                                                        min="0"
+                                                                       @bind="subitem.UnitPrice" />
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        <td>@subitem.POBalQty</td>
+                                                        <td>@subitem.RefPoNo</td>
+                                                        <td>@subitem.RefPoDate?.ToString("dd/MM/yyyy")</td>
+                                                        <td>@subitem.PoDueDate?.ToString("dd/MM/yyyy")</td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Extra Qty"
+                                                                       title="Enter Extra Quantity"
+                                                                       step="any"
+                                                                       min="0"
+                                                                       @bind="subitem.ExtraQty"
+                                                                       @bind:event="oninput"
+                                                                       @onchange="@(e => OnExtraQtyChange(e, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.ExtraQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.ExtraQty</span>
+                                                            }
+                                                        </td>
+                                                        
+                                                        <!-- Heat No -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm "
+                                                                       placeholder="Heat No"
+                                                                       title="Enter Heat No"
+                                                                       @bind="subitem.HeatNo"/>
+                                                                <ValidationMessage For="@(() => subitem.HeatNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.HeatNo
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm "
+                                                                       placeholder="Batch No"
+                                                                       title="Enter Batch No"
+                                                                       @bind="subitem.BatchNo"/>
+                                                                <ValidationMessage For="@(() => subitem.BatchNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.BatchNo
+                                                            }
+                                                        </td>
+
+                                                        <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea @bind-Value="subitem.Remark"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Remarks"
+                                                                               rows="1"/>
+                                                                <ValidationMessage For="@(() => subitem.Remark)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remark
+                                                            }
+                                                        </td>
+
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @if (subitem.IsEditable && (subitem.RefPoSubId == 0 || subitem.RefPoSubId == null) && subitem.Qty == subitem.BalQty)
+                                                            {
+                                                                <select class="form-select form-select-sm" 
+                                                                    value="@subitem.CostId"
+                                                                    @onchange="(e => OnCostCenterChanged(e, subitem))">
+                                                                    <option value="">select CostCentre</option>
+                                                                    @foreach (var cost in CostCenterVMs.Where(c =>
+                                                                        !PurchaseGRNVMs.PurchaseGRNSubVMs.Any(r => r != subitem && r.CostId == c.Id)))
+                                                                    {
+                                                                        <option value="@cost.Id">@cost.ProjectNo</option>
+                                                                    }
+                                                                </select>
+                                                                <ValidationMessage For="@(() => subitem.CostId)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.ProjectNo
+                                                            }
+                                                        </td>
+
+                                                        @if((GRNId.HasValue|| GRNId> 0) && (!PurchaseGRNVMs.GRNCancel))
+                                                        {
+                                                            <td class="text-center align-middle">
+
+                                                                <div class="form-check form-switch d-flex justify-content-center">
+                                                                    <InputCheckbox 
+                                                                    @bind-Value="subitem.ItemCancel"
+                                                                    @bind-Value:event="onchange"
+                                                                    ValueChanged="@(async (value) => await OnItemCancelChanged(subitem))"
+                                                                    class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                </div>
+                                                                <ValidationMessage For="@(() => subitem.ItemCancel)" 
+                                                                    class="text-danger fw-semibold small mt-2 d-block" />
+                                                            </td>
+                                                        }
+
+
+                                                        <!-- Action Buttons -->
+                                                        @if (!PurchaseGRNVMs.GRNCancel && !PurchaseGRNVMs.ShortClose)
+                                                        {
+                                                            <td class="freeze-last-col text-end">
+
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <button type="button" class="btn btn-success btn-icon btn-sm"
+                                                                    title="Save"
+                                                                    disabled="@(subitem.ItemCancel || PurchaseGRNVMs.GRNCancel)"
+                                                                    @onclick="async () => await SaveRow(subitem)">
+                                                                        <i class="bi bi-check-lg"></i>
+                                                                    </button>
+
+                                                                    <button type="button" class="btn btn-secondary btn-icon btn-sm"
+                                                                    title="Cancel"
+                                                                    disabled="@(subitem.ItemCancel || PurchaseGRNVMs.GRNCancel)"
+                                                                    @onclick="async () => await CancelEdit(subitem, PurchaseGRNVMs)">
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <button type="button" class="btn btn-primary btn-icon btn-sm"
+                                                                    title="Edit"
+                                                                    disabled="@(subitem.ItemCancel || PurchaseGRNVMs.GRNCancel)"
+                                                                    @onclick="async () => await EditRowAsync(subitem)">
+                                                                        <i class="bi bi-pencil"></i>
+                                                                    </button>
+
+                                                                    <button type="button" class="btn btn-danger btn-icon btn-sm"
+                                                                    title="Delete"
+                                                                    disabled="@(subitem.ItemCancel || PurchaseGRNVMs.GRNCancel)"
+                                                                    @onclick="async () => await RemoveRow(subitem)">
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                }
+
+                                                            </td>
+                                                        }
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            <!-- Totals -->
+                                            @if (PurchaseGRNVMs.PurchaseGRNSubVMs?.Any() == true)
+                                            {
+                                                <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="@(SelectedVendor.IsitPurch ? 8 : 7)" class="text-end fw-bold">
+                                                            Totals:
+                                                        </td>
+                                                        <td>@PurchaseGRNVMs.TotalQty</td>
+                                                        <td>@PurchaseGRNVMs.TotalBalQty</td>
+                                                        <td>Avg: @FormatDecimal(PurchaseGRNVMs.AverageUnitPrice)</td>
+                                                        <td colspan="14"></td>
+
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+
+                                        </table>
+                                    </div>
+
+                                    @if (PurchaseGRNVMs.IsWithoutPoGRN && !PurchaseGRNVMs.GRNCancel && !PurchaseGRNVMs.ShortClose)
+                                    {
+                                        <div class="mt-2 text-start">
+                                            <button type="button"
+                                                    class="btn btn-success btn-sm"
+                                                    @onclick="AddRow"
+                                                    disabled="@(PurchaseGRNVMs.GRNCancel)">
+                                                <i class="bi bi-plus-circle me-1"></i> Add Item
+                                            </button>
+                                        </div>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+
+                        
+
+                        @if (PurchaseGRNVMs.GRNId > 0)
+                        {
+                             <!-- Top Blue Line -->
+                            <hr class="border-1 border-primary mt-2 mb-1 opacity-100" />
+                            <div class="row g-3 mb-1 mt-1 align-items-end">
+                                <!-- Created By -->
+                                <div class="col-12 col-lg-3 mb-0 pb-0">
+                                    <div class="form-floating mb-0 pb-0">
+                                        <InputText @bind-Value="PurchaseGRNVMs.CreatedBy"
+                                                   id="CreatedBy"
+                                                   class="form-control bg-light"
+                                                   placeholder="Created By"
+                                                   disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="col-12 col-lg-3 mb-0 pb-0">
+                                    <div class="form-floating mb-0 pb-0">
+                                        <input class="form-control bg-light"
+                                               id="CreatedDate"
+                                               placeholder="Created Date"
+                                               value="@PurchaseGRNVMs.CreatedDate.ToString("dd-MM-yyyy HH:mm:ss")"
+                                               disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified By -->
+                                <div class="col-12 col-lg-3 mb-0 pb-0">
+                                    <div class="form-floating mb-0 pb-0">
+                                        <InputText @bind-Value="PurchaseGRNVMs.ModifiedBy"
+                                                   id="ModifiedBy"
+                                                   class="form-control bg-light"
+                                                   placeholder="Modified By"
+                                                   disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified Date -->
+                                <div class="col-12 col-lg-3 mb-0 pb-0">
+                                    <div class="form-floating mb-0 pb-0">
+                                        <input class="form-control bg-light"
+                                               id="ModifiedDate"
+                                               placeholder="Modified Date"
+                                               value="@PurchaseGRNVMs.ModifiedDate?.ToString("dd-MM-yyyy HH:mm:ss")"
+                                               disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+                             <!-- Bottom Blue Line -->
+                        <hr class="border-1 border-primary mt-1 mb-0 opacity-100" />
+                        }
+
+                       
+
+                        <div class="row g-3">
+                            <!-- Action Buttons -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if(!PurchaseGRNVMs.GRNCancel && !PurchaseGRNVMs.ShortClose)
+                                {
+                                    <div class="col-6 col-md-3 mt-3">
+                                        <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i> @(PurchaseGRNVMs.GRNId > 0 ? "Update" : "Create")
+                                        </button>
+                                    </div>
+                                  
+                                }
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="@($"/purchaseGRNList?currentPage={currentPage}")" />
+                            </div>
+
+                            @if (CanCreate || CanEdit && GRNId > 0)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+
+                        </div>
+
+                    </div>
+
+                </EditForm>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code
+{
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Purchase GRN";
+
+    [Parameter] public int? GRNId { get; set; }
+    [Parameter] public int VendorCode { get; set; }
+    private bool isProcessing = false;
+    private int screenCode { get; set; }
+    private PurchaseGRNVM PurchaseGRNVMs { get; set; } = new();
+    private PurchaseGRNSubVM? rowToDelete;
+    private PurchaseGRNSubVM? rowToCancel;
+    private List<VendorContact> contactPersons = new();
+    private List<CostCenterVM> CostCenterVMs = new();
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private VendorVM? SelectedVendor;
+    private List<Store> stores = new();
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    string? pdfBase64;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    // private int poPendingCount = 0;
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private bool IsPoModalVisible = false;
+    private List<Dictionary<string, object>>? PoData;
+
+
+    // 🔹 Visible Column Titles
+    private List<string> PoColumns = new()
+    {
+        "PoSubId", "IsOpenPo","Po No", "Po Date", "ItemId", 
+        "Item Code", "Item Name", "UOM", "HSN Code","Category Name",
+        "Qty", "Bal Qty", "Unit Price", "Po Due Date","CostCenterId",
+        "Project No", "Remark","Vendor"
+    };
+
+    // 🔹 Field Names (backend binding)
+    private List<string> PoFields = new()
+    {
+        "PoSubId", "IsOpenPo","PoNo", "PoDate", "ItemId",
+        "ItemCode", "ItemName", "UOM", "HSNCode","CategoryName",
+        "Qty", "BalQty", "UnitPrice", "PoDuedate", "CostCenterId",
+        "ProjectNo", "Remark","Vendor"
+    };
+
+    // 🔹 Hidden Columns (IDs and internal refs)
+    private List<string> PoHiddenColumns = new()
+    {
+        "PoSubId","ItemId", "CostCenterId"
+    };
+
+    private List<PageHeader.BreadcrumbItem> PurchaseGRNBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Purchase" },
+        new PageHeader.BreadcrumbItem { Text = "PurchaseGRN", IsLast = true }
+    };
+    private int DecimalPlaces { get; set; } = 2;
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    #endregion
+
+    #region  Toggle WithoutPO GRN and AutoSCN
+
+    private void ToggleGRN(bool isWithoutPo)
+    {
+        if (isWithoutPo)
+        {
+            // If already selected, unselect
+            if (PurchaseGRNVMs.IsWithoutPoGRN)
+            {
+                PurchaseGRNVMs.IsWithoutPoGRN = false;
+            }
+            else
+            {
+                PurchaseGRNVMs.IsWithoutPoGRN = true;
+                PurchaseGRNVMs.PurchaseGRNSubVMs.Clear();
+            }
+        }
+        else
+        {
+
+            PurchaseGRNVMs.IsWithoutPoGRN = false;
+
+        }
+    }
+    private void ToggleNoInspection(bool NoInspection)
+    {
+        if (NoInspection)
+        {
+            // If already selected, unselect
+            if (PurchaseGRNVMs.IsWithoutInspection)
+            {
+                PurchaseGRNVMs.IsWithoutInspection = false;
+            }
+            else
+            {
+                PurchaseGRNVMs.IsWithoutInspection = true;
+            }
+        }
+        else
+        {
+
+            PurchaseGRNVMs.IsWithoutInspection = false;
+
+        }
+    }
+    #endregion
+
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            DecimalPlaces = await _grnService.GetDecimalPlacesAsync();
+            screenCode = await _grnService.GetScreenCodeByScreenNameAsync(ScreenName);
+
+            if (GRNId.HasValue)
+            {
+                await LoadExistingGRN(GRNId.Value);
+            }
+            else if (VendorCode > 0)
+            {
+                await InitializeNewGRN(VendorCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    } 
+
+    private async Task LoadExistingGRN(int grnId)
+    {
+        try
+        {
+            PurchaseGRNVMs = await _grnService.GetPurchaseGRNByIdAsync(grnId);
+
+            if (PurchaseGRNVMs == null)
+            {
+                await _JS.ToastrWarning("GRN not found.");
+                return;
+            }
+
+            SelectedVendor = await _grnService.GetVendorByIdAsync(PurchaseGRNVMs.VendorCode.Value);
+            if (SelectedVendor != null)
+                await ApplyVendorSelectionAsync(SelectedVendor);
+
+            foreach (var dcSub in PurchaseGRNVMs.PurchaseGRNSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[dcSub.ItemId.Value] = await _grnService.GetCorrespondenceAttachmentsCountAsync(dcSub.ItemId.Value, "Item");
+            }
+
+            //Check Transaction Completed flag
+            IsSomeItemsTransMade = await CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to load Existing PurchaseGRN.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingDc failed in PurchaseGRN for GRNId: {grnId}");
+        }
+    }
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        try
+        {
+            return await _grnService.IsGRNTransactionsMatchedAsync(GRNId.Value, PurchaseGRNVMs, screenCode);
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "CheckIsTransMade failed.");
+            return false;
+
+        }
+    }
+
+    private async Task InitializeNewGRN(int vendorCode)
+    {
+        try
+        {
+            var vendor = await _grnService.GetVendorByIdAsync(vendorCode);
+            if (vendor != null)
+                await ApplyVendorSelectionAsync(vendor);
+
+            PurchaseGRNVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            PurchaseGRNVMs.GRNNo = await _grnService.GetGRNnNumberAsync(PurchaseGRNVMs.Suffix);
+
+            var MapStoreForDc = await _grnService.GetMappedStoreForFormAsync("GRNForm");
+
+            if (MapStoreForDc.StoreId > 0)
+            {
+                PurchaseGRNVMs.AddStoreId = MapStoreForDc.StoreId;
+                PurchaseGRNVMs.StoreName = MapStoreForDc.StoreName;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to initialize new po.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewPo failed for VendorCode: {vendorCode}");
+        }
+    }
+    #endregion
+
+
+    #region Vendor data Handlers
+    private async Task<IEnumerable<VendorVM>> SearchVendors(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<VendorVM>();
+
+        try
+        {
+            var results = await _grnService.SearchVendorsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<VendorVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In PurchaseGRNUpsert SearchVendors failed for value: {value}");
+            await _JS.ToastrError("Failed to search Vendors in PurchaseGRNUpsert. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+
+    private async Task OnVendorChanged(VendorVM? vendor)
+    {
+        try
+        {
+            await ApplyVendorSelectionAsync(vendor);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnVendorChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error in OnVendorChanged");
+            await _JS.ToastrError("Error while selecting");
+
+        }
+    }
+
+    private async Task ApplyVendorSelectionAsync(VendorVM? vendor) 
+    {
+        try
+        {
+            SelectedVendor = vendor;
+            PurchaseGRNVMs.VendorCode = vendor?.VendorCode ?? 0;
+            PurchaseGRNVMs.VendorName = vendor?.VendorName;
+            PurchaseGRNVMs.VendorAddress = vendor?.VendorAddress;
+            PurchaseGRNVMs.VendorGstNo = vendor?.GSTNo;
+            PurchaseGRNVMs.VendorContactNo = vendor?.ContactNo;
+
+            if (vendor == null)
+            {
+                stores.Clear();
+                return;
+            }
+            contactPersons = await _grnService.GetContactPersonsVendorAsync(vendor.VendorCode);
+
+          //  stores = (await _grnService.GetAllActiveStoresAsync()).ToList();
+            var MapStoreForDc = await _grnService.GetMappedStoreForFormAsync("GRNForm");
+
+            if (MapStoreForDc.StoreId > 0)
+            {
+                //////////////////vs
+                stores.Clear();
+
+                stores.Add(new Store
+                {
+                    StoreId = MapStoreForDc.StoreId,
+                    StoreName = MapStoreForDc.StoreName
+                });
+                //////////////////////
+
+                PurchaseGRNVMs.AddStoreId = MapStoreForDc.StoreId;
+                PurchaseGRNVMs.StoreName = MapStoreForDc.StoreName;
+            }
+
+            PurchaseGRNVMs.KindofAttention = contactPersons.Count == 1 ? contactPersons.First().ContactPerson : string.Empty;
+
+            //Pending PoDetails
+            //poPendingCount = await _grnService.GetPendingPoCountAsync(vendor.VendorCode);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyVendorSelectionAsync failed for VendorCode: {vendor?.VendorCode}");
+            await _JS.ToastrError("Failed to apply vendor selection. Please try again.");
+        }
+    }
+    #endregion
+
+    #region Item Handlers
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _grnService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _JS.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(PurchaseGRNSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItem = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.HSNCode = item.HSNCode;
+                subitem.MeasureUnit = item.MeasureUnit;
+                subitem.Specification=item.Specification;
+                subitem.Category = item.CategoryName;
+
+                if (PurchaseGRNVMs?.VendorCode != null && subitem.ItemId.HasValue)
+                {
+                    var rates = await _grnService.GetBulkLastUnitPricesAsync(
+                        new List<int> { subitem.ItemId.Value },
+                        PurchaseGRNVMs.VendorCode.Value
+                    );
+
+                    if (rates.TryGetValue(subitem.ItemId.Value, out decimal rate))
+                    {
+                        subitem.UnitPrice = rate;
+                    }
+                }
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _grnService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+                }
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItem = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.HSNCode = null;
+                subitem.MeasureUnit = null;
+                subitem.UnitPrice = 0m;
+                subitem.Specification = null;
+                subitem.Category = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In purchaseGRNUpsert OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _JS.ToastrError("Failed to apply item selection  in purchaseGRNUpsert. Please try again.");
+        }
+    }
+
+    private bool IsItemAlreadySelected(int itemId, int? currentItemId)
+    {
+        return PurchaseGRNVMs.PurchaseGRNSubVMs?.Any(q => q.ItemId == itemId && q.ItemId != currentItemId) == true;
+    }
+    #endregion
+
+
+    #region Quantity Handlers
+    private async Task OnDCQtyChanged(ChangeEventArgs e, PurchaseGRNSubVM subitem)
+    {
+        try
+        {
+            if (decimal.TryParse(e.Value?.ToString(), out decimal qty))
+            {
+                subitem.DNQty = qty;
+
+                // Auto fill Qty
+                subitem.Qty = qty;
+                subitem.BalQty = qty;
+            }
+            else
+            {
+                subitem.DNQty = 0;
+                subitem.Qty = 0;
+                subitem.BalQty = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In OnDCQtyChanged()");
+            await _JS.ToastrError("Failed to apply item selection  in OnDCQtyChanged Please try again.");
+        }
+
+    }
+
+    private async Task OnQtyChange(ChangeEventArgs e, PurchaseGRNSubVM SubVM)
+    {
+        try
+        {
+
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.Qty = 0;
+                SubVM.BalQty = 0;
+                await _JS.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+
+            // NEW Po line
+            if (SubVM.GRNSubId == 0)
+            {
+                if (SubVM.RefPoSubId > 0)
+                {
+                    var poBalQty = await _grnService.GetPoItemBalQtyFromPoSubId(SubVM.RefPoSubId.Value);
+                    if (SubVM.IsOpenPo)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else if (newQty <= poBalQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.Qty = poBalQty;
+                        SubVM.BalQty = poBalQty;
+
+                        await _JS.ToastrWarning($"Qty can't be greater than PO Balance Qty ({poBalQty}).");
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty;
+                }
+            }
+
+            // EXISTING DC line
+            else
+            {
+                var original = await _grnService.GetGRNSubItemDetailByGRNSubIdAsync(SubVM.GRNSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.Qty - original.BalQty;
+
+                // Cannot decrease below transacted quantity
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.Qty = alreadyTransacted;
+                    SubVM.BalQty = 0;
+                    await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                if (SubVM.RefPoSubId > 0)
+                {
+                    var poBalQty = await _grnService.GetPoItemBalQtyFromPoSubId(SubVM.RefPoSubId.Value);
+                    var maxAllowedQty = original.Qty + poBalQty;
+
+                    if (newQty > maxAllowedQty)
+                    {
+                        SubVM.Qty = maxAllowedQty;
+                        SubVM.BalQty = maxAllowedQty.GetValueOrDefault() - alreadyTransacted.GetValueOrDefault();
+                        await _JS.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                    }
+                    else
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted.GetValueOrDefault();
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty - alreadyTransacted.GetValueOrDefault();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnQtyChange failed for DcSubId: {SubVM?.GRNSubId}");
+            await _JS.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    private async Task OnExtraQtyChange(ChangeEventArgs e, PurchaseGRNSubVM SubVM)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.ExtraQty = 0;
+                SubVM.ExtraBalQty = 0;
+                await _JS.ToastrWarning("Extra Qty must be a positive number.");
+                return;
+            }
+
+            if (SubVM.GRNSubId == 0)
+            {
+                SubVM.ExtraQty = newQty;
+                SubVM.ExtraBalQty = newQty;
+            }
+
+            // EXISTING DC line
+            else
+            {
+                var original = await _grnService.GetGRNSubItemDetailByGRNSubIdAsync(SubVM.GRNSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.ExtraQty - original.ExtraBalQty;
+
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.Qty = alreadyTransacted;
+                    SubVM.ExtraBalQty = 0;
+                    await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                if (SubVM.RefPoSubId > 0)
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.ExtraBalQty = newQty - alreadyTransacted;
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.ExtraBalQty = newQty - alreadyTransacted;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnExtraQtyChange failed for DcSubId: {SubVM?.GRNSubId}");
+            await _JS.ToastrError("Failed to update extra quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Row Operations
+    private async Task<bool> ValidateRowAsync(PurchaseGRNSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.Qty <= 0)
+                errors.Add("Quantity must be greater than 0.");
+
+            if (row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _JS.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = PurchaseGRNVMs.PurchaseGRNSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            PurchaseGRNVMs.PurchaseGRNSubVMs.Add(new PurchaseGRNSubVM
+            {
+                GRNId = PurchaseGRNVMs.GRNId,
+                IsEditable = true
+            });
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(PurchaseGRNSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            if (!PurchaseGRNVMs.PurchaseGRNSubVMs.Any(x => x.IsEditable))
+            {
+                PurchaseGRNVMs.PurchaseGRNSubVMs.Add(new PurchaseGRNSubVM
+                {
+                    GRNId = PurchaseGRNVMs.GRNId,
+                    IsEditable = true
+                });
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for GRNSubId: {item?.GRNSubId}");
+            await _JS.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(PurchaseGRNSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItem == null && item.ItemId > 0)
+            {
+                item.SelectedItem = await _grnService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for GRNSubId: {item?.GRNSubId}");
+            await _JS.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(PurchaseGRNSubVM? item, PurchaseGRNVM? parentDc)
+    {
+        try
+        {
+            if (item == null || parentDc == null)
+                return;
+
+            bool isEmptyOrInvalid = (item.ItemId <= 0) ||  (item.Qty.GetValueOrDefault() <= 0) ||  (item.UnitPrice <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentDc.PurchaseGRNSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for GRNSubId: {item?.GRNSubId}");
+            await _JS.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(PurchaseGRNSubVM item)
+    {
+        try
+        {
+            if (PurchaseGRNVMs.PurchaseGRNSubVMs.Count == 1 && PurchaseGRNVMs.GRNId > 0)
+            {
+                await _JS.ToastrWarning("At least one item must be present in the GRN.");
+                return;
+            }
+
+            if (PurchaseGRNVMs.GRNCancel)
+            {
+                await _JS.ToastrError("This GRN is already cancelled. Row deletion is not allowed.");
+                return;
+            }
+
+            if (PurchaseGRNVMs.ShortClose)
+            {
+                await _JS.ToastrError("This GRN is already short closed. Row deletion is not allowed.");
+                return;
+            }
+
+            if (item.ItemCancel)
+            {
+                await _JS.ToastrError("This item is already cancelled and cannot be deleted.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _JS.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction integrity.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                PurchaseGRNVMs.PurchaseGRNSubVMs.Remove(item);
+                await _JS.ToastrSuccess("New item row removed successfully.");
+
+                if (!PurchaseGRNVMs.PurchaseGRNSubVMs.Any())
+                    PurchaseGRNVMs.PurchaseGRNSubVMs = new List<PurchaseGRNSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for GRNSubId: {item?.GRNSubId}");
+            await _JS.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in PurchaseGRNVMs.PurchaseGRNSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _JS.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+    #region Modal Handlers
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Vendor" => "Add New Vendor",
+                "Item" => "Add New Item",
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type in PurchasGRNUpsert: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal in PurchasGRNUpsert. Please try again.");
+        }
+    }
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if(IsSomeItemsTransMade)
+            {
+                await _JS.ToastrWarning("Some Items Transaction Are Made!.. You Can't Cancel the Complete purchase GRN");
+                return;
+            }
+
+            if (PurchaseGRNVMs.PurchaseGRNSubVMs.Any(s => s.ItemCancel))
+            {
+                await _JS.ToastrWarning("GRN cannot be cancelled — one or more items are already cancelled.");
+                return;
+            }
+
+            if (!PurchaseGRNVMs.GRNCancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this GRN?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this GRN?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the purchase GRN.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Purchase GRN  Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnItemCancelChanged(PurchaseGRNSubVM subitem)
+    {
+        try
+        {
+            if (subitem.GRNSubId == 0)
+            {
+                await _JS.ToastrError("Kindly save the item before cancelling.");
+                return;
+            }
+
+            if (subitem.Qty.GetValueOrDefault() != subitem.BalQty.GetValueOrDefault())
+            {
+                await _JS.ToastrError("Item cannot be cancelled — SCN transactions have been made on it.");
+                return;
+            }
+
+            if (PurchaseGRNVMs.GRNCancel)
+            {
+                await _JS.ToastrError("GRN is already Cancel. You can't cancel Item.");
+                return;
+            }
+
+            if(subitem.ItemCancel)
+                await _grnService.ValidateBeforeRevertAsync(subitem.GRNSubId);
+
+            var (CanItemCancel, message) = await _grnService.CanGRNItemCancelCheckAsync(subitem);
+
+            if (!CanItemCancel)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.ItemCancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = false;
+                }
+                rowToCancel = subitem;
+
+                await _JS.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _JS.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            await LoadExistingGRN(GRNId.Value);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling Item");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Item.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Item Cancel in Purchase GRN");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+                case "Cancel":
+                case "Revert":
+                    await CancelGRN();
+                    break;
+
+                case "ItemCancel":
+                    await CancelItem();
+                    break;
+
+
+                case "ShortClose":
+                    await ShortCloseGRN();
+                    break;
+
+                default:
+                    await _JS.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action in PurchaseGRNUpsert: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action in PurchaseGRNUpsert. Please try again.");
+        }
+    }
+
+    private async Task ShortCloseGRN()
+    {
+        if (PurchaseGRNVMs == null)
+        {
+            await _JS.ToastrError("No GRN selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            PurchaseGRNVMs.ShortClose = !PurchaseGRNVMs.ShortClose;
+            await _grnService.UpsertPurchGRNShortCloseAsync(PurchaseGRNVMs);
+            StateHasChanged();
+
+            string msg = PurchaseGRNVMs.ShortClose
+                 ? "Purchase GRN ShortClose Successfully!"
+                 : "Purchase GRN ReOpen Successfully!";
+            await _JS.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while updating ShortClose.Purchase GRN");
+            await LoggingService.LogDeveloperError(ex, "Error in ShortClose() Purchase GRN");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelItem()
+    {
+        if (rowToCancel == null || isProcessing)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            bool isCancelling = !rowToCancel.ItemCancel;
+
+            if (isCancelling && string.IsNullOrWhiteSpace(cancelReason))
+            {
+                await _JS.ToastrWarning("Cancel reason is required.");
+                return;
+            }
+
+            rowToCancel.ItemCancel = isCancelling;
+            rowToCancel.ItemCancelReason = isCancelling ? cancelReason : string.Empty;
+
+            await _grnService.UpdateItemCancelAndAddorRevertAsync(rowToCancel,PurchaseGRNVMs,screenCode);
+
+            string actionText = isCancelling ? "Cancelled" : "Reverted";
+
+            await LoggingService.LogUserAction(
+                username,
+                machine,
+                ip,
+                screen: "Purchase GRN",
+                action: $"{actionText} GRN No: {PurchaseGRNVMs.GRNNo}, ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: isCancelling
+                    ? $"Reason: {cancelReason}"
+                    : "Item revert operation"
+            );
+
+            if(GRNId.Value > 0)
+                await LoadExistingGRN(GRNId.Value);
+
+            await ResetSlno();
+
+            await _JS.ToastrSuccess($"Item has been {actionText.ToLower()} successfully.");
+
+            cancelReason = string.Empty;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _JS.ToastrWarning(ex.Message);
+            await LoadExistingGRN(GRNId.Value);
+
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the item.");
+            await LoggingService.LogDeveloperError(ex, $"Item Cancel/Revert failed for GRNId: {PurchaseGRNVMs.GRNId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelGRN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!PurchaseGRNVMs.GRNCancel)
+            {
+                PurchaseGRNVMs.GRNCancel = true;
+                PurchaseGRNVMs.CancelDate = DateTime.Now;
+                PurchaseGRNVMs.CancelReason = cancelReason;
+                PurchaseGRNVMs.CancelBy = username;
+
+                await _grnService.UpdatedCancelStatusAndAddOrRevertQty(PurchaseGRNVMs, screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Purchase GRN",
+                    action: $"Cancelled GRN: {PurchaseGRNVMs.GRNNo}",
+                    additionalInfo: $"HRN Id: {PurchaseGRNVMs.GRNId}"
+                );
+
+                await _JS.ToastrSuccess("GRN cancelled successfully.");
+            }
+            else
+            {
+                PurchaseGRNVMs.GRNCancel = false;
+                PurchaseGRNVMs.CancelDate = null ;
+                PurchaseGRNVMs.CancelReason = string.Empty;
+                PurchaseGRNVMs.CancelBy = string.Empty;
+
+                await _grnService.UpdatedCancelStatusAndAddOrRevertQty(PurchaseGRNVMs,screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Purchase GRN",
+                    action: $"Reverted GRN: {PurchaseGRNVMs.GRNNo}",
+                    additionalInfo: $"GRN Id: {PurchaseGRNVMs.GRNId}"
+                );
+
+                await _JS.ToastrSuccess("GRN has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await LoadExistingGRN(GRNId.Value);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"CancelGRN failed for GRNId: {PurchaseGRNVMs.GRNId}");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the GRN.");
+            await LoggingService.LogDeveloperError(ex, $"CancelGRN failed for GRNId: {PurchaseGRNVMs.GRNId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task AskToShortCloseAsync()
+    {
+        try
+        {
+            if (PurchaseGRNVMs == null)
+            {
+                await _JS.ToastrError("Invalid GRN selected.");
+                return;
+            }
+
+            if (!GRNId.HasValue || GRNId == 0)
+            {
+                await _JS.ToastrError("Short Closed is not allowed before saving the GRN.");
+                return;
+            }
+
+            if (PurchaseGRNVMs.GRNTally)
+            {
+                await _JS.ToastrWarning("This Purchase GRN is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (PurchaseGRNVMs.GRNCancel)
+            {
+                await _JS.ToastrWarning("This Purchase GRN is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!PurchaseGRNVMs.ShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Purchase GRN?";
+                btnText = "Short Closed";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Purchase GRN?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while AskToShortCloseAsync Purchase GRN.");
+            await LoggingService.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _JS.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.GRNSubId > 0)
+            {
+                await _grnService.DeleteAndResequenceAsync(rowToDelete, PurchaseGRNVMs, screenCode);
+
+                if(GRNId > 0)
+                    await LoadExistingGRN(GRNId.Value);
+            }
+            else
+            {
+                PurchaseGRNVMs.PurchaseGRNSubVMs.Remove(rowToDelete);
+
+                if (!PurchaseGRNVMs.PurchaseGRNSubVMs.Any())
+                {
+                    PurchaseGRNVMs.PurchaseGRNSubVMs.Add(new PurchaseGRNSubVM
+                    {
+                        GRNId = PurchaseGRNVMs.GRNId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < PurchaseGRNVMs.PurchaseGRNSubVMs.Count; i++)
+                        PurchaseGRNVMs.PurchaseGRNSubVMs[i].SlNo = i + 1;
+                }
+            }
+
+            await _JS.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for GRNID: {PurchaseGRNVMs.GRNId}");
+            await _JS.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _JS.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _JS.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _grnService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _JS.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region CostCenter And terms
+
+    private  Task OnCostCenterChanged(ChangeEventArgs e, PurchaseGRNSubVM row)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            row.CostId = selectedId;
+
+            var selectedCostCenter = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            row.ProjectNo = selectedCostCenter?.ProjectNo; // Will be null if not found
+        }
+        else
+        {
+            // No selection or invalid selection
+            row.CostId = null;
+            row.ProjectNo = null;
+        }
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+    #region GRN Operations
+
+    private async Task UpsertGRN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            PurchaseGRNVMs.PurchaseGRNSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.Qty.HasValue || x.Qty == 0) &&
+                (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (!PurchaseGRNVMs.PurchaseGRNSubVMs.Any())
+            {
+                await _JS.ToastrWarning("Cannot save a Purchase GRN without valid items.");
+                return;
+            }
+
+
+            // Validate each line
+            foreach (var line in PurchaseGRNVMs.PurchaseGRNSubVMs)
+            {
+                bool isValid = await ValidateDcLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewDc = PurchaseGRNVMs.GRNId == 0;
+            if(isNewDc)
+            {
+                if (await _grnService.IsDuplicateDcNoAsync(PurchaseGRNVMs.VendorCode ?? 0,PurchaseGRNVMs.RefDcNo,PurchaseGRNVMs.Suffix))
+                {
+                    await _JS.ToastrWarning($"The same Vendor {PurchaseGRNVMs.VendorName} and DC No {PurchaseGRNVMs.RefDcNo} already exist. Please enter a different DC No.");
+                    return;
+                }
+                if (await _grnService.IsDuplicateInvNoAsync(PurchaseGRNVMs.VendorCode ?? 0,PurchaseGRNVMs.RefInvNo,PurchaseGRNVMs.Suffix))
+                {
+                    await _JS.ToastrWarning($"The same Vendor {PurchaseGRNVMs.VendorName} and Invoice No {PurchaseGRNVMs.RefDcNo}  already exist. Please enter a different Invoice No.");
+                    return;
+                }
+            }
+            try
+            {
+                await _grnService.UpsertGRNAsync(PurchaseGRNVMs,screenCode);
+
+            }
+            catch (Exception ex)
+            {
+                await _JS.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewDc)
+                await _JS.ToastrSuccess("Purchase GRN saved successfully.");
+            else
+                await _JS.ToastrSuccess("Purchase GRN updated successfully.");
+
+            // Discard popup Clear
+            await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigation.NavigateTo("/purchaseGRNList");
+        }
+
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertGRN failed.");
+            await _JS.ToastrError("Error saving Purchase SCN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateDcLineAsync(PurchaseGRNSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _JS.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.Qty.HasValue || line.Qty <= 0)
+            {
+                await _JS.ToastrError($"Item {line.ItemCode}: Quantity must be greater than 0.");
+                return false;
+            }
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+            {
+                await _JS.ToastrError($"Item {line.ItemCode}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(PurchaseGRNVMs.RefDcNo) && string.IsNullOrWhiteSpace(PurchaseGRNVMs.RefInvNo))
+            {
+                await _JS.ToastrError($"Please enter the DC number or Invoice number");
+                return false;
+            }
+
+
+            // Qty vs PO / Already Transacted validation
+
+            if (line.GRNSubId == 0 && line.RefPoSubId > 0)
+            {
+                if(!line.IsOpenPo)
+                {
+                    var poBalQty = await _grnService.GetPoItemBalQtyFromPoSubId(line.RefPoSubId.Value);
+
+                    if ((line.Qty > poBalQty))
+                    {
+                        line.Qty = poBalQty;
+                        line.BalQty = poBalQty;
+                        await _JS.ToastrWarning($"Qty cannot exceed Po Balance Qty ({poBalQty}).");
+                        return false;
+                    }
+                }
+            }
+            else if (line.GRNSubId > 0)
+            {
+                var original = await _grnService.GetGRNSubItemDetailByGRNSubIdAsync(line.GRNSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty.GetValueOrDefault();
+                    decimal origQty = original.Qty.GetValueOrDefault();
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.Qty < alreadyTransacted)
+                    {
+                        line.Qty = alreadyTransacted;
+                        line.BalQty = 0m;
+                        await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = line.Qty.GetValueOrDefault() - origQty;
+                        line.BalQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidatePOLineAsync failed.");
+            await _JS.ToastrError("Error Validate Purchase-PO line.");
+            return false;
+        }
+    }
+    #endregion
+
+
+    #region Show PoDetails
+
+    private async Task ShowPoDetails()
+    {
+        if (PurchaseGRNVMs?.VendorCode != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                if (PurchaseGRNVMs.VendorCode > 0)
+                {
+                    PoData = await _grnService.GetPoDetailsByVendorCode(PurchaseGRNVMs.VendorCode.Value);
+                }
+                else
+                {
+                    await _JS.ToastrError("Select the Vendor/Supplier First");
+                }
+                IsPoModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogDeveloperError(ex, "ShowPoDetails failed.");
+                await _JS.ToastrError("Error fetching Show PoDetails details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnPoSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        try
+        {
+            if (PurchaseGRNVMs.PurchaseGRNSubVMs == null)
+                PurchaseGRNVMs.PurchaseGRNSubVMs = new List<PurchaseGRNSubVM>();
+
+            if (PurchaseGRNVMs.AddStoreId == null || PurchaseGRNVMs.AddStoreId.Value == 0)
+            {
+                await _JS.ToastrWarning("Please select Purchase Store before loading PO items.");
+                return;
+            }
+
+            foreach (var item in selectedItems)
+            {
+                decimal GetDecimal(string key) =>
+                    item.TryGetValue(key, out var val) &&
+                    decimal.TryParse(Convert.ToString(val), out var result)
+                        ? result
+                        : 0;
+
+                int? GetInt(string key) =>
+                    item.TryGetValue(key, out var val) &&
+                    int.TryParse(Convert.ToString(val), out var result)
+                        ? result
+                        : (int?)null;
+
+                string GetString(string key) =>
+                    item.TryGetValue(key, out var val)
+                        ? Convert.ToString(val) ?? string.Empty
+                        : string.Empty;
+
+                DateTime? GetDate(string key) =>
+                    item.TryGetValue(key, out var val) &&
+                    DateTime.TryParse(Convert.ToString(val), out var result)
+                        ? result
+                        : (DateTime?)null;
+
+                bool GetBoolFromYesNo(string key)
+                {
+                    if (!item.TryGetValue(key, out var val) || val == null)
+                        return false;
+
+                    return Convert.ToString(val)
+                        .Trim()
+                        .Equals("YES", StringComparison.OrdinalIgnoreCase);
+                }
+
+                int itemId = GetInt("ItemId") ?? 0;
+                int? poSubId = GetInt("PoSubId");
+
+                decimal qty = GetDecimal("Qty");
+                decimal balqty = GetDecimal("BalQty");
+                decimal totalQty = GetDecimal("TotalQty");
+                decimal lineGross = GetDecimal("LineGross");
+
+                decimal subDiscPercent = GetDecimal("SubDiscPercent");
+                decimal subDiscAmt = GetDecimal("SubDiscAmt");
+                decimal mainDiscPercent = GetDecimal("MainDiscPercent");
+                decimal mainDiscAmt = GetDecimal("MainDiscAmt");
+
+                decimal packingPercent = GetDecimal("PackingPercent");
+                decimal packingAmt = GetDecimal("PackingAmt");
+
+                decimal insurancePercent = GetDecimal("InsurancePercent");
+                decimal insuranceAmt = GetDecimal("InsuranceAmt");
+
+                decimal freightAmt = GetDecimal("FreightAmt");
+                decimal totalBasicAmt = GetDecimal("TotalBasicAmt");
+                decimal todayVal = GetDecimal("TodayVal");
+                decimal unitPrice = GetDecimal("UnitPrice");
+
+                bool isOpenPo = GetBoolFromYesNo("IsOpenPo");
+
+                decimal stockValue = !isOpenPo
+                    ? CalculateLandedStockPrice(
+                        qty, totalQty, lineGross,
+                        subDiscPercent, subDiscAmt,
+                        mainDiscPercent, mainDiscAmt,
+                        packingPercent, packingAmt,
+                        insurancePercent, insuranceAmt,
+                        freightAmt, totalBasicAmt, todayVal)
+                    : unitPrice;
+
+
+                if (PurchaseGRNVMs.PurchaseGRNSubVMs
+                    .Any(x => x.ItemId == itemId && x.RefPoSubId == poSubId))
+                    continue;
+
+                var subVm = new PurchaseGRNSubVM
+                {
+                    RefPoSubId = poSubId,
+                    RefPoNo = GetString("PoNo"),
+                    RefPoDate = GetDate("PoDate"),
+
+                    ItemId = itemId,
+                    ItemCode = GetString("ItemCode"),
+                    ItemName = GetString("ItemName"),
+                    MeasureUnit = GetString("UOM"),
+                    HSNCode = GetString("HSNCode"),
+                    Category = GetString("CategoryName"),
+
+                    DNQty = balqty,
+                    Qty = balqty,
+                    BalQty = balqty,
+                    POBalQty = balqty,
+
+                    UnitPrice = stockValue,
+                    IsOpenPo = isOpenPo,
+
+                    CostId = GetInt("CostCenterId"),
+                    ProjectNo = GetString("ProjectNo"),
+                    PoDueDate = GetDate("PoDuedate"),
+
+                    IsEditable = true
+                };
+
+                PurchaseGRNVMs.PurchaseGRNSubVMs.Add(subVm);
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnPoSelectedAsync failed.");
+            await _JS.ToastrError("Error processing selected PO items.");
+        }
+    }
+
+
+
+    private decimal CalculateLandedStockPrice(decimal qty, decimal totalQty, decimal itemBasicWithoutDisc,decimal subDiscPercent, 
+        decimal subDiscAmt, decimal mainDiscPercent, decimal mainDiscAmt,decimal packingPercent,
+        decimal packingAmt, decimal insurancePercent, decimal insuranceAmt, decimal freightAmt, decimal totalBasicAmt, decimal todayVal)
+    {
+        if (qty <= 0) return 0;
+
+        decimal itemBasic = itemBasicWithoutDisc;
+
+        if (subDiscAmt > 0)
+            itemBasic -= subDiscAmt;
+        else if (subDiscPercent > 0)
+            itemBasic -= (itemBasicWithoutDisc * subDiscPercent / 100);
+
+        if (subDiscAmt == 0 && subDiscPercent == 0)
+        {
+            if (mainDiscAmt > 0 && totalBasicAmt > 0)
+            {
+                decimal proportion = itemBasicWithoutDisc / totalBasicAmt;
+                itemBasic -= proportion * mainDiscAmt;
+            }
+            else if (mainDiscPercent > 0)
+            {
+                itemBasic -= (itemBasicWithoutDisc * mainDiscPercent / 100);
+            }
+        }
+
+        if (packingAmt > 0 && totalBasicAmt > 0)
+            itemBasic += (itemBasicWithoutDisc / totalBasicAmt) * packingAmt;
+        else if (packingPercent > 0)
+            itemBasic += (itemBasicWithoutDisc * packingPercent / 100);
+
+        if (insuranceAmt > 0 && totalBasicAmt > 0)
+            itemBasic += (itemBasicWithoutDisc / totalBasicAmt) * insuranceAmt;
+        else if (insurancePercent > 0)
+            itemBasic += (itemBasicWithoutDisc * insurancePercent / 100);
+
+        if (freightAmt > 0 && totalQty > 0)
+            itemBasic += (qty / totalQty) * freightAmt;
+
+        decimal unitPrice = itemBasic / qty;
+
+        if (todayVal > 1)
+            unitPrice *= todayVal;
+
+        return unitPrice = Math.Round(unitPrice, 3, MidpointRounding.AwayFromZero);
+    }
+
+    #endregion
+
+    #region Formatting
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+    #endregion
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(GRNId.GetValueOrDefault(), "PurchaseGRN.frx", "GRNId", PurchaseGRNVMs.GRNCancel, ScreenName, "Sp_Print_PurchaseGRN");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Purchase GRN");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in Purchase GRN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

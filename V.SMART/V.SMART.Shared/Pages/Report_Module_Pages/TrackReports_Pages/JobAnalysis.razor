@@ -1,0 +1,915 @@
+﻿@page "/joborderAnalysis"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.IAnalysisReportService
+@using V.SMART.Shared.BusinessLayer.BusinessService.ReportService.AnalysisService
+@using V.SMART.Shared.ViewModels.ReportViewModel.AnalysisViewModel
+
+@using DocumentFormat.OpenXml.Drawing.Charts
+@using V.SMART.Shared.ViewModels.ReportViewModel.AnalysisViewModel
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchaseGRNVM
+@using System.Collections.Generic;
+@using System.Dynamic;
+@using ClosedXML.Excel;
+@using System.Reflection;
+
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ExcelExportService ExcelExportService
+
+@inject IJSRuntime _js
+@inject ILoggingService _logs
+@inject IExcelTemplateService excelTemplateService
+@inject IVendorService vendorService
+@inject ICommonService commonService
+@inject IJobOrdeAnalysisService AnalysisService
+
+@* Design *@
+
+<BsModal OnModalConfirmation="confirmation_Click"
+         ButtonBootstrapStyle="@(confirmation != "Export" ? "btn-danger" : btnColor)"
+         ButtonText="@(confirmation != "Export" ? "Delete" : btnText)"
+         Title="@(confirmation != "Export"
+                           ? "Are you sure you want to delete this JobOrderTrack?"
+                           : ModalTitle)">
+</BsModal>
+
+<style>
+    .sticky-top-menu {
+        position: sticky;
+        top: 10px;
+        z-index: 2000;
+    }
+
+    .table-responsive {
+        position: relative;
+    }
+
+        .table-responsive thead.sticky-top,
+        .table-responsive thead.sticky-top th {
+            z-index: 100;
+        }
+</style>
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+} 
+else
+{
+
+    <div class="container-fluid px-2 px-md-5 mt-4 ">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="JobOrderTrack List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@JobOrderTrack" />
+
+
+            <div class="card">
+                <div class="card-body  ">
+
+                    <!-- FILTER SECTION -->
+                    <div class="bg-white rounded-3 shadow-sm p-3 p-md-4 bg-success">
+
+
+                        <div class="d-flex align-items-end gap-3 flex-wrap">
+
+                           
+
+                            <!-- From Date -->
+                            <div class="col-12 col-md-2" >
+                                <label class="form-label">From Date</label>
+                                <input type="date" class="form-control"
+                                       style="font-size:12px; height:30px; padding:2px 6px;"
+                                       @bind="Fromdate" />
+                            </div>
+
+                            <!-- To Date -->
+                            <div class="col-12 col-md-2">
+                                <label class="form-label">To Date</label>
+                                <input type="date" class="form-control"
+                                       style="font-size:12px; height:30px; padding:2px 6px;"
+                                       @bind="Todate"/>
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <select class="form-select" @bind="BOMType" @bind:after="OnBOMTypeChanged">
+                                    <option value="Manufacturing">Manufacturing</option>
+                                    <option value="Labour">Labour</option>
+                                    <option value="Manual">Manual</option>
+                                </select>
+                            </div>
+
+
+
+                            <!-- View Button -->
+
+
+                          
+                            <button class="btn btn-outline-info shadow-sm "
+                            @onclick="onView">
+                             View
+                            </button>
+
+
+                            <div class="form-check" hidden="@HideCheckBox">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="chkDetailView"
+                                       @bind="IsDetailView"
+                                       @bind:after="OntextChanged" />
+
+                                <label class="form-check-label" for="flexCheckDefault">
+                                    Detailed View
+                                </label>
+                            </div>
+                          
+
+                        </div>
+
+                    </div>
+
+               
+             
+                    <div class="row g-3 align-items-end">
+                        @if (AnalysisData.Any())
+                        {
+                          <div class="col-12 mt-3 mb-2">
+                               <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                                    <div class="card-header bg-primary-subtle text-dark">
+
+                                        <div class="row g-3 align-items-center mb-3">
+
+                                            <div class="col-12 col-lg-3">
+                                                <span class="fw-bold fs-6">
+                                                    Job Order Details
+                                                </span>
+                                            </div>
+                                            <!--ColumnMenu-->
+                                            <div class="col-12 col-lg-3 ">
+                                                <div class="dropdown position-relative" style="z-index:1;">
+                                                    <ColumnMenu Columns="Columns"
+                                                                ScreenName="@ScreenName"
+                                                                UserId="@UserName"
+                                                                MaxVisible="int.MaxValue"
+                                                                OnChanged="HandleColumnChange" />
+                                                </div>
+                                            </div>
+                                            <!-- Search Box -->
+                                            <div class="col-12 col-lg-3">
+                                                <div class="input-group w-100">
+                                                    <span class="input-group-text bg-white">
+                                                        <i class="bi bi-search text-muted"></i>
+                                                    </span>
+
+                                                    <input type="text"
+                                                           class="form-control"
+                                                           placeholder="Search..."
+                                                           @bind="SearchText"
+                                                           @bind:event="oninput" />
+                                                </div>
+                                            </div>
+                                            <!-- Print Button -->
+
+                                            <div class="col-12 col-lg-3">
+                                                <button class="btn btn-outline-primary shadow-sm"
+                                                        @onclick="HandleExport">
+                                                    <i class="bi bi-printer me-1"></i> Export
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="card-body p-2">
+                                        <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                            <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                                                <thead class="custom-blue text-center align-middle sticky-top" style="z-index:0;">
+                                                    <tr>
+                                                        @foreach (var col in Columns.Where(c => c.IsVisible))
+                                                        {
+                                                            <th class="text-nowrap text-center align-middle"
+                                                                style="background-color:#0d6efd !important; color:white !important;">
+                                                                @col.Title
+                                                            </th>
+                                                        }
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody>
+                                                    @*   @foreach (var item in AnalysisData) *@
+                                                    @foreach (var item in FilteredAnalysisData)
+                                                    {
+                                                        <tr>
+                                                            @foreach (var col in Columns.Where(c => c.IsVisible))
+                                                            {
+                                                                switch (col.Field)
+                                                                {
+                                                                    case "SlNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">
+                                                                            @item.SlNo
+                                                                        </td>
+                                                                        break;
+                                                                    case "CustName":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">
+                                                                            @item.CustName
+                                                                        </td>
+                                                                        break;
+
+                                                                    case "PoNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">
+                                                                            @item.PoNo
+                                                                        </td>
+                                                                        break;
+
+                                                                    case "PoDate":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.PODate?.ToString("dd/MM/yyyy")</td>
+                                                                        break;
+
+                                                                    case "JobNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.JobNo</td>
+                                                                        break;
+
+                                                                    case "JobDate":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.JobDate?.ToString("dd/MM/yyyy")</td>
+                                                                        break;
+
+                                                                    case "JobQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.JobQty</td>
+                                                                        break;
+
+                                                                    case "JobBalQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.JobBalQty</td>
+                                                                        break;
+
+                                                                    case "Assembly":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.Assembly</td>
+                                                                        break;
+
+                                                                    case "Item":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.Item</td>
+                                                                        break;
+
+                                                                    case "AssemblyIssNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.AssemblyIssNo</td>
+                                                                        break;
+
+                                                                    case "IssQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.IssQty</td>
+                                                                        break;
+
+                                                                    case "IssBalQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.IssBalQty</td>
+                                                                        break;
+
+                                                                    case "GRNNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.GRNNo</td>
+                                                                        break;
+
+                                                                    case "ReturnItem":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.ReturnItem</td>
+                                                                        break;
+
+                                                                    case "ReturnQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.ReturnQty</td>
+                                                                        break;
+
+                                                                    case "ReturnBalQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.ReturnBalQty</td>
+                                                                        break;
+
+                                                                    case "AssSCNNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.AssSCNNo</td>
+                                                                        break;
+
+                                                                    case "AccQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.AccQty</td>
+                                                                        break;
+
+                                                                    case "ReworkQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.ReworkQty</td>
+                                                                        break;
+
+                                                                    case "RejQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.RejQty</td>
+                                                                        break;
+
+                                                                   @*  case "SCNBalQty":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.SCNBalQty</td>
+                                                                        break; *@
+
+                                                                    case "DcNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.DcNo</td>
+                                                                        break;
+
+                                                                    case "InvNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.InvNo</td>
+                                                                        break;
+
+                                                                    case "LabourGrnNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.LabourGrnNo</td>
+                                                                        break;
+
+                                                                    case "LabourScnNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.LabourScnNo</td>
+                                                                        break;
+
+                                                                    case "DcOutgoingNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.DcOutgoingNo</td>
+                                                                        break;
+
+                                                                    case "LabInvNo":
+                                                                        <td class="text-center" style="width:auto; font-size:12px;">@item.LabInvNo</td>
+                                                                        break;
+
+                                                                    default:
+                                                                        <td></td>
+                                                                        break;
+                                                                }
+                                                            }
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-center">No Item available.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+}
+
+@code {
+    protected override string ScreenName => "Joborder Track";
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private bool Hidden = false;
+
+    public List<GridColumn> Columns { get; set; }
+    private string? UserName;
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+    private DateTime? Todate = DateTime.Now;
+    private DateTime? Fromdate = DateTime.Now.AddDays(-30);
+    Dictionary<string, string> columnMap;
+    private bool IsMfgPo = false;
+    private bool IsDetailView = false;
+    private List<JobOrderAnalysisVM> AnalysisData = new();
+    private List<JobOrderAnalysisVM> AnalysisData1 = new();
+    // private AnalysisFilterVM AnalysisFilterVMs { get; set; } = new();
+    public DateTime JobDate { get; set; }
+    public EventCallback<List<GridColumn>> OnClick { get; set; }
+    bool HideCheckBox = true;
+    private string SearchTerm { get; set; } = string.Empty;
+    private List<JobOrderAnalysisVM> WrappedData { get; set; } = new();
+
+    public String BOMType;
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = "";
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+
+
+    private List<PageHeader.BreadcrumbItem> JobOrderTrack = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports"},
+        new PageHeader.BreadcrumbItem { Text = "Track"},
+        new PageHeader.BreadcrumbItem { Text = "Joborder Track", IsLast = true }
+    };
+    private string SearchText = "";
+
+
+    private List<JobOrderAnalysisVM> FilteredAnalysisData =>
+        (string.IsNullOrWhiteSpace(SearchText)
+            ? AnalysisData
+            : AnalysisData.Where(x =>
+                (x.PoNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.JobNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.Assembly?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.Item?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.AssemblyIssNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.IssQty?.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.IssBalQty?.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.GRNNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.ReturnItem?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.ReturnQty?.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.ReturnBalQty?.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.AssSCNNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.AccQty?.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.ReworkQty?.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.RejQty?.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.SCNBalQty?.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.LabourGrnNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.LabourScnNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.DcOutgoingNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.LabInvNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.DcNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.InvNo?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false)
+            ))
+        .Select((x, index) =>
+        {
+            x.SlNo = index + 1;
+            return x;
+        })
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+            BOMType = "Manufacturing";
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Sales Order OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+
+    private async Task OntextChanged()
+    {
+        try
+        {
+            isProcessing = true;
+            if (IsDetailView)
+            {
+
+                AnalysisData.Clear();
+                StateHasChanged();
+
+
+                var data = AnalysisData1;
+
+
+                string lastJobNo = "";
+                string lastGRN = "";
+                string lastSCN = "";
+                int slNo = 1;
+
+
+                AnalysisData = data
+                    .OrderBy(x => x.JobNo)
+                    .ThenBy(x => x.GRNNo)
+                    .ThenBy(x => x.Item)
+                    .ThenBy(x => x.AssemblyIssNo)
+                    .Select(x =>
+                    {
+                        bool sameGRN =
+                            lastJobNo == x.JobNo &&
+                            lastGRN == x.GRNNo;
+
+                        bool sameSCN =
+                            lastJobNo == x.JobNo &&
+                            lastSCN == x.AssSCNNo;
+
+                        var item = new JobOrderAnalysisVM
+                        {
+                            SlNo = slNo++,
+                            CustName = x.CustName,
+                            PoNo = x.PoNo,
+                            PODate = x.PODate,
+                            JobNo = x.JobNo,
+                            JobDate = x.JobDate,
+                            JobQty = x.JobQty,
+                            JobBalQty = x.JobBalQty,
+
+                            Assembly = x.Assembly,
+                            Item = x.Item,
+                            AssemblyIssNo = x.AssemblyIssNo,
+                            IssQty = x.IssQty,
+                            IssBalQty = x.IssBalQty,
+
+                            GRNNo = sameGRN ? "" : x.GRNNo,
+                            ReturnItem = sameGRN ? "" : x.ReturnItem,
+                            ReturnQty = sameGRN ? 0 : x.ReturnQty,
+                            ReturnBalQty = sameGRN ? 0 : x.ReturnBalQty,
+
+                            AssSCNNo = sameSCN ? "" : x.AssSCNNo,
+                            AccQty = sameSCN ? 0 : x.AccQty,
+                            ReworkQty = sameSCN ? 0 : x.ReworkQty,
+                            RejQty = sameSCN ? 0 : x.RejQty,
+                            SCNBalQty = sameSCN ? 0 : x.SCNBalQty,
+
+                            LabourGrnNo = sameGRN ? "" : x.LabourGrnNo,
+                            LabourScnNo = sameSCN ? "" : x.LabourScnNo,
+                            DcOutgoingNo = sameGRN ? "" : x.DcOutgoingNo,
+                            LabInvNo = sameGRN ? "" : x.LabInvNo,
+
+                            DcNo = sameGRN ? "" : x.DcNo,
+                            InvNo = sameGRN ? "" : x.InvNo
+                        };
+
+                        lastJobNo = x.JobNo;
+                        lastGRN = x.GRNNo;
+                        lastSCN = x.AssSCNNo;
+
+                        return item;
+                    })
+                    .ToList();
+
+
+                await InitializeColumns(BOMType);
+                await LoadColumnPreferences(UserName);
+
+            }
+            else
+            {
+                await onView();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OntextChanged()");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task onView()
+    {
+        try
+        {
+            isProcessing = true;
+            HideCheckBox = false;
+            IsDetailView = false;
+            AnalysisData.Clear();
+            AnalysisData1.Clear();
+            StateHasChanged();
+            //var data = await AnalysisService.GetAnalysis(type, Fromdate.Value, Todate.Value);
+            var data = await AnalysisService.GetAnalysis(BOMType, Fromdate.Value, Todate.Value);
+            int SlNo = 1;
+
+
+            AnalysisData1 = data;
+            //AnalysisData = filteredData
+            AnalysisData = data
+                .GroupBy(x => new
+                {
+                    x.PoNo,
+                    x.CustName,
+                    x.PODate,
+                    x.JobNo,
+                    x.JobDate,
+                    x.Assembly
+                })
+                .Select(g => new JobOrderAnalysisVM
+                    {
+                        SlNo = SlNo++,
+                        CustName = g.Key.CustName,
+                        PoNo = g.Key.PoNo,
+                        PODate = g.Key.PODate,
+                        JobNo = g.Key.JobNo,
+                        JobDate = g.Key.JobDate,
+                        Assembly = g.Key.Assembly,
+                        AssemblyIssNo = string.Join(",", g.Select(x => x.AssemblyIssNo).Distinct()),
+                        GRNNo = string.Join(",", g.Select(x => x.GRNNo).Distinct()),
+                        AssSCNNo = string.Join(",", g.Select(x => x.AssSCNNo).Distinct()),
+                        DcNo = g.FirstOrDefault().DcNo,
+                        InvNo = g.FirstOrDefault().InvNo,
+                        LabourGrnNo = g.FirstOrDefault().LabourGrnNo,
+                        LabourScnNo = g.FirstOrDefault().LabourScnNo,
+                        DcOutgoingNo = g.FirstOrDefault().DcOutgoingNo,
+                        LabInvNo = g.FirstOrDefault().LabInvNo
+                    })
+                .ToList();
+
+            //}
+
+
+
+            //InitializeColumns(Hidden);
+            InitializeColumns(BOMType);
+            SetColumnVisibility(hide: true);
+            await LoadColumnPreferences(UserName);
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in onView()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private  async void SetColumnVisibility(bool hide)
+    {
+        foreach (var col in Columns)
+        {
+            if (col.Field == "JobQty" ||
+                col.Field == "JobBalQty" ||
+                col.Field == "Item" ||
+                col.Field == "ReturnItem"||
+                col.Field == "IssQty" ||
+                col.Field == "IssBalQty" ||
+                col.Field == "ReturnQty" ||
+                col.Field == "ReturnBalQty" ||
+                col.Field == "AccQty" ||
+                col.Field == "ReworkQty" ||
+                col.Field == "RejQty"||
+                col.Field == "SCNBalQty"||
+                col.Field == "Fromdate"||
+                col.Field == "Todate")
+            {
+                col.IsVisible = !hide;
+            }
+        }
+        if (!IsDetailView)
+        {
+            Columns.RemoveAll(c =>
+            c.Field == "JobQty" ||
+            c.Field == "JobBalQty" ||
+            c.Field == "Item"||
+            c.Field == "ReturnItem"||
+            c.Field == "IssQty" ||
+            c.Field == "IssBalQty" ||
+            c.Field == "ReturnQty" ||
+            c.Field == "ReturnBalQty" ||
+            c.Field == "AccQty" ||
+            c.Field == "ReworkQty" ||
+            c.Field == "RejQty"||
+            c.Field == "SCNBalQty"||
+            c.Field == "Fromdate"||
+            c.Field == "Todate");
+        }
+
+    }
+
+
+    public async Task InitializeColumns(String Hidden)
+    {
+        try
+        {
+
+            Columns = new List<GridColumn>
+                {
+                    new() { Title = "SlNo", Field = "SlNo",Width="110px", IsVisible = true },
+                     new() { Title = "CustName", Field = "CustName",Width="110px", IsVisible = true },
+                    new() { Title = "PoNo", Field = "PoNo",Width="110px", IsVisible = true },
+                    new() { Title = "PODate", Field = "PoDate",Width="110px", IsVisible = true },
+                    new() { Title = "JobNo", Field = "JobNo", Width="110px",IsVisible = true },
+                    new() { Title = "JobDate", Field = "JobDate",Width="110px", IsVisible = true },
+                    new() { Title = "JobQty", Field = "JobQty", Width="110px",IsVisible = true },
+                    new() { Title = "JobBalQty", Field = "JobBalQty",Width="110px", IsVisible = true },
+                    new() { Title = "Assembly ", Field = "Assembly",Width="110px", IsVisible = true },
+                    new() { Title = "Item", Field = "Item",Width="110px", IsVisible = true},
+                    new() { Title = "IssueNo ", Field = "AssemblyIssNo", Width="110px",IsVisible = true },
+                    new() { Title = "IssueQty", Field = "IssQty",Width="110px", IsVisible = true },
+                    new() { Title = "IssueBalQty", Field = "IssBalQty",Width="110px", IsVisible = true },
+                    new() { Title = "GRNNo", Field = "GRNNo", Width="110px",IsVisible = true },
+                    new() { Title = "ReturnItem", Field = "ReturnItem",Width="110px", IsVisible = true },
+                    new() { Title = "ReturnQty", Field = "ReturnQty",Width="110px",IsVisible = true },
+                    new() { Title = "ReturnBalQty", Field = "ReturnBalQty",Width="110px", IsVisible = true },
+                    new() { Title = "SCNNo", Field = "AssSCNNo", Width="110px",IsVisible = true },
+                    new() { Title = "AccQty", Field = "AccQty", Width="110px",IsVisible = true },
+                    new() { Title = "ReworkQty", Field = "ReworkQty", Width="110px",IsVisible = true },
+                    new() { Title = "RejQty", Field = "RejQty", Width="110px",IsVisible = true },
+                    //new() { Title = "SCNBalQty", Field = "SCNBalQty", Width="110px",IsVisible = true },
+                };
+
+            if (Hidden == "Labour")
+            {
+                Columns.AddRange(new[]
+                {
+                    new GridColumn { Title = "LabourGrnNo", Field = "LabourGrnNo",Width="110px", IsVisible = true },
+                    new GridColumn { Title = "LabourScnNo", Field = "LabourScnNo", Width="110px",IsVisible = true },
+                    new GridColumn { Title = "LabDCNo", Field = "DcOutgoingNo",Width="110px", IsVisible = true },
+                    new GridColumn { Title = "LabInvNo", Field = "LabInvNo",Width="110px", IsVisible = true },
+
+                });
+            }
+            else
+            {
+                Columns.AddRange(new[]
+                   {
+                        new GridColumn { Title = "DcNo", Field = "DcNo", Width="110px",IsVisible = true },
+                        new GridColumn { Title = "InvNo", Field = "InvNo",Width="110px", IsVisible = true },
+
+
+                    });
+
+            }
+
+
+
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+
+            Columns = updated ?? new List<GridColumn>();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "HandleColumnChange");
+            await _js.ToastrError("Failed to update column preferences.");
+        }
+    }
+    private async Task HandleColumnChange1(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated ?? new List<GridColumn>();
+            await InvokeAsync(StateHasChanged);
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "HandleColumnChange");
+            await _js.ToastrError("Failed to update column preferences.");
+        }
+    }
+
+    private async Task HandleExport()
+    {
+
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+
+
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for Customer List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task confirmation_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && confirmation == "Export")
+            {
+                await ExportToExcel(isConfirmed);
+                confirmation = "";
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Export Purchase Sales Track Data confirmation_Click() method");
+            await _JS.ToastrError("An error occurred while handling the Purchase Sales Track confirmation_Click() method");
+        }
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+            List<Dictionary<string, object>> exportData = new();
+
+
+            if (FilteredAnalysisData != null
+                    && FilteredAnalysisData.Any())
+            {
+                exportData = GetExportData(
+                FilteredAnalysisData.ToList());
+            }
+
+
+
+            if (!exportData.Any())
+                return;
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "Job Order_Track", "Job Order_Track Report");
+
+            var base64 = Convert.ToBase64String(bytes);
+
+            await _JS.DownloadExcelAsync(base64, "Job Order_Track.xlsx");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in Job Order_Track");
+            await _JS.ToastrError("Error while exporting Job Order_Trackk!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private List<Dictionary<string, object>> GetExportData<T>(List<T> data)
+    {
+        return data
+        .Select(row =>
+        {
+            var dict = new Dictionary<string, object>();
+
+
+            foreach (var col in Columns.Where(x => x.IsVisible))
+            {
+                var prop = typeof(T).GetProperty(col.Field);
+
+                if (prop != null)
+                {
+                    dict[col.Title] = prop.GetValue(row);
+                }
+            }
+
+
+
+            return dict;
+        })
+        .ToList();
+    }
+
+    private async Task OnBOMTypeChanged()
+    {
+        try
+        {
+            HideCheckBox = true;
+            IsDetailView = false;
+        }
+        catch (Exception ex)
+        {
+            
+            await LoggingService.LogDeveloperError(ex,
+                "Error in Job Order_Track");
+            await _JS.ToastrError("Error while exporting Job Order_Trackk!");
+        }
+    }
+
+}

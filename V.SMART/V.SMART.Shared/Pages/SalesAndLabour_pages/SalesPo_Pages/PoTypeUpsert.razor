@@ -1,0 +1,426 @@
+﻿@page "/poType"
+@using V.SMART.Shared.Data.SalesAndLabour.SalesPo
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager _navigation
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-primary"
+         ButtonText="Yes"
+         Title="Are you sure you want to Delete current row?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+
+
+                <div class="container-fluid px-2 px-md-5 mt-4">
+                    <EditForm Model="PoTypes">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3 align-items-center justify-content-between mb-3">
+                            <div class="col-12 col-md-4">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0">
+                                        <i class="bi bi-search text-muted"></i>
+                                    </span>
+                                    <InputText type="text"
+                                               class="form-control border-start-0"
+                                               placeholder="Search Data Here"
+                                               @bind-Value="searchText"
+                                               @oninput="OnSearchTextChanged" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-sm" style="table-layout: fixed; width: 100%;">
+                                    <thead class="custom-blue sticky-top">
+                                        <tr class="text-nowrap">
+                                            <th style="width: 90px;"> Sl NO</th>
+                                            <th style="width: 200px;">Type Name</th>
+                                            <th style="width: 100px;">Series No.</th>
+                                            <th style="width: 120px;"> Created By</th>
+                                            <th style="width: 120px;"> Created Date</th>
+                                            <th class="freeze-last-col" style="width: 100px;">Action</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody class="custom-size">
+                                        @foreach (var item in POTypeList.Select((row, index) => new { row, index }))
+                                        {
+                                            <tr>
+                                                <td class="text-center">
+                                                    @(item.index + 1)
+                                                </td>
+
+                                                <td class="freeze-first-col">
+                                                    @if (item.row.IsEditable)
+                                                    {
+                                                        <InputText class="form-control form-control-sm" @bind-Value="item.row.TypeName" maxlength="50" />
+                                                        <ValidationMessage For="@(() => item.row.TypeName)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@item.row.TypeName</span>
+                                                    }
+                                                </td>
+
+                                                <td>
+                                                    @if (item.row.IsEditable)
+                                                    {
+                                                        <InputText class="form-control form-control-sm" @bind-Value="@item.row.SeriesNo" maxlength="20" />
+                                                        <ValidationMessage For="@(() => item.row.SeriesNo)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@item.row.SeriesNo</span>
+                                                    }
+                                                </td>
+
+                                                <td>
+                                                    <span>@item.row.CreatedBy</span>
+                                                </td>
+
+                                                <td>
+                                                    <span>@item.row.CreatedDate.ToString("dd/MM/yyyy")</span>
+                                                </td>
+
+                                                <td class="freeze-last-col">
+                                                    @if (item.row.IsEditable)
+                                                    {
+                                                        @if (CanCreate)
+                                                        {
+                                                            <button type="button" class="btn btn-success btn-sm me-1" @onclick="() => ValidateAndSaveRow(item.row)" title="Save">
+                                                                <i class="bi bi-check-lg"></i>
+                                                            </button>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        @if (CanEdit)
+                                                        {
+                                                            <button type="button" class="btn btn-info btn-sm me-1" @onclick="() => EditRow(item.row)" title="Edit">
+                                                                <i class="bi bi-pencil-square"></i>
+                                                            </button>
+                                                        }
+                                                    }
+                                                    @if (CanDelete)
+                                                    {
+                                                        <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteRow(item.row)" title="Delete row">
+                                                            <i class="bi bi-trash3"></i>
+                                                        </button>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+
+                                </table>
+                            </div>
+                            <div class="row mt-1">
+                                <div class="col-md-4">
+                                    <button type="button" class="btn btn-outline-primary" @onclick="AddRow">
+                                        <i class="bi bi-plus-circle me-1"></i> Add Row
+                                    </button>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </EditForm>
+                </div>
+    }
+}
+
+
+@code
+{
+    protected override string ScreenName => "Mfg-PurchaseOrder";
+    private bool isProcessing = true;
+
+    private PoType PoTypes { get; set; } = new PoType();
+
+    [Parameter]
+    public bool isModelVisible { get; set; } = false;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private List<PoType> typeRows = new();
+    private PoType _itemToDelete;
+    private List<PoType> POTypeList { get; set; } = new List<PoType> { new PoType() };
+
+    private string searchText = string.Empty;
+    private IEnumerable<PoType> type { get; set; } = new List<PoType>();
+    private int currentYear = DateTime.Now.Year;
+
+    private List<PageHeader.BreadcrumbItem> projectTypeBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Sales" },
+        new PageHeader.BreadcrumbItem { Text = "SalesOrder", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await ToLoadPOType();
+
+            isProcessing = false;
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ProjectTypeMaster OnInitializedAsync event");
+        }
+    }
+
+    private async Task ToLoadPOType()
+    {
+        try
+        {
+            var List = await _unitOfWork.PoTypes.GetAllAsync();
+            POTypeList = List.ToList();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling ToLoadPOType");
+        }
+    }
+
+    private void OnSearchTextChanged(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString();
+        ApplyFilter();
+    }
+
+    private async Task ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            await ToLoadPOType();
+            POTypeList = POTypeList.ToList();
+            StateHasChanged();
+
+        }
+        else
+        {
+            POTypeList = POTypeList.Where(c =>
+                (!string.IsNullOrWhiteSpace(c.TypeName) && c.TypeName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.SeriesNo) && c.SeriesNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.CreatedBy) && c.CreatedBy.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (POTypeList.Any(assign => assign.IsEditable))
+            {
+                await _js.ToastrError("Please fill the data in current row before adding a new one.");
+                return;
+            }
+
+            // Get financial year start (April 1st)
+            DateTime today = DateTime.Today;
+            int financialYear = today.Month >= 4 ? today.Year : today.Year - 1;
+
+            string startSeries = $"{financialYear}-000"; // First default StartSeries
+
+            // Check if this year already has entries
+            var lastSeries = POTypeList
+                .Where(p => p.SeriesNo.StartsWith($"{financialYear}-"))
+                .OrderByDescending(p => p.SeriesNo)
+                .Select(p => p.SeriesNo)
+                .FirstOrDefault();
+
+            if (!string.IsNullOrEmpty(lastSeries))
+            {
+                var parts = lastSeries.Split('-');
+                if (parts.Length == 2 && int.TryParse(parts[1], out int lastNumber))
+                {
+                    //int nextNumber = lastNumber + 1;
+                    int nextNumber = lastNumber;
+                    startSeries = $"{financialYear}-{nextNumber.ToString("D3")}";
+                }
+            }
+
+            POTypeList.Add(new PoType
+            {
+                SeriesNo = startSeries,
+                IsEditable = true
+            });
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the PType AddRow() method");
+        }
+    }
+
+    private async Task DeleteRow(PoType row)
+    {
+        try
+        {
+            _itemToDelete = row;
+
+            bool exists = await _unitOfWork.MfgPos
+               .AnyAsync(c => c.PoTypeId == row.Id);
+
+            if (exists)
+            {
+                await _js.ToastrWarning("You cannot Delete this Record because Serie's Number Already used!...");
+                return;
+            }
+
+            if (_itemToDelete.Id > 0)
+            {
+                await _unitOfWork.PoTypes.DeleteAsync(_itemToDelete.Id);
+                await _unitOfWork.SaveAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: await _userService.GetUsernameAsync(),
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Po Type",
+                    action: $"Deleted PO Type: {_itemToDelete.TypeName}"
+                );
+
+                await _js.ToastrSuccess("Deleted successfully.");
+            }
+
+            POTypeList.Remove(_itemToDelete);
+            _itemToDelete = null;
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the PoType DeleteRow() method ");
+        }
+    }
+
+    private async void EditRow(PoType row)
+    {
+        try
+        {
+            bool exists = await _unitOfWork.MfgPos
+               .AnyAsync(c => c.PoTypeId == row.Id);
+
+            if (exists)
+            {
+                await _js.ToastrWarning("You cannot Modify this Record because Serie's Number Already used!...");
+                return;
+            }
+
+            row.IsEditable = true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Po type Master EditRow()");
+        }
+    }
+
+    private async Task ValidateAndSaveRow(PoType list)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(list.TypeName))
+            {
+                await _js.ToastrError("Po Type Name is required.");
+                return;
+            }
+            else if (string.IsNullOrWhiteSpace(list.SeriesNo))
+            {
+                await _js.ToastrError("Series No. is required.");
+                return;
+            }
+
+            if (await _unitOfWork.PoTypes.ExistsByNameAsync("TypeName", PoTypes.TypeName, "Id", PoTypes.Id == 0 ? null : PoTypes.Id))
+            {
+                await _js.ToastrError("PoType Name is already exists.");
+                return;
+            }
+
+            list.IsEditable = false;
+
+            if (list.Id == 0)
+            {
+                list.CreatedBy = await _userService.GetUsernameAsync();
+                list.CreatedDate = DateTime.Now;
+                await _unitOfWork.PoTypes.CreateAsync(list);
+
+            }
+            else
+            {
+                await _unitOfWork.PoTypes.UpdateAsync(list);
+            }
+
+            await LoggingService.LogUserAction(
+                UserName: await _userService.GetUsernameAsync(),
+                Machine: _userService.MachineName,
+                IP_Address: _userService.IpAddress,
+                screen: "Po Type Master List",
+                action: list.Id == 0
+                    ? $"Created PO Type : {list.TypeName}"
+                    : $"Updated PO Type : {list.TypeName}"
+            );
+            await _unitOfWork.SaveAsync();
+            await _js.ToastrSuccess("Saved successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ValidateAndSaveRow()");
+            await _js.ToastrError("Save failed.");
+        }
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || _itemToDelete == null)
+                return;
+
+            
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in confirmDelete_Click()");
+            await _js.ToastrError("Delete failed.");
+        }
+    }
+}

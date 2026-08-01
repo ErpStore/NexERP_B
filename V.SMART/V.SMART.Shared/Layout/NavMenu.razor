@@ -1,0 +1,817 @@
+﻿@using MudBlazor
+@inject NavigationManager NavigationManager
+
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="vs-nav-shell">
+
+    @if (!DrawerOpen)
+    {
+        <!-- ══════════════════════════════
+        MINI SIDEBAR
+        ══════════════════════════════ -->
+        <div class="vs-mini-nav">
+
+
+            @if (!ShowProductionMenu)
+            {
+                <!-- Home -->
+                <div class="vs-mini-item">
+
+                    <button class="vs-mini-btn @(IsActive("/") ? "vs-mini-btn--active" : "")"
+                            title="Home"
+                            @onclick='() => Navigate("/")'>
+
+                        <MudIcon Icon="@Icons.Material.Filled.Home"
+                                 Size="Size.Small" />
+
+                    </button>
+
+                </div>
+            }
+
+            <AuthorizeView Roles="Administrator,ERPAdmin,User">
+
+                <Authorized>
+
+                    @if (ShowProductionMenu)
+                    {
+                        <div class="vs-mini-item">
+
+                            <button class="vs-mini-btn   @(IsActive("/productionLogList") ? "vs-mini-btn--active" : "")"
+                            title="Daily Production Log"
+                            @onclick='() => Navigate("/productionLogList/true")'>
+
+                                <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" />
+
+                            </button>
+
+                        </div>
+                                }
+                    else
+                    {
+                        <!-- Groups -->
+                        @foreach (var group in NavGroups)
+                        {
+                            var g = group;
+
+                            <div class="vs-mini-item">
+
+                                <!-- ICON BUTTON -->
+                                <button class="vs-mini-btn
+                                    @(_activeFlyout == g.Key ? "vs-mini-btn--open" : "")
+                                    @(g.Value.Items.Any(x => IsActive(x.Href))
+                                    ? "vs-mini-btn--active"
+                                    : "")"
+                            title="@g.Key"
+                            @onclick="() => ToggleFlyout(g.Key)">
+
+                                    <MudIcon Icon="@g.Value.MudIcon"
+                                             Size="Size.Small" />
+
+                                </button>
+
+                                <!-- FLYOUT -->
+                    @if (_activeFlyout == g.Key)
+                                {
+                                    <div class="vs-flyout">
+
+                                        <div class="vs-flyout-title">
+                                            @g.Key
+                                        </div>
+
+                                        @foreach (var item in g.Value.Items)
+                                        {
+                                            var i = item;
+
+                                            <a class="vs-flyout-item @(IsActive(i.Href) ? "vs-flyout-item--active" : "")"
+                                               @onclick:preventDefault
+                                               @onclick="() => NavigateAndClose(i.Href)">
+
+                                                @i.Label
+
+                                            </a>
+                                        }
+
+                                    </div>
+                                }
+
+                            </div>
+                        }
+
+                    }
+
+                </Authorized>
+
+            </AuthorizeView>
+
+            <!-- Expand Button -->
+            <div class="vs-mini-item vs-mini-dots-wrap">
+
+                <button class="vs-mini-btn vs-mini-btn--dots"
+                        title="Expand menu"
+                        @onclick="ToggleDrawer">
+
+                    <MudIcon Icon="@Icons.Material.Filled.MoreVert"
+                             Size="Size.Small" />
+
+                </button>
+
+            </div>
+
+        </div>
+    }
+    else
+    {
+        <!-- ══════════════════════════════
+             FULL SIDEBAR
+             ══════════════════════════════ -->
+        <div class="vs-full-nav">
+
+            <div class="erp-orb erp-orb-1"></div>
+            <div class="erp-orb erp-orb-2"></div>
+            <div class="erp-orb erp-orb-3"></div>
+
+            <!-- Header -->
+            <div class="vs-nav-header">
+                <div class="vs-nav-header-inner">
+                    <div class="vs-nav-header-icon">⌘</div>
+                    <div>
+                        <div class="vs-nav-eyebrow">V.SMART ERP</div>
+                        <div class="vs-nav-title">Business Modules</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scrollable nav -->
+            <div class="vs-nav-scroll">
+                @if (ShowProductionMenu)
+                {
+                    @* <MudNavMenu>
+                        <MudNavLink Href="productionLogList">
+                            Daily Production Log
+                        </MudNavLink>
+                    </MudNavMenu> *@
+                    <MudNavMenu>
+                        <MudNavLink Href="@(ShowProductionMenu ? "productionLogList/true" : "productionLogList")">
+                            Daily Production Log
+                        </MudNavLink>
+                    </MudNavMenu>
+                }
+                else
+                {
+                    <MudNavMenu Class="vs-nav-menu">
+
+                        <MudNavLink Href="/" Match="NavLinkMatch.All"
+                                    Icon="@Icons.Material.Filled.Home">
+                            Home
+                        </MudNavLink>
+
+
+                        <AuthorizeView Roles="Administrator,ERPAdmin,User">
+                            <Authorized>
+
+                                <MudNavLink Href="dashboard"
+                                            Match="NavLinkMatch.Prefix"
+                                            Icon="@Icons.Material.Filled.Dashboard">
+                                    Dashboard
+                                </MudNavLink>
+
+                                <div class="vs-section-label">Core Modules</div>
+
+                                <MudNavGroup Title="Master" Icon="@Icons.Material.Filled.MenuBook" Expanded="false">
+                                    <MudNavGroup Title="Admin Master" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="false">
+                                        <MudNavLink Href="user">User Master</MudNavLink>
+                                        <MudNavLink Href="userRights">User Rights Master</MudNavLink>
+                                        <MudNavLink Href="userLevelAuthorization">Authority Manage Master</MudNavLink>
+                                    </MudNavGroup>
+                                    <MudNavGroup Title="Inventory Master" Icon="@Icons.Material.Filled.Inventory" Expanded="false">
+                                        <MudNavLink Href="category">Category Master</MudNavLink>
+                                        <MudNavLink Href="uom">Measurement Unit Master</MudNavLink>
+                                        <MudNavLink Href="stores">Stores Master</MudNavLink>
+                                        <MudNavLink Href="store-map">Store Mapping Master</MudNavLink>
+                                        <MudNavLink Href="hsnMaster">HSN/SAC Master</MudNavLink>
+                                        <MudNavLink Href="rawMaterialList">Material Master</MudNavLink>
+                                        <MudNavLink Href="itemList">Item Master</MudNavLink>
+                                        <MudNavLink Href="bomList">BOM Master</MudNavLink>
+                                        <MudNavLink Href="processList">Process Master</MudNavLink>
+                                        <MudNavLink Href="factorlist">Factors Master</MudNavLink>
+                                        <MudNavLink Href="groupingList">Grouping Master</MudNavLink>
+                                        <MudNavLink Href="ItemRate_Updation">Item Price Update</MudNavLink>
+                                       
+                                    </MudNavGroup>
+                                    <MudNavGroup Title="General Master" Icon="@Icons.Material.Filled.SettingsApplications" Expanded="false">
+                                        <MudNavLink Href="customer">Customer Master</MudNavLink>
+                                        <MudNavLink Href="vendor">Vendor Master</MudNavLink>
+                                        <MudNavLink Href="machineList">Machine Master</MudNavLink>
+                                        <MudNavLink Href="terms-and-conditions">Terms &amp; Conditions Master</MudNavLink>
+                                        <MudNavLink Href="state">States Master</MudNavLink>
+                                        <MudNavLink Href="master-upload">Master Upload</MudNavLink>
+                                        <MudNavLink Href="contractReviewMasterList">Contract Review Master</MudNavLink>
+                                        <MudNavLink Href="RejectionMaster">RejectionMaster</MudNavLink>
+                                    </MudNavGroup>
+                                    <MudNavGroup Title="Account Master" Icon="@Icons.Material.Filled.AccountBalance" Expanded="false">
+                                        <MudNavLink Href="expense">Expense Master</MudNavLink>
+                                        <MudNavLink Href="income">Income Master</MudNavLink>
+                                        <MudNavLink Href="bank">Bank Detail Master</MudNavLink>
+                                        <MudNavLink Href="currency">Currency Master</MudNavLink>
+                                        <MudNavLink Href="currency_today">Currency Today Master</MudNavLink>
+                                        <MudNavLink Href="project-type-master">Project Type Master</MudNavLink>
+                                        <MudNavLink Href="costCenter">Cost Centre Master</MudNavLink>
+                                    </MudNavGroup>
+                                    <MudNavGroup Title="Human Resource Master" Icon="@Icons.Material.Filled.People" Expanded="false">
+                                        <MudNavLink Href="candidate">Candidate Master</MudNavLink>
+                                        <MudNavLink Href="offer_Letter">Offer Letter</MudNavLink>
+                                        <MudNavLink Href="appointment_Letter">Appointment Letter</MudNavLink>
+                                        <MudNavLink Href="Staff">Employee Master</MudNavLink>
+                                        <MudNavLink Href="hrMaster/holidayList">Holiday Master</MudNavLink>
+                                        <MudNavLink Href="leaveType">Leave Master</MudNavLink>
+                                        <MudNavLink Href="employeeLeaveBalance">Leave Allocation Master</MudNavLink>
+                                        <MudNavLink Href="shiftAllocation">Shift Allocation Master</MudNavLink>
+                                       
+                                    </MudNavGroup>
+                                    <MudNavGroup Title="Settings Master" Icon="@Icons.Material.Filled.ManageAccounts" Expanded="false">
+                                        <MudNavLink Href="screenManagement">Screen Manage Master</MudNavLink>
+                                        <MudNavLink Href="generalSettings">General Setting Master</MudNavLink>
+
+                                    </MudNavGroup>
+
+                                    <MudNavGroup Title="Assembly Costing" Icon="@Icons.Material.Filled.Calculate" Expanded="false">
+                                        <MudNavLink Href="bomLabourList">BOM Labour</MudNavLink>
+                                        <MudNavLink Href="LabourCostManagement">Labour Cost Management</MudNavLink>
+                                        <MudNavLink Href="costcalculator">BOM - Cost Estimation</MudNavLink>
+                                    </MudNavGroup>
+
+                                    <MudNavLink Href="myCompany" Icon="@Icons.Material.Filled.Business">My Company Details</MudNavLink>
+                                </MudNavGroup>
+
+                                <div class="vs-section-label">Operations</div>
+
+                                <MudNavGroup Title="Sales" Icon="@Icons.Material.Filled.RequestQuote" Expanded="false">
+                                    <MudNavLink Href="Leads">Leads</MudNavLink>
+                                    <MudNavLink Href="enquirySales">Customer Enquiry</MudNavLink>
+                                    <MudNavLink Href="enquiryFeasibility">Enquiry Feasibility Study</MudNavLink>
+                                    <MudNavLink Href="mfgQuoteList">Quotation</MudNavLink>
+                                    <MudNavLink Href="mfgPOList">Customer Sales Order</MudNavLink>
+                                    <MudNavLink Href="contractReviewCheckList">Contract Review Check</MudNavLink>
+                                    <MudNavLink Href="PerformaInvList">Proforma Invoice</MudNavLink>
+                                    <MudNavGroup Title="Manufacturing Work" Expanded="false">
+                                        <MudNavLink Href="mfgDcList">Delivery Challan</MudNavLink>
+                                        <MudNavLink Href="mfgInvList">Domestic Tax Invoice</MudNavLink>
+                                        <MudNavLink Href="expInvList">Export Invoice</MudNavLink>
+                                    </MudNavGroup>
+                                    <MudNavGroup Title="Labour Work" Expanded="false">
+                                        <MudNavLink Href="labourGRNList">Goods Received Note cum DC</MudNavLink>
+                                        <MudNavLink Href="labourSCNList">Store Credit Note</MudNavLink>
+                                        <MudNavLink Href="labourDcoutgoingList">Delivery Challan</MudNavLink>
+                                        <MudNavLink Href="LabourInvoiceList">Labour Invoice</MudNavLink>
+                                    </MudNavGroup>
+                                    <MudNavLink Href="creditNoteList">Credit Note</MudNavLink>
+                                </MudNavGroup>
+
+                                <MudNavGroup Title="Out Sourcing" Icon="@Icons.Material.Filled.LocalShipping" Expanded="false">
+                                    <MudNavLink Href="materialRequisitionList">Material Requisition / Indent</MudNavLink>
+                                    <MudNavLink Href="EnquiryPurchase">Enquiry</MudNavLink>
+                                    <MudNavLink Href="purchaseQuoteList">Vendor Quotation</MudNavLink>
+                                    <MudNavLink Href="rate-comparison">Price Comparison</MudNavLink>
+                                    <MudNavLink Href="PurchPOList">Purchase Order</MudNavLink>
+                                    <MudNavGroup Title="Purchase" Expanded="false">
+                                        <MudNavLink Href="purchaseGRNList">Goods Received Note</MudNavLink>
+                                        <MudNavLink Href="purchaseSCNList">Store Credit Note</MudNavLink>
+                                        <MudNavLink Href="purchaseInvoiceList">Tax Invoice</MudNavLink>
+                                    </MudNavGroup>
+                                    <MudNavGroup Title="Sub Contract" Expanded="false">
+                                        <MudNavLink Href="subConDcOutList">Delivery Challan</MudNavLink>
+                                        <MudNavLink Href="subConGrnList">Goods Received Note</MudNavLink>
+                                        <MudNavLink Href="subConScnList">Store Credit Note</MudNavLink>
+                                        <MudNavLink Href="subConInvList">Tax Invoice</MudNavLink>
+                                    </MudNavGroup>
+                                    <MudNavLink Href="debitNoteList">Debit Note</MudNavLink>
+                                </MudNavGroup>
+
+                                <MudNavGroup Title="Production / Shop Floor" Icon="@Icons.Material.Filled.BuildCircle" Expanded="false">
+                                    <MudNavGroup Title="Assembly" Expanded="false">
+                                        <MudNavLink Href="productionIssueList">Jobcard Material Issue Note</MudNavLink>
+                                        <MudNavLink Href="productionReturnAssyList">Goods Received Note</MudNavLink>
+                                        <MudNavLink Href="productionAssySCNList">Store Credit Note</MudNavLink>
+                                    </MudNavGroup>
+                                    <MudNavGroup Title="Component" Expanded="false">
+                                        <MudNavLink Href="productionCompIssueList">Product Material Issue Note</MudNavLink>
+                                        <MudNavLink Href="productionCompReturnList">Goods Received Note</MudNavLink>
+                                        <MudNavLink Href="productionCompSCNList">Store Credit Note</MudNavLink>
+                                    </MudNavGroup>
+                                   
+                                       <MudNavLink Href="productionLogList">Daily Production Log</MudNavLink> 
+                                    
+                                </MudNavGroup>
+
+                                <MudNavGroup Title="Planning" Icon="@Icons.Material.Filled.EventNote" Expanded="false">
+                                    <MudNavLink Href="approval">Authorisation</MudNavLink>
+                                    <MudNavLink Href="jobOrderList">Job Card</MudNavLink>
+                                    <MudNavLink Href="rcReleaseList">Route Card Release</MudNavLink>
+                                    <MudNavLink Href="routeCardList">Route Card</MudNavLink>
+                                    <MudNavLink Href="materialReqAnalysis">Material Requirement Analysis</MudNavLink>
+                                    <MudNavLink Href="assemblyReqAnalysis">Assembly Requirement Analysis</MudNavLink>
+                                    <MudNavLink Href="estimationList">Estimation</MudNavLink>
+                                </MudNavGroup>
+
+                                <div class="vs-section-label">Warehouse &amp; QC</div>
+
+                                <MudNavGroup Title="Inventory / Stock" Icon="@Icons.Material.Filled.Warehouse" Expanded="false">
+                                     <MudNavLink Href="stockIssReqList">Stock Issue-Request</MudNavLink>
+                                    <MudNavLink Href="stockPosition">Stock Position (Internal)</MudNavLink>
+                                    <MudNavLink Href="stockPositionInternalExternal">Stock Position with WIP</MudNavLink>
+                                    <MudNavLink Href="scnGenList">Stock Transfer Note</MudNavLink>
+                                    <MudNavLink Href="minIssList">Consumable Issue Note</MudNavLink>
+                                    <MudNavLink Href="tcIssueList">Tool Crib Issue Note</MudNavLink>
+                                    <MudNavLink Href="tcReturnList">Tool Crib Return Note</MudNavLink>
+                                    <MudNavLink Href="storeIntertransList">Inter Store Transfer</MudNavLink>
+                                    <MudNavLink Href="bomPRScn">BOM to Indent / STN</MudNavLink>
+                                   
+                                </MudNavGroup>
+
+                                <MudNavGroup Title="Inspection / QC" Icon="@Icons.Material.Filled.FactCheck" Expanded="false">
+                                    <MudNavLink Href="MasterInspection">Inspection Master</MudNavLink>
+                                    <MudNavLink Href="DefectInfo">Defects Master</MudNavLink>
+                                    <MudNavLink Href="FinalInspection">Final Inspection</MudNavLink>
+                                    <MudNavLink Href="IncomingInspection">GRN Inspection</MudNavLink>
+                                </MudNavGroup>
+
+                                <MudNavGroup Title="Maintenance" Icon="@Icons.Material.Filled.Assignment" Expanded="false">
+                                    <MudNavLink Href="MaintenanceSchedule">Machine Maintenance Schedule</MudNavLink>
+                                    <MudNavLink Href="MaintenanceProcess">Machine Maintenance Process</MudNavLink>
+                                    <MudNavLink Href="BreakdownMaintenance">Machine Breakdown Maintenance</MudNavLink>
+                                    <MudNavLink Href="CalibrationMaintenance">Gauges Calibration &amp; History</MudNavLink>
+                                </MudNavGroup>
+
+                                <div class="vs-section-label">People &amp; Finance</div>
+
+                                <!--Human Resource-->
+                                <MudNavGroup Title="Human Resource" Icon="@Icons.Material.Filled.People" Expanded="false">
+                                    <MudNavLink Href="leaveApplication">Leave Application</MudNavLink>
+                                    <MudNavLink Href="attendanceList">Attendance</MudNavLink>
+                                    <MudNavLink Href="salaryList">Salary</MudNavLink>
+                                    <MudNavLink Href="staffLoanList">StaffLoan</MudNavLink>
+                                   
+                                </MudNavGroup>
+
+                                <MudNavGroup Title="Cash Flow / Accounts" Icon="@Icons.Material.Filled.AccountBalanceWallet" Expanded="false">
+                                    <MudNavLink Href="PaymentList">Payments</MudNavLink>
+                                    <MudNavLink Href="ReceiptList">Receipts</MudNavLink>
+                                    <MudNavLink Href="AdvanceAdjustmentList">Advance Adjustment</MudNavLink>
+                                    <MudNavLink Href="serviceBills">Service Bills</MudNavLink>
+                                    <MudNavLink Href="Fundtransactions">Bank Transactions</MudNavLink>
+                                </MudNavGroup>
+
+                                <div class="vs-section-label">Tools</div>
+
+                                <MudNavGroup Title="Utilities" Icon="@Icons.Material.Filled.Extension" Expanded="false">
+                                    <MudNavLink Href="correspondenceList">Correspondence</MudNavLink>
+                                </MudNavGroup>
+
+                                <MudNavGroup Title="Reports" Icon="@Icons.Material.Filled.Assessment" Expanded="false">
+                                    <MudNavGroup Title="Issue Summary" Icon="@Icons.Material.Filled.Summarize" Expanded="false">
+                                        <MudNavLink Href="ToolCribReport">Tool Crib Issue Summary</MudNavLink>
+                                    </MudNavGroup>
+
+                                    <MudNavGroup Title="Accounts" Icon="@Icons.Material.Filled.PendingActions" Expanded="false">
+                                        <MudNavLink Href="confirmationaccounts">Confirmation Of Accounts</MudNavLink>
+                                        <MudNavLink Href="PaidBills">Bills Paid List</MudNavLink>
+                                        <MudNavLink Href="Profit_LossAccounts">Profit_LossAccounts</MudNavLink>
+                                        <MudNavLink Href="taxDetailsList">Tax Details</MudNavLink>
+                                        <MudNavLink Href="tdsSummaryReport">TDS Summary</MudNavLink>
+                                         <MudNavLink Href="hsnCodeSummaryReport">HSN Code Summary</MudNavLink>
+                                         <MudNavLink Href="creditdebitSummaryReport">CreditDebit Summary Report</MudNavLink>
+                                        <MudNavLink Href="summarygraphs">Summary & Graphs</MudNavLink>
+                                        <MudNavLink Href="GSTITC">GSTITC_04</MudNavLink>
+                                    </MudNavGroup>
+
+                                    <MudNavGroup Title="Track Reports" Icon="@Icons.Material.Filled.ShowChart" Expanded="false">
+                                        <MudNavLink Href="SalesTrack">Sales Track</MudNavLink>
+                                        <MudNavLink Href="labourTrack">Labour Track</MudNavLink>
+                                        <MudNavLink Href="dc-inout-report">Tally DC Inwards &amp; Outwards</MudNavLink>
+                                        <MudNavLink Href="po-tally">View Po Track </MudNavLink>
+                                        <MudNavLink Href="Purchase-Sales_Track"> Purchas Sales Track</MudNavLink>
+                                        <MudNavLink Href="joborderAnalysis">Joborder Track</MudNavLink>
+                                    </MudNavGroup>
+
+                                    <MudNavGroup Title="Analysis Reports" Icon="@Icons.Material.Filled.EventNote" Expanded="false">
+                                        <MudNavLink Href="StockLedger">Stock Ledger</MudNavLink>
+                                        <MudNavLink Href="StockAnalysis">Stock Analysis</MudNavLink>
+                                        <MudNavLink Href="Rejection">Rejection Analysis</MudNavLink>
+                                        <MudNavLink Href="RouteCardAnalysis">Route Card Analysis</MudNavLink>
+                                    </MudNavGroup>
+
+
+                                    <MudNavGroup Title="Rating" Icon="@Icons.Material.Filled.Star" Expanded="false">
+                                        <MudNavLink Href="Ratings">Ratings</MudNavLink>
+                                        <MudNavLink Href="prpoRating">PR PO Rating</MudNavLink>
+                                    </MudNavGroup>
+
+                                    <MudNavGroup Title="Pending Report" Icon="@Icons.Material.Filled.PendingActions" Expanded="false">
+                                        <MudNavLink Href="SalesPoPending">PO Pending List</MudNavLink>
+                                        <MudNavLink Href="Pending_Bills">Bills Pending List</MudNavLink>
+                                        <MudNavLink Href="PendingStatements">Pending Statements</MudNavLink>
+                                        <MudNavLink Href="labourpending">Labour Pending Summary</MudNavLink>
+                                        <MudNavLink Href="ProductionPending">Production Pending Summary</MudNavLink>
+                                    </MudNavGroup>
+
+                                    <MudNavGroup Title="History" Icon="@Icons.Material.Filled.ManageHistory" Expanded="false">
+                                        <MudNavLink Href="Daybook">Day Book</MudNavLink>
+                                        <MudNavLink Href="ItemWiseReport">Item Usage Tracking</MudNavLink>
+                                        <MudNavLink Href="ItemModificationReport">Item Modification</MudNavLink>
+                                    </MudNavGroup>
+
+                                </MudNavGroup>
+
+                                <MudNavLink Href="instantSearch" Icon="@Icons.Material.Filled.ManageSearch">
+                                    Instant Search
+                                </MudNavLink>
+
+                            </Authorized>
+                            <NotAuthorized>
+                                <MudNavLink Href="login" Icon="@Icons.Material.Filled.Login">Login</MudNavLink>
+                            </NotAuthorized>
+                        </AuthorizeView>
+
+                    </MudNavMenu>
+                }
+
+
+            </div>
+
+            <!-- Footer -->
+            <div class="vs-nav-footer">
+                <div class="vs-nav-footer-inner">
+                    <div class="vs-nav-footer-dot"></div>
+                    <span class="vs-nav-footer-text">V.SMART ERP &nbsp;·&nbsp; v2.0</span>
+                </div>
+            </div>
+
+        </div>
+    }
+
+</div>
+
+@code {
+
+    [Parameter] public bool DrawerOpen { get; set; }
+    [Parameter] public EventCallback ToggleDrawer { get; set; }
+
+
+    private CustomAuthStateProvider? CustomAuth =>
+        AuthenticationStateProvider as CustomAuthStateProvider;
+
+    private bool ShowProductionMenu =>
+        CustomAuth?.IsQrLogin == true &&
+        CustomAuth?.IsProductionUser == true;
+
+
+    // ── Active route ─────────────────────────────────────────────────────
+    private string ActiveHref =>
+        "/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri).TrimEnd('/');
+
+    private bool IsActive(string href)
+    {
+        var rel = href.TrimStart('/').TrimEnd('/');
+        var cur = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).TrimEnd('/');
+        if (string.IsNullOrEmpty(rel)) return string.IsNullOrEmpty(cur);
+        return cur.Equals(rel, StringComparison.OrdinalIgnoreCase) ||
+               cur.StartsWith(rel + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── Flyout state ─────────────────────────────────────────────────────
+    private string? _activeFlyout;
+
+    // ── Data model ───────────────────────────────────────────────────────
+    private record NavItem(string Label, string Href);
+    private record NavGroupDef(string MudIcon, List<NavItem> Items);
+
+    private readonly Dictionary<string, NavGroupDef> NavGroups = new()
+    {
+        // ═══════════════════════════════════════
+        // DASHBOARD
+        // ═══════════════════════════════════════
+        ["Dashboard"] = new(Icons.Material.Filled.Dashboard, new()
+        {
+            new("Dashboard",                           "dashboard"),
+            new("Instant Search",                 "instantSearch"),
+        }),
+
+        // ═══════════════════════════════════════
+        // MASTER
+        // ═══════════════════════════════════════
+        ["Master"] = new(Icons.Material.Filled.MenuBook, new()
+        {
+            // Admin
+            new("User Master",                    "user"),
+            new("User Rights Master",             "userRights"),
+            new("Authority Manage Master",        "userLevelAuthorization"),
+
+            // Inventory
+            new("Category Master",                "category"),
+            new("Measurement Unit Master",        "uom"),
+            new("Stores Master",                  "stores"),
+            new("Store Mapping Master",           "store-map"),
+            new("HSN/SAC Master",                 "hsnMaster"),
+            new("Material Master",                "rawMaterialList"),
+            new("Item Master",                    "itemList"),
+            new("BOM Master",                     "bomList"),
+            new("Process Master",                 "processList"),
+            new("Factors Master",                 "factorlist"),
+            new("Grouping Master",                "groupingList"),
+
+            // Costing
+            new("Item Price Update",              "ItemRate_Updation"),
+            new("BOM Labour",                    "bomLabourList"),
+            new("Labour Cost Management",         "LabourCostManagement"),
+            new("BOM Cost Estimation",            "costcalculator"),
+
+            // General
+            new("Customer Master",                "customer"),
+            new("Vendor Master",                  "vendor"),
+            new("Machine Master",                 "machineList"),
+            new("Terms & Conditions",             "terms-and-conditions"),
+            new("States Master",                  "state"),
+            new("Master Upload",                  "master-upload"),
+            new("Contract Review Master",         "contractReviewMasterList"),
+            new("RejectionMaster",         "RejectionMaster"),
+
+
+
+            // Accounts
+            new("Expense Master",                 "expense"),
+            new("Income Master",                  "income"),
+            new("Bank Detail Master",             "bank"),
+            new("Currency Master",                "currency"),
+            new("Currency Today Master",          "currency_today"),
+            new("Project Type Master",            "project-type-master"),
+            new("Cost Centre Master",             "costCenter"),
+
+            // HR
+            new("Candidate Master",                     "candidate"),
+            new("Offer Letter",                     "offer_Letter"),
+            new("Appointment Letter",           "appointment_Letter"),
+            new("Employee Master",                "Staff"),
+            new("Holiday Master",                 "hrMaster/holidayList"),
+            new("Leave Master",                   "leaveType"),
+            new("Leave Allocation Master",        "employeeLeaveBalance"),
+            new("Shift Allocation Master",        "shiftAllocation"),
+            new("Attendance",                     "attendanceList"),
+            new("Salary",                         "salaryList"),
+            new("Staff Loan",                     "staffLoanList"),
+           
+
+
+            // Settings
+            new("Screen Manage Master",           "screenManagement"),
+            new("General Setting Master",         "generalSettings"),
+
+            // Company
+            new("My Company Details",             "myCompany"),
+        }),
+
+        // ═══════════════════════════════════════
+        // CRM / SALES
+        // ═══════════════════════════════════════
+        ["CRM / Sales"] = new(Icons.Material.Filled.RequestQuote, new()
+        {
+            new("Leads",                          "Leads"),
+            new("Customer Enquiry",               "enquirySales"),
+            new("Enquiry Feasibility Study",      "enquiryFeasibility"),
+            new("Quotation",                      "mfgQuoteList"),
+            new("Customer Sales Order",           "mfgPOList"),
+            new("Contract Review Check",          "contractReviewCheckList"),
+            new("Proforma Invoice",               "PerformaInvList"),
+
+            // Manufacturing
+            new("Delivery Challan",               "mfgDcList"),
+            new("Domestic Tax Invoice",           "mfgInvList"),
+            new("Export Invoice",                 "expInvList"),
+
+            // Labour
+            new("Goods Received Note cum DC",     "labourGRNList"),
+            new("Store Credit Note",              "labourSCNList"),
+            new("Labour Delivery Challan",        "labourDcoutgoingList"),
+            new("Labour Invoice",                 "LabourInvoiceList"),
+
+            new("Credit Note",                    "creditNoteList"),
+        }),
+
+        // ═══════════════════════════════════════
+        // PURCHASE / OUTSOURCING
+        // ═══════════════════════════════════════
+        ["Purchase"] = new(Icons.Material.Filled.ShoppingCart, new()
+        {
+            new("Material Requisition",           "materialRequisitionList"),
+            new("Purchase Enquiry",               "EnquiryPurchase"),
+            new("Vendor Quotation",               "purchaseQuoteList"),
+            new("Price Comparison",               "rate-comparison"),
+            new("Purchase Order",                 "PurchPOList"),
+
+            // Purchase
+            new("Purchase GRN",                   "purchaseGRNList"),
+            new("Purchase Store Credit Note",     "purchaseSCNList"),
+            new("Purchase Tax Invoice",           "purchaseInvoiceList"),
+
+            // Sub Contract
+            new("Sub Contract DC",                "subConDcOutList"),
+            new("Sub Contract GRN",               "subConGrnList"),
+            new("Sub Contract SCN",               "subConScnList"),
+            new("Sub Contract Invoice",           "subConInvList"),
+
+            new("Debit Note",                     "debitNoteList"),
+        }),
+
+        // ═══════════════════════════════════════
+        // PLANNING & CONTROL
+        // ═══════════════════════════════════════
+        ["Planning"] = new(Icons.Material.Filled.EventNote, new()
+        {
+            new("Authorisation",                  "approval"),
+            new("Job Card",                       "jobOrderList"),
+            new("Route Card Release",             "rcReleaseList"),
+            new("Route Card",                     "routeCardList"),
+            new("Material Requirement Analysis",  "materialReqAnalysis"),
+            new("Assembly Requirement Analysis",  "assemblyReqAnalysis"),
+            new("Estimation",                        "estimationList"),
+            
+        }),
+
+        // ═══════════════════════════════════════
+        // PRODUCTION
+        // ═══════════════════════════════════════
+        ["Production"] = new(Icons.Material.Filled.PrecisionManufacturing, new()
+        {
+            // Assembly
+            new("Jobcard Material Issue",         "productionIssueList"),
+            new("Assembly Goods Received",        "productionReturnAssyList"),
+            new("Assembly Store Credit Note",     "productionAssySCNList"),
+
+            // Component
+            new("Component Material Issue",       "productionCompIssueList"),
+            new("Component Goods Received",       "productionCompReturnList"),
+            new("Component Store Credit Note",    "productionCompSCNList"),
+
+            new("Daily Production Log",           "productionLogList"),
+            
+            
+        }),
+
+        // ═══════════════════════════════════════
+        // INVENTORY & STORES
+        // ═══════════════════════════════════════
+        ["Inventory"] = new(Icons.Material.Filled.Warehouse, new()
+        {
+            new("Stock Position",                 "stockPosition"),
+            new("Stock Position With WIP",        "stockPositionInternalExternal"),
+            new("Stock Transfer Note",            "scnGenList"),
+            new("Consumable Issue Note",          "minIssList"),
+            new("Tool Crib Issue Note",           "tcIssueList"),
+            new("Tool Crib Return Note",          "tcReturnList"),
+            new("Inter Store Transfer",           "storeIntertransList"),
+            new("BOM to Indent / STN",            "bomPRScn"),
+        }),
+
+        // ═══════════════════════════════════════
+        // QUALITY CONTROL
+        // ═══════════════════════════════════════
+        ["Quality Control"] = new(Icons.Material.Filled.FactCheck, new()
+        {
+            new("Inspection Master",              "MasterInspection"),
+            new("Defects Master",                 "DefectInfo"),
+            new("Final Inspection",               "FinalInspection"),
+            new("GRN Inspection",                 "IncomingInspection"),
+        }),
+
+        // ═══════════════════════════════════════
+        // MAINTENANCE
+        // ═══════════════════════════════════════
+        ["Maintenance"] = new(Icons.Material.Filled.Build, new()
+        {
+            new("Machine Maintenance Schedule",   "MaintenanceSchedule"),
+            new("Machine Maintenance Process",    "MaintenanceProcess"),
+            new("Breakdown Maintenance",          "BreakdownMaintenance"),
+            new("Calibration History",            "CalibrationMaintenance"),
+        }),
+
+        // ═══════════════════════════════════════
+        // HUMAN RESOURCE
+        // ═══════════════════════════════════════
+        ["Human Resource"] = new(Icons.Material.Filled.Groups, new()
+        {
+            new("Leave Application",              "leaveApplication"),
+            new("Employee Master",                "Staff"),
+            new("Holiday Master",                 "hrMaster/holidayList"),
+            new("Leave Master",                   "leaveType"),
+
+            new("Attendance",                     "attendanceList"),
+            new("Salary",                         "salaryList"),
+            new("Staff Loan",                     "staffLoanList"),
+
+        }),
+
+        // ═══════════════════════════════════════
+        // FINANCE & ACCOUNTS
+        // ═══════════════════════════════════════
+        ["Finance"] = new(Icons.Material.Filled.AccountBalanceWallet, new()
+        {
+            new("Payments",                       "PaymentList"),
+            new("Receipts",                       "ReceiptList"),
+            new("Advance Adjustment",             "AdvanceAdjustmentList"),
+            new("Service Bills",                  "serviceBills"),
+            new("Bank Transactions",              "Fundtransactions"),
+        }),
+
+        // ═══════════════════════════════════════
+        // REPORTS & ANALYTICS
+        // ═══════════════════════════════════════
+        ["Reports"] = new(Icons.Material.Filled.Analytics, new()
+        {
+            //Issue Summary
+             new("ToolCrib Issue Summary",       "ToolCribReport"),
+
+            // Accounts
+            new("Confirmation Of Accounts",       "confirmationaccounts"),
+            new("Bills Paid List",                "PaidBills"),
+            new("Profit And Loss Statements",     "Profit_LossAccounts"),
+            new("Tax Details",                    "taxDetailsList"),
+            new("TDS Summary",                    "tdsSummaryReport"),
+            new("HSN Code Summary",               "hsnCodeSummaryReport"),
+            new("CreditDebit Summary Report",     "creditdebitSummaryReport"),
+            new("Summary & Graphs",               "summarygraphs"),
+            new("GSTITC_04",                      "GSTITC"),
+             
+
+            // Track Reports
+            new("Sales Track",                    "SalesTrack"),
+            new("Labour Track",                   "labourTrack"),
+            new("Tally DC Inwards & Outwards",    "dc-inout-report"),
+            new("View Po Track",                  "po-tally"),
+            new("Purchas Sales Track",           "Purchase-Sales_Track"),
+            new("Joborder Track",           "joborderAnalysis"),
+
+           
+
+            // Analysis
+            new("Stock Ledger",                   "StockLedger"),
+            new("Stock Analysis",                 "StockAnalysis"),
+            new("Rejection Analysis",                 "Rejection"),
+            new("RouteCard Analysis",          "RouteCardAnalysis"),
+
+            //Rating
+            new("Rating",                             "Ratings"),
+            new("PR PO Rating",                      "prpoRating"),
+
+          
+            // Pending
+            new("PO Pending List",                "SalesPoPending"),
+            new("Bills Pending List",             "Pending_Bills"),
+            new("Pending Statements",             "PendingStatements"),
+            new("Labour Pending Summary",             "labourpending"),
+            new("Production Pending Summary",      "ProductionPending"),
+
+            //History
+            new("Day Book",                       "Daybook"),
+            new("Item Usage Tracking",               "ItemWiseReport"),
+            new("Item Modification",                 "ItemModificationReport"),
+        }),
+
+        // ═══════════════════════════════════════
+        // TOOLS & UTILITIES
+        // ═══════════════════════════════════════
+        ["Utilities"] = new(Icons.Material.Filled.Extension, new()
+        {
+            new("Correspondence",                 "correspondenceList"),
+            new("Instant Search",                 "instantSearch"),
+        }),
+    };
+
+    // ── Flyout show/hide ──────────────────────────────────────────────────
+    private void ToggleFlyout(string key)
+    {
+        if (_activeFlyout == key)
+            _activeFlyout = null;
+        else
+            _activeFlyout = key;
+    }
+
+    private void CloseFlyout()
+    {
+        _activeFlyout = null;
+    }
+
+    private void Navigate(string href)
+    {
+        NavigationManager.NavigateTo(href);
+    }
+
+    private void NavigateAndClose(string href)
+    {
+        _activeFlyout = null;
+
+        NavigationManager.NavigateTo(href);
+    }
+
+}

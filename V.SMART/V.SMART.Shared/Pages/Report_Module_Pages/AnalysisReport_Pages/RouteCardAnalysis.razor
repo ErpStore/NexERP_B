@@ -1,0 +1,1805 @@
+﻿@page "/RouteCardAnalysis"
+@using Microsoft.Data.SqlClient
+@using V.SMART.Shared.BusinessLayer.BusinessService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.IAnalysisReportService
+@using V.SMART.Shared.Data.Planning.ComponentRouteCard
+@using V.SMART.Shared.ViewModels.InventoryViewModel.StockAddVM
+@using MudBlazor
+@using V.SMART.Shared.ViewModels.ReportViewModel.AnalysisReportViewModel
+@using System.Dynamic
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject IRouteCardAnalysisService _rcanalysis
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+@inject IColumnPreferenceService PreferenceService
+@inject ApplicationDbContext _context
+@inject ExcelExportService ExcelExportService
+
+<BsModal OnModalConfirmation="confirmation_Click"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title="@ModalTitle">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4" @onclick="CloseDropdowns">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Route Card Analysis"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@RCAnalysisBreadcrumbs" />
+
+            <PageTitle>Route Card Analysis</PageTitle>
+
+            <div class="container-fluid mt-3">
+
+            <!-- HEADER -->
+            <div class="card shadow-sm mb-3">
+
+                <div class="card-body">
+
+                    <!-- FILTERS -->
+                        <div class="row g-3 align-items-end">
+
+                        <div class="col-md-3">
+                            <label>From Date</label>
+                                <InputDate class="form-control" @bind-Value="fromDate" @bind-Value:after="OnDateChanged" />
+
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>To Date</label>
+                                <InputDate class="form-control" @bind-Value="toDate" @bind-Value:after="OnDateChanged" />
+                        </div>
+
+                
+
+                        <div class="col-md-4 position-relative">
+
+                            <label>Customer</label>
+
+                                <input class="form-control"
+                                       placeholder="Search Customer..."
+                                       value="@customerSearch"
+                                       @oninput="OnCustomerSearch"
+                                       @onclick="ShowCustomerList"
+                                       @onclick:stopPropagation="true" />
+
+
+                            @if (showCustomerList)
+                            {
+                                <div class="dropdown-menu show w-100"
+                                         @onclick:stopPropagation="true"
+                                        style="max-height:250px; overflow-y:auto;">
+                                        
+                                    <div class="dropdown-item"
+                                            @onclick="() => SelectCustomer(0)">
+                                        All
+                                    </div>
+
+
+                                    @foreach (var cust in FilteredCustomers)
+                                    {
+                                        <div class="dropdown-item"
+                                                @onclick="() => SelectCustomer(cust.CustId)">
+
+                                            @cust.CustName
+
+                                        </div>
+                                    }
+
+                                </div>
+                            }
+
+                        </div>
+
+                        <div class="col-md-2 position-relative">
+
+                            <label>Route Card No</label>
+
+                            <input class="form-control"
+                                    placeholder="Search Route Card..."
+                                    @bind="RCSearch"
+                                    @bind:event="oninput"
+                                    @onclick="ShowRCList" @onclick:stopPropagation="true" />
+
+
+                            @if (showRCList)
+                            {
+                                <div class="dropdown-menu show w-100"
+                                         @onclick:stopPropagation="true"
+                                        style="max-height:250px; overflow-y:auto;">
+
+                                    <div class="dropdown-item"
+                                            @onclick="() => SelectRouteCard(0)">
+                                        All
+                                    </div>
+
+
+                                    @foreach (var rc in FilteredRC)
+                                    {
+                                        <div class="dropdown-item"
+                                                @onclick="() => SelectRouteCard(rc.RCId)">
+
+                                            @rc.RCNo
+
+                                        </div>
+                                    }
+
+                                </div>
+                            }
+
+                        </div>
+
+                        <div class="col-md-2">
+                            <label>Status</label>
+                                <InputSelect class="form-select" @bind-Value="selectedStatus" @bind-Value:after="ApplyFilters">
+                                    <option value="-1">All</option>
+                                    <option value="0">Pending</option>
+                                    <option value="1">In Progress</option>
+                                    <option value="2">Completed</option>
+                                    <option value="3">Cancelled</option> 
+                                    
+                                    @foreach (var status in statuses)
+                                    {
+                                        <option value="@status.StatusId">
+                                            @status.StatusName
+                                        </option>
+                                    }
+                            </InputSelect>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- SUMMARY GRID -->
+            @if (Filtered_RC_Analysis_Data.Any())
+            {
+            <div class = "col-12">
+                <div class="card shadow-sm">
+
+                    <!-- HEADER -->
+
+                            @* <div class="card-header route-summary-header"> *@
+                            <div class="card-header d-flex flex-column gap-3">
+                                <h5 class="mb-0">
+                                    Route Card Summary
+                                </h5>
+
+
+                                @* <div class="summary-controls"> *@
+                                @* <div class="d-flex align-items-center flex-wrap gap-3">
+                                    <ColumnMenu Columns="Columns"
+                                                ScreenName="@ScreenName"
+                                                UserId="@UserName"
+                                                MaxVisible="int.MaxValue"
+                                                OnChanged="HandleColumnChange" />
+
+                                    
+
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button class="btn btn-success"
+                                                @onclick="HandleExportRCSummary">
+                                            <i class="bi bi-printer"></i>
+                                            Print Summary
+                                        </button>
+
+                                        <span>Show</span>
+
+                                        <select class="form-select form-select-sm"
+                                                style="width:70px;"
+                                                @bind="pageSize">
+
+                                            <option value="5">5</option>
+                                            <option value="10">10</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                            <option value="500">500</option>
+
+                                        </select>
+
+                                        <span>entries</span>
+
+                                    </div>
+
+                                </div> *@
+                                <div class="d-flex align-items-center gap-3 w-100">
+
+                                    <ColumnMenu Columns="Columns"
+                                                ScreenName="@ScreenName"
+                                                UserId="@UserName"
+                                                MaxVisible="int.MaxValue"
+                                                OnChanged="HandleColumnChange" />
+
+
+                                    <div class="d-flex align-items-center gap-2 ms-auto">
+
+                                        <button class="btn btn-success"
+                                                @onclick="HandleExportRCSummary">
+
+                                            <i class="bi bi-printer"></i>
+                                            Print Summary
+
+                                        </button>
+
+
+                                        <span>Show</span>
+
+
+                                        <select class="form-select form-select-sm"
+                                                style="width:70px;"
+                                                @bind="pageSize">
+
+                                            <option value="5">5</option>
+                                            <option value="10">10</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                            <option value="500">500</option>
+
+                                        </select>
+
+
+                                        <span>entries</span>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                    <!-- BODY -->
+
+                    <div class="card-body p-0">
+
+                        <!-- SCROLLABLE TABLE -->
+
+                        <div class="table-responsive"
+                             style="max-height:500px; overflow-y:auto; overflow-x:auto;">
+
+                            @* <table class="table table-bordered table-sm align-middle text-center mb-0"
+                                   style="min-width:1500px; font-size:12px;"> *@
+                               <table class="table table-bordered table-sm text-center mb-0"
+                                      style="min-width:1500px;font-size:12px;white-space:nowrap;vertical-align:middle;">
+
+                                <!-- HEADER -->
+
+                                 <thead class="custom-blue">
+                                
+
+                                    <tr>
+
+                                        @foreach (var col in Columns.Where(x => x.IsVisible))
+                                        {
+                                            @* <th>
+                                                @col.Title
+                                            </th> *@
+                                            <th style="background:#f8f9fa;position:sticky;top:0;z-index:2;white-space:nowrap;vertical-align:middle;">
+                                                @col.Title
+                                            </th>
+                                        }
+
+                                         @* <th class="sticky-action text-center" width="120">
+                                            Action
+                                        </th> *@
+                                        <th class="text-center"width="120"style="position:sticky;right:0;top:0;z-index:20;background:#0d6efd;color:white;white-space:nowrap;">
+                                        Action
+                                        </th>
+
+                                    </tr>
+
+                                </thead>
+
+                                <!-- BODY -->
+                                      
+                                <tbody>
+
+                                    @if (Filtered_RC_Analysis_Data == null || Filtered_RC_Analysis_Data.Count == 0)
+                                    {
+                                        <tr>
+                                            <td colspan="@((Columns.Count(x => x.IsVisible)) + 1)"
+                                                class="text-center py-3">
+
+                                                No Data Found
+
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var rc in PagedData.Select((item, index) => new { item, index }))
+                                        {
+                                            <tr>
+
+                                                @foreach (var col in Columns.Where(x => x.IsVisible))
+                                                {
+
+                                                    switch (col.Field)
+                                                    {
+
+                                                        case "SlNo":
+                                                            <td>@(rc.index + 1)</td>
+                                                            break;
+
+
+                                                        case "RCId":
+                                                            <td>@rc.item.RCId</td>
+                                                            break;
+
+
+                                                        case "IsManual":
+                                                            <td>@rc.item.IsManual</td>
+                                                            break;
+
+
+                                                        case "MfgOrLab":
+                                                            <td>@rc.item.MfgOrLab</td>
+                                                            break;
+
+
+                                                        case "Customer":
+                                                            <td>@rc.item.Customer</td>
+                                                            break;
+
+
+                                                        case "PONo":
+                                                            <td>@rc.item.PONo</td>
+                                                            break;
+
+
+                                                        case "PODate":
+                                                            <td>@rc.item.PODate</td>
+                                                            break;
+
+
+                                                        case "RCNo":
+                                                            <td>@rc.item.RCNo</td>
+                                                            break;
+
+
+                                                        case "RCDate":
+                                                            <td>@rc.item.RCDate</td>
+                                                            break;
+
+
+                                                        case "Assembly":
+                                                            <td>@rc.item.Assembly</td>
+                                                            break;
+
+
+                                                        case "Component":
+                                                            <td>@rc.item.Component</td>
+                                                            break;
+
+
+                                                        case "RCQty":
+                                                            <td>@rc.item.RCQty</td>
+                                                            break;
+
+
+                                                        case "RM":
+                                                            <td>@rc.item.RM</td>
+                                                            break;
+
+
+                                                        case "RMQty":
+                                                            <td>@rc.item.RMQty</td>
+                                                            break;
+
+
+                                                        case "RCStatus":
+
+                                                            <td>
+
+                                                                @switch (rc.item.RCStatus)
+                                                                {
+                                                                    case 0:
+                                                                        <span class="badge text-bg-warning">
+                                                                            Pending
+                                                                        </span>
+                                                                        break;
+
+                                                                    case 1:
+                                                                        <span class="badge text-bg-primary">
+                                                                            In Progress
+                                                                        </span>
+                                                                        break;
+
+                                                                    case 2:
+                                                                        <span class="badge text-bg-success">
+                                                                            Completed
+                                                                        </span>
+                                                                        break;
+
+                                                                    case 3:
+                                                                        <span class="badge text-bg-danger">
+                                                                            Cancelled
+                                                                        </span>
+                                                                        break;
+                                                                }
+
+                                                            </td>
+
+                                                            break;
+
+
+                                                        case "DCNo":
+                                                            <td>@rc.item.DCNo</td>
+                                                            break;
+
+
+                                                        case "DCDate":
+                                                            <td>@rc.item.DCDate</td>
+                                                            break;
+
+
+                                                        case "InvNo":
+                                                            <td>@rc.item.InvNo</td>
+                                                            break;
+
+
+                                                        case "InvDate":
+                                                            <td>@rc.item.InvDate</td>
+                                                            break;
+                                                    }
+
+                                                }
+
+
+                                                <!-- Fixed Action Column -->
+
+                                                @* <td class="sticky-action text-center"> *@
+                                                        <td class="text-center"
+                                                            style="position:sticky;right:0;background:white;z-index:5;">
+                                                    <button class="btn btn-sm btn-primary"
+                                                            @onclick="() => ToggleDetails(rc.item.RCId, rc.item.RCNo)">
+
+                                                        @(expandedId == rc.item.RCId ? "Hide Details" : "View Details")
+
+                                                    </button>
+
+                                                </td>
+
+
+                                            </tr>
+                                        }
+                                    }
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+
+                    <!-- PAGINATION -->
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="d-flex align-items-center justify-content-between px-3 flex-wrap gap-2">
+
+                            <!-- LEFT -->
+
+                            <div class="fw-semibold text-muted">
+
+                                Showing @startRecord to @endRecord
+                                        of @Filtered_RC_Analysis_Data.Count entries
+
+                            </div>
+
+                            <!-- RIGHT -->
+
+                            @* <div class="d-flex align-items-center gap-2"> *@
+                                    <div class="d-flex align-items-center gap-2 ms-auto">
+                                <button class="btn btn-outline-primary btn-sm"
+                                        title="First Page"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+
+                                    <i class="bi bi-skip-backward-fill"></i>
+
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        title="Previous Page"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+
+                                    <i class="bi bi-arrow-left-circle"></i>
+
+                                </button>
+
+                                <span class="px-2 fw-semibold">
+
+                                    Page @currentPage of @totalPages
+
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        title="Next Page"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+
+                                    <i class="bi bi-arrow-right-circle"></i>
+
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        title="Last Page"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+
+                                    <i class="bi bi-skip-forward-fill"></i>
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                 </div>
+             </div>
+
+               
+             }
+            
+
+                @if (RC_Analysis_Details.Any() && expandedId != null)
+                {
+                    <div class="col-12 mb-2">
+                        <div class="route-details-card mt-3">
+
+                            @* <div class="details-header"> *@
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 p-3"
+                                 style="background:#EAF3FF;border-bottom:1px solid #d6e4ff;">
+                                <div class="fw-semibold fs-5">
+                                    <i class="bi bi-card-list me-2"></i>
+                                    Route Card Details - @SelectedRCNo
+                                </div>
+
+                                
+
+                                <div class="d-flex gap-2 flex-wrap">
+
+                                    @* <span class="summary-badge process"> *@
+                                    <span class="px-3 py-2 rounded"
+                                          style="background:#dbeafe;color:#1d4ed8;font-size:13px;font-weight:600;">
+                                        Total Process: @RC_Analysis_Details.Count()
+                                    </span>
+
+                                    @* <span class="summary-badge completed"> *@
+                                    <span class="px-3 py-2 rounded"
+                                          style="background:#dcfce7;color:#15803d;font-size:13px;font-weight:600;">
+                                        Completed:
+                                        @RC_Analysis_Details.Count(x => x.ProcessStatus == 3)
+                                    </span>
+
+                                    @* <span class="summary-badge pending"> *@
+                                    <span class="px-3 py-2 rounded"
+                                          style="background:#ffedd5;color:#ea580c;font-size:13px;font-weight:600;">
+                                        Pending:
+                                        @RC_Analysis_Details.Count(x => x.ProcessStatus != 3)
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+                            <div class="table-responsive">
+
+                                <table class="table table-bordered table-sm align-middle mb-0">
+
+                                    <thead class="custom-blue">
+
+                                        <tr>
+                                            <th>SlNo</th>
+                                            <th>Sequence No.</th>
+                                            <th>Process Name</th>
+                                            <th>Trans Type</th>
+                                            <th>Total Qty</th>
+                                            <th>Issued Qty</th>
+                                            <th>Acc Qty</th>
+                                            <th>Rej Qty</th>
+                                            <th>Rew Qty</th>
+                                            <th>Issue No.</th>
+                                            <th>GRN No.</th>
+                                            <th>SCN No.</th>
+                                            <th>Status</th>
+                                        </tr>
+
+
+                                    </thead>
+
+                                    <tbody>
+
+                                        @foreach (var process in RC_Analysis_Details)
+                                        {
+                                            <tr>
+
+                                                <td>@process.SlNo</td>
+
+                                                <td>@process.SeqNo</td>
+
+                                                <td>@process.ProcessName</td>
+
+                                                <td>@process.TransType</td>
+
+                                                <td>@process.TotalQty</td>
+
+                                                <td>@process.IssuedQty</td>
+
+                                                <td>@process.AccQty</td>
+
+                                                <td>@process.RejQty</td>
+
+                                                <td>@process.RewQty</td>
+
+                                                <td>@process.IssueNo</td>
+
+                                                <td>@process.GRNNo</td>
+
+                                                <td>@process.SCNNo</td>
+
+
+                                                <td>
+                                                    @switch (process.ProcessStatus)
+                                                    {
+                                                        case 0:
+                                                            <span class="badge text-bg-warning px-3 py-1">
+                                                                <i class="bi bi-clock-fill"></i> Pending
+                                                            </span>
+                                                            break;
+
+                                                        case 1:
+                                                            <span class="badge text-bg-primary px-3 py-1">
+                                                                <i class="bi bi-hourglass-split"></i> In Progress
+                                                            </span>
+                                                            break;
+
+                                                        case 2:
+                                                            <span class="badge text-bg-info px-3 py-1">
+                                                                <i class="bi bi-arrow-repeat"></i> Partial
+                                                            </span>
+                                                            break;
+
+                                                        default:
+                                                            <span class="badge text-bg-success px-3 py-1">
+                                                                <i class="bi bi-check-circle-fill"></i> Completed
+                                                            </span>
+                                                            break;
+                                                    }
+                                                </td>
+
+                                            </tr>
+                                        }
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+
+                            @* <div class="details-footer"> *@
+                            <div class="d-flex justify-content-end align-items-center gap-3 p-3"
+                                 style="border-top:1px solid #d6e4ff;background:#f8fbff;margin-top:0;">
+
+                                <button class="btn btn-success"
+                                        @onclick="HandleExportRCDetails">
+                                    <i class="bi bi-printer"></i>
+                                    Print Details
+                                </button>
+
+                                <button class="btn btn-danger"
+                                        @onclick="() => expandedId = null">
+                                    Close Details
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+                
+@*                 <style>
+
+                    .custom-blue th {
+                        background: #f8f9fa !important;
+                        position: sticky;
+                        top: 0;
+                        z-index: 2;
+                        white-space: nowrap;
+                        vertical-align: middle;
+                    }
+
+                    .table td,
+                    .table th {
+                        white-space: nowrap;
+                        vertical-align: middle;
+                    }
+
+                    .table-responsive::-webkit-scrollbar {
+                        height: 8px;
+                        width: 8px;
+                    }
+
+                    /* Route Card Details Container */
+                    .details-container {
+                        background: #f8fbff;
+                        border: 1px solid #cfe2ff;
+                        border-radius: 10px;
+                        margin: 12px 0;
+                        overflow: hidden;
+                    }
+
+                    /* Header */
+                     .details-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        flex-wrap: wrap;
+                        gap: 12px;
+                        padding: 14px 18px;
+                        background: #EAF3FF;
+                        border-bottom: 1px solid #d6e4ff;
+                        margin-bottom: 0;
+                    } */
+
+                    /* Summary Badges */
+                    .summary-badge {
+                        padding: 7px 14px;
+                        border-radius: 8px;
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+
+
+                        .summary-badge.process {
+                            background: #dbeafe;
+                            color: #1d4ed8;
+                        }
+
+                        .summary-badge.completed {
+                            background: #dcfce7;
+                            color: #15803d;
+                        }
+
+                        .summary-badge.pending {
+                            background: #ffedd5;
+                            color: #ea580c;
+                        }
+
+                    /* Table Area */
+                    .details-body {
+                        padding: 15px;
+                    }
+
+                    .details-thead {
+                        background: #f8fafc;
+                    }
+
+                        .details-thead th {
+                            white-space: nowrap;
+                            font-size: 13px;
+                            font-weight: 600;
+                        }
+
+                    /* Row Hover */
+                    .details-container table tbody tr:hover {
+                        /* background-color: #f5f9ff; */
+                        background-color: #C4E2F5;
+                    }
+
+                    /* Status */
+                    .status {
+                        font-weight: 600;
+                        font-size: 13px;
+                    }
+
+                    .completed-status {
+                        color: #198754;
+                        font-weight: 600;
+                    }
+
+                    .pending-status {
+                        color: #fd7e14;
+                        font-weight: 600;
+                    }
+
+                        .completed-status i,
+                        .pending-status i {
+                            margin-right: 4px;
+                        }
+
+                    /* Footer */
+                    .details-footer {
+                        display: flex;
+                        justify-content: flex-end;
+                        padding: 15px;
+                        border-top: 1px solid #d6e4ff;
+                        background: #f8fbff;
+                        gap: 20px;
+                        margin-top: 0;
+                    }
+
+                    .sticky-action {
+                        position: sticky !important;
+                        right: 0;
+                        background: white;
+                        z-index: 5;
+                    }
+
+
+                    thead th.sticky-action {
+                        background: #0d6efd;
+                        z-index: 20;
+                    }
+
+                    
+
+                    .route-summary-header 
+                    {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: stretch;
+                        gap: 12px;
+                    }
+
+
+                    .summary-controls 
+                    {
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-start;
+                        width: 100%;
+                        gap: 20px;
+                        flex-wrap: wrap;
+                    }
+
+
+                    .summary-controls .d-flex 
+                    {
+                        margin-left: auto;
+                    }
+                
+                </style> *@
+
+        </div>
+      </div>
+   </div>
+}
+@code {
+
+    #region FILTERS
+    private bool isProcessing = true;
+
+    protected override string ScreenName => "Route Card Analysis";
+
+    public List<GridColumn> Columns { get; set; }
+
+    private DateTime fromDate = DateTime.Today.AddMonths(-1);
+
+    private DateTime toDate = DateTime.Today;
+
+    private int selectedCustomerId = 0;
+
+    private int selectedRouteCardId = 0;
+
+    private int selectedStatus = -1;
+
+    private string? UserName;
+    #endregion
+
+    #region DATA
+
+    //private List<CustomerVM> customers = new();
+    private List<RouteCardVM> customers = new();
+
+    public List<RouteCardVM> routeCards { get; set; } = new();
+
+    public List<StatusVM> statuses { get; set; } = new();
+
+    public List<RouteCardAnalysisVM> RC_Analysis_Data { get; set; } = new();
+
+    public List<RouteCardAnalysisVM> Filtered_RC_Analysis_Data { get; set; } = new();
+
+    public List<RouteCardAnalysisDetailsVM> RC_Analysis_Details{ get; set; } = new();
+
+    private string customerSearch { get; set; } = string.Empty;
+
+    private string RCSearch { get; set; } = string.Empty;
+
+    private int? expandedId = 0;
+
+    private string? SelectedRCNo;
+
+    int _pageSize = 5;
+
+    int pageSize
+    {
+        get => _pageSize;
+
+        set
+        {
+            _pageSize = value;
+
+            currentPage = 1;
+        }
+    }
+
+    int currentPage = 1;
+
+    int totalPages
+    {
+        get
+        {
+            
+            if (Filtered_RC_Analysis_Data == null || Filtered_RC_Analysis_Data.Count == 0)
+                return 1;
+
+            return (int)Math.Ceiling(
+                (double)Filtered_RC_Analysis_Data.Count / pageSize);
+        }
+    }
+
+    private IEnumerable<RouteCardAnalysisVM> PagedData =>
+    Filtered_RC_Analysis_Data
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+
+    private int startRecord =>
+    Filtered_RC_Analysis_Data.Count == 0
+        ? 0
+        : ((currentPage - 1) * pageSize) + 1;
+
+    private int endRecord =>
+        Math.Min(currentPage * pageSize,
+                 Filtered_RC_Analysis_Data.Count);
+
+    private List<PageHeader.BreadcrumbItem> RCAnalysisBreadcrumbs { get; set; } = new()
+        {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Analysis Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Route Card Analysis", IsLast = true }
+        };
+    #endregion
+
+    #region Print
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = "";
+    private string btnColor = string.Empty;
+    private string Topic = "";
+    #endregion
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            
+            UserName = await _userService.GetUsernameAsync();
+            await InitializeColumns(IsHidden);
+            await LoadFilters();
+            await LoadColumnPreferences(UserName);
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in RouteCardAnalysis Init");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #region Filter all customers
+    // IEnumerable<RouteCardVM> FilteredCustomers =>
+    // customers.Where(s =>
+    //     string.IsNullOrWhiteSpace(customerSearch) ||
+    //     s.CustName.Contains(customerSearch, StringComparison.OrdinalIgnoreCase)
+    // );
+
+    IEnumerable<RouteCardVM> FilteredCustomers =>
+    customers.Where(s =>
+        !showCustomerList ||
+        string.IsNullOrWhiteSpace(customerSearch) ||
+        s.CustName.Contains(customerSearch, StringComparison.OrdinalIgnoreCase));
+
+    IEnumerable<RouteCardVM> FilteredRC =>
+    routeCards.Where(s =>
+       string.IsNullOrWhiteSpace(RCSearch) ||
+       s.RCNo.Contains(RCSearch, StringComparison.OrdinalIgnoreCase)
+   );
+    #endregion
+
+    
+
+    private async Task LoadData()
+    {
+        RC_Analysis_Data = await _rcanalysis.GetRouteCardAnalysisAsync(fromDate, toDate);
+
+
+        await LoadFilters();
+    }
+
+    private async Task LoadDetails(int rcid)
+    {
+        RC_Analysis_Details = await _rcanalysis.GetRouteCardAnalysisDetailsAsync(rcid);
+    }
+
+    private void GoToPage(int page)
+    {
+        currentPage = page;
+    }
+
+
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage = 1;
+
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await _logs.LogDeveloperError(ex, "Error navigating to first page in RouteCardList");
+            await _js.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error navigating to previous page in RouteCardList");
+            await _js.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error navigating to next page in RouteCardList");
+            await _js.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage = totalPages;
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error navigating to last page in RouteCardList");
+            await _js.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "5");
+            currentPage = 1;
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error changing page size in RouteCardList");
+            await _js.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadFilters()
+    {
+        var query = RC_Analysis_Data.AsQueryable();
+
+
+        // CUSTOMER LIST
+
+        customers = query
+            .Where(x => !x.IsManual)
+            .GroupBy(x => x.CustId)
+            .Select(x => new RouteCardVM
+            {
+                CustId = x.Key,
+                CustName = x.First().Customer
+            })
+            .ToList();
+
+
+        if (query.Any(x => x.IsManual))
+        {
+            customers.Add(new RouteCardVM
+            {
+                CustId = -1,
+                CustName = "Manual"
+            });
+        }
+
+
+
+        // CUSTOMER FILTER
+
+        if (selectedCustomerId == -1)
+        {
+            query = query.Where(x => x.IsManual);
+        }
+        else if (selectedCustomerId > 0)
+        {
+            query = query.Where(x =>
+                x.CustId == selectedCustomerId);
+        }
+
+
+
+        // ROUTECARDS
+
+        routeCards = query
+            .GroupBy(x => x.RCId)
+            .Select(x => new RouteCardVM
+            {
+                RCId = x.Key,
+                RCNo = x.First().RCNo
+            })
+            .ToList();
+
+
+
+        // DISPLAY DATA
+
+        await ApplyFilters();
+    }
+
+    private async Task ApplyFilters()
+    {
+        var query = RC_Analysis_Data.AsQueryable();
+
+
+        if (selectedCustomerId == -1)
+            query = query.Where(x => x.IsManual);
+
+        else if (selectedCustomerId > 0)
+            query = query.Where(x => x.CustId == selectedCustomerId);
+
+
+
+        if (selectedRouteCardId > 0)
+            query = query.Where(x => x.RCId == selectedRouteCardId);
+
+
+
+        if (selectedStatus != -1)
+            query = query.Where(x => x.RCStatus == selectedStatus);
+
+        Filtered_RC_Analysis_Data = query.ToList();
+
+        currentPage = 1;
+    }
+
+
+
+    private async Task ToggleDetails(int id,string rcno)
+    {
+        if (expandedId == id)
+
+        {
+            expandedId = null;
+            SelectedRCNo = null;
+        }
+
+        else
+        {
+            expandedId = id;
+            SelectedRCNo = rcno;
+            await LoadDetails(id);
+        }
+    }
+
+    private async Task HandleExportRCSummary()
+    {
+        Topic = "Summary";
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task HandleExportRCDetails()
+    {
+        Topic = "Details";
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task OnRouteCardChanged()
+    {
+        var rc = routeCards
+            .FirstOrDefault(x => x.RCId == selectedRouteCardId);
+
+        if (rc != null)
+        {
+            selectedCustomerId = rc.CustId ?? (rc.IsManual ? -1 : 0);
+        }
+
+        //await LoadFilters();
+    }
+
+    private async Task OnCustomerChanged()
+    {
+        selectedRouteCardId = 0;
+        await LoadFilters();
+
+    }
+
+    private void OnStatusChanged()
+    {
+        if (RC_Analysis_Data == null)
+            return;
+
+
+        if (selectedStatus == -1)
+        {
+            Filtered_RC_Analysis_Data = RC_Analysis_Data;
+        }
+        else
+        {
+            Filtered_RC_Analysis_Data =
+                RC_Analysis_Data
+                .Where(x => x.RCStatus == selectedStatus)
+                .ToList();
+        }
+        currentPage = 1;
+    }
+
+    private async Task OnDateChanged()
+    {
+
+        //await LoadFilters();
+        await LoadData();
+
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "An error occurred while handling the RouteCardAnalysis HandleColumnChange() Method");
+        }
+    }
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "Sl No", Field = "SlNo", IsVisible = true },
+                new() { Title = "RC Id", Field = "RCId", IsVisible = false },
+
+                new() { Title = "IsManual?", Field = "IsManual", IsVisible = true },
+                new() { Title = "Mfg/Lab", Field = "MfgOrLab", IsVisible = true },
+
+                new() { Title = "Customer", Field = "Customer", IsVisible = true },
+                new() { Title = "PO No.", Field = "PONo", IsVisible = true },
+
+
+                new() { Title = "PO Date", Field = "PODate", IsVisible = true },
+
+
+                new() { Title = "RC No.", Field = "RCNo", IsVisible = true },
+                new() { Title = "RC Date", Field = "RCDate", IsVisible = true },
+
+
+                new() { Title = "Assembly", Field = "Assembly", IsVisible = true },
+                new() { Title = "Component", Field = "Component", IsVisible = true },
+                new() { Title = "RC Qty", Field = "RCQty", IsVisible = true },
+
+
+                new() { Title = "Raw Material", Field = "RM", IsVisible = true },
+
+
+                new() { Title = "RM Qty", Field = "RMQty", IsVisible = true },
+                new() { Title = "Status", Field = "RCStatus", IsVisible = true },
+
+
+                new() { Title = "DC No.", Field = "DCNo", IsVisible = true },
+                new() { Title = "DC Date", Field = "DCDate", IsVisible = true },
+
+
+                new() { Title = "Inv No.", Field = "InvNo", IsVisible = true },
+                new() { Title = "Inv Date", Field = "InvDate", IsVisible = true }
+             };
+
+            if (!Hidden)
+            {
+                // Add any additional dynamic columns here later
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error loading column preferences for RouteCardList");
+            await _js.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private bool showCustomerList = false;
+    private bool showRCList = false;
+
+    private void ShowCustomerList()
+    {
+        showCustomerList = true;
+
+    }
+
+
+    private async Task SelectCustomer(int? custId)
+    {
+        selectedCustomerId = custId ?? 0;
+
+
+        if (selectedCustomerId == -1)
+        {
+            customerSearch = "Manual";
+        }
+        else
+        {
+            var custName = customers
+                .Where(x => x.CustId == selectedCustomerId)
+                .Select(x => x.CustName)
+                .FirstOrDefault();
+
+
+            if (string.IsNullOrEmpty(custName))
+            {
+                custName = RC_Analysis_Data
+                    .Where(x => x.CustId == selectedCustomerId)
+                    .Select(x => x.Customer)
+                    .FirstOrDefault();
+            }
+
+
+            customerSearch = custName ?? "All";
+        }
+
+
+        showCustomerList = false;
+
+
+        // remove route card filter
+        selectedRouteCardId = 0;
+
+
+        await OnCustomerChanged();
+
+        StateHasChanged();
+    }
+
+
+    private void ShowRCList()
+    {
+        showRCList = true;
+    }
+
+    private async Task SelectRouteCard(int rcId)
+    {
+        selectedRouteCardId = rcId;
+
+        var rc = RC_Analysis_Data
+            .FirstOrDefault(x => x.RCId == rcId);
+
+        RCSearch = rc?.RCNo ?? "All";
+
+
+        if (rc != null)
+        {
+            if (rc.IsManual)
+            {
+                selectedCustomerId = -1;
+                customerSearch = "Manual";
+            }
+            else
+            {
+                selectedCustomerId = rc.CustId ?? 0;
+
+
+                var custName = customers
+                    .Where(x => x.CustId == selectedCustomerId)
+                    .Select(x => x.CustName)
+                    .FirstOrDefault();
+
+
+                if (string.IsNullOrEmpty(custName))
+                {
+                    custName = RC_Analysis_Data
+                        .Where(x => x.CustId == selectedCustomerId)
+                        .Select(x => x.Customer)
+                        .FirstOrDefault();
+                }
+
+
+                customerSearch = custName ?? "All";
+            }
+        }
+        else
+        {
+            selectedCustomerId = 0;
+            customerSearch = "All";
+        }
+
+
+        showRCList = false;
+
+        await ApplyFilters();
+
+        StateHasChanged();
+    }
+
+    private void OnCustomerSearch(ChangeEventArgs e)
+    {
+        customerSearch = e.Value?.ToString() ?? "";
+
+        showCustomerList = true;
+    }
+
+    private void CloseDropdowns()
+    {
+        showCustomerList = false;
+        showRCList = false;
+    }
+
+    private async Task confirmation_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && confirmation == "Export")
+            {
+                await ExportToExcel(isConfirmed);
+                confirmation = "";
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await _logs.LogDeveloperError(ex, "An error occurred while handling the Export TallyDC In_Out Data confirmation_Click() method");
+            await _js.ToastrError("An error occurred while handling the Route Data  confirmation_Click() method");
+        }
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirm)
+                return;
+
+
+            byte[] bytes;
+
+            List<Dictionary<string, object>> exportSummary = new();
+
+            if (Topic == "Summary")
+            {
+                if (Filtered_RC_Analysis_Data == null || !Filtered_RC_Analysis_Data.Any())
+                    return;
+
+                exportSummary = GetExportData(PagedData.ToList());
+                bytes = await ExcelExportService.ExportPendingListToExcel(exportSummary, "RouteCard_Analysis_Summary", "RouteCard_Analysis_Summary List");
+            }
+
+            else if (Topic == "Details")
+            {
+                if (RC_Analysis_Details == null || !RC_Analysis_Details.Any())
+                    return;
+
+                var exportDetails = GetExportData_Details(RC_Analysis_Details.ToList());
+
+                bytes = await ExcelExportService.ExportPendingListToExcel(exportDetails, "RouteCard_Analysis_Details", "RouteCard_Analysis_Details List of RC No. - " + @SelectedRCNo + "");
+            }
+            else
+            {
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(bytes);
+
+            if (Topic == "Summary")
+                await _js.DownloadExcelAsync(base64,"RouteCard_Analysis_Summary.xlsx");
+            else if (Topic == "Details")
+                await _js.DownloadExcelAsync(base64, "RouteCard_Analysis_Details.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex,"Error in RouteCard_Analysis_Excel Export");
+            await _js.ToastrError("Error while exporting RouteCard_Analysis!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private List<Dictionary<string, object>> GetExportData_Details<T>(List<T> data)
+    {
+        var result = new List<Dictionary<string, object>>();
+
+        foreach (var row in data)
+        {
+            var dict = new Dictionary<string, object>();
+
+            if (row is RouteCardAnalysisDetailsVM detail)
+            {
+                dict["Sl No"] = detail.SlNo;
+                dict["Sequence No."] = detail.SeqNo;
+                dict["Process Name"] = detail.ProcessName;
+                dict["Trans Type"] = detail.TransType;
+                dict["Total Qty"] = detail.TotalQty;
+                dict["Issued Qty"] = detail.IssuedQty;
+                dict["Accepted Qty"] = detail.AccQty;
+                dict["Rejected Qty"] = detail.RejQty;
+                dict["Rework Qty"] = detail.RewQty;
+                dict["Issue No."] = detail.IssueNo;
+                dict["GRN No."] = detail.GRNNo;
+                dict["SCN No."] = detail.SCNNo;
+
+                dict["Status"] = detail.ProcessStatus switch
+                {
+                    0 => "Pending",
+                    1 => "In Progress",
+                    2 => "Partial",
+                    3 => "Completed",
+                    _ => ""
+                };
+            }
+
+
+            result.Add(dict);
+        }
+
+
+        return result;
+    }
+
+    private List<Dictionary<string, object>> GetExportData<T>(List<T> data)
+    {
+        return data
+        .Select(row =>
+        {
+            var dict = new Dictionary<string, object>();
+
+            
+                foreach (var col in Columns.Where(x => x.IsVisible))
+                {
+                    var prop = typeof(T).GetProperty(col.Field);
+
+                    if (prop != null)
+                    {
+                        dict[col.Title] = prop.GetValue(row);
+                    }
+                }
+
+            return dict;
+        })
+        .ToList();
+    }
+
+    //pooja
+    private List<Dictionary<string, object>> GetSummaryExportData(List<RouteCardAnalysisVM> data)
+    {
+        var exportData = new List<Dictionary<string, object>>();
+        long slno = 1;
+
+        foreach (var x in data)
+        {
+            var dict = new Dictionary<string, object>();
+
+            foreach (var col in Columns.Where(c => c.IsVisible))
+            {
+                switch (col.Field)
+                {
+                    case "SlNo":
+                        dict["SlNo"] = slno++;
+                        break;
+
+                    case "IsManual":
+                        dict["IsManual"] = x.IsManual;
+                        break;
+
+                    case "MfgOrLab":
+                        dict["MfgOrLab"] = x.MfgOrLab;
+                        break;
+
+                    case "Customer":
+                        dict["Customer"] = x.Customer;
+                        break;
+
+                    case "PONo":
+                        dict["PONo"] = x.PONo;
+                        break;
+
+                    case "PODate":
+                        dict["PODate"] = x.PODate;
+                        break;
+
+                    case "RCNo":
+                        dict["RCNo"] = x.RCNo;
+                        break;
+
+                    case "RCDate":
+                        dict["RCDate"] = x.RCDate;
+                        break;
+
+                    case "Assembly":
+                        dict["Assembly"] = x.Assembly;
+                        break;
+
+                    case "Component":
+                        dict["Component"] = x.Component;
+                        break;
+
+                    case "RCQty":
+                        dict["RCQty"] = x.RCQty;
+                        break;
+
+                    case "RM":
+                        dict["RM"] = x.RM;
+                        break;
+
+                    case "RMQty":
+                        dict["RMQty"] = x.RMQty;
+                        break;
+
+                    case "RCStatus":
+                        dict["Status"] = x.RCStatus switch
+                        {
+                            0 => "Pending",
+                            1 => "In Progress",
+                            2 => "Completed",
+                            3 => "Cancelled",
+                            _ => ""
+                        };
+                        break;
+
+                    case "DCNo":
+                        dict["DCNo"] = x.DCNo;
+                        break;
+
+                    case "DCDate":
+                        dict["DCDate"] = x.DCDate;
+                        break;
+
+                    case "InvNo":
+                        dict["InvNo"] = x.InvNo;
+                        break;
+
+                    case "InvDate":
+                        dict["InvDate"] = x.InvDate;
+                        break;
+                }
+            }
+
+            exportData.Add(dict);
+        }
+
+        return exportData;
+    }
+
+    
+}

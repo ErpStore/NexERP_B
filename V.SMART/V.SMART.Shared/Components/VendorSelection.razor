@@ -1,0 +1,210 @@
+﻿@page "/Vendor/Select"
+@using V.SMART.Shared.Pages.Master_Module_pages.VendorSupplier_Pages
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using MudBlazor
+
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject ICommonService _commonService
+@inject IJSRuntime _js
+
+<PageTitle>Select Vendor</PageTitle>
+
+<style>
+    .centered-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .centered-card {
+        max-width: 600px;
+        width: 100%;
+    }
+</style>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible"
+             Title="@MasterModalTitle"
+             MaxWidth="800px"
+             OnClose="CloseModal">
+
+    @if (ActiveModal == "Vendor")
+    {
+        <VendorUpsert isModelVisible="true" OnClose="CloseModal" />
+    }
+
+</MasterModal>
+
+<div class="centered-container">
+    <div class="card shadow-lg border-0 centered-card rounded-3">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Select or Add Vendor / Supplier</h5>
+            <button class="btn btn-outline-light btn-sm" @onclick="Cancel">Cancel</button>
+        </div>
+
+        <div class="card-body">
+
+            <!-- Vendor Search -->
+            <MudAutocomplete T="VendorVM"
+                             Label="Search Vendor / Supplier"
+                             Value="SelectedVendor"
+                             ValueChanged="OnVendorChanged"
+                             ToStringFunc="@(v => v?.VendorName ?? string.Empty)"
+                             SearchFunc="SearchVendors"
+                             Dense="true"
+                             Variant="Variant.Outlined"
+                             Placeholder="Type at least 3 characters..."
+                             Clearable="true"
+                             Adornment="Adornment.Start"
+                             AdornmentIcon="@Icons.Material.Filled.Person" />
+
+            <!-- Actions -->
+            <div class="d-flex justify-content-between">
+                <button class="btn btn-success btn-sm"
+                        @onclick='() => OpenModal("Vendor")'>
+                    <i class="bi bi-person-add me-1"></i> Add Vendor
+                </button>
+
+                <MudButton OnClick="Proceed"
+                           Disabled="@(SelectedVendor is null)"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           EndIcon="@Icons.Material.Filled.ArrowForwardIos">
+                    Continue
+                </MudButton>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+
+    /* ================= Parameters ================= */
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    /* ================= State ================= */
+
+    private VendorVM? SelectedVendor;
+
+    private bool isModalVisible;
+    private string ActiveModal = string.Empty;
+    private string MasterModalTitle = string.Empty;
+
+    private List<VendorVM> Vendors = new();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+
+            Vendors = await _commonService.GetAllActiveVendorsAsync();
+
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error loading vendors: {ex.Message}");
+            Snackbar.Add($"Error loading Vendor: {ex.Message}", Severity.Error);
+        }
+    }
+
+
+    /* ================= Vendor Search ================= */
+
+    private async Task<IEnumerable<VendorVM>> SearchVendors(string value, CancellationToken token)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return await Task.FromResult<IEnumerable<VendorVM>>(Vendors);
+
+            token.ThrowIfCancellationRequested();
+
+            var result = Vendors.Where(c =>
+                (!string.IsNullOrWhiteSpace(c.VendorName) &&
+                 c.VendorName.Contains(value, StringComparison.OrdinalIgnoreCase))
+                ||
+                (!string.IsNullOrWhiteSpace(c.GSTNo) &&
+                 c.GSTNo.Contains(value, StringComparison.OrdinalIgnoreCase))
+            );
+
+            return await Task.FromResult(result);
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception)
+        {
+            await _js.ToastrError("Failed to search Vendors in PurchaseGRNUpsert. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+
+
+      
+
+    private async Task OnVendorChanged(VendorVM? vendor)
+    {
+        try
+        {
+            await ApplyVendorSelectionAsync(vendor);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Error while selecting vendor.", Severity.Error);
+            Console.Error.WriteLine(ex);
+        }
+    }
+
+    private Task ApplyVendorSelectionAsync(VendorVM? vendor)
+    {
+        SelectedVendor = vendor;
+        return Task.CompletedTask;
+    }
+
+    /* ================= Modal ================= */
+
+    private void OpenModal(string type)
+    {
+        ActiveModal = type;
+        MasterModalTitle = "Add New Vendor / Supplier";
+        isModalVisible = true;
+    }
+
+    private async Task CloseModal()
+    {
+        isModalVisible = false;
+        ActiveModal = string.Empty;
+        await Task.Delay(100); // allow UI refresh
+    }
+
+    /* ================= Navigation ================= */
+
+    private async Task Proceed()
+    {
+        if (SelectedVendor is null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(ReturnUrl))
+        {
+            await _js.ToastrError("Return URL not specified.");
+            return;
+        }
+
+        var targetUrl = ReturnUrl.Replace("{id}", SelectedVendor.VendorCode.ToString());
+        Navigation.NavigateTo(targetUrl);
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

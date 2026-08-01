@@ -1,0 +1,1117 @@
+﻿@page "/costCenter/create"
+@page "/costCenter/update/{Id:int}"
+
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService _userService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@(Id == 0 || Id == null ? "Create Project / Cost Center" : "Update Project / Cost Center")"
+                            TitleIcon="@(Id == 0 || Id == null ? "bi bi-plus-circle" : "bi bi-pencil-square")"
+                            Breadcrumbs="@projectCostCenterBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="CostCenter" OnValidSubmit="UpsertCostCenter">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                        <div class="row g-3">
+
+                            @if (CostCenter != null && CostCenter.Id > 0 && !string.IsNullOrWhiteSpace(CostCenter.ProjectNo))
+                            {
+                                <CorrespondenceStatus ReferenceType="CostCenter"
+                                                      ReferenceId="@CostCenter.Id"
+                                                      ReferenceTypeName="@CostCenter.ProjectNo" />
+                            }
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <select class="form-select" id="ProjectTypeId"
+                                            value="@CostCenter.ProjectTypeId"
+                                            @onchange="OnProjectTypeChanged">
+                                        <option value="">-- Select Type Of Project --</option>
+                                        @foreach (var sta in type)
+                                        {
+                                            <option value="@sta.Id">@sta.TypeOfProject</option>
+                                        }
+                                    </select>
+                                    <label for="ProjectTypeId">Type Of Project</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.ProjectTypeId)" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="CostCenter.ProjectNo" id="ProjectNo" class="form-control" placeholder="Project No" CssClass="form-control" readonly />
+                                    <label for="ProjectNo">Project No</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.ProjectNo)" />
+                            </div>
+
+                          <div class="col-md-6">
+                            <div class="form-floating">
+                                <select class="form-select" id="Customer" name="Customer"
+                                        @bind="CostCenter.CustId">
+                                    <option value="">--Select Customer--</option>
+                                    @foreach (var cust in Customer)
+                                    {
+                                        <option value="@cust.CustId">@cust.CustName</option>
+                                    }
+                                </select>
+                                <label for="Customer">Customer</label>
+                            </div>
+                            <ValidationMessage For="@(() => CostCenter.CustId)" />
+                        </div>
+
+
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="CostCenter.CostCenterName" id="CostCenterName" class="form-control" placeholder="CostCenter Name" CssClass="form-control" maxlength="150" />
+                                    <label for="CostCenterName">CostCenter Name</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.CostCenterName)" />
+                            </div>
+
+
+                            <!-- Description Field -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="CostCenter.Description"
+                                                      id="Description"
+                                                      class="form-control"
+                                                      placeholder="Description" CssClass="form-control" maxlength="200" />
+                                    <label for="Description">Description</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.Description)" />
+                            </div>
+                            <!-- Is closed and Dispatched -->
+                            <div class="col-md-6">
+                                <div class="d-flex gap-4 align-items-center mt-2">
+                                    <div class="form-check checkbox-green ms-2">
+                                        <InputCheckbox @bind-Value="CostCenter.IsClosed" id="IsClosed" class="form-check-input" />
+                                        <label class="form-check-label text-success ms-2" for="IsClosed">Closed</label>
+                                    </div>
+                                    <div class="form-check checkbox-orange ms-5">
+                                        <InputCheckbox @bind-Value="CostCenter.IsDispatch" id="IsDispatch" class="form-check-input" />
+                                        <label class="form-check-label" style="color: darkorange; margin-left: 0.5rem;" for="IsDispatch">Dispatched</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+
+
+                                    <select class="form-select"
+                                            value="@SelectedUserId"
+                                            @onchange="OnUserIdChanged">
+                                        <option value="">--Select Project Manager--</option>
+                                        @foreach (var User in User)
+                                        {
+                                            <option value="@User.UserId">@User.UserName</option>
+                                        }
+                                    </select>
+                                    <label for="User">Project Manager</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.ProjectManager)" />
+                            </div>
+
+                            <!-- Start Date -->
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputDate @bind-Value="CostCenter.StartDate"
+                                               id="StartDate"
+                                               class="form-control" />
+                                    <label for="StartDate">Start Date</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.StartDate)" />
+                            </div>
+
+                            <!-- End Date -->
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputDate @bind-Value="CostCenter.EndDate"
+                                               id="EndDate"
+                                               class="form-control" />
+                                    <label for="EndDate">End Date</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.EndDate)" />
+                            </div>
+
+                            <!--AllocatedBudget-->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="CostCenter.AllocatedBudget"
+                                                 id="AllocatedBudget"
+                                                 class="form-control"
+                                                 placeholder="AllocatedBudget" CssClass="form-control" />
+                                    <label for="AllocatedBudget">Allocated Budget</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.AllocatedBudget)" />
+                            </div>
+                            <!-- Spent -->
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="SpentAmount" id="spent" class="form-control" readonly />
+                                    <label for="spent">Purchase Spent</label>
+                                </div>
+                            </div>
+
+                            <!-- Balance -->
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="BalanceAmount" id="balance" class="form-control" readonly />
+                                    <label for="balance">Balance</label>
+                                </div>
+                            </div>
+                            <div class="ms-0 mt-3">
+                                <ul class="nav nav-tabs">
+                                    <li class="nav-item">
+                                        <a class="nav-link @(activeTab == "budget" ? "active" : (IsNoTabActive ? "tab-contacts" : ""))"
+                                           @onclick="@(() => SetTab("budget"))">
+                                            <i class="bi bi-cash-stack me-1 text-success"></i> Budget
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link @(activeTab == "department" ? "active" : (IsNoTabActive ? "tab-consignee" : ""))"
+                                           @onclick="@(() => SetTab("department"))">
+                                            <i class="bi bi-briefcase me-1 text-primary"></i> Mandays Allocate
+                                        </a>
+                                    </li>
+
+                                </ul>
+                            </div>
+
+                            @if (activeTab == "budget")
+                            {
+                                <!-- Contacts Table -->
+                                <div class="container my-4">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">Budget</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.BroughtOutMechanical"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.BroughtOutMechanical))"
+                                                               class="form-control"
+                                                               step="any"
+                                                               placeholder="Brought-Out Mechanical" />
+                                                        <label for="BroughtOutMechanical">Brought-Out Mechanical</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.BroughtOutMechanical)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.MechanicalFabricated"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.MechanicalFabricated))"
+                                                               class="form-control"
+                                                               step="any"
+                                                               placeholder="Mechanical Fabricated" />
+                                                        <label for="MechanicalFabricated">Mechanical Fabricated</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.MechanicalFabricated)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.CEFieldElement"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.CEFieldElement))"
+                                                               class="form-control"
+                                                               step="any"
+                                                               placeholder="CE Field Element" />
+
+                                                        <label for="CEFieldElement">CE Field Element</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.CEFieldElement)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.CePanelElement"
+                                                               id="CePanelElement"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.CePanelElement))"
+                                                               class="form-control"
+                                                               step="any"
+                                                               placeholder="CE Panel Element" />
+
+                                                        <label for="CePanelElement">CE Panel Element</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.CePanelElement)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.RawMaterial"
+                                                               id="RawMaterial"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.RawMaterial))"
+                                                               class="form-control"
+                                                               step="any"
+                                                               placeholder="Raw Material" />
+                                                        <label for="RawMaterial">Raw Material</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.RawMaterial)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="CostCenter.ToolingCost"
+                                                               id="ToolingCost"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.ToolingCost))"
+                                                               class="form-control"
+                                                               step="any"
+                                                               placeholder="Tooling Cost" />
+                                                        <label for="ToolingCost">Tooling Cost </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.ToolingCost)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.Fabrication"
+                                                               id="Fabrication"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.Fabrication))"
+                                                               class="form-control"
+                                                               step="any"
+                                                               placeholder="Fabrication" />
+                                                        <label for="Fabrication">Fabrication </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.Fabrication)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.Machining"
+                                                               id="Machining"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.Machining))"
+                                                               class="form-control"
+                                                               placeholder="Machining" />
+                                                        <label for="Machining">Machining</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.Machining)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.Finishing"
+                                                               step="any"
+                                                               id="Finishing" @oninput="e => OnBudgetChanged(e, nameof(CostCenter.Finishing))"
+                                                               class="form-control" placeholder="Finishing" />
+                                                        <label for="Finishing">Finishing</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.Finishing)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.DesignCost"
+                                                               id="DesignCost"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.DesignCost))"
+                                                               class="form-control" placeholder="Design Cost" />
+                                                        <label for="DesignCost">Design Cost</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.DesignCost)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.AssemblyFAT"
+                                                               id="AssemblyFAT"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.AssemblyFAT))"
+                                                               class="form-control" placeholder="Assembly FAT" />
+                                                        <label for="AssemblyFAT">Assembly FAT</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.AssemblyFAT)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.Installation"
+                                                               id="Installation"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.Installation))"
+                                                               class="form-control" placeholder="Installation" />
+                                                        <label for="Installation">Installation</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.Installation)" />
+                                                </div>
+
+
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.Documentation"
+                                                               id="Documentation"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.Documentation))"
+                                                               class="form-control" placeholder="Documentation" />
+                                                        <label for="Documentation">Documentation</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.Documentation)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.Logistics"
+                                                               id="Logistics"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.Logistics))"
+                                                               class="form-control" placeholder="Logistics" />
+                                                        <label for="Logistics">Logistics</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.Logistics)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.FinancialCost"
+                                                               id="FinancialCost"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.FinancialCost))" class="form-control"
+                                                               placeholder="FinancialCost" />
+                                                        <label for="FinancialCost">FinancialCost </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.FinancialCost)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.AdminOverHead"
+                                                               id="AdminOverHead"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.AdminOverHead))"
+                                                               class="form-control" placeholder="Admin Over Head" />
+                                                        <label for="AdminOverHead">Admin Over Head</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.AdminOverHead)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.ConsumableAmt"
+                                                               id="ConsumableAmt"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.ConsumableAmt))"
+                                                               class="form-control" placeholder="Consumable Amount" />
+                                                        <label for="ConsumableAmt">Consumable Amount</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.ConsumableAmt)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.MaintenanceAmt"
+                                                               id="MaintenanceAmt"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.MaintenanceAmt))"
+                                                               class="form-control" placeholder="Maintenance Amount" />
+                                                        <label for="MaintenanceAmt">Maintenance Amount</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.MaintenanceAmt)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.SafetyAmt"
+                                                               id="SafetyAmt "
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.SafetyAmt))"
+                                                               class="form-control" placeholder="Safety Amount " />
+                                                        <label for="SafetyAmt ">Safety Amount </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.SafetyAmt)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.ServiceDabaspetAmt"
+                                                               id="ServiceDabaspetAmt"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.ServiceDabaspetAmt))"
+                                                               class="form-control" placeholder="ServiceDabaspet Amount" />
+                                                        <label for="ServiceDabaspetAmt">ServiceDabaspet Amount</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.ServiceDabaspetAmt)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.ServiceHalolAmt"
+                                                               d="ServiceHalolAmt"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.ServiceHalolAmt))"
+                                                               class="form-control" placeholder="ServiceHalol Amount" />
+                                                        <label for="ServiceHalolAmt">ServiceHalol Amount</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.ServiceHalolAmt)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.CapexAmt"
+                                                               id="CapexAmt "
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.CapexAmt))"
+                                                               class="form-control" placeholder="Capex Amount " />
+                                                        <label for="CapexAmt ">Capex Amount </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.CapexAmt)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <input type="number"
+                                                               value="@CostCenter.Others"
+                                                               id="Others"
+                                                               step="any"
+                                                               @oninput="e => OnBudgetChanged(e, nameof(CostCenter.Others))"
+                                                               class="form-control" placeholder="Others" />
+                                                        <label for="Others">Others</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.Others)" />
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else if (activeTab == "department")
+                            {
+                                <div class="container my-4">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">Mandays Allocate</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="CostCenter.MechanicalDesign" id="MechanicalDesign" class="form-control" placeholder="Mechanical Design" />
+                                                        <label for="MechanicalDesign">Mechanical Design</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.MechanicalDesign)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="CostCenter.ElectricalDesign" id="ElectricalDesign" class="form-control" placeholder="Electrical Design" />
+                                                        <label for="ElectricalDesign">Electrical Design</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.ElectricalDesign)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="CostCenter.PlcofflineProgram" id="PlcofflineProgram" class="form-control" placeholder="PLC Offline Program" />
+                                                        <label for="PlcofflineProgram">PLC Offline Program</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.PlcofflineProgram)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="CostCenter.PLCOnlineProgram" id="PLCOnlineProgram" class="form-control" placeholder="PLC Online Program" />
+                                                        <label for="PLCOnlineProgram">PLC Online Program</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.PLCOnlineProgram)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="CostCenter.SoftwareDesign" id="SoftwareDesign" class="form-control" placeholder="Software Design" />
+                                                        <label for="SoftwareDesign">Software Design</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.SoftwareDesign)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="CostCenter.MechanicalAssembly" id="MechanicalAssembly" class="form-control" placeholder="Mechanical Assembly" />
+                                                        <label for="MechanicalAssembly">Mechanical Assembly</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.MechanicalAssembly)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="CostCenter.ElectricalWiring" id="ElectricalWiring" class="form-control" placeholder="Electrical Wiring" />
+                                                        <label for="ElectricalWiring">Electrical Wiring</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.ElectricalWiring)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="CostCenter.Commision" id="Commision" class="form-control" placeholder="Commision" />
+                                                        <label for="Commision">Commision</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => CostCenter.Commision)" />
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="CostCenter.TotalBudget" id="TotalBudget" class="form-control" placeholder="Total Budget" readonly />
+                                    <label for="TotalBudget">Total Budget</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.TotalBudget)" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="CostCenter.AvailableBudget" id="AvailableBudget" class="form-control" placeholder="Available Budget" readonly />
+                                    <label for="AvailableBudget">Available Budget</label>
+                                </div>
+                                <ValidationMessage For="@(() => CostCenter.AvailableBudget)" />
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-2">
+                            <div class="col-6 col-md-3">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="CostCenter.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                    <label for="CreatedBy">Created By</label>
+                                </div>
+                            </div>
+
+                            <div class="col-6 col-md-3">
+                                <div class="form-floating">
+                                    <input class="form-control" id="CreatedDate" value="@CostCenter.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                    <label for="CreatedDate">Created Date</label>
+                                </div>
+                            </div>
+
+                            <div class="col-6 col-md-3">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="CostCenter.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                    <label for="ModifiedBy">Modified By</label>
+                                </div>
+                            </div>
+
+                            <div class="col-6 col-md-3">
+                                <div class="form-floating">
+                                    <input class="form-control" id="ModifiedDate" value="@CostCenter.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                    <label for="ModifiedDate">Modified Date</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-md-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(Id == 0 || Id == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-md-3">
+                                <SmartBackButton Url="/costCenter" />
+                            </div>
+                        </div>
+                    </EditForm>
+
+                </div>
+            </div>
+
+        </div>
+
+    }
+
+}
+
+@code
+{
+    protected override string ScreenName => "Cost-Center";
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool isProcessing = true;
+    private CostCenter CostCenter { get; set; } = new CostCenter();
+    private List<ProjectTypeMaster> type = new();
+    private List<Customer> Customer = new();
+    private List<User> User = new();
+
+    private decimal SpentAmount = 0, BalanceAmount = 0;
+    private decimal total = 0;
+    private int? SelectedUserId { get; set; } = null;
+
+    private string activeTab = "";
+    private void SetTab(string tab) => activeTab = tab;
+    private bool IsNoTabActive => string.IsNullOrEmpty(activeTab);
+
+    private List<PageHeader.BreadcrumbItem> projectCostCenterBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Account Master" },
+        new PageHeader.BreadcrumbItem { Text = "Cost Center Master", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+
+            await LoadCostCenter();
+
+
+            await LoadProjectType();
+            await LoadCustomer();
+
+            await Task.CompletedTask;
+            isProcessing = false;
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CostCenter OnInitializedAsync event");
+        }
+    }
+
+    private async Task OnUserIdChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int Id))
+            {
+                SelectedUserId = Id;
+                var selectedUser = User.FirstOrDefault(u => u.UserId == Id);
+                if (selectedUser != null)
+                {
+                    CostCenter.ProjectManager = selectedUser.UserName;
+                }
+            }
+            else
+            {
+                CostCenter.ProjectManager = string.Empty;
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer OnStateChanged event");
+        }
+    }
+
+
+    private async Task UpsertCostCenter()
+    {
+        try
+        {
+            isProcessing = true;
+
+            string Uname = await _userService.GetUsernameAsync();
+
+            if (await costcenterValidation() == true && await CalculateTotalBudget() == true)
+            {
+                if (CostCenter.Id == 0)
+                {
+                    CostCenter.CreatedBy = Uname;
+                    CostCenter.CreatedDate = DateTime.Now;
+                    await _unitOfWork.CostCenters.CreateAsync(CostCenter);
+                    await _unitOfWork.SaveAsync();
+                    await LoggingService.LogUserAction(UserName: Uname, Machine: _userService.MachineName, IP_Address: _userService.IpAddress, screen: "CostCenter", action: $"CostCenter Created to {CostCenter.CostCenterName}",
+                    additionalInfo: $"CostCentername: {CostCenter.CostCenterName}");
+                    await _js.ToastrSuccess("CostCenter Created Successfully");
+                }
+                else
+                {
+
+
+
+                    CostCenter.ModifiedBy = Uname;
+                    CostCenter.ModifiedDate = DateTime.Now;
+
+                    await _unitOfWork.CostCenters.UpdateAsync(CostCenter);
+                    await _unitOfWork.SaveAsync();
+                    await LoggingService.LogUserAction(UserName: Uname, Machine: _userService.MachineName, IP_Address: _userService.IpAddress, screen: "CostCenter", action: $"CostCenter Modified to {CostCenter.CostCenterName}",
+                    additionalInfo: $"CostCentername: {CostCenter.CostCenterName}");
+                    await _js.ToastrSuccess("CostCenter Modified Successfully");
+
+
+                }
+
+                // Discard popup Clear
+                await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+                _navigationManager.NavigateTo("/costcenter");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while saving the Costcenter.");
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Costcenter UpsertCustomer() Method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task<bool> costcenterValidation()
+    {
+        try
+        {
+            bool isValid = true;
+            bool isDuplicate = await _unitOfWork.CostCenters.ExistsByNameAsync("CostCenterName", CostCenter.CostCenterName?.Trim(), "Id", CostCenter.Id == 0 ? null : CostCenter.Id);
+            if (isDuplicate)
+            {
+                await _js.ToastrError("CostCenter name already exists.");
+                isProcessing = false;
+                isValid = false;
+            }
+            if (CostCenter.CustId == 0)
+            {
+                await _js.ToastrError("Please select customer name first?.");
+                isProcessing = false;
+                isValid = false;
+            }
+            if (string.IsNullOrWhiteSpace(CostCenter.ProjectNo))
+            {
+                await _js.ToastrError("Please select project no first.");
+                isProcessing = false;
+                isValid = false;
+            }
+            var matchedUser = User.FirstOrDefault(s => s.UserId == SelectedUserId);
+            if (CostCenter.ProjectManager == "" || matchedUser == null)
+            {
+                await _js.ToastrError("Please select a valid User.");
+                isProcessing = false;
+                isValid = false;
+            }
+            else
+            {
+                CostCenter.ProjectManager = matchedUser.UserName;
+            }
+
+
+            var matchedCustomer = Customer.FirstOrDefault(s => s.CustId == CostCenter.CustId);
+            if (CostCenter.CustId == 0 || matchedCustomer == null)
+            {
+                await _js.ToastrError("Please select a valid Customer.");
+                isProcessing = false;
+                isValid = false;
+            }
+
+            if (CostCenter.Id > 0)
+            {
+                var existing = await _unitOfWork.CostCenters.GetAsync(CostCenter.Id);
+
+                bool? isDispatch = existing?.IsDispatch;
+
+                if (CostCenter.IsClosed)
+                {
+                    if (isDispatch == false)
+                    {
+                        await _js.ToastrWarning("Please dispatch the project before closing.");
+                        isValid = false;
+                    }
+                }
+            }
+            CostCenter.IsClosed = CostCenter.IsClosed;
+            CostCenter.IsDispatch = CostCenter.IsDispatch;
+
+            return isValid;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Costcenter costcenterValidation() Method");
+            return false;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task OnStateChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int Id))
+            {
+
+                var typeProject = type.FirstOrDefault(s => s.Id == Id);
+
+                if (typeProject != null)
+                {
+                    CostCenter.ProjectTypeId = typeProject.Id;
+
+                }
+
+            }
+            else
+            {
+
+                CostCenter.ProjectTypeId = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CostCenter upsert OnStateChanged event");
+        }
+    }
+
+    private async Task LoadCostCenter()
+    {
+        try
+        {
+            if (Id != null && Id != 0)
+            {
+                CostCenter = await _unitOfWork.CostCenters.GetCostCenterWithAllRelatedDataAsync(Id.Value);
+            }
+            else
+            {
+                CostCenter = new CostCenter();
+                CostCenter.StartDate = DateTime.Now;
+            }
+
+
+            var existing = await _unitOfWork.Users.GetAllAsync();
+            if (existing != null)
+            {
+                User = existing.ToList();
+            }
+
+            if (Id != null && Id != 0)
+            {
+                var matchedUser = User.FirstOrDefault(u => u.UserName == CostCenter.ProjectManager);
+                if (matchedUser != null)
+                {
+                    SelectedUserId = matchedUser.UserId;
+                }
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while loading the CostCenter in LoadCostCenter()");
+        }
+    }
+
+
+
+    private async Task LoadProjectType()
+    {
+        try
+        {
+            var existing = await _unitOfWork.ProjectTypeMasters.GetAllAsync();
+            if (existing != null)
+            {
+                type = existing.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CostCenter upsert LoadProjectType()");
+        }
+    }
+    private async Task LoadCustomer()
+    {
+        try
+        {
+            var existing = await _unitOfWork.Customers.GetAllAsync();
+            if (existing != null)
+            {
+                Customer = existing.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CostCenter upsert LoadCustomers()");
+        }
+    }
+
+    public async Task<bool> CalculateTotalBudget()
+    {
+        try
+        {
+            bool isValid = true;
+            total = (CostCenter.BroughtOutMechanical)
+             + (CostCenter.MechanicalFabricated)
+             + (CostCenter.CEFieldElement)
+             + (CostCenter.CePanelElement)
+             + (CostCenter.RawMaterial)
+             + (CostCenter.ToolingCost)
+             + (CostCenter.Fabrication)
+             + (CostCenter.Machining)
+             + (CostCenter.Finishing)
+             + (CostCenter.DesignCost)
+             + (CostCenter.AssemblyFAT)
+             + (CostCenter.Installation)
+             + (CostCenter.Documentation)
+             + (CostCenter.Logistics)
+             + (CostCenter.FinancialCost)
+             + (CostCenter.AdminOverHead)
+             + (CostCenter.ConsumableAmt)
+             + (CostCenter.MaintenanceAmt)
+             + (CostCenter.SafetyAmt)
+             + (CostCenter.ServiceDabaspetAmt)
+             + (CostCenter.ServiceHalolAmt)
+             + (CostCenter.CapexAmt)
+             + (CostCenter.Others);
+
+            CostCenter.TotalBudget = total;
+
+            if (total > CostCenter.AllocatedBudget)
+            {
+                await _js.ToastrError("Total budget exceeds allocated budget!");
+                isProcessing = false;
+                isValid = false;
+            }
+            CostCenter.AvailableBudget = CostCenter.AllocatedBudget - total;
+            return isValid;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CostCenter upsert CalculateTotalBudget()");
+            return false;
+        }
+    }
+
+    private async Task OnBudgetChanged(ChangeEventArgs e, string propertyName)
+    {
+        try
+        {
+            var property = typeof(CostCenter).GetProperty(propertyName);
+            if (decimal.TryParse(e.Value?.ToString(), out var newValue))
+            {
+
+                if (property != null && property.PropertyType == typeof(decimal))
+                {
+                    property.SetValue(CostCenter, newValue);
+                    await CalculateTotalBudget();
+                }
+
+            }
+            else if (total > 0)
+            {
+                property.SetValue(CostCenter, Convert.ChangeType(0, property.PropertyType));
+                await CalculateTotalBudget();
+
+            }
+            else
+            {
+                CostCenter.TotalBudget = 0;
+                CostCenter.AvailableBudget = 0;
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CostCenter upsert OnBudgetChanged()");
+        }
+    }
+
+
+    private async Task OnProjectTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int selectedTypeId))
+            {
+                CostCenter.ProjectTypeId = selectedTypeId;
+                CostCenter.ProjectNo = await GenerateNextProjectNo(selectedTypeId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CostCenter upsert OnProjectTypeChanged()");
+        }
+    }
+
+    private async Task<string> GenerateNextProjectNo(int projectTypeId)
+    {
+        var projectType = await _unitOfWork.ProjectTypeMasters.GetAsync(projectTypeId);
+        var lastProjectNo = await _unitOfWork.CostCenters.GetLastProjectNoByTypeAsync(projectTypeId);
+
+        if (!string.IsNullOrWhiteSpace(lastProjectNo))
+        {
+            var parts = lastProjectNo.Split('-');
+            int lastIndex = parts.Length - 1;
+
+            if (int.TryParse(parts[lastIndex], out int lastNumber))
+            {
+                lastNumber += 1;
+                parts[lastIndex] = lastNumber.ToString(new string('0', parts[lastIndex].Length));
+            }
+
+            return string.Join("-", parts);
+        }
+
+        if (projectType != null)
+        {
+            if (!string.IsNullOrWhiteSpace(projectType.TypeOfCode) && projectType.TypeOfCode.Contains('-'))
+            {
+                return projectType.TypeOfCode + "" + projectType.StartSeries;
+            }
+            else if (!string.IsNullOrWhiteSpace(projectType.TypeOfCode))
+            {
+                return projectType.TypeOfCode + "-" + projectType.StartSeries;
+            }
+            else
+            {
+                return projectType.StartSeries;
+            }
+        }
+        else
+        {
+            await _js.ToastrError("projectType is null in GenerateNextProjectNo");
+            return string.Empty;
+        }
+    }
+
+
+}

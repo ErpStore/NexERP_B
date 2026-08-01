@@ -1,0 +1,426 @@
+﻿@page "/project-type-master"
+@using V.SMART.Shared.Data.Master.Accounts_Module
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager _navigation
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-primary"
+         ButtonText="Yes"
+         Title="Are you sure you want to Delete current row?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- Card Header -->
+                <PageHeader TitleText="Project Type Master"
+                            TitleIcon="bi bi-diagram-3 text-primary"
+                            Breadcrumbs="@projectTypeBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="ProjectTypeMaster">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                        <div class="row g-3 align-items-center justify-content-between mb-3">
+                            <div class="col-12 col-md-4">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0">
+                                        <i class="bi bi-search text-muted"></i>
+                                    </span>
+                                    <InputText type="text"
+                                               class="form-control border-start-0"
+                                               placeholder="Search Data Here"
+                                                @bind-Value="searchText"
+                                               @oninput="OnSearchTextChanged" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-sm" style="table-layout: fixed; width: 100%;">
+                                    <thead class="custom-blue sticky-top">
+                                        <tr class="text-nowrap">
+                                            <th class="freeze-first-col" style="width: 200px;">Type Of Project</th>
+                                            <th style="width: 200px;">Type Of Code</th>
+                                            <th style="width: 100px;">Start Series</th>
+                                            <th class="freeze-last-col" style="width: 100px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="custom-size">
+                                        @foreach (var row in typeList)
+                                        {
+                                            <tr>
+
+                                                <td class="freeze-first-col">
+                                                    @if (row.IsEditable)
+                                                    {
+                                                        <InputText class="form-control form-control-sm" @bind-Value="row.TypeOfProject" maxlength="50" />
+                                                        <ValidationMessage For="@(() => row.TypeOfProject)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@row.TypeOfProject</span>
+                                                    }
+                                                </td>
+
+                                                <td>
+                                                    @if (row.IsEditable)
+                                                    {
+                                                        <InputText class="form-control form-control-sm" @bind-Value="@row.TypeOfCode" maxlength="10" />
+                                                        <ValidationMessage For="@(() => row.TypeOfCode)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@row.TypeOfCode</span>
+                                                    }
+
+
+                                                </td>
+
+                                                <td>
+                                                    @if (row.IsEditable)
+                                                    {
+                                                        <InputText class="form-control form-control-sm" @bind-Value="@row.StartSeries" maxlength="20" />
+                                                        <ValidationMessage For="@(() => row.StartSeries)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@row.StartSeries</span>
+                                                    }
+                                                </td>
+
+                                                <td class="freeze-last-col">
+
+                                                    @if (row.IsEditable)
+                                                    {
+                                                        @if (CanCreate)
+                                                        {
+                                                            <button type="button" class="btn btn-success btn-sm me-1" @onclick="() => ValidateAndSaveRow(row)" title="Save">
+                                                                <i class="bi bi-check-lg"></i>
+                                                            </button>
+                                                        }
+
+                                                    }
+                                                    else
+                                                    {
+                                                        @if (CanEdit)
+                                                        {
+                                                            <button type="button" class="btn btn-info btn-sm me-1" @onclick="() => EditRow(row)" title="Edit">
+                                                                <i class="bi bi-pencil-square"></i>
+                                                            </button>
+                                                        }
+                                                    }
+                                                    @if (CanDelete)
+                                                    {
+                                                        <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteRow(row)" title="Delete row">
+                                                            <i class="bi bi-trash3"></i>
+                                                        </button>
+                                                    }
+
+                                                </td>
+
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="row mt-1">
+                                <div class="col-md-4">
+                                    <button type="button" class="btn btn-outline-primary" @onclick="AddRow">
+                                        <i class="bi bi-plus-circle me-1"></i> Add Row
+                                    </button>
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+@code
+{
+    protected override string ScreenName => "Project Type Master";
+    private bool isProcessing = true;
+    private ProjectTypeMaster ProjectTypeMaster { get; set; } = new ProjectTypeMaster();
+    private List<ProjectTypeMaster> typeRows = new();
+    private ProjectTypeMaster _itemToDelete;
+    private List<ProjectTypeMaster> typeList { get; set; } = new List<ProjectTypeMaster> { new ProjectTypeMaster() };
+    private string searchText = string.Empty;
+    private IEnumerable<ProjectTypeMaster> type { get; set; } = new List<ProjectTypeMaster>();
+    private int currentYear = DateTime.Now.Year;
+
+    private List<PageHeader.BreadcrumbItem> projectTypeBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Account" },
+        new PageHeader.BreadcrumbItem { Text = "Project Type Master", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await toLoadProjecttype();
+
+            isProcessing = false;
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ProjectTypeMaster OnInitializedAsync event");
+        }
+    }
+    private void OnSearchTextChanged(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString();
+        ApplyFilter();
+    }
+
+    private async Task ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            await toLoadProjecttype();
+            typeList = typeList.ToList(); // or `type` if you're using it as the main source
+            StateHasChanged();
+
+        }
+        else
+        {
+            typeList = typeList.Where(c =>
+                (!string.IsNullOrWhiteSpace(c.TypeOfProject) && c.TypeOfProject.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.TypeOfCode) && c.TypeOfCode.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.StartSeries) && c.StartSeries.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (typeList.Any(assign => assign.IsEditable))
+            {
+                await _js.ToastrError("Please fill the data in current row before adding a new one.");
+                return;
+            }
+
+            // Get financial year start (April 1st)
+            DateTime today = DateTime.Today;
+            int financialYear = today.Month >= 4 ? today.Year : today.Year - 1;
+
+            string startSeries = $"{financialYear}-000"; // First default StartSeries
+
+            // Check if this year already has entries
+            var lastSeries = typeList
+                .Where(p => p.StartSeries.StartsWith($"{financialYear}-"))
+                .OrderByDescending(p => p.StartSeries)
+                .Select(p => p.StartSeries)
+                .FirstOrDefault();
+
+            if (!string.IsNullOrEmpty(lastSeries))
+            {
+                var parts = lastSeries.Split('-');
+                if (parts.Length == 2 && int.TryParse(parts[1], out int lastNumber))
+                {
+                    //int nextNumber = lastNumber + 1;
+                    int nextNumber = lastNumber;
+                    startSeries = $"{financialYear}-{nextNumber.ToString("D3")}";
+                }
+            }
+
+            typeList.Add(new ProjectTypeMaster
+            {
+                StartSeries = startSeries,
+                IsEditable = true
+            });
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ProjectTypeMaster AddRow() method");
+        }
+    }
+
+
+    private async Task DeleteRow(ProjectTypeMaster row)
+    {
+        try
+        {
+            _itemToDelete = row;
+            string exist = await _unitOfWork.CostCenters.GetLastProjectNoByTypeAsync(row.Id);
+
+            if (exist != null)
+            {
+                await _js.ToastrError("Type of Project Master already exists in Cost Center, so you can't delete it.");
+                return;
+            }
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ProjectTypeMaster DeleteRow() method ");
+        }
+    }
+
+    private async Task toLoadProjecttype()
+    {
+        try
+        {
+            var assignments = await _unitOfWork.ProjectTypeMasters.GetAllAsync();
+            typeList = assignments.ToList();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ProjectTypeMaster toLoadProjecttype");
+        }
+    }
+
+    private async void EditRow(ProjectTypeMaster row)
+    {
+        try
+        {
+            bool exists = await _unitOfWork.CostCenters
+               .AnyAsync(c => c.ProjectTypeId == row.Id);
+
+            if (exists)
+            {
+                await _js.ToastrWarning("You cannot Modify this Record because Serie's Number Already used!...");
+                return;
+            }
+
+            row.IsEditable = true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Project type Master EditRow()");
+        }
+    }
+    private async Task ValidateAndSaveRow(ProjectTypeMaster list)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(list.TypeOfProject))
+            {
+                await _js.ToastrError("Type of Project Master Name is required.");
+                return;
+            }
+            else if (string.IsNullOrWhiteSpace(list.StartSeries))
+            {
+                await _js.ToastrError("Start series is required.");
+                return;
+            }
+
+            var existing = await _unitOfWork.ProjectTypeMasters.GetAllAsync();
+            bool duplicate = existing.Any(x =>
+                x.TypeOfProject.Equals(list.TypeOfProject.Trim(), StringComparison.OrdinalIgnoreCase)
+                && x.Id != list.Id);
+            if (duplicate)
+            {
+                await _js.ToastrWarning("Type Project Master Name Already Exists!..");
+                return;
+            }
+
+            list.IsEditable = false;
+
+            if (list.Id == 0)
+            {
+                list.CreatedBy = await _userService.GetUsernameAsync();
+                list.CreatedDate = DateTime.Now;
+                await _unitOfWork.ProjectTypeMasters.CreateAsync(list);
+
+            }
+            else
+            {
+                list.ModifiedBy = await _userService.GetUsernameAsync();
+                list.ModifiedDate = DateTime.Now;
+                await _unitOfWork.ProjectTypeMasters.UpdateAsync(list);
+            }
+
+            await LoggingService.LogUserAction(
+                UserName: await _userService.GetUsernameAsync(),
+                Machine: _userService.MachineName,
+                IP_Address: _userService.IpAddress,
+                screen: "Project Type Master List",
+                action: list.Id == 0
+                    ? $"Created Project Type : {list.TypeOfProject}"
+                    : $"Updated Project Type : {list.TypeOfProject}"
+            );
+            await _unitOfWork.SaveAsync();
+            await _js.ToastrSuccess("Saved successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ValidateAndSaveRow()");
+            await _js.ToastrError("Save failed.");
+        }
+    }
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || _itemToDelete == null)
+                return;
+
+            if (_itemToDelete.Id > 0)
+            {
+                await _unitOfWork.ProjectTypeMasters.DeleteAsync(_itemToDelete.Id);
+                await _unitOfWork.SaveAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: await _userService.GetUsernameAsync(),
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Type of project List",
+                    action: $"Deleted Type of project List: {_itemToDelete.TypeOfProject}"
+                );
+
+                await _js.ToastrSuccess("Deleted successfully.");
+            }
+
+            typeList.Remove(_itemToDelete);
+            _itemToDelete = null;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in confirmDelete_Click()");
+            await _js.ToastrError("Delete failed.");
+        }
+    }
+}

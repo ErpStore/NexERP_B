@@ -1,0 +1,2594 @@
+﻿@page "/AdvanceAdjustment/Create"
+@page "/AdvanceAdjustment/update/{AdjumentId:int}"
+@using System.ComponentModel.DataAnnotations
+@using System.Drawing
+
+@using QRCoder
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IAccountsService
+@using V.SMART.Shared.Data.AccountsModule
+@using V.SMART.Shared.ViewModels.AccountsViewModel
+@using V.SMARTV.Shared.BusinessLayer.BusinessService.IBusinessService.IAccountsService
+@inject IJSRuntime JS
+@inherits BaseUserRightsComponent
+@inject NavigationManager _navigationManager
+@inject IPaymentsService _PaymentsService
+@inject IReceiptsService _ReceiptsService
+@inject IAdvaceAdjustmentService _AdvanceAdjustService
+
+@inject ILoggingService LoggingService
+@inject IBankService bankService
+
+<PageTitle>Payments</PageTitle>
+@* <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" /> *@
+<style>
+    :root {
+        --primary: #7e22ce;
+        --primary-light: #f3e8ff;
+        --secondary: #a855f7;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+        --light: #f8fafc;
+        --dark: #1f2937;
+        --gray: #6b7280;
+        --border-radius: 8px;
+        --transition: all 0.2s ease;
+    }
+
+    * {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    }
+
+    .adjustment-container {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        min-height: 100vh;
+        padding: 16px;
+    }
+
+    /* Fixed Header */
+    .adjustment-header {
+        background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+        color: white;
+        border-radius: var(--border-radius);
+        padding: 16px 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 12px rgba(126, 34, 206, 0.15);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .adjustment-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+
+        .adjustment-title h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+
+    .adjustment-badge {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+    }
+
+    /* Unique Card Design */
+    .unique-card {
+        background: white;
+        border-radius: var(--border-radius);
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        margin-bottom: 16px;
+        position: relative;
+        overflow: visible !important;
+    }
+
+    .card-header {
+        padding: 14px 16px;
+        border-bottom: 2px solid;
+        position: relative;
+    }
+
+    .card-header-primary {
+        background: linear-gradient(90deg, #eef2ff 0%, #e0e7ff 100%);
+        border-color: var(--primary);
+    }
+
+    .card-header-warning {
+        background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+        border-color: var(--warning);
+    }
+
+    .card-header-success {
+        background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 100%);
+        border-color: var(--success);
+    }
+
+    .header-content h6 {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #374151;
+        margin: 0;
+    }
+
+    .header-content p {
+        font-size: 0.7rem;
+        color: #6b7280;
+        margin: 2px 0 0 0;
+    }
+
+    /* Payment Method Section */
+    .method-toggle {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+        background: #f9fafb;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .toggle-btn {
+        flex: 1;
+        padding: 12px 16px;
+        border: 2px solid transparent;
+        border-radius: 6px;
+        background: white;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+        .toggle-btn.active {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            color: var(--primary);
+            box-shadow: 0 2px 6px rgba(126, 34, 206, 0.1);
+        }
+
+        .toggle-btn.cash.active {
+            border-color: var(--warning);
+            background: #fffbeb;
+            color: #92400e;
+        }
+
+    /* Banks Container */
+    /* 🔹 Container */
+    .banks-container {
+        display: none;
+        padding: 8px;
+        background: #f8fafc;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
+        gap: 8px;
+        /* 🔥 Responsive grid */
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    }
+
+        .banks-container.show {
+            display: grid;
+        }
+
+    /* 🔹 Card */
+    .bank-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 6px;
+        text-align: center;
+        cursor: pointer;
+        transition: 0.2s ease-in-out;
+    }
+
+        /* Hover effect */
+        .bank-card:hover {
+            border-color: #7e22ce;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+
+    /* 🔹 Icon */
+    .bank-icon {
+        font-size: 18px;
+        color: #6b7280;
+        margin-bottom: 4px;
+    }
+
+    /* 🔹 Bank Name */
+    .bank-name {
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* 🔹 Balance */
+    .bank-balance {
+        font-size: 10px;
+        color: #16a34a;
+    }
+
+    /* Form Controls - Fixed */
+    .form-control, .form-select {
+        border-radius: 4px;
+        border: 1px solid #d1d5db;
+        padding: 4px 8px;
+        font-size: 0.8rem;
+        transition: var(--transition);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 1px rgba(67, 97, 238, 0.1);
+        }
+
+    .form-control-lg {
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 5px 8px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    }
+
+
+    /* Dropdown Lists */
+    .dropdown-list, .vendor-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        max-height: 150px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        margin-top: 2px;
+    }
+
+    .dropdown-item, .vendor-item {
+        padding: 4px 8px;
+        cursor: pointer;
+        transition: var(--transition);
+        border-bottom: 1px solid #f3f4f6;
+        font-size: 0.75rem;
+    }
+
+        .dropdown-item:hover, .vendor-item:hover {
+            background: #f9fafb;
+        }
+
+        .dropdown-item:last-child, .vendor-item:last-child {
+            border-bottom: none;
+        }
+
+    /* Amount Section */
+    .amount-display-section {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 16px;
+        border: 2px solid #e5e7eb;
+    }
+
+    .amount-input-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .amount-input {
+        flex: 1;
+        font-size: 1.5rem;
+        font-weight: 700;
+        border: none;
+        outline: none;
+        padding: 8px;
+        text-align: right;
+        color: var(--dark);
+        background: transparent;
+    }
+
+    /* Vendor Summary */
+    .vendor-summary {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 16px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .summary-item {
+        padding: 8px;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    /* Bills Section */
+    .bills-section {
+        background: white;
+        border-radius: var(--border-radius);
+        border: 1px solid #e5e7eb;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        min-height: 400px;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 2px solid;
+        background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+        border-color: var(--warning);
+    }
+
+    .linked-header {
+        background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 100%);
+        border-color: var(--success);
+    }
+
+    .scroll-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+        max-height: 350px;
+    }
+
+    /* Bills List */
+    .bills-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .bill-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 12px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+    /* Linked Table */
+    .linked-table {
+        width: 100%;
+        font-size: 0.8rem;
+        border-collapse: collapse;
+    }
+
+        .linked-table th {
+            padding: 10px 8px;
+            font-weight: 600;
+            color: #4b5563;
+            text-align: left;
+            border-bottom: 2px solid #e5e7eb;
+            background: white;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 1;
+        }
+
+        .linked-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+        }
+
+    /* Adjust Input */
+    .adjust-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        padding: 6px 8px;
+        width: 120px;
+        margin-left: auto;
+    }
+
+    .adjust-input {
+        flex: 1;
+        padding: 4px;
+        border: none;
+        outline: none;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-align: right;
+        background: transparent;
+        color: var(--primary);
+        min-width: 60px;
+    }
+
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        padding: 16px;
+        background: white;
+        border-radius: var(--border-radius);
+        border: 1px solid #e5e7eb;
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        padding: 12px 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 160px;
+    }
+
+    .btn-primary {
+        background: linear-gradient(90deg, var(--primary), var(--secondary));
+        color: white;
+    }
+
+    .btn-outline {
+        background: white;
+        border: 2px solid #14b8a6;
+        color: #0d9488;
+        transition: var(--transition);
+    }
+
+        .btn-outline:hover {
+            background: #ccfbf1;
+            color: #115e59;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(20, 184, 166, 0.25);
+        }
+
+
+    /* Grid Layout - Fixed */
+    .row {
+        display: flex;
+        flex-wrap: wrap;
+        margin: -8px;
+        width: calc(100% + 16px);
+    }
+
+    .col-12, .col-lg-4, .col-lg-3, .col-lg-5 {
+        padding: 8px;
+        box-sizing: border-box;
+    }
+
+    .col-12 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    .col-lg-4 {
+        flex: 0 0 33.333%;
+        max-width: 33.333%;
+    }
+
+    .col-lg-3 {
+        flex: 0 0 25%;
+        max-width: 25%;
+    }
+
+    .col-lg-5 {
+        flex: 0 0 41.667%;
+        max-width: 41.667%;
+    }
+
+    /* Utility Classes */
+    .d-flex {
+        display: flex !important;
+    }
+
+    .align-items-center {
+        align-items: center !important;
+    }
+
+    .justify-content-between {
+        justify-content: space-between !important;
+    }
+
+    .mb-0 {
+        margin-bottom: 0 !important;
+    }
+
+    .mt-2 {
+        margin-top: 8px !important;
+    }
+
+    .mt-3 {
+        margin-top: 12px !important;
+    }
+
+    .w-100 {
+        width: 100% !important;
+    }
+
+    .text-center {
+        text-align: center !important;
+    }
+
+    .text-muted {
+        color: #6b7280 !important;
+    }
+
+    /* Empty States */
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        color: #9ca3af;
+        text-align: center;
+    }
+
+        .empty-state i {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+            margin: 0;
+            font-weight: 500;
+            line-height: 1.5;
+        }
+
+    /* Responsive Design */
+    @@media (max-width: 1200px) {
+        .bank-card {
+            flex: 0 0 calc(20% - 7px);
+        }
+
+        .col-lg-4, .col-lg-3, .col-lg-5 {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+
+        .bills-section {
+            min-height: 350px;
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .bank-card {
+            flex: 0 0 calc(25% - 6px);
+        }
+
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .action-btn {
+            min-width: 140px;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .adjustment-container {
+            padding: 12px;
+        }
+
+        .bank-card {
+            flex: 0 0 calc(33.333% - 6px);
+        }
+
+        .method-toggle {
+            flex-direction: column;
+        }
+
+        .toggle-btn {
+            width: 100%;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .action-btn {
+            width: 100%;
+            min-width: 100%;
+        }
+
+        .col-lg-4, .col-lg-3, .col-lg-5 {
+            padding: 6px;
+        }
+
+        .row {
+            margin: -6px;
+            width: calc(100% + 12px);
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .bank-card {
+            flex: 0 0 calc(50% - 4px);
+            min-width: 100px;
+        }
+
+        .amount-input {
+            font-size: 1.3rem;
+        }
+
+        .linked-table {
+            font-size: 0.75rem;
+        }
+
+        .adjust-input-wrapper {
+            width: 100px;
+        }
+
+        .action-btn {
+            padding: 10px 16px;
+            font-size: 0.85rem;
+        }
+
+        .adjustment-title h1 {
+            font-size: 1.2rem;
+        }
+    }
+
+    /* Back Button Fix */
+    .btn-light {
+        background: rgba(255, 255, 255, 0.9);
+        border: none;
+        color: var(--primary);
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+        .btn-light:hover {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+    /* Input Number Fix */
+    input[type="number"] {
+        font-family: inherit !important;
+    }
+
+    textarea {
+        font-family: inherit !important;
+        resize: vertical;
+    }
+
+    /* Ensure proper alignment */
+    .card-body {
+        padding: 20px !important;
+    }
+
+    .position-relative {
+        position: relative;
+    }
+
+    /* Fix for dropdown z-index */
+    .dropdown-list, .vendor-list {
+        z-index: 1050 !important;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-4 mt-3">
+            <div class="adjustment-container">
+                <!-- Header -->
+
+                <PageHeader TitleText="@(AdvaceadjustmentVMs.AdjumentId > 0 ? "Update Advance Adjustment" : "Create Advance Adjustment")"
+                            TitleIcon="bi bi-tag"
+                            Breadcrumbs="@AdvaceadjustmentBreadcrumbs" />
+
+
+                <EditForm Model="AdvaceadjustmentVMs" OnValidSubmit="UpsertPayments">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <!-- Step 1: Payment Method -->
+                    <div class="unique-card">
+                        <div class="card-header card-header-primary">
+                            <div class="d-flex align-items-center justify-content-between w-100">
+                                <div class="header-content">
+                                    <h6 class="mb-1 fw-bold">AdvanceAdjustment </h6>
+                                    <p class="adjustment-subtitle mb-0 d-flex align-items-center gap-2">
+                                        <i class="bi bi-hash"></i>
+                                        <h6>Reference: @AdvaceadjustmentVMs.AdvaceadjustmentNo</h6>
+                                    </p>
+                                </div>
+
+                                <SmartBackButton OnNavigate="HandleBackClick" />
+
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+
+                            <!-- Banks Container -->
+                            <div class="banks-container @(IsBank ? "show" : "")">
+                                @foreach (var bank in bankList.Where(b => b.BankName != "CASH"))
+                                {
+                                    <div class="bank-card">
+                                        <div class="bank-icon">
+                                            <i class="bi bi-building"></i>
+                                        </div>
+                                        <div class="bank-name">@bank.BankName</div>
+                                        <div class="bank-balance">₹@bank.CurrentBalance.ToString("N0")</div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Adjustment Details -->
+                    <div class="unique-card">
+                        <div class="card-header card-header-warning">
+                            <div class="d-flex align-items-center">
+                                <div class="header-content">
+                                    <h6>Adjustment Details</h6>
+                                    <p>Configure the adjustment parameters</p>
+                                </div>
+                                <!-- Toggle Button -->
+                                <div class="btn-group" role="group">
+                                    <button type="button"
+                                            class="btn @(IsIncome ? "btn-success" : "btn-outline-success")"
+                                            @onclick="() => SetType(true)"
+                                            disabled="@(AdjumentId > 0)">
+                                        Income
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn @(!IsIncome ? "btn-danger" : "btn-outline-danger")"
+                                            @onclick="() => SetType(false)"
+                                            disabled="@(AdjumentId > 0)">
+                                        Expense
+                                    </button>
+                                </div>
+
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+
+                                <!-- Date -->
+                                <div class="col-md-3">
+                                    <label class="form-label">Adjustment Date</label>
+                                    <input type="date"
+                                           class="form-control"
+                                           @bind="AdvaceadjustmentVMs.AdjumentDate" />
+                                </div>
+
+                                <!-- Income / Expense Type -->
+                                <div class="col-md-3">
+                                    <label class="form-label small">
+                                        @(IsIncome ? "Income Type" : "Expense Type")
+                                    </label>
+
+                                    <div class="position-relative">
+                                        <input class="form-control"
+                                               value="@(IsIncome? AdvaceadjustmentVMs.IncomeName: AdvaceadjustmentVMs.ExpenseName)"
+                                               @oninput="TypeSearchChanged"
+                                               placeholder="Search..." />
+
+
+
+                                        @if (ShowTypeDropdown)
+                                        {
+                                            <div class="vendor-list">
+
+                                                @if (IsIncome)
+                                                {
+                                                    foreach (var item in FilteredIncomes)
+                                                    {
+                                                        <div class="dropdown-item"
+                                                             @onclick="() => SelectIncome(item)">
+                                                            @item.IncomeName
+                                                        </div>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    foreach (var item in FilteredExpenses)
+                                                    {
+                                                        <div class="dropdown-item"
+                                                             @onclick="() => SelectExpense(item)">
+                                                            @item.ExpenseName
+                                                        </div>
+                                                    }
+                                                }
+
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Payment Type -->
+                                <div class="col-md-3">
+                                    <label class="form-label small">Payment Type</label>
+                                    <select class="form-select"
+                                            @bind="SelectedPaymentTypeId"
+                                            @bind:after="OnPaymentTypeChanged"
+                                            disabled="@(AdjumentId > 0)">
+                                        <option value="">-- Select --</option>
+                                        @foreach (var pt in PaymentTypeList)
+                                        {
+                                            <option value="@pt.PaymentTypeId">@pt.PaymentTypeName</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <!-- Party -->
+                                <div class="col-md-3">
+                                    <label class="form-label small">Select Party</label>
+                                    <div class="position-relative vendor-dropdown">
+                                        <input class="form-control"
+                                               value="@PartySearch"
+                                               @oninput="VendorSearchChanged"
+                                               placeholder="Type Party name..."
+                                               disabled="@(AdvaceadjustmentVMs.AdjumentId > 0)" />
+
+                                        @if (PartyListDisplay.Any() && ShowVendorDropdown)
+                                        {
+                                            <div class="vendor-list">
+                                                @foreach (var v in PartyListDisplay)
+                                                {
+                                                    <div class="vendor-item" @onclick="() => SelectVendor(v)">
+                                                        @v.PartyName
+                                                        <div class="small text-muted">ID: @v.PartyCode</div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Step 3: Amount & Settlement -->
+                    <div class="unique-card">
+                        <div class="card-header card-header-success">
+                            <div class="d-flex align-items-center">
+                                <div class="header-content">
+                                    <h6>Amount & Settlement</h6>
+                                    <p>Enter amount and manage bill settlements</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Left: Amount & Party Summary -->
+                                <div class="col-lg-4">
+                                    <div class="amount-section">
+                                        <label class="form-label small">Payment Amount</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">₹</span>
+                                            <InputNumber @bind-Value="AdvaceadjustmentVMs.Amount"
+                                                         class="form-control form-control-lg fw-bold"
+                                                         step="0.01"
+                                                         @oninput="AmountChanged" />
+                                            <button type="button" class="btn btn-primary" @onclick="AutoAdjust">
+                                                <i class="bi bi-lightning-charge"></i> Auto
+                                            </button>
+                                        </div>
+
+                                        @if (SelectedParty != null)
+                                        {
+                                            <div class="vendor-summary">
+                                                <h6 class="small text-muted mb-1">Party Summary</h6>
+                                                <div class="summary-item">
+                                                    <span>Opening:</span>
+                                                    <span class="fw-medium">₹@SelectedParty.OpeningBalancePending.ToString("N2")</span>
+                                                </div>
+                                                <div class="summary-item">
+                                                    <span>Advance Paid:</span>
+                                                    <span class="text-success">₹@SelectedParty.AdvancePaid.ToString("N2")</span>
+                                                </div>
+                                                <div class="summary-item">
+                                                    <span>Pending Bills:</span>
+                                                    <span class="text-danger">₹@PartyPending.ToString("N2")</span>
+                                                </div>
+                                                <div class="summary-item">
+                                                    <span>Credit:</span>
+                                                    <span class="text-info">₹@PartyAvailableCredit.ToString("N2")</span>
+                                                </div>
+                                            </div>
+                                        }
+
+                                        <div class="mt-2">
+                                            <label class="form-label small">Description</label>
+                                            <textarea class="form-control" rows="2"
+                                                      @bind="AdvaceadjustmentVMs.Description"
+                                                      placeholder="Add notes..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Middle: Available Bills -->
+                                <div class="col-lg-3">
+                                    <div class="bills-section">
+                                        <div class="section-header">
+                                            <h6 class="mb-0">
+                                                <i class="bi bi-receipt me-2"></i>
+                                                Available Bills
+                                            </h6>
+                                            <span class="badge bg-warning">@FilteredBills.Count</span>
+                                        </div>
+                                        <div class="scroll-container">
+                                            @if (!PartySelected)
+                                            {
+                                                <div class="empty-state">
+                                                    <i class="bi bi-search"></i>
+                                                    <p>Select a party to view bills</p>
+                                                </div>
+                                            }
+                                            else if (!FilteredBills.Any())
+                                            {
+                                                <div class="empty-state">
+                                                    <i class="bi bi-check-circle"></i>
+                                                    <p>No pending bills found</p>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="bills-list">
+                                                    @foreach (var bill in FilteredBills)
+                                                    {
+                                                        <div class="bill-item" @onclick="() => AddBill(bill)">
+                                                            <div class="bill-info flex-grow-1">
+                                                                <div class="fw-bold">@bill.BillNo</div>
+                                                                <div class="text-muted small">@bill.BillDate.ToString("dd-MM-yyyy")</div>
+                                                            </div>
+                                                            <div class="fw-bold text-primary me-2">
+                                                                ₹@bill.Balance.ToString("N0")
+                                                            </div>
+                                                            <button type="button" class="btn btn-sm btn-primary">
+                                                                <i class="bi bi-plus"></i>
+                                                            </button>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Right: Linked Bills -->
+                                <div class="col-lg-5">
+                                    <div class="bills-section">
+                                        <div class="section-header linked-header">
+                                            <h6 class="mb-0">
+                                                <i class="bi bi-link-45deg me-2"></i>
+                                                Linked Bills
+                                            </h6>
+                                            <span class="badge bg-success">@AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Count</span>
+                                        </div>
+                                        <div class="scroll-container">
+                                            @if (!AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Any())
+                                            {
+                                                <div class="empty-state">
+                                                    <i class="bi bi-link-45deg"></i>
+                                                    <p>No bills linked yet</p>
+                                                    <p class="small mt-2">Click on bills from the left panel to add them</p>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <table class="linked-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>#</th>
+                                                            <th>Bill Details</th>
+                                                            <th class="text-end">Balance</th>
+                                                            <th class="text-end">Adjust</th>
+                                                            <th class="text-center">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @{
+                                                            int i = 1;
+                                                            foreach (var bill in AdvaceadjustmentVMs.AdvaceadjustmentSubVM)
+                                                            {
+                                                                <tr>
+                                                                    <td class="fw-bold">@i</td>
+                                                                    <td>
+                                                                        <div>
+                                                                            <div class="fw-bold">@bill.BillNo</div>
+                                                                            <div class="text-muted small">@bill.BillDate.ToString("dd-MM-yyyy")</div>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td class="text-end fw-bold">
+                                                                        ₹@bill.BalanceAmount.ToString("N2")
+                                                                    </td>
+                                                                    <td class="text-end">
+                                                                        @if (PaymentType == "Manual Selection" || PaymentType.ToUpper() == "PAY ADVANCE")
+                                                                        {
+                                                                            <div class="adjust-input-wrapper">
+                                                                                <span>₹</span>
+                                                                                <input type="number"
+                                                                                       class="adjust-input"
+                                                                                       value="@bill.AdjustAmount"
+                                                                                       min="0"
+                                                                                       max="@bill.BalanceAmount"
+                                                                                       step="any"
+                                                                                       disabled="@(bill.BalanceAmount <= 0)"
+                                                                                       @oninput="(e) => ValidateBillAdjust(e, bill)" />
+                                                                            </div>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="fw-bold text-success">₹@bill.AdjustAmount.ToString("N2")</span>
+                                                                        }
+                                                                    </td>
+                                                                    <td class="text-center">
+                                                                        <button type="button" class="btn btn-sm btn-danger"
+                                                                                @onclick="() => RemoveBill(bill)"
+                                                                                title="Remove">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                                i++;
+                                                            }
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            }
+                                        </div>
+                                        @{
+                                            var total = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Sum(x => x.AdjustAmount);
+                                            var diff = AdvaceadjustmentVMs.Amount - total;
+                                        }
+                                        <div class="p-3 border-top">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Total Adjusted:</span>
+                                                <span class="fw-bold">₹@total.ToString("N2")</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Payment Amount:</span>
+                                                <span class="fw-bold text-success">₹@AdvaceadjustmentVMs.Amount.ToString("N2")</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between mt-2 pt-2 border-top">
+                                                <span class="fw-bold">Difference:</span>
+                                                <span class="fw-bold @(diff == 0 ? "text-success" : diff > 0 ? "text-warning" : "text-danger")">
+                                                    ₹@Math.Abs(diff).ToString("N2")
+                                                    @if (diff != 0)
+                                                    {
+                                                        <span class="small">(@(diff > 0 ? "Excess" : "Short"))</span>
+                                                    }
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="action-buttons">
+                        <button type="submit" class="action-btn btn-primary">
+                            <i class="bi bi-check-circle me-2"></i>
+                            @(AdvaceadjustmentVMs.AdjumentId > 0 ? "Update Adjustment" : "Create Adjustment")
+                        </button>
+
+                        @if (IsBank && AdvaceadjustmentVMs.BankId > 0)
+                        {
+                            <button type="button" class="action-btn btn-" @onclick="ChequePrint">
+                                <i class="bi bi-printer me-2"></i>
+                                Print Cheque
+                            </button>
+                        }
+
+                        <button type="button" class="action-btn btn-outline" @onclick="GenerateQR">
+                            <i class="bi bi-qr-code-scan me-2"></i>
+                            Generate QR
+                        </button>
+
+                        <button type="button" class="action-btn btn-outline" @onclick="HandleBackClick">
+                            <i class="bi bi-x-circle me-2"></i>
+                            Cancel
+                        </button>
+                    </div>
+
+                    <!-- QR Code Section -->
+                    @if (QrImage != null)
+                    {
+                        <div class="unique-card mt-3">
+                            <div class="card-header card-header-primary">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-qr-code me-2"></i>
+                                    UPI Payment QR Code
+                                </h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <img src="data:image/png;base64,@QrImage"
+                                     alt="UPI QR Code"
+                                     style="width: 220px; height: 220px;"
+                                     class="img-fluid mb-3" />
+                                <p class="text-muted mb-3">Scan this QR code with any UPI app</p>
+                                <button type="button" class="btn btn-success" @onclick="OpenUpiApp">
+                                    <i class="bi bi-arrow-up-right-circle me-2"></i>
+                                    Pay Now
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    }
+}
+@code {
+    protected override string ScreenName => "Advaceadjustment";
+
+    [Parameter] public int? AdjumentId { get; set; }
+    private AdvaceadjustmentVM AdvaceadjustmentVMs { get; set; } = new();
+    private PartyVM PartyVMs { get; set; } = new();
+    private PartyVM? SelectedParty;
+    private List<PartyVM> AllPartys = new(); // Store all vendors
+    private List<PartyVM> PartyListDisplay = new(); // Display filtered vendors
+
+    private Banks banks { get; set; } = new();
+    private IEnumerable<Banks> bankList = new List<Banks>();
+
+    private IEnumerable<Expense> expense { get; set; } = new List<Expense>();
+    private IEnumerable<Income> incomes { get; set; } = new List<Income>();
+    private string PartySearch { get; set; } = "";
+    private List<PaymentTypeModel> PaymentTypeList = new();
+    private string SelectedExpenseType { get; set; }
+    private int SelectedPaymentTypeId { get; set; }
+
+    private string ExpenseSearch = "";
+    private List<Expense> FilteredExpenses = new();
+    private List<Income> FilteredIncomes = new();
+    private bool ShowExpenseDropdown = false;
+    private bool ShowVendorDropdown = false;
+    bool ShowTypeDropdown = false;
+    // Bill search functionality
+    private string BillSearch { get; set; } = "";
+    bool IsBank = true;
+    DateTime? ChequeDate;
+    string PaymentType = "Manual Selection";
+    string ActiveTab = TAB_GENERAL;
+    private bool isProcessing = true;
+    bool IsInvoiceModalVisible = false;
+    BillsVM? SelectedInvoice;
+    bool PartySelected => SelectedParty != null;
+    decimal PartyPending => SelectedParty == null ? 0 : Bills.Where(b => b.PartyCode == SelectedParty.PartyCode).Sum(b => b.Balance);
+    decimal PartyAvailableCredit => SelectedParty == null ? 0 : 0;
+    List<BillsVM> Bills = new();
+    List<BillsVM> FilteredBills = new();
+    void SetTab(string tab) => ActiveTab = tab;
+
+    private const string TAB_BILLS = "bills";
+    private const string TAB_LINKED = "linked";
+    const string TAB_GENERAL = "GENERAL";
+
+    private string ExpenseTypeNormalized =>
+    SelectedExpenseType?.Trim().ToUpper() ?? "";
+
+    private string PaymentTypeNormalized =>
+     PaymentType?.Trim().ToUpper() ?? "";
+
+
+    bool IsBillAdjustmentAllowed
+    {
+        get
+        {
+            var expense = ExpenseTypeNormalized;
+            var payment = PaymentTypeNormalized;
+
+            // Opening balance → never
+            if (payment == "OPENING BALANCE")
+                return false;
+
+            // PO / Subcontract Advance → show ORDER bills
+            if (expense == "PURCHASE ORDER ADVANCE" ||
+                expense == "SUBCONTRACT ORDER ADVANCE")
+            {
+                return payment == "PAY ADVANCE";
+            }
+
+            // Normal purchase → invoice bills
+            return payment == "MANUAL SELECTION" ||
+                   payment == "AUTOMATIC ADJUST";
+        }
+    }
+    private List<PageHeader.BreadcrumbItem> AdvaceadjustmentBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "CashFlow" },
+        new PageHeader.BreadcrumbItem { Text = "Advaceadjustment", IsLast = true }
+    };
+
+    // COMPUTED PROPERTIES
+    decimal CashBalance => bankList.FirstOrDefault(b => b.BankName == "CASH")?.BankOPBal ?? 0m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            bankList = await bankService.GetAllBanksAsync();
+            var list = (await _unitOfWork.Expenses.GetAllAsync()).ToList();
+            expense = list
+            .Where((item, index) => index != 1 && index != 3 && index != 6)
+            .ToList();
+
+            var lists = (await _unitOfWork.Incomes.GetAllAsync()).ToList();
+            incomes = lists
+            .Where((item, index) => index != 3)
+            .ToList();
+
+
+            var firstBank = bankList.FirstOrDefault(b => b.BankName != "CASH");
+            if (firstBank != null)
+                AdvaceadjustmentVMs.BankId = firstBank.BankId;
+
+            if (AdjumentId.HasValue)
+            {
+                await LoadExistingPaymnets(AdjumentId.Value);
+            }
+            else
+            {
+                AdvaceadjustmentVMs.AdvaceadjustmentNo = await _AdvanceAdjustService.GenerateAdvanceAdjustNumberAsync();
+                AdvaceadjustmentVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+                FilteredBills = new List<BillsVM>();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    //////////////qrcode
+    decimal BillAmount => AdvaceadjustmentVMs.Amount;
+    string BillNote => $"Payment-{AdvaceadjustmentVMs.AdvaceadjustmentNo}-{SelectedParty?.PartyName ?? "Party"}";
+    string? QrImage;
+
+    private async Task GenerateQR()
+    {
+        decimal amount = AdvaceadjustmentVMs.Amount;
+        if (amount <= 0)
+        {
+            await JS.InvokeVoidAsync("alert", "Enter valid amount first");
+            return;
+        }
+
+        var bank = await _unitOfWork.Banks
+                  .GetQueryable()
+                  .FirstOrDefaultAsync(x => x.BankId == AdvaceadjustmentVMs.BankId);
+        if (bank != null)
+        {
+            string upiId = bank.UpiId;
+            string name = bank.UpiName;
+            string note = BillNote;
+            if (!string.IsNullOrEmpty(upiId) && !string.IsNullOrEmpty(name) && AdvaceadjustmentVMs.AdjumentId > 0)
+            {
+
+                byte[] qrBytes = UpiQrService.GenerateUpiQr(upiId, name, amount, note);
+                QrImage = Convert.ToBase64String(qrBytes);
+                await Task.CompletedTask;
+
+            }
+            else
+            {
+                JS.ToastrError($"Bank valid UPI Id And Name And Save Bill : {banks.BankName}");
+
+            }
+
+        }
+    }
+
+    private async Task OpenUpiApp()
+    {
+        decimal amount = AdvaceadjustmentVMs.Amount;
+        if (amount <= 0) return;
+
+        string upi = $"upi://pay?pa=yourupi@bank&pn=Bspl Bspl&am={amount}&cu=INR&tn=Bill-{AdvaceadjustmentVMs.AdjumentId}";
+        //await Microsoft.Maui.ApplicationModel.Launcher.OpenAsync(upi);
+    }
+
+    //Load Expense
+    private async Task LoadVendorByExpenseType(string expenseType)
+    {
+        try
+        {
+            PartyListDisplay.Clear();
+            AllPartys.Clear();
+            FilteredBills.Clear();
+            Bills.Clear();
+            AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Clear();
+            AdvaceadjustmentVMs.Amount = 0;
+
+            AllPartys = await _PaymentsService.GetVendorsByPurchaseTypeAdvacnceAsync(expenseType, AdvaceadjustmentVMs.PaymentTypeName);
+            PartyListDisplay = AllPartys;
+
+            if (!string.IsNullOrWhiteSpace(PartySearch))
+            {
+                await FilterVendorList();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadVendorByExpenseType failed.");
+        }
+
+    }
+    //Load Expense
+    private async Task LoadCustomerByIncomeType(string IncomeType)
+    {
+        try
+        {
+            PartyListDisplay.Clear();
+            AllPartys.Clear();
+            FilteredBills.Clear();
+            Bills.Clear();
+            AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Clear();
+            AdvaceadjustmentVMs.Amount = 0;
+
+            AllPartys = await _ReceiptsService.GetCustomerByReceiptTypeAdvacnceAsync(IncomeType, AdvaceadjustmentVMs.PaymentTypeName);
+            PartyListDisplay = AllPartys;
+
+            if (!string.IsNullOrWhiteSpace(PartySearch))
+            {
+                await FilterVendorList();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadVendorByExpenseType failed.");
+        }
+
+    }
+
+
+    public async Task ValidateBillAdjust(ChangeEventArgs e, AdvaceadjustmentSubVM bill)
+    {
+
+        if (!decimal.TryParse(e.Value?.ToString(), out var input)) return;
+
+        bill.AdjustAmount = input;
+
+        if (!decimal.TryParse(e.Value?.ToString(), out decimal newAdj))
+            return;
+
+        bill.AdjustAmount = newAdj;
+
+        if (bill.AdjustSubId > 0)
+        {
+            decimal savedAdj = bill.SavedAdjustAmount;
+            decimal realBalance = bill.BalanceAmount;
+            decimal originalBillAmount = savedAdj + realBalance;
+
+            if (newAdj + savedAdj > originalBillAmount)
+            {
+                JS.ToastrError($"Adjustment exceeds bill amount. Max allowed: {originalBillAmount - savedAdj}");
+                bill.AdjustAmount = originalBillAmount - savedAdj;
+            }
+        }
+
+        if (bill.AdjustAmount > bill.BalanceAmount)
+        {
+            bill.AdjustAmount = bill.BalanceAmount;
+            await JS.ToastrWarning("Amount exceeds Bill balance. Adjusted to maximum allowed.");
+        }
+
+        if (bill.AdjustAmount < 0)
+            bill.AdjustAmount = 0;
+
+        var totalAdjusted = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Sum(x => x.AdjustAmount);
+
+        if (PaymentType == "Manual Selection")
+        {
+            if (bill.AdjustSubId == 0)
+            {
+                if (totalAdjusted > SelectedParty.AdvancePaid)
+                    AdvaceadjustmentVMs.Amount = SelectedParty.AdvancePaid;
+            }
+
+        }
+        else if (PaymentType == "OPENING BALANCE")
+        {
+            if (AdvaceadjustmentVMs.Amount > PartyVMs.OpeningBalancePending)
+            {
+                await JS.ToastrWarning("Amount exceeds pending opening balance. Adjusted to maximum allowed.");
+
+                AdvaceadjustmentVMs.Amount = PartyVMs.OpeningBalancePending;
+                StateHasChanged();
+                return;
+            }
+
+        }
+        else
+        {
+
+            if (totalAdjusted > bill.AdjustAmount)
+            {
+                var excess = totalAdjusted - bill.AdjustAmount;
+                bill.AdjustAmount -= excess;
+                await JS.ToastrWarning("Amount exceeds Bill balance. Adjusted to maximum allowed.");
+                if (bill.AdjustAmount < 0)
+                    bill.AdjustAmount = 0;
+            }
+            totalAdjusted = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Sum(x => x.AdjustAmount);
+            AdvaceadjustmentVMs.Amount = totalAdjusted;
+        }
+
+
+        await AutoAdjust();
+        await EnforceAdjustmentLimit();
+        StateHasChanged();
+
+    }
+
+    private async Task LoadSubcontractors()
+    {
+        // Implementation for subcontractors
+    }
+
+    private async Task LoadServiceVendors()
+    {
+        // Implementation for service vendors
+    }
+
+    private async Task LoadEmployees()
+    {
+        // Implementation for employees
+    }
+
+    private async Task LoadGeneralVendors()
+    {
+        // Implementation for general vendors
+    }
+
+    private async Task LoadExistingPaymnets(int paymentId)
+    {
+        try
+        {
+            isProcessing = true;
+            StateHasChanged();
+
+            AdvaceadjustmentVMs = await _AdvanceAdjustService.GetAdvaceAdjustsByIdAsync(paymentId);
+
+            if (AdvaceadjustmentVMs == null)
+            {
+                await JS.ToastrWarning("Payment not found.");
+                return;
+            }
+
+            if (AdvaceadjustmentVMs.PayToRefCode.HasValue && AdvaceadjustmentVMs.PayToRefCode > 0)
+            {
+                if (!AdvaceadjustmentVMs.IsIncome)
+                {
+                    var vendor = await _PaymentsService.GetVendorByIdAsync(AdvaceadjustmentVMs.PayToRefCode.Value);
+                    if (vendor != null)
+                    {
+                        SelectedParty = PartyMapper.FromVendor(vendor);
+
+                        PartySearch = SelectedParty.PartyName;
+                        await LoadBillsPending(SelectedParty.PartyCode, AdvaceadjustmentVMs.ExpenseName);
+                        SelectedExpenseType = AdvaceadjustmentVMs.ExpenseName;
+                        await LoadPaymentTypes(AdvaceadjustmentVMs.ExpenseName);
+                        var paymentType = PaymentTypeList.FirstOrDefault(pt =>
+                            pt.PaymentTypeName == AdvaceadjustmentVMs.PaymentTypeName);
+                        SelectedPaymentTypeId = paymentType?.PaymentTypeId ?? 0;
+
+                        SelectedParty.AdvancePaid = await _PaymentsService.GetAdvanceAmountPaid(SelectedExpenseType, paymentType.PaymentTypeName, AdvaceadjustmentVMs.PayToRefCode.Value);
+                        await FilterBills();
+                    }
+                }
+                else
+                {
+                    var customer = await _ReceiptsService.GetCustomerByIdAsync(AdvaceadjustmentVMs.PayToRefCode.Value);
+                    if (customer != null)
+                    {
+                        SelectedParty = PartyMapper.FromCustomer(customer);
+
+                        PartySearch = SelectedParty.PartyName;
+                        await LoadBillsPendings(SelectedParty.PartyCode, AdvaceadjustmentVMs.IncomeName ?? "");
+                        SelectedExpenseType = AdvaceadjustmentVMs.IncomeName ?? "";
+                        await LoadReceiptsTypes(AdvaceadjustmentVMs.IncomeName ?? "");
+                        var paymentType = PaymentTypeList.FirstOrDefault(pt =>
+                        pt.PaymentTypeName == AdvaceadjustmentVMs.PaymentTypeName);
+                        SelectedPaymentTypeId = paymentType?.PaymentTypeId ?? 0;
+
+                        SelectedParty.AdvancePaid = await _ReceiptsService.GetAdvanceAmountPaid(SelectedExpenseType, paymentType?.PaymentTypeName ?? "", AdvaceadjustmentVMs.PayToRefCode.Value);
+                        await FilterBills();
+                    }
+
+                }
+
+
+            }
+
+            IsBank = AdvaceadjustmentVMs.BankId > 0;
+
+            PaymentType = AdvaceadjustmentVMs.PaymentTypeName ?? "Manual Selection";
+
+            if (IsBillAdjustmentAllowed)
+            {
+                if (PaymentType == "Automatic Adjust")
+                    await AutoAdjust();
+                else
+                    await FilterBills();
+            }
+
+            ActiveTab = TAB_LINKED;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JS.ToastrError("Failed to load payment details.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingPayments failed for AdjumentId: {paymentId}");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    private async Task HandleBackClick()
+    {
+        if (AdvaceadjustmentVMs.AdjumentId > 0 && IsBillAdjustmentAllowed && AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Count == 0)
+        {
+            await JS.ToastrError("Back not allowed. Please link bill first.");
+            return; // ❌ Stop navigation
+        }
+        _navigationManager.NavigateTo("/AdvanceAdjustmentList"); // ✔ Allow only when bill is linked
+
+    }
+
+    private async Task ExpenseSearchChanged(ChangeEventArgs e)
+    {
+        ExpenseSearch = e.Value?.ToString() ?? "";
+        AdvaceadjustmentVMs.ExpenseName = ExpenseSearch;
+        ShowExpenseDropdown = !string.IsNullOrWhiteSpace(ExpenseSearch);
+        PartyListDisplay.Clear();
+        AllPartys.Clear();
+        PartySearch = "";
+        if (ShowExpenseDropdown)
+        {
+            FilteredExpenses = expense
+                .Where(exp => exp.ExpenseName.Contains(ExpenseSearch, StringComparison.OrdinalIgnoreCase))
+                .Take(10)
+                .ToList();
+        }
+        else
+        {
+            FilteredExpenses.Clear();
+            PartyListDisplay.Clear();
+            SelectedExpenseType = "";
+            PartySearch = "";
+            AdvaceadjustmentVMs.Amount = 0;
+            PaymentTypeList.Clear();
+            Bills.Clear();
+
+
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SelectExpense(Expense selectedExpense)
+    {
+        try
+        {
+            AdvaceadjustmentVMs.ExpenseName = selectedExpense.ExpenseName;
+            AdvaceadjustmentVMs.ExpenseCode = selectedExpense.ExpenseCode;
+            ExpenseSearch = selectedExpense.ExpenseName;
+            SelectedExpenseType = selectedExpense.ExpenseName;
+            ShowExpenseDropdown = false;
+            ShowTypeDropdown = false;
+            FilteredExpenses.Clear();
+            AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Clear();
+            Bills.Clear();
+            await LoadPaymentTypes(AdvaceadjustmentVMs.ExpenseName ?? "");
+            AdvaceadjustmentVMs.PaymentTypeId = 0;
+            AdvaceadjustmentVMs.PaymentTypeName = "";
+            PartySearch = "";
+            BillSearch = "";
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+
+
+
+    }
+    private async Task SelectIncome(Income selectedExpense)
+    {
+        try
+        {
+            AdvaceadjustmentVMs.IncomeName = selectedExpense.IncomeName;
+            AdvaceadjustmentVMs.IncomeCode = selectedExpense.IncomeCode;
+            ExpenseSearch = selectedExpense.IncomeName ?? "";
+            SelectedExpenseType = selectedExpense?.IncomeName ?? "";
+            ShowTypeDropdown = false;
+            FilteredIncomes.Clear();
+            AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Clear();
+            Bills.Clear();
+            await LoadReceiptsTypes(AdvaceadjustmentVMs.IncomeName ?? "");
+            AdvaceadjustmentVMs.PaymentTypeId = 0;
+            AdvaceadjustmentVMs.PaymentTypeName = "";
+            PartySearch = "";
+            BillSearch = "";
+
+            StateHasChanged();
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SelectIncome failed for IncomeName: {selectedExpense.IncomeName}");
+            await JS.ToastrError("Failed to apply Income selection. Please try again.");
+        }
+
+
+
+    }
+
+    private async Task LoadReceiptsTypes(string IncomeName)
+    {
+        try
+        {
+            PaymentTypeList.Clear();
+            var name = IncomeName?.ToUpper();
+
+            switch (name)
+            {
+                case "SALES":
+                case "LABOUR WORK":
+                case "SALES + LABOUR":
+                    PaymentTypeList = new List<PaymentTypeModel>
+                {
+                    new() { PaymentTypeId = 1, PaymentTypeName = "Manual Selection" },
+                    new() { PaymentTypeId = 2, PaymentTypeName = "Automatic Adjust" },
+
+                };
+                    break;
+
+                case "SERVICE BILL(OUT)":
+                    PaymentTypeList = new List<PaymentTypeModel>
+                {
+                    new() { PaymentTypeId = 1, PaymentTypeName = "Manual Selection" },
+                    new() { PaymentTypeId = 2, PaymentTypeName = "Automatic Adjust" }
+                };
+                    break;
+
+                case "SALARY":
+                    PaymentTypeList = new List<PaymentTypeModel>
+                {
+                    new() { PaymentTypeId = 4, PaymentTypeName = "Pay Advance" }
+                };
+                    break;
+
+                default:
+
+                    PaymentTypeList = new();
+                    break;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"LoadPaymentTypes failed for IncomeName: {IncomeName}");
+            await JS.ToastrError("Failed to apply IncomeName selection. Please try again.");
+        }
+
+
+    }
+    private async Task LoadPaymentTypes(string expenseName)
+    {
+        try
+        {
+            PaymentTypeList.Clear();
+            var name = expenseName?.ToUpper();
+
+            switch (name)
+            {
+                case "PURCHASE":
+                case "SUBCONTRACT":
+                case "PURCHASE ORDER ADVANCE":
+                case "SUBCONTRACT ORDER ADVANCE":
+                    PaymentTypeList = new List<PaymentTypeModel>
+                {
+                    new() { PaymentTypeId = 1, PaymentTypeName = "Manual Selection" },
+                    new() { PaymentTypeId = 2, PaymentTypeName = "Automatic Adjust" },
+
+                };
+                    break;
+
+
+
+                case "SERVICE BILL(IN)":
+                    PaymentTypeList = new List<PaymentTypeModel>
+                {
+                    new() { PaymentTypeId = 1, PaymentTypeName = "Manual Selection" },
+                    new() { PaymentTypeId = 2, PaymentTypeName = "Automatic Adjust" }
+                };
+                    break;
+
+                case "SALARY":
+                    PaymentTypeList = new List<PaymentTypeModel>
+                {
+                    new() { PaymentTypeId = 4, PaymentTypeName = "Pay Advance" }
+                };
+                    break;
+
+                default:
+
+                    PaymentTypeList = new();
+                    break;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"LoadPaymentTypes failed for expenseName: {expenseName}");
+            await JS.ToastrError("Failed to apply expenseName selection. Please try again.");
+        }
+
+
+    }
+
+
+    string SelectedBankName
+    {
+        get
+        {
+            if (AdvaceadjustmentVMs.BankId == null) return "";
+            var bk = bankList.FirstOrDefault(b => b.BankId == AdvaceadjustmentVMs.BankId);
+            return bk?.BankName ?? "";
+        }
+    }
+
+    // UI HANDLERS
+
+    public async Task SelectMode(bool bank)
+    {
+        IsBank = bank;
+        if (!bank) AdvaceadjustmentVMs.BankId = null;
+        AdvaceadjustmentVMs.PaymentMode = bank ? "Bank" : "Cash";
+    }
+
+    public async Task SelectBank(int id)
+    {
+        IsBank = true;
+        AdvaceadjustmentVMs.BankId = id;
+        AdvaceadjustmentVMs.PaymentMode = "Bank";
+    }
+
+    private async Task VendorSearchChanged(ChangeEventArgs e)
+    {
+        try
+        {
+
+            PartySearch = e.Value?.ToString() ?? "";
+            ShowVendorDropdown = !string.IsNullOrWhiteSpace(PartySearch);
+
+            if (string.IsNullOrWhiteSpace(AdvaceadjustmentVMs.ExpenseName) && string.IsNullOrWhiteSpace(AdvaceadjustmentVMs.IncomeName))
+            {
+                PartyListDisplay.Clear();
+                if (!string.IsNullOrWhiteSpace(PartySearch))
+                {
+                    await JS.InvokeVoidAsync("alert", "Please select an expense/Income type first.");
+                }
+            }
+            else
+            {
+                if (!AllPartys.Any())
+                {
+                    if (IsIncome)
+                    {
+                        await LoadCustomerByIncomeType(AdvaceadjustmentVMs.IncomeName ?? "");
+                    }
+                    else
+                    {
+                        await LoadVendorByExpenseType(AdvaceadjustmentVMs.ExpenseName ?? "");
+                    }
+
+                }
+
+                // if(!IsBillAdjustmentAllowed && (PaymentTypeNormalized=="OPENING BALANCE" || PaymentTypeNormalized == "PAY ADVANCE"))
+                // {
+                //     AllPartys=await _PaymentsService.SearchPartysAsync(PartySearch);
+                //     PartyListDisplay = AllPartys;
+                // }
+
+                await FilterVendorList();
+            }
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"VendorSearchChanged failed for PartySearch: {PartySearch}");
+            await JS.ToastrError("Failed to apply VendorSearchChanged selection. Please try again.");
+
+        }
+
+    }
+
+    private async Task FilterVendorList()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(PartySearch))
+            {
+                PartyListDisplay.Clear();
+                Bills.Clear();
+                FilteredBills.Clear();
+            }
+            else
+            {
+                PartyListDisplay = AllPartys
+                    .Where(v => v.PartyName.Contains(PartySearch, StringComparison.OrdinalIgnoreCase))
+                    .Take(10)
+                    .ToList();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"FilterVendorList failed for PartySearch: {PartySearch}");
+            await JS.ToastrError("Failed to apply FilterVendorList selection. Please try again.");
+
+        }
+    }
+
+    public async Task SelectVendor(PartyVM v)
+    {
+        try
+        {
+            SelectedParty = v;
+
+            ShowVendorDropdown = false;
+            PartySearch = v.PartyName;
+            PartyListDisplay.Clear();
+            AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Clear();
+            AdvaceadjustmentVMs.PayToRefCode = v.PartyCode;
+            AdvaceadjustmentVMs.PayToName = v.PartyName;
+            PartyVMs.OpeningBalancePending = SelectedParty.OpeningBalancePending;
+            //PartyVMs.AdvancePaid = SelectedParty.AdvancePaid;
+            if (IsIncome)
+            {
+                await LoadBillsPendings(Convert.ToInt32(AdvaceadjustmentVMs.PayToRefCode), AdvaceadjustmentVMs.IncomeName ?? "");
+            }
+            else
+            {
+                await LoadBillsPending(Convert.ToInt32(AdvaceadjustmentVMs.PayToRefCode), AdvaceadjustmentVMs.ExpenseName ?? "");
+            }
+
+
+            ActiveTab = TAB_BILLS;
+            StateHasChanged(); // 🔥 force UI refresh
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SelectVendor failed for SelectedParty: {SelectedParty}");
+            await JS.ToastrError("Failed to apply SelectVendor selection. Please try again.");
+        }
+    }
+
+    private async Task LoadBillsPending(int vendorCode, string expenseType)
+    {
+        Bills = await _PaymentsService.GetBillsByVendorAsync(vendorCode, expenseType);
+        FilteredBills = Bills;
+    }
+    private async Task LoadBillsPendings(int CustId, string IncomeType)
+    {
+        Bills = await _ReceiptsService.GetBillsByCustomerAsync(CustId, IncomeType);
+        FilteredBills = Bills;
+    }
+
+
+    // BILL SEARCH FUNCTIONALITY
+    private void BillSearchChanged(ChangeEventArgs e)
+    {
+        BillSearch = e.Value?.ToString()?.Trim() ?? "";
+        FilterBills();
+        StateHasChanged();
+    }
+
+    private void ClearBillSearch()
+    {
+        BillSearch = "";
+        FilterBills();
+        StateHasChanged();
+    }
+
+    public async Task FilterBills()
+    {
+        if (SelectedParty == null)
+        {
+            FilteredBills.Clear();
+            return;
+        }
+
+        var search = BillSearch?.Trim().ToLowerInvariant() ?? "";
+        var linkedIds = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Select(x => x.RefId).ToHashSet();
+
+        var linkedBills = Bills.Where(b => linkedIds.Contains(b.Id)).ToList();
+
+        var unlinkedBills = Bills
+            .Where(b => b.PartyCode == SelectedParty.PartyCode && !linkedIds.Contains(b.Id))
+            .Where(b => string.IsNullOrEmpty(search) ||
+                        b.BillNo.ToLowerInvariant().Contains(search) ||
+                        b.Id.ToString().Contains(search))
+            .OrderByDescending(b => b.BillDate)
+            .ThenBy(b => b.BillNo)
+            .ToList();
+        if (AdvaceadjustmentVMs.AdjumentId > 0)
+        {
+            if (AdvaceadjustmentVMs.AdjumentId > 0)
+            {
+                foreach (var bill in linkedBills)
+                {
+                    var rows = AdvaceadjustmentVMs.AdvaceadjustmentSubVM
+                        .Where(x => x.RefId == bill.Id)
+                        .ToList();   // get ALL rows for same bill
+
+                    foreach (var row in rows)
+                    {
+                        if (row.AdjustSubId > 0)
+                        {
+                            decimal savedAdj = await _AdvanceAdjustService
+                                .GetAdvaceAdjustSubAmountByIdAsync(row.AdjustSubId);
+
+                            decimal realBal = bill.Balance;
+
+                            decimal originalBillAmount = savedAdj + realBal;
+
+                            row.BalanceAmount = originalBillAmount; // correct balance for each row
+
+                            if (row.AdjustAmount > originalBillAmount)
+                            {
+                                row.AdjustAmount = originalBillAmount;
+                                await JS.ToastrError($"Bill {row.BillNo}: Adjust exceeds original bill amount!");
+                            }
+                        }
+                        else
+                        {
+                            row.BalanceAmount = bill.Balance; // if no saved adjustment
+                        }
+                    }
+                }
+            }
+
+        }
+
+
+        if (!linkedBills.Any() && !unlinkedBills.Any() && AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Any())
+        {
+            foreach (var row in AdvaceadjustmentVMs.AdvaceadjustmentSubVM)
+            {
+                row.BalanceAmount = row.AdjustAmount;
+            }
+        }
+
+        FilteredBills = unlinkedBills;
+        ActiveTab = TAB_BILLS;
+
+        StateHasChanged();
+    }
+
+
+
+    public async Task AddBill(BillsVM b)
+    {
+        AdvaceadjustmentVMs.AdvaceadjustmentSubVM ??= new List<AdvaceadjustmentSubVM>();
+
+        if (AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Any(x => x.RefId == b.Id))
+            return;
+
+        AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Add(new AdvaceadjustmentSubVM
+        {
+            RefId = b.Id,
+            BillNo = b.BillNo,
+            BillDate = b.BillDate,
+            BalanceAmount = b.Balance,
+            AdjustAmount = b.Balance
+        });
+
+        FilterBills();
+        ActiveTab = TAB_LINKED;
+
+        AdvaceadjustmentVMs.Amount = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Sum(x => x.AdjustAmount);
+
+        StateHasChanged();
+    }
+
+
+    public async Task RemoveBill(AdvaceadjustmentSubVM bill)
+    {
+        AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Remove(bill);
+        if (AdvaceadjustmentVMs.AdjumentId > 0)
+        {
+            var oldItem = new AdvaceadjustmentSub
+            {
+                RefId = bill.RefId,
+                AdjustAmount = bill.AdjustAmount
+            };
+
+            // await _PaymentsService.UpdatePendingBalanceAsync(
+            //     AdvaceadjustmentVMs.ExpenseName,
+            //     new List<AdvaceadjustmentSubVM>(),     // no new adjustment
+            //     new List<AdvaceadjustmentSub> { oldItem } // revert the old adjustment
+            // );
+            bool success = false; ///await _PaymentsService.DeletePaymentSubidAsync(bill.AdjumentId);
+            if (success)
+
+            {
+                await JS.ToastrSuccess("Payments Deleted successfully.");
+                // Bills = await _PaymentsService.GetBillsByVendorAsync(AdvaceadjustmentVMs.PayToRefCode ?? 0, AdvaceadjustmentVMs.ExpenseName);
+                // FilteredBills = Bills;
+            }
+            else
+            {
+                await JS.ToastrError("Payments Delete failed.");
+            }
+        }
+
+        FilterBills();
+        AdvaceadjustmentVMs.Amount = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Sum(x => x.AdjustAmount);
+        StateHasChanged();
+    }
+    public async Task AutoSelectPendingBillsForParty()
+    {
+        if (SelectedParty == null) return;
+
+        var pendingBills = Bills
+            .Where(b => b.PartyCode == SelectedParty.PartyCode && b.Balance > 0)
+            .OrderBy(b => b.BillDate)
+            .ThenBy(b => b.Id)
+            .ToList();
+
+        foreach (var bill in pendingBills)
+        {
+            await AddBill(bill);
+        }
+    }
+
+
+    public async Task OnPaymentTypeChanged()
+    {
+        var selected = PaymentTypeList
+            .FirstOrDefault(x => x.PaymentTypeId == SelectedPaymentTypeId);
+
+        AdvaceadjustmentVMs.PaymentTypeId = selected?.PaymentTypeId ?? 0;
+        AdvaceadjustmentVMs.PaymentTypeName = selected?.PaymentTypeName ?? "";
+        PaymentType = AdvaceadjustmentVMs.PaymentTypeName;
+        //PartySearch = "";
+        // 🔵 ADVANCE / OPENING BAL → NO BILL LOGIC
+        if (!IsBillAdjustmentAllowed)
+        {
+            AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Clear();
+            Bills.Clear();
+            // await LoadVendorByExpenseType(AdvaceadjustmentVMs.ExpenseName);
+            FilterVendorList();
+            ActiveTab = TAB_GENERAL;
+            StateHasChanged();
+            return;
+        }
+        else
+        {
+            // await LoadVendorByExpenseType(AdvaceadjustmentVMs.ExpenseName);
+
+            // 🟢 BILL PAYMENTS
+            if (PaymentType == "Automatic Adjust")
+            {
+
+                await AutoSelectPendingBillsForParty();
+
+                AutoAdjust();
+                ActiveTab = TAB_LINKED;
+            }
+            else
+            {
+                FilterBills();
+                ActiveTab = TAB_BILLS;
+            }
+            FilterVendorList();
+            StateHasChanged();
+            return;
+
+        }
+
+
+        StateHasChanged();
+    }
+
+    public async Task AmountChanged(ChangeEventArgs e)
+    {
+        if (!decimal.TryParse(e.Value?.ToString(), out var amt))
+            return;
+
+        AdvaceadjustmentVMs.Amount = amt;
+
+        if (PaymentType == "Automatic Adjust")
+        {
+            AutoAdjust();
+            EnforceAdjustmentLimit();
+
+        }
+        else if (PaymentType.ToUpper() == "OPENING BALANCE")
+        {
+            if (AdvaceadjustmentVMs.AdjumentId > 0)
+            {
+                var OldAmount = 0;   //await _PaymentsService.GetPaymentsByIdAsync(AdvaceadjustmentVMs.AdjumentId);
+                var vendor = 0;    //await _PaymentsService.GetVendorByIdAsync(AdvaceadjustmentVMs.PayToRefCode.Value);
+                // if (vendor != null)
+                // {
+                //     SelectedParty = PartyMapper.FromVendor(vendor);
+                //     PartyVMs.OpeningBalancePending = OldAmount.Amount + SelectedParty.OpeningBalancePending;
+                //     SelectedParty.OpeningBalancePending = PartyVMs.OpeningBalancePending;
+                // }
+
+            }
+            if (AdvaceadjustmentVMs.Amount > SelectedParty.OpeningBalancePending)
+            {
+                await JS.ToastrWarning("Amount exceeds pending opening balance. Adjusted to maximum allowed.");
+                AdvaceadjustmentVMs.Amount = PartyVMs.OpeningBalancePending;
+                StateHasChanged();
+                return;
+            }
+        }
+        else if (PaymentType.ToUpper() == "PAY ADVANCE")
+        {
+            AutoAdjust();
+            EnforceAdjustmentLimit();
+        }
+        else
+        {
+            AutoAdjust();
+            EnforceAdjustmentLimit();
+        }
+
+        StateHasChanged();
+    }
+    public async Task EnforceAdjustmentLimit()
+    {
+        decimal runningTotal = 0;
+
+        foreach (var row in AdvaceadjustmentVMs.AdvaceadjustmentSubVM)
+        {
+            var allowed = AdvaceadjustmentVMs.Amount - runningTotal;
+
+            if (allowed <= 0)
+            {
+                row.AdjustAmount = 0;
+            }
+            else if (row.AdjustAmount > allowed)
+            {
+                row.AdjustAmount = allowed; // 🔒 force reduce
+                await JS.ToastrWarning("Amount exceeds Bill balance. Adjusted to maximum allowed.");
+            }
+
+            runningTotal += row.AdjustAmount;
+        }
+        AdvaceadjustmentVMs.Amount = runningTotal;
+        StateHasChanged();
+    }
+
+    public async Task AutoAdjust()
+    {
+        if (!IsBillAdjustmentAllowed || SelectedParty == null)
+            return;
+
+        decimal originalPaymentAmount = AdvaceadjustmentVMs.Amount;
+
+        if (AdvaceadjustmentVMs.PaymentTypeName == "Automatic Adjust")
+        {
+
+            originalPaymentAmount = Bills.Sum(b => b.Balance);
+        }
+        decimal adjustedAmount = originalPaymentAmount;
+        decimal? availableBankBalance = 0;
+
+        // 🔥 2. TOTAL BILL BALANCE CHECK NEXT
+        var pendingBills = Bills
+            .Where(b => b.PartyCode == SelectedParty.PartyCode && b.Balance > 0)
+            .OrderBy(b => b.BillDate)
+            .ThenBy(b => b.Id)
+            .ToList();
+
+        decimal totalBillBalance = pendingBills.Sum(b => b.Balance);
+
+        // 🔥 3. ADJUST BILLS (Before Save OR Edit Mode)
+        decimal remaining = adjustedAmount;
+
+        if (AdvaceadjustmentVMs.AdjumentId == 0) // ➤ NEW payment (before save)
+        {
+
+            if (totalBillBalance > adjustedAmount)
+            {
+                totalBillBalance = adjustedAmount;
+                AdvaceadjustmentVMs.Amount = adjustedAmount;
+                await JS.ToastrError($"Payment reduced to Total Bill Balance: {adjustedAmount}");
+            }
+            if (adjustedAmount > SelectedParty.AdvancePaid)
+            {
+                AdvaceadjustmentVMs.Amount = SelectedParty.AdvancePaid;
+                remaining = AdvaceadjustmentVMs.Amount;
+                await JS.ToastrError($"Party Advance reduce to Total Advance Balance: {SelectedParty.AdvancePaid}");
+            }
+            AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Clear();
+
+            foreach (var b in pendingBills)
+            {
+                if (remaining <= 0) break;
+
+                var adj = Math.Min(b.Balance, remaining);
+
+                AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Add(new AdvaceadjustmentSubVM
+                {
+                    AdjustSubId = 0,
+                    RefId = b.Id,
+                    BillNo = b.BillNo,
+                    BillDate = b.BillDate,
+                    BalanceAmount = b.Balance,
+                    SavedAdjustAmount = 0,
+                    AdjustAmount = adj
+                });
+
+                remaining -= adj;
+            }
+        }
+        else
+        {
+            foreach (var sub in AdvaceadjustmentVMs.AdvaceadjustmentSubVM.OrderBy(x => x.BillDate))
+            {
+                decimal savedAdj = await _AdvanceAdjustService
+                    .GetAdvaceAdjustSubAmountByIdAsync(sub.AdjustSubId);
+
+                var realBill = pendingBills.FirstOrDefault(b => b.Id == sub.RefId);
+                decimal realBalance = realBill?.Balance ?? 0;
+
+                // TOTAL BILL (constant)
+                decimal billTotal = savedAdj + realBalance;
+
+                // PARTY ADVANCE LIMIT
+                if (adjustedAmount > (SelectedParty.AdvancePaid + savedAdj))
+                {
+                    AdvaceadjustmentVMs.Amount = SelectedParty.AdvancePaid;
+                    remaining = AdvaceadjustmentVMs.Amount;
+
+                    await JS.ToastrError(
+                        $"Party Advance reduced to Total Advance Balance: {SelectedParty.AdvancePaid}"
+                    );
+                }
+
+                // DISTRIBUTE
+                decimal newAdjust = sub.AdjustAmount;
+
+                if (remaining > 0)
+                {
+                    newAdjust = Math.Min(billTotal, remaining);
+                }
+                else
+                {
+                    newAdjust = savedAdj; // keep old
+                }
+
+                // CLAMP
+                if (newAdjust > billTotal)
+                    newAdjust = billTotal;
+
+                if (newAdjust < 0)
+                    newAdjust = 0;
+
+                // APPLY
+                sub.SavedAdjustAmount = savedAdj;
+                sub.AdjustAmount = newAdjust;
+
+                // 🔥 KEY LINE — BALANCE FROM TOTAL
+                sub.BalanceAmount = billTotal - newAdjust;
+
+                // 🔥 REDUCE ONLY NEW PART
+                decimal newPortion = newAdjust - savedAdj;
+                if (newPortion > 0)
+                    remaining -= newPortion;
+            }
+
+            // foreach (var sub in AdvaceadjustmentVMs.AdvaceadjustmentSubVM.OrderBy(x => x.BillDate))
+            // {
+
+            //     decimal savedAdj = await _AdvanceAdjustService.GetAdvaceAdjustSubAmountByIdAsync(sub.AdjustSubId);
+
+
+            //     var realBill = pendingBills.FirstOrDefault(b => b.Id == sub.RefId);
+            //     decimal realBalance = realBill?.Balance ?? 0;
+
+            //     decimal RealAdvancepaid = SelectedParty.AdvancePaid;
+
+
+            //     decimal originalBillAmount = savedAdj + realBalance;
+            //     decimal OriginalAmountAsdvace = savedAdj + RealAdvancepaid;
+
+
+
+
+            //     if (sub.AdjustAmount > originalBillAmount)
+            //     {
+            //         await JS.ToastrError($"Bill {sub.BillNo}: Adjust exceeds original bill amount");
+            //         sub.AdjustAmount = originalBillAmount;
+            //     }
+
+            //     if (adjustedAmount > OriginalAmountAsdvace)
+            //     {
+            //         AdvaceadjustmentVMs.Amount = OriginalAmountAsdvace;
+            //         remaining = AdvaceadjustmentVMs.Amount;
+            //         await JS.ToastrError($"Party Advance reduce to Total Advance Balance: {SelectedParty.AdvancePaid}");
+            //     }
+            //     if (remaining > 0)
+            //     {
+            //         var adj = Math.Min(realBalance + savedAdj, remaining);
+            //         sub.SavedAdjustAmount = savedAdj;
+            //         sub.BalanceAmount = originalBillAmount;
+            //         sub.AdjustAmount = adj;
+            //         remaining -= adj;
+            //     }
+            //     else
+            //     {
+
+            //         sub.SavedAdjustAmount = savedAdj;
+            //         sub.BalanceAmount = realBalance;
+            //         sub.AdjustAmount = savedAdj;
+            //     }
+            // }
+        }
+        decimal finalTotalAdjust = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Sum(x => x.AdjustAmount);
+
+        if (finalTotalAdjust == 0)
+        {
+            await JS.ToastrError("No pending bills available for adjustment");
+            AdvaceadjustmentVMs.Amount = 0;
+            return;
+        }
+
+        AdvaceadjustmentVMs.Amount = finalTotalAdjust;
+        await FilterBills(); // refresh bill lists
+
+        ActiveTab = TAB_LINKED;
+        AdvaceadjustmentVMs.AdvaceadjustmentSubVM = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.ToList();
+        await EnforceAdjustmentLimit();
+        StateHasChanged();
+    }
+
+
+    void ShowInvoice(BillsVM b)
+    {
+        SelectedInvoice = b;
+        IsInvoiceModalVisible = true;
+        StateHasChanged();
+    }
+
+    void CloseInvoiceModal()
+    {
+        IsInvoiceModalVisible = false;
+        SelectedInvoice = null;
+        StateHasChanged();
+    }
+
+    private async Task UpsertPayments()
+    {
+        var toRemove = AdvaceadjustmentVMs.AdvaceadjustmentSubVM
+     .Where(x => x.AdjustSubId == 0 &&
+                 x.AdjustAmount <= 0)
+     .ToList();
+
+        foreach (var item in toRemove)
+        {
+            AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Remove(item);
+        }
+        try
+        {
+            if (await SavePayment())
+            {
+                var isNewEnquiry = AdvaceadjustmentVMs.AdjumentId == 0;
+
+                if (isNewEnquiry)
+                    await _AdvanceAdjustService.GenerateAdvanceAdjustNumberAsync();
+
+                AdvaceadjustmentVMs.IsIncome = IsIncome;
+                var parent = await _AdvanceAdjustService.UpsertAdvanceAdjustAsync(AdvaceadjustmentVMs, IsBillAdjustmentAllowed);
+
+                await JS.ToastrSuccess(isNewEnquiry
+                    ? "AdvanceAdjustment saved successfully."
+                    : "AdvanceAdjustment updated successfully.");
+
+                // Discard popup Clear
+                await JS.InvokeVoidAsync("NavigationGuard.clear");
+
+                _navigationManager.NavigateTo("/AdvanceAdjustmentList");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.ToastrError("An error occurred while saving the Enquiry.");
+            await LoggingService.LogDeveloperError(ex, "Error in UpsertEnquiryPurchase()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task<bool> SavePayment()
+    {
+        bool Valid = true;
+        if (SelectedParty == null)
+        {
+            JS.ToastrError("Please select a vendor.");
+            Valid = false;
+
+        }
+
+        if (AdvaceadjustmentVMs.Amount <= 0)
+        {
+            JS.ToastrError("Enter a valid amount.");
+            Valid = false;
+        }
+
+        if (PaymentType == "Manual Selection")
+        {
+            var sumAdj = AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Sum(x => x.AdjustAmount);
+            if (sumAdj < AdvaceadjustmentVMs.Amount)
+            {
+                JS.ToastrError($"Allocated ₹{sumAdj:N2} is less than payment amount ₹{AdvaceadjustmentVMs.Amount:N2}.");
+                Valid = false;
+            }
+        }
+        if (IsBillAdjustmentAllowed)
+        {
+            if (AdvaceadjustmentVMs.AdvaceadjustmentSubVM.Count == 0)
+            {
+                JS.ToastrError("select At least One Bill");
+                Valid = false;
+            }
+
+
+        }
+
+        return Valid;
+
+    }
+
+    void Print() => JS.InvokeVoidAsync("alert", "Print feature activated");
+    void ChequePrint() => JS.InvokeVoidAsync("alert", "Cheque generation initiated");
+
+    void RefreshAll()
+    {
+        FilterBills();
+        StateHasChanged();
+    }
+
+
+    bool IsIncome = true; // default
+
+    void SetType(bool income)
+    {
+        IsIncome = income;
+        AdvaceadjustmentVMs.IsIncome = IsIncome;
+        AdvaceadjustmentVMs.IncomeCode = null;
+        AdvaceadjustmentVMs.ExpenseCode = null;
+        AdvaceadjustmentVMs.IncomeName = null;
+        AdvaceadjustmentVMs.ExpenseName = null;
+        StateHasChanged(); // ✅ force refresh
+    }
+    private async Task TypeSearchChanged(ChangeEventArgs e)
+    {
+        var text = e.Value?.ToString() ?? "";
+
+        ShowTypeDropdown = !string.IsNullOrWhiteSpace(text);
+        AdvaceadjustmentVMs.IncomeName = "";
+        AdvaceadjustmentVMs.ExpenseName = "";
+        if (!ShowTypeDropdown)
+        {
+            FilteredExpenses.Clear();
+            FilteredIncomes.Clear();
+            return;
+        }
+
+        if (IsIncome)
+        {
+            AdvaceadjustmentVMs.IncomeName = text;
+
+            FilteredIncomes = incomes
+                .Where(x => x.IncomeName.Contains(text, StringComparison.OrdinalIgnoreCase))
+                .Take(10)
+                .ToList();
+        }
+        else
+        {
+            AdvaceadjustmentVMs.ExpenseName = text;
+
+            FilteredExpenses = expense
+                .Where(x => x.ExpenseName.Contains(text, StringComparison.OrdinalIgnoreCase))
+                .Take(10)
+                .ToList();
+        }
+    }
+}
+

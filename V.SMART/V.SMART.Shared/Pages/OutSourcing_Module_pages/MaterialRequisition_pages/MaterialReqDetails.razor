@@ -1,0 +1,340 @@
+﻿@page "/materialRequisition/details/{MReqId:int}"
+@using V.SMART.Shared.Services.ReportViewer
+
+@inherits BaseUserRightsComponent
+
+@inject IMaterialReqService _mreqService
+@inject IJSRuntime _js
+
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+
+@inject ReportService reportService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            @if (!isOtherScreen)
+            {
+                <!-- Company Details Section -->
+                <MyCompanyDetails />
+            }
+
+            <!-- Cancelled Watermark -->
+            @if (MReqVMs.MreqCancel)
+            {
+                <div class="cancelWatermark ms-20 mt-10">CANCELLED</div>
+            }
+
+            @if (IsIndentGeneratedFromBOM && !MReqVMs.MreqCancel)
+            {
+                <div class="cancelWatermark ms-20 mt-10">From BOM</div>
+            }
+
+            @if (IsIndentGeneratedFromMRA && !MReqVMs.MreqCancel)
+            {
+                <div class="cancelWatermark ms-20 mt-10">From MRA</div>
+            }
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">Material Requisition Details</h4>
+            </div>
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <div class="row g-3 mb-4">
+
+                <div class="col-md-12">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Document Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Document Type</strong></td>
+                                        <td>@(MReqVMs.IsPurchOrSubCon ? "Purchase" : "Subcontract")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Purchase Req No</strong></td>
+                                        <td>@(MReqVMs != null ? $"{MReqVMs.MReqNo}{MReqVMs.Suffix}" : "")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Purchase Req Date</strong></td>
+                                        <td>@(MReqVMs?.MreqDate.ToString("dd/MM/yyyy") ?? "")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Person Name</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(MReqVMs?.KindAttn) ? MReqVMs.KindAttn : "")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Department</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(MReqVMs?.Department) ? MReqVMs.Department : "")</td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PR Items Section -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                    Quotation Items
+                </div>
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th class="text-center">Sl No.</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th class="text-center">UOM</th>
+                                <th class="text-end">Purch Qty</th>
+                                <th class="text-end">Bal Qty</th>
+                                <th class="text-end">Vendor</th>
+                                <th class="text-end">Category</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Line Total</th>
+                                <th class="text-end">Due Date</th>
+                                <th class="text-end">CostCenter</th>
+                                <th class="text-end">Remark</th>
+
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (MReqVMs?.MaterialReqSubVMs != null && MReqVMs.MaterialReqSubVMs.Any())
+                            {
+                                @foreach (var item in MReqVMs.MaterialReqSubVMs)
+                                {
+                                    <tr>
+                                        <td class="text-center">@item.SlNo</td>
+                                        <td>@(item.ItemCode ?? "")</td>
+                                        <td>@(item.ItemName ?? "")</td>
+                                        <td class="text-center">@item.UOM</td>
+                                        <td class="text-end">@FormatDecimal(item.PurchQty)</td>
+                                        <td class="text-end">@FormatDecimal(item.BalQty)</td>
+                                        <td>@(item.VendorName)</td>
+                                        <td>@(item.CategoryName)</td>
+                                        <td class="text-end">@FormatDecimal(item.UnitPrice)</td>
+                                        <td class="text-end">@FormatDecimal(item.TotalGross)</td>
+                                        <td>@item.DueDate.ToString("dd/MM/yyyy")</td>
+                                        <td>@(item.Remark)</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="13" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            @if (!isOtherScreen)
+            {
+                <div class="d-flex gap-2 justify-content-end">
+                    <a href="/materialRequisitionList" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left-circle"></i> Back To List
+                    </a>
+                    <a href="@($"/materialRequisition/update/{MReqId}")" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil-square"></i> Modify
+                    </a>
+                    @if (MReqVMs.IsAuthorized)
+                    {
+                        <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                            <i class="bi bi-printer"></i> Print
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Material Requisition";
+
+    [Parameter]
+    public int MReqId { get; set; }
+    [Parameter]
+    public bool isOtherScreen { get; set; }
+
+    private string? pdfBase64;
+
+    private bool isProcessing { get; set; } = true;
+    private MaterialReqVM MReqVMs { get; set; } = new MaterialReqVM();
+
+    private bool IsIndentGeneratedFromMRA { get; set; } = false;
+    private bool IsIndentGeneratedFromBOM { get; set; } = false;
+
+    private int Decimalplaces { get; set; } = 2;
+
+    private string FormatDecimal(decimal? value)
+    {
+        try
+        {
+            if (value == null) return "0";
+            return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+        }
+        catch (Exception ex)
+        {
+            _js.ToastrError("Failed to FormatDecimal Material Requisition.");
+            _logs.LogDeveloperError(ex, $"Failed to FormatDecimal Material Requisition.");
+            return "";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadPR();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnInitializedAsync failed for MReq No: {MReqVMs.MReqNo}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadPR()
+    {
+        try
+        {
+            if (MReqId > 0)
+            {
+                var pr = await _mreqService.GetMreqByMreqIdAsync(MReqId);
+
+                if (pr != null)
+
+                {
+
+                    MReqVMs = pr;
+
+                }
+
+                Decimalplaces = await _mreqService.GetDecimalPlacesAsync();
+            }
+
+            IsIndentGeneratedFromMRA = await CheckIsIndentGeneratedFromMRA();
+
+            IsIndentGeneratedFromBOM = await CheckIsIndentGeneratedFromBOM();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to LoadPR Material Requisition.");
+            await _logs.LogDeveloperError(ex, $"LoadPR failed for MReq No: {MReqVMs.MReqNo}");
+        }
+    }
+
+    private async Task<bool> CheckIsIndentGeneratedFromMRA()
+    {
+        try
+        {
+            if (MReqVMs?.MaterialReqSubVMs == null || MReqVMs.MaterialReqSubVMs.Count == 0)
+                return false;
+
+            return MReqVMs.MaterialReqSubVMs
+                .Any(sub => sub.RefPoSubId.HasValue && sub.RefPoSubId > 0
+                         && sub.MainAssyId.HasValue && sub.MainAssyId > 0);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CheckIsIndentGeneratedFromMRA failed for MReq No: {MReqVMs.MReqNo}");
+            await _js.ToastrError("Failed to CheckIsIndentGeneratedFromMRA Material Requisition.");
+            return false;
+        }
+
+
+    }
+
+    private async Task<bool> CheckIsIndentGeneratedFromBOM()
+    {
+        try
+        {
+            if (MReqVMs?.MaterialReqSubVMs == null || MReqVMs.MaterialReqSubVMs.Count == 0)
+                return false;
+
+            return MReqVMs.MaterialReqSubVMs
+                .Any(sub => sub.RefBomId.HasValue && sub.RefBomId > 0
+                         && sub.MainAssyId.HasValue && sub.MainAssyId > 0);
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CheckIsIndentGeneratedFromBOM failed for MReq No: {MReqVMs.MReqNo}");
+            await _js.ToastrError("Failed to Get IsIndentGeneratedFromBOM Material Requisition.");
+            return false;
+        }
+
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(MReqId, "PurchReq.frx", "MReqId", MReqVMs.MreqCancel, ScreenName, "Sp_Print_MaterialReq");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Manufacturing Invoice");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Manufacturing Invoice.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

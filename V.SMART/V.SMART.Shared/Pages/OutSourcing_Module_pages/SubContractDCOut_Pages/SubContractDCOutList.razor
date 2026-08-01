@@ -1,0 +1,937 @@
+﻿@page "/subConDcOutList"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ILabourServices
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.ISubContractDcOutservice
+@using V.SMART.Shared.Pages.InstantSearch_Pages
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.LabourGRN_VM
+@using System.Text.Json
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.SubContractViewModel
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ISubConDcOutService subConDcOutService
+@inject ExcelExportService ExcelExportService
+<style>
+    .pagination-fixed {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1030; /* keeps above table */
+    }
+
+    /* .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    } */
+
+    .quickgrid-scroll {
+        max-height: 70vh; /* or 500px */
+        overflow-y: auto;
+        overflow-x: auto;
+    }
+
+    .quickgrid thead th {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 100;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+</style>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true"
+                       Screen="@ScreenName"
+                       Filters="SearchFilters"
+                       OnClose="CloseModal"
+                       OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="Sub Contract DC Outgoing List"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@SubconDcbreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible="int.MaxValue"
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm" value="@pageSize"
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select status of records">
+                            <option value="">-- Select Status --</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Short Closed">Short Closed</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-2 ms-md-auto text-end">
+                            <button type="button" class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewDc">
+                                <i class="bi bi-plus-square me-1"></i> Add New DC
+                            </button>
+                        </div>
+                    }
+
+                </div>
+
+                @if (SubConDcOutVMs.Any())
+                {
+                    <div class="table-responsive quickgrid-scroll">
+
+                        <QuickGrid Items="@SubConDcOutVMs.AsQueryable()" Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            // 🔹 Keys & Main Info
+                                            case "DcId":
+                                                <PropertyColumn Title="DC ID" Property="@(c => c.DcId)" />
+                                                break;
+
+                                            case "Prefix":
+                                                <PropertyColumn Title="DC ID" Property="@(c => c.Prefix)" />
+                                                break;
+
+                                            case "DcNo":
+                                                <PropertyColumn Title="DC No"
+                                                                Property="@(c => $"{c.DcNo}{c.Suffix}")"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "DcDate":
+                                                <PropertyColumn Title="DC Date"
+                                                                Property="@(c => c.DcDate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+
+
+                                            // 🔹 Vendor
+                                            case "VendorName":
+                                                <PropertyColumn Title="Vendor Name"
+                                                                Property="@(c => c.VendorName)"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "VendorAddress":
+                                                <PropertyColumn Title="Vendor Address"
+                                                                Property="@(c => c.VendorAddress)" />
+                                                break;
+
+                                            case "VendorGstNo":
+                                                <PropertyColumn Title="Vendor GSTIN"
+                                                                Property="@(c => c.VendorGstNo)" />
+                                                break;
+
+                                            case "VendorContactNo":
+                                                <PropertyColumn Title="Vendor Contact"
+                                                                Property="@(c => c.VendorContactNo)" />
+                                                break;
+
+                                            // 🔹 Store
+                                            case "StoreIssueName":
+                                                <PropertyColumn Title="Store Name"
+                                                                Property="@(c => c.StoreIssueName)" />
+                                                break;
+
+                                            // 🔹 Items
+                                            case "NoOfItems":
+                                                <PropertyColumn Title="No Of Items"
+                                                                Property="@(c => c.NoOfItems)" />
+                                                break;
+
+                                            case "Qty":
+                                                <PropertyColumn Title="Total Qty"
+                                                                Property="@(c => c.Qty)" />
+                                                break;
+
+                                            // 🔹 Transport
+                                            case "VehicleNo":
+                                                <PropertyColumn Title="Vehicle No"
+                                                                Property="@(c => c.VehicleNo)" />
+                                                break;
+
+                                            case "TransFrom":
+                                                <PropertyColumn Title="Transport From"
+                                                                Property="@(c => c.TransFrom)" />
+                                                break;
+
+                                            case "TransTo":
+                                                <PropertyColumn Title="Transport To"
+                                                                Property="@(c => c.TransTo)" />
+                                                break;
+
+                                            // 🔹 E-Way
+                                            case "EwayBillNumber":
+                                                <PropertyColumn Title="EWay Bill No"
+                                                                Property="@(c => c.EwayBillNumber)" />
+                                                break;
+
+                                            case "EwayBillDate":
+                                                <PropertyColumn Title="EWay Date"
+                                                                Property="@(c => c.EwayBillDate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+
+                                            @* Sathish *@
+                                            case "CorrespondenceStatus":
+                                                <TemplateColumn Title="Correspondence Status">
+                                                    @if (UploadStatus.ContainsKey(context.DcId) && UploadStatus[context.DcId])
+                                                    {
+                                                        <span class="badge bg-success">Uploaded</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark">Not Uploaded</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            // 🔹 Value
+                                            case "DcVal":
+                                                <PropertyColumn Title="DC Value"
+                                                                Property="@(c => c.DcVal)"
+                                                                Format="N2" />
+                                                break;
+
+                                            // 🔹 Status (🔥 IMPORTANT CHANGE)
+                                            case "DcTally":
+                                                <TemplateColumn Title="DC Status" Context="c">
+                                                    @if (c.Cancel)
+                                                    {
+                                                        <span class="badge bg-danger rounded-pill px-3">
+                                                            <i class="bi bi-x-circle me-1"></i> Cancelled
+                                                        </span>
+                                                    }
+                                                    else if (c.ShortClose)
+                                                    {
+                                                        <span class="badge bg-secondary rounded-pill px-3">
+                                                            <i class="bi bi-slash-circle me-1"></i> Short Closed
+                                                        </span>
+                                                    }
+                                                    else if (c.DcTally)
+                                                    {
+                                                        <span class="badge bg-success rounded-pill px-3">
+                                                            <i class="bi bi-check-circle me-1"></i> Completed
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                            <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                        </span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+                                          
+
+                                            case "DcSign":
+                                                <TemplateColumn Title="DC Signed" Context="c">
+                                                    @if (c.DcSign)
+                                                    {
+                                                        <span class="badge bg-success">Yes</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary">No</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            // 🔹 Remarks
+                                            case "MainRemarks":
+                                                <PropertyColumn Title="Remarks"
+                                                                Property="@(c => c.MainRemarks)" />
+                                                break;
+
+                                            // 🔹 Audit
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By"
+                                                                Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date"
+                                                                Property="@(c => c.CreatedDate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By"
+                                                                Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date"
+                                                                Property="@(c => c.ModifiedDate)"
+                                                                Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            <!-- Actions -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"DcSubConOutgoing/update/{c.DcId}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit DC">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"SubConDcOut/details/{c.DcId}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View DC">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete DC"
+                                                @onclick="() => HandleDelete(c)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5"
+                                        @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export Dc's
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Labour GRN found.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Sub-Contract DC-Out";
+    private bool isProcessing = false;
+    private string? UserName;
+    private int DeleteDcID = 0;
+    private string selectedStatus = string.Empty;
+    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    public List<GridColumn> Columns { get; set; }
+
+    private int screenCode { get; set; }
+
+    private int totalItems;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private string searchTerm;
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    private List<SubConDcOutVM> SubConDcOutVMs = new();
+
+    [SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    //Sathish
+    private Dictionary<int, bool> UploadStatus = new();
+
+
+    private List<PageHeader.BreadcrumbItem> SubconDcbreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "OutSourcing" },
+        new PageHeader.BreadcrumbItem { Text = "Sub Contract" },
+        new PageHeader.BreadcrumbItem { Text = "Delivery Challan", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await InitializeColumns(IsHidden);
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+
+            await LoadAllSubconDcDetailsAsync();
+            screenCode = await subConDcOutService.GetScreenCodeByScreenNameAsync(ScreenName);
+
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+            if (saved?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Sub contract DC Outgoing OnInitializedAsync() method");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task InitializeColumns(bool hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "DC ID", Field = "DcId", IsVisible = false },
+                new() { Title = "Prefix", Field = "Prefix", IsVisible = false },
+
+                new() { Title = "DC No", Field = "DcNo", IsVisible = true },
+                new() { Title = "DC Date", Field = "DcDate", IsVisible = true },
+
+                // ===== Vendor =====
+                new() { Title = "Vendor Name", Field = "VendorName", IsVisible = true },
+                new() { Title = "Vendor Address", Field = "VendorAddress", IsVisible = false },
+                new() { Title = "Vendor GSTIN", Field = "VendorGstNo", IsVisible = false },
+                new() { Title = "Vendor Contact", Field = "VendorContactNo", IsVisible = false },
+
+                // ===== Store =====
+                new() { Title = "Store Name", Field = "StoreIssueName", IsVisible = true },
+
+                // ===== Items =====
+                new() { Title = "No Of Items", Field = "NoOfItems", IsVisible = true },
+                new() { Title = "Total Qty", Field = "Qty", IsVisible = true },
+                 //Sathish
+                 new() { Title = "Correspondence Status", Field = "CorrespondenceStatus", IsVisible = false },
+                // ===== Transport =====
+                new() { Title = "Vehicle No", Field = "VehicleNo", IsVisible = false },
+                new() { Title = "Transport From", Field = "TransFrom", IsVisible = false },
+                new() { Title = "Transport To", Field = "TransTo", IsVisible = false },
+
+                // ===== E-Way =====
+                new() { Title = "EWay Bill No", Field = "EwayBillNumber", IsVisible = false },
+                new() { Title = "EWay Date", Field = "EwayBillDate", IsVisible = false },
+
+                // ===== Value =====
+                new() { Title = "DC Value", Field = "DcVal", IsVisible = false },
+
+                // ===== Status =====
+                new() { Title = "DC Status", Field = "DcTally", IsVisible = true },
+
+                // ===== Remarks =====
+                new() { Title = "Remarks", Field = "MainRemarks", IsVisible = false },
+
+                new() { Title = "DC Signed", Field = "DcSign", IsVisible = false },
+
+                // ===== Audit =====
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false }
+            };
+
+            if (!hidden)
+            {
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in SubConDcOut InitializeColumns()");
+            await _JS.ToastrError("Error loading DC-Out grid columns");
+        }
+    }
+
+    private async Task LoadAllSubconDcDetailsAsync()
+    {
+        isProcessing = true;
+        try
+        {
+            var result = await subConDcOutService.SearchWithDynamicFilterAsync(pageNumber: currentPage, pageSize: pageSize, filters: SearchFilters);
+            SubConDcOutVMs = result.subConDcOutVMs;
+            this.totalItems = result.TotalCount;
+            foreach (var item in SubConDcOutVMs)
+            {
+                UploadStatus[item.DcId] = await subConDcOutService.IsDocumentUploaded(item.DcId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadAllSubconDcDetailsAsync in Subcontract Dc Outgoing");
+            await _JS.ToastrError("Failed to load LoadAllSubconDcDetailsAsync data in Subcontract Dc Outgoing");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated ?? new List<GridColumn>();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "HandleColumnChange in Subcontract Dc Outgoing");
+            await _JS.ToastrError("Failed to update column preferences in Subcontract Dc Outgoing .");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+                pageSize = int.Parse(e.Value?.ToString() ?? "10");
+                // pagination.ItemsPerPage = pageSize;
+                currentPage = 1;
+                await LoadAllSubconDcDetailsAsync();
+                await InvokeAsync(StateHasChanged);
+            
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnPageSizeChanged in Subcontract Dc Outgoing");
+            await _JS.ToastrError("Failed to update page size in Subcontract Dc Outgoing.");
+        }
+    }
+
+    private void AddNewDc()
+    {
+        var returnUrl = Uri.EscapeDataString("DcSubConOutgoing/create/{id}");
+        _navigation.NavigateTo($"/Vendor/Select?ReturnUrl={returnUrl}");
+    }
+
+    private async Task HandleDelete(SubConDcOutVM dcOutVM)
+    {
+        try
+        {
+
+            var (canDelete, message) = await subConDcOutService.CanDeleteSubconDcOutgoingAsync(dcOutVM.DcId, screenCode);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteDcID = dcOutVM.DcId;
+
+            ModalTitle = "Are you sure you want to delete this Subcontract Delivery Challan?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error while HandleDelete in Subcontract DC Outgoing List");
+            await _JS.ToastrError("Failed to  HandleDelete data.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else if (confirmation == "Export")
+            {
+                isProcessing = true;
+                await ExportToExcel(isConfirmed);
+            }
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+
+            bool success = await subConDcOutService.DeleteSubconDcByDcIdAsync(DeleteDcID, screenCode);
+
+            if (success)
+            {
+                await _JS.ToastrSuccess("Subcontract Delivery Challan Deleted successfully.");
+                await LoadAllSubconDcDetailsAsync();
+            }
+            else
+            {
+                await _JS.ToastrWarning("Subcontract DC Outgoing Delete failed.");
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Subcontract Delivery Challan confirmDelete_Click() method");
+            await _JS.ToastrError("An error occurred while handling the Subcontract Delivery Challan confirmDelete_Click() method");
+        }
+        finally
+        {
+            DeleteDcID = 0;
+            isProcessing = false;
+        }
+    }
+
+    private async Task FirstPage()
+    {
+        if (currentPage != 1)
+        {
+            currentPage = 1;
+            await LoadAllSubconDcDetailsAsync();
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadAllSubconDcDetailsAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            await LoadAllSubconDcDetailsAsync();
+        }
+    }
+
+    private async Task LastPage()
+    {
+        if (currentPage != totalPages)
+        {
+            currentPage = totalPages;
+            await LoadAllSubconDcDetailsAsync();
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllSubconDcDetailsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Subcontract Delivery Challan page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+
+    #region SEARCH FILTERS
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllSubconDcDetailsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Subcontract Delivery Challan");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+    #endregion
+
+    #region Search order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "";
+
+
+        if (string.IsNullOrWhiteSpace(selectedStatus))
+            SearchFilters.Remove("Status");
+        else
+            SearchFilters["Status"] = selectedStatus;
+
+
+        currentPage = 1;
+        await LoadAllSubconDcDetailsAsync();
+    }
+
+    #endregion
+
+    private async Task HandleExport()
+    {
+        selectedStatus = selectedStatus == "" ? "All" : selectedStatus;
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+
+            var exportData = await subConDcOutService.GetSubContractDcoutPendingList(selectedStatus);
+
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "SubContractDcExport", "SubContract Dc's Pending List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.DownloadExcelAsync(base64, "SubContractDcExport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (SubContractDcExport)");
+            await _JS.ToastrError("Error while exporting SubContractDcExport!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

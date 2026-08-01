@@ -1,0 +1,2767 @@
+﻿@page "/purchaseSCN/create"
+@page "/purchaseSCN/create/{VendorCode:int}"
+@page "/purchaseSCN/update/{SCNId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchaseSCNService
+@using V.SMART.Shared.Pages.Master_Module_pages.VendorSupplier_Pages
+@using V.SMART.Shared.Repository.IRepository.IMasterRepository.IAdmins
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchaseSCNVM
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject IPurchaseSCNService _scnService
+@inject ReportService reportService
+@inject IUserAuthorityRepository userAuthority
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+
+</BsModal>
+
+<DetailsModal Title="GRN Details"
+              Columns="@GRNColumns"
+              ColumnFields="@GRNFields"
+              HiddenColumns="@GRNHiddenColumns"
+              Data="@GRNData"
+              IsVisible="@IsGRNModalVisible"
+              IsVisibleChanged="@((val) => IsGRNModalVisible = val)"
+              OnSelectedItems="OnGRNSelectedAsync">
+</DetailsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Vendor")
+    {
+        <VendorUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+
+</MasterModal>
+
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Cancelled Watermark -->
+            @if (PurchaseSCNVMs.SCNCancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+
+            <PageHeader TitleText="@(PurchaseSCNVMs.SCNId > 0 ? "Update Purchase SCN" : "Create Purchase SCN")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@PurchaseSCNBreadcrumbs" />
+            <div class="card-body bg-light">
+                <EditForm Model="PurchaseSCNVMs" OnValidSubmit="UpsertSCN">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <!-- Correspondence Status -->
+                        @if (PurchaseSCNVMs.SCNId > 0 && !string.IsNullOrWhiteSpace(PurchaseSCNVMs.SCNNo))
+                        {
+                            <CorrespondenceStatus ReferenceType="@ScreenName"
+                                                  ReferenceId="@PurchaseSCNVMs.SCNId"
+                                                  ReferenceTypeName="@PurchaseSCNVMs.SCNNo" />
+                        }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+                        <!-- =================== Vendor Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header equal-card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Vendor Information</span>
+                                    <button type="button" class="btn btn-sm btn-success rounded-3"
+                                            @onclick='() => OpenModal("Vendor")'>
+                                        <i class="bi bi-person-add me-1"></i> Add Vendor
+                                    </button>
+                                </div>
+                                <div class="card-body">
+
+                                    <!-- Vendor/Supplier Autocomplete -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="VendorVM"
+                                                             Value="SelectedVendor"
+                                                             ValueChanged="@(async c => await OnVendorChanged(c))"
+                                                             ToStringFunc="@(c => c?.VendorName ?? string.Empty)"
+                                                             SearchFunc="SearchVendors"
+                                                             Dense="true"
+                                                             Variant="Variant.Outlined"
+                                                             Placeholder="Search Customer"
+                                                             Title="Search atleast 3 letters in Vendor"
+                                                             Class="w-100 autocomplete-sm"
+                                                             MaxItems="50"
+                                                             Clearable="true"
+                                                             ResetValueOnEmptyText="true"
+                                                             Required="true"
+                                                             AvoidSubmit="true"
+                                                             Disabled="@IsSomeItemsTransMade" />
+                                        </div>
+                                    </div>
+                                    <!-- Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1" readonly>@PurchaseSCNVMs?.VendorAddress</textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- GSTIN -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GSTIN</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@PurchaseSCNVMs?.VendorGstNo" readonly />
+                                        </div>
+                                    </div>
+                                    <!-- Contact Person -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Contact Person</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    @bind="@PurchaseSCNVMs.KindofAttention">
+                                                <option disabled value="">Select Contact Person</option>
+                                                @foreach (var cp in contactPersons)
+                                                {
+                                                    <option value="@cp.ContactPerson">@cp.ContactPerson</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => PurchaseSCNVMs.KindofAttention)" />
+                                        </div>
+                                    </div>
+                                    <!-- Phone -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Phone No</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@PurchaseSCNVMs?.VendorContactNo" readonly />
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                            </div>
+                        </div>
+
+                         <!-- =================== SCN Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header equal-card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Purchase SCN Details</span>
+
+                                    @if (PurchaseSCNVMs.SCNId > 0 && (CanCreate || CanEdit))
+                                    {
+                                        <div class="d-flex gap-2">
+
+                                            @if (PurchaseSCNVMs.PurchaseSCNSubVMs == null ||
+                                                                                !PurchaseSCNVMs.PurchaseSCNSubVMs.Any(x => x.ItemCancel))
+                                            {
+                                                <button type="button"
+                                                        class="btn btn-sm rounded-3 @(PurchaseSCNVMs.SCNCancel ? "btn-success" : "btn-danger")"
+                                                        @onclick="Cancel">
+
+                                                    @if (!PurchaseSCNVMs.SCNCancel)
+                                                    {
+                                                        <i class="bi bi-x-circle me-1"></i>
+                                                        <span>Cancel</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                        <span>Revert</span>
+                                                    }
+                                                </button>
+                                            }
+
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(PurchaseSCNVMs.ShortClose ? "btn-success" : "btn-warning")"
+                                                    @onclick="() => AskToShortCloseAsync()"
+                                                    disabled="@PurchaseSCNVMs.SCNCancel">
+
+                                                @if (!PurchaseSCNVMs.ShortClose)
+                                                {
+                                                    <i class="bi bi-box-seam me-1"></i>
+                                                    <span>Short Closed</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Re-Open</span>
+                                                }
+                                            </button>
+
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="card-body">
+                                    <!-- SCN No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>SCN No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm flex-wrap w-100">
+                                                <input type="text"
+                                                       class="form-control form-control-sm"
+                                                       placeholder="SCN No."
+                                                       @bind="PurchaseSCNVMs.SCNNo" />
+
+                                                <span class="input-group-text rounded-end">@PurchaseSCNVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => PurchaseSCNVMs.SCNNo)" />
+                                            <ValidationMessage For="@(() => PurchaseSCNVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- SCN Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>SCN Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@PurchaseSCNVMs.SCNDate" />
+                                            <ValidationMessage For="@(() => PurchaseSCNVMs.SCNDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- PO Details -->
+                                    @if (GRNPendingCount > 0)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. GRN</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center rounded-3"
+                                                        @onclick="ShowGRNDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> GRN Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Issue from Store --> 
+                                    <div class="mb-2 row"> 
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark"> 
+                                        <small>Issue from Store</small> </label> 
+                                        <div class="col-12 col-sm-9"> 
+                                            <select value="@PurchaseSCNVMs.StoreIssId"
+                                                    @onchange="OnStoreChanged"
+                                                    class="form-select form-select-sm rounded-3 w-100"
+                                                    id="Purchasescn"
+                                                    disabled>
+                                                <option value="0">--Select Issue Store--</option>
+                                                @foreach (var storeid in IssStores)
+                                                {
+                                                    <option value="@storeid.StoreId">@storeid.StoreName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => PurchaseSCNVMs.StoreIssId)" /> 
+                                                
+                                         </div> 
+                                    </div> 
+                                    
+                                    <!-- Add To Store --> 
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark"> 
+                                            <small>Add To Store</small> 
+                                         </label> 
+                                         <div class="col-12 col-sm-9"> 
+                                             <select @bind="PurchaseSCNVMs.AddStoreId" class="form-select form-select-sm rounded-3 w-100" id="Purchasescn" disabled="@(PurchaseSCNVMs.SCNId>0)"> 
+                                                 <option value="0">--Select Add Store--</option> 
+                                                 @foreach (var storeid in AddStores)
+                                                 { 
+                                                     <option value="@storeid.StoreId">@storeid.StoreName</option> 
+                                                 } 
+                                             </select> 
+                                             <ValidationMessage For="@(() => PurchaseSCNVMs.AddStoreId)" /> 
+                                         </div> 
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      @bind="PurchaseSCNVMs.MainRemarks"></textarea>
+                                            <ValidationMessage For="@(() => PurchaseSCNVMs.MainRemarks)" />
+                                        </div>
+                                    </div>
+                                    @if(PurchaseSCNVMs.SCNCancel)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Cancel Reason</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                            rows="1"
+                                                            @bind="PurchaseSCNVMs.CancelReason"
+                                                            disabled></textarea>
+                                                <ValidationMessage For="@(() => PurchaseSCNVMs.CancelReason)" />
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <!--=====================Item Details=========================-->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header bg-primary-subtle text-dark">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+
+                                        <!-- Title -->
+                                        <span class="fw-bold fs-6">SCN Item Details</span>
+
+                                        <!-- Right Controls -->
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                            <!-- Add Item Button -->
+                                            <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                                <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                            </button>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:70px;">HSN</th>
+
+                                                    <th style="width:120px;">Accept Qty</th>
+                                                    <th style="width:120px;">Reject Qty</th>
+                                                    <th style="width:120px;">Rework Qty</th>
+                                                    <th style="width:100px;">Bal Qty</th>
+                                                    <th style="width:100px;">Stock Qty</th>
+                                                    <th style="width:100px;">Qty To Stock</th>
+                                                    <th style="width:120px;">Unit Price</th>
+                                                    <th style="width:120px;">Ref GRN No.</th>
+                                                    <th style="width:120px;">Ref GRN Date</th>
+                                                    <th style="width:120px;">Ref Dc No.</th>
+                                                    <th style="width:110px;">Ref Dc Date</th>
+                                                    <th style="width:110px;">Ref Inv No.</th>
+                                                    <th style="width:110px;">Ref Inv Date</th>
+                                                    <th style="width:120px;">Inspectio No.</th>
+                                                    <th style="width:120px;">NCR No.</th>
+                                                    <th style="width:120px;">Batch No.</th>
+                                                    <th style="width:120px;">Heat No.</th>
+                                                    <th style="width:120px;">Weight</th>
+
+                                                    @if (IsRejectionSelection)
+                                                    {
+                                                        <th style="width:200px;">RejectionCode</th>
+                                                    }
+                                                    <th style="width:200px;">Remarks</th>
+                                                    <th style="width:150px;">Cost-Center</th>
+                                                    @if (!PurchaseSCNVMs.SCNCancel && (SCNId.HasValue || SCNId > 0))
+                                                    {
+                                                        <th style="width:150px;">Item Cancel</th>
+                                                        <th style="width:200px;">Cancel Reason</th>
+                                                    }
+                                                    <th style="width:170px;">Specification</th>
+                                                    <th style="width:170px;">Category</th>
+
+                                                    @if (!PurchaseSCNVMs.SCNCancel && !PurchaseSCNVMs.ShortClose)
+                                                    {
+                                                        <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in PurchaseSCNVMs.PurchaseSCNSubVMs)
+                                                {
+                                                    <tr @key="subitem" class="@(subitem.ItemCancel ? "table-danger text-danger fw-bold" : "")">
+
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @if (subitem.IsEditable && (subitem.RefGRNSubId == 0 || subitem.RefGRNSubId == null)
+                                                                        && subitem.AcceptQty.GetValueOrDefault() == subitem.BalQty)
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                         Value="subitem.SelectedItem"
+                                                                                         ValueChanged="@(async item => await OnItemChanged(subitem, item))"
+                                                                                         ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                         SearchFunc="SearchItems"
+                                                                                         Dense="true"
+                                                                                         Variant="Variant.Outlined"
+                                                                                         Placeholder="Search Item Code"
+                                                                                         Title="Search Atleast 3 Letters in Item-Code"
+                                                                                         Class="w-100 autocomplete-sm"
+                                                                                         MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0  && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                       Size="Size.Small"
+                                                                                       Color="Color.Primary"
+                                                                                       OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                       Edge="Edge.End"
+                                                                                       Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        
+                                                        <td>@subitem.MeasureUnit</td>
+                                                        <td>@subitem.HSNCode</td>
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="AcceptQty"
+                                                                       step="any"
+                                                                       title="Enter AcceptQty"
+                                                                       @bind="subitem.AcceptQty"
+                                                                       @bind:event="oninput"
+                                                                       @onchange="@(e => OnAccpQtyChange(subitem.AcceptQty, subitem))"/>
+                                                                <ValidationMessage For="@(() => subitem.AcceptQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.AcceptQty</span>
+                                                            }
+                                                        </td>
+                                                         <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Reject Qty"
+                                                                       step="any"
+                                                                       title="Enter RejectQty"
+                                                                       @bind="subitem.RejectQty"
+                                                                       @bind:event="oninput"
+                                                                       @onchange="@(e => OnRejQtyChange(subitem.RejectQty, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.RejectQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.RejectQty</span>
+                                                            }
+                                                        </td>
+
+                                                         <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Rework Qty"
+                                                                       step="any"
+                                                                       title="Enter ReworkQty"
+                                                                       @bind="subitem.ReworkQty"
+                                                                       @bind:event="oninput"
+                                                                       @onchange="@(e => OnRewQtyChange(subitem.ReworkQty, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.ReworkQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.ReworkQty</span>
+                                                            }
+                                                        </td>
+
+                                                         <td>
+                                                            <span>@subitem.BalQty</span>
+                                                        </td>
+                                                        <td>
+                                                            <span>@subitem.StockQty</span>
+                                                        </td>
+                                                        <td>
+                                                            <span>@subitem.QtyConvert</span>
+                                                        </td>
+                                                        
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" 
+                                                                    class="form-control form-control-sm" 
+                                                                    placeholder="Price" 
+                                                                    step="any"
+                                                                    title="Enter Unit Price"
+                                                                    @bind="subitem.UnitPrice" />
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+                                                         <!-- Ref GRN -->
+                                                        <td>@subitem.RefGRNNo</td>
+                                                        <td>@subitem.RefGRNDate?.ToString("dd/MM/yyyy")</td>
+                                                         <td>@subitem.RefDcNo</td>
+                                                        <td>@subitem.RefDcDate?.ToString("dd/MM/yyyy")</td>
+                                                        <td>@subitem.RefInvNo?.ToString()</td>
+                                                        <td>@subitem.RefInvDate?.ToString("dd/MM/yyyy")</td>
+                                                        
+                                                        
+                                                         <!-- Ins No -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm "
+                                                                       placeholder="Inspection No"
+                                                                       title="Enter Inspection No"
+                                                                       @bind="subitem.InspectionNo"/>
+                                                                <ValidationMessage For="@(() => subitem.InspectionNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.InspectionNo
+                                                            }
+                                                        </td>
+                                                        <!--NCR No-->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm "
+                                                                       placeholder="NCR No"
+                                                                       title="Enter NCR No"
+                                                                       @bind="subitem.NCRNo"/>
+                                                                <ValidationMessage For="@(() => subitem.NCRNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.NCRNo
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm "
+                                                                       placeholder="Batch No"
+                                                                       title="Enter Batch No"
+                                                                       @bind="subitem.BatchNo"/>
+                                                                <ValidationMessage For="@(() => subitem.BatchNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.BatchNo
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm "
+                                                                       placeholder="Heat No"
+                                                                       title="Enter Heat No"
+                                                                       @bind="subitem.HeatNo"/>
+                                                                <ValidationMessage For="@(() => subitem.HeatNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.HeatNo
+                                                            }
+                                                        </td>
+
+                                                        <td>@subitem.Weight</td>
+
+                                                        @if (IsRejectionSelection)
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <select class="form-select"
+                                                                            @bind="subitem.RejectionId"
+                                                                            @bind:after="() => OnRejectionChanged(subitem)">
+
+                                                                        <option value="">-- Select Rejection --</option>
+
+                                                                        @foreach (var rejection in RejectionMasterVMs)
+                                                                        {
+                                                                            <option value="@rejection.RejectionId">
+                                                                                @rejection.RejectionCode
+                                                                            </option>
+                                                                        }
+                                                                    </select>
+                                                                }
+                                                                else
+                                                                {
+                                                                    @(RejectionMasterVMs
+                                                                    .FirstOrDefault(x => x.RejectionId == subitem.RejectionId)
+                                                                    ?.RejectionCode ?? "")
+                                                                                                        }
+                                                            </td>
+
+
+                                                        }
+                                                         <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea @bind-Value="subitem.Remark"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Remarks" rows = "1" />
+                                                                <ValidationMessage For="@(() => subitem.Remark)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remark
+                                                            }
+                                                        </td>
+
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @if (subitem.IsEditable && (subitem.RefGRNSubId == 0 || subitem.RefGRNSubId == null) && subitem.BalQty == subitem.AcceptQty)
+                                                            {
+                                                                <select class="form-select form-select-sm" 
+                                                                    value="@subitem.CostId"
+                                                                    @onchange="(e => OnCostCenterChanged(e, subitem))">
+                                                                    <option value="">select CostCentre</option>
+                                                                    @foreach (var cost in CostCenterVMs.Where(c =>
+                                                                        !PurchaseSCNVMs.PurchaseSCNSubVMs.Any(r => r != subitem && r.CostId == c.Id)))
+                                                                    {
+                                                                        <option value="@cost.Id">@cost.ProjectNo</option>
+                                                                    }
+                                                                </select>
+                                                                <ValidationMessage For="@(() => subitem.CostId)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.ProjectNo
+                                                            }
+                                                        </td>
+
+                                                        @if (!PurchaseSCNVMs.SCNCancel && (SCNId.HasValue || SCNId > 0))
+                                                        {
+                                                            <td class="text-center align-middle">
+
+                                                                <div class="form-check form-switch d-flex justify-content-center">
+                                                                    <InputCheckbox 
+                                                                    @bind-Value="subitem.ItemCancel"
+                                                                    @bind-Value:event="onchange"
+                                                                    ValueChanged="@(async (value) => await OnItemCancelChanged(subitem))"
+                                                                    class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                </div>
+                                                                <ValidationMessage For="@(() => subitem.ItemCancel)" 
+                                                                    class="text-danger fw-semibold small mt-2 d-block" />
+                                                            </td>
+
+                                                            <td>
+                                                                @subitem.ItemCancelReason
+                                                            </td>
+                                                        }
+
+                                                        <td>@subitem.Specification</td>
+                                                        <td>@subitem.Category</td>
+
+                                                        <!-- Action Buttons -->
+                                                        @if (!PurchaseSCNVMs.SCNCancel && !PurchaseSCNVMs.ShortClose)
+                                                        {
+                                                            <td class="freeze-last-col text-end">
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                            @onclick="async () => await SaveRow(subitem)" disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-check-lg"></i>
+                                                                    </button>
+
+                                                                    <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel"
+                                                                            @onclick="async () => await CancelEdit(subitem, PurchaseSCNVMs)" disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                            @onclick="async () => await EditRowAsync(subitem)" disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-pencil"></i>
+                                                                    </button>
+
+                                                                    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                            @onclick="async () => await RemoveRow(subitem)" disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                }
+                                                            </td>
+                                                        }
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                       
+                        @if (PurchaseSCNVMs.SCNId > 0)
+                        {
+                             <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+                            <div class="row g-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="PurchaseSCNVMs.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="CreatedDate" value="@PurchaseSCNVMs.CreatedDate.ToString("dd/MM/yyyy hh:mm:ss")" disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="PurchaseSCNVMs.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="ModifiedDate" value="@PurchaseSCNVMs.ModifiedDate?.ToString("dd/MM/yyyy  hh:mm:ss")" disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+                             <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+                        }
+
+                        <div class="row g-3">
+                            <!-- Action Buttons -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if(!PurchaseSCNVMs.SCNCancel && !PurchaseSCNVMs.ShortClose)
+                                {
+                                    <div class="col-6 col-md-3 mt-3">
+                                        <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i> @(PurchaseSCNVMs.SCNId > 0 ? "Update" : "Create")
+                                        </button>
+                                    </div>
+                                }
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="@($"/purchaseSCNList?currentPage={currentPage}")" />
+                            </div>
+
+                            @if ((SCNId > 0 && CanEdit && (!Autharization || PurchaseSCNVMs.Authorized)))
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+                            else if (Autharization && !PurchaseSCNVMs.Authorized)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button class="btn btn-danger" disabled title="Authorization required to generate PDF">
+                                        <i class="bi bi-file-earmark-pdf"></i> Authorization Required
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+
+}
+
+
+
+@code
+{
+    #region Parameters & Properties
+    protected override string ScreenName => "Purchase SCN";
+
+    [Parameter] public int? SCNId { get; set; }
+    [Parameter] public int VendorCode { get; set; }
+    private bool isProcessing = false;
+    private int screenCode { get; set; }
+    private PurchaseSCNVM PurchaseSCNVMs { get; set; } = new();
+    private List<VendorContact> contactPersons = new();
+    private List<CostCenterVM> CostCenterVMs = new();
+    private VendorVM? SelectedVendor;
+    private PurchaseSCNSubVM? rowToDelete;
+    private PurchaseSCNSubVM? rowToCancel;
+
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    string? pdfBase64;
+    public bool Autharization = false;
+
+    private List<Store> AddStores = new();
+    private List<Store> IssStores = new();
+
+    private int GRNPendingCount = 0;
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private int DecimalPlaces { get; set; } = 2;
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private bool IsGRNModalVisible = false;
+    private List<Dictionary<string, object>>? GRNData;
+
+    private bool IsRejectionSelection { get; set; } = false;
+
+    private List<RejectionMasterVM> RejectionMasterVMs = new();
+
+    private List<string> GRNColumns = new()
+    {
+        "PoSubId","GRNSubId","GRN No.","GRN Date","ItemId","Item Code", "Item Name",
+        "Specification","UOM", "HSN Code","Category Name","Qty", "Bal Qty", "Unit Price","Unit Convert","Alt Rate","StockQty",
+        "Ref Dc No.","Ref DcDate","Ref Inv No.","Ref Inv Date","CostId",
+        "Project No", "Remarks","Store Name","Batch No.","Heat No."
+    };
+
+    private List<string> GRNFields = new()
+    {
+        "PoSubId","GRNSubId","GRNNo", "GRNDate","ItemId","ItemCode", "ItemName","Specification",
+        "UOM", "HSNCode","Category","Qty", "BalQty", "UnitPrice","UnitConvert","AltRate","StockQty","RefDcNo","RefDcDate","RefInvNo",
+        "RefInvDate" ,"CostId","ProjectNo", "MainRemarks","StoreName","BatchNo","HeatNo"
+    };
+
+    private List<string> GRNHiddenColumns = new()
+    {
+        "PoSubId","ItemId", "CostId","GRNSubId"
+    };
+
+    #endregion
+
+    private List<PageHeader.BreadcrumbItem> PurchaseSCNBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Purchase" },
+        new PageHeader.BreadcrumbItem { Text = "PurchaseSCN", IsLast = true }
+    };
+
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            DecimalPlaces = await _scnService.GetDecimalPlacesAsync();
+            screenCode = await _scnService.GetScreenCodeByScreenNameAsync(ScreenName);
+            IsRejectionSelection = await _scnService.GetRejectionSelectionEnableAsync();
+            RejectionMasterVMs = await _scnService.GetAllRejectionReasonAsync();
+
+            if (SCNId.HasValue)
+            {
+                await LoadExistingSCN(SCNId.Value);
+            }
+            else if (VendorCode > 0)
+            {
+                await InitializeNewGRN(VendorCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingSCN(int scnId)
+    {
+        try
+        {
+            PurchaseSCNVMs = await _scnService.GetPurchaseSCNByIdAsync(scnId);
+            if (PurchaseSCNVMs == null)
+            {
+                await _JS.ToastrWarning("SCN not found.");
+                return;
+            }
+            Autharization = (await userAuthority.GetAllWithUserAsync()).Any(x => x.IsPurchSCN == true);
+            SelectedVendor = await _scnService.GetVendorByIdAsync(PurchaseSCNVMs.VendorCode.Value);
+            if (SelectedVendor != null)
+                await ApplyVendorSelectionAsync(SelectedVendor);
+
+            foreach (var dcSub in PurchaseSCNVMs.PurchaseSCNSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[dcSub.ItemId.Value] =
+                    await _scnService.GetCorrespondenceAttachmentsCountAsync(dcSub.ItemId.Value, "Item");
+            }
+
+            //Check Transaction Completed flag
+            IsSomeItemsTransMade = await CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to load Existing PurchaseSCN.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingDc failed in PurchaseSCN for SCNId: {scnId}");
+        }
+    }
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        try
+        {
+            if (!SCNId.HasValue)
+                return false;
+
+            return await _scnService.IsSCNTransactionsMatchedAsync(SCNId.Value, PurchaseSCNVMs);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to check transaction exists.");
+            await LoggingService.LogDeveloperError(ex, "[CheckIsTransMade] failed");
+            return false;
+        }
+    }
+
+    private async Task InitializeNewGRN(int vendorCode)
+    {
+        try
+        {
+            var vendor = await _scnService.GetVendorByIdAsync(vendorCode);
+            if (vendor != null)
+            {
+                await setStores();
+                await ApplyVendorSelectionAsync(vendor);
+
+                PurchaseSCNVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+                PurchaseSCNVMs.SCNNo = await _scnService.GetSCNNumberAsync(PurchaseSCNVMs.Suffix);
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to initialize new po.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewPo failed for VendorCode: {vendorCode}");
+        }
+    }
+
+    #endregion
+
+    #region Vendor data Handlers
+    private async Task<IEnumerable<VendorVM>> SearchVendors(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<VendorVM>();
+
+        try
+        {
+            var MapStoreForGRN = await _scnService.GetMappedStoreForFormAsync("PurchaseGRNForm");
+            if (MapStoreForGRN.StoreId>0)
+            {
+                PurchaseSCNVMs.StoreIssId = MapStoreForGRN.StoreId;
+                PurchaseSCNVMs.IssueStoreName = MapStoreForGRN.StoreName;
+
+            }
+            var MapStoreForDc = await _scnService.GetMappedStoreForFormAsync("PurchaseSCNForm");
+
+            if (MapStoreForDc.StoreId > 0)
+            {
+                PurchaseSCNVMs.AddStoreId = MapStoreForDc.StoreId;
+                PurchaseSCNVMs.AddStoreName = MapStoreForDc.StoreName;
+            }
+
+            var results = await _scnService.SearchVendorsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<VendorVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In PurchaseGRNUpsert SearchVendors failed for value: {value}");
+            await _JS.ToastrError("Failed to search Vendors in PurchaseGRNUpsert. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+
+    private async Task OnVendorChanged(VendorVM? vendor)
+    {
+        try
+        {
+            await ApplyVendorSelectionAsync(vendor);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnVendorChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error in OnVendorChanged");
+            await _JS.ToastrError("Error while selecting");
+
+        }
+    }
+
+    private async Task ApplyVendorSelectionAsync(VendorVM? vendor)
+    {
+        try
+        {
+            SelectedVendor = vendor;
+            PurchaseSCNVMs.VendorCode = vendor?.VendorCode ?? 0;
+            PurchaseSCNVMs.VendorName = vendor?.VendorName;
+            PurchaseSCNVMs.VendorAddress = vendor?.VendorAddress;
+            PurchaseSCNVMs.VendorGstNo = vendor?.GSTNo;
+            PurchaseSCNVMs.VendorContactNo = vendor?.ContactNo;
+
+            if (vendor == null)
+            {
+                AddStores.Clear();
+                IssStores.Clear();
+                return;
+            }
+            contactPersons = await _scnService.GetContactPersonsVendorAsync(vendor.VendorCode);
+
+            AddStores = (await _scnService.GetAllAddStoresAsync()).ToList();
+            // IssStores = (await _scnService.GetAllIssueStoresAsync()).ToList();
+
+            var MapStoreForGRN = await _scnService.GetMappedStoreForFormAsync("GRNForm");
+            if (MapStoreForGRN.StoreId > 0)
+            {
+                IssStores.Add(new Store
+                {
+                    StoreId = MapStoreForGRN.StoreId,
+                    StoreName = MapStoreForGRN.StoreName
+                });
+            }
+            
+
+            PurchaseSCNVMs.KindofAttention = contactPersons.Count == 1 ? contactPersons.First().ContactPerson : string.Empty;
+
+            //Pending PoDetails
+            GRNPendingCount = await _scnService.GetPendingGRNCountAsync(vendor.VendorCode);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyVendorSelectionAsync failed for VendorCode: {vendor?.VendorCode}");
+            await _JS.ToastrError("Failed to apply vendor selection. Please try again.");
+        }
+    }
+
+    private async Task setStores()
+    {
+        var MapStoreForGRN = await _scnService.GetMappedStoreForFormAsync("GRNForm");
+        if (MapStoreForGRN.StoreId>0)
+        {
+            IssStores.Clear();
+
+            IssStores.Add(new Store
+            {
+                StoreId = MapStoreForGRN.StoreId,
+                StoreName = MapStoreForGRN.StoreName
+            });
+
+            PurchaseSCNVMs.StoreIssId = MapStoreForGRN.StoreId;
+            PurchaseSCNVMs.IssueStoreName = MapStoreForGRN.StoreName;
+
+        }
+        var MapStoreForDc = await _scnService.GetMappedStoreForFormAsync("SCNQualityForm");
+
+        if (MapStoreForDc.StoreId > 0)
+        {
+            PurchaseSCNVMs.AddStoreId = MapStoreForDc.StoreId;
+            PurchaseSCNVMs.AddStoreName = MapStoreForDc.StoreName;
+        }
+    }
+
+    #endregion
+
+    #region Item Handlers
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _scnService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _JS.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(PurchaseSCNSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItem = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.HSNCode = item.HSNCode;
+                subitem.MeasureUnit = item.MeasureUnit;
+                subitem.Specification = item.Specification;
+                subitem.Category = item.CategoryName;
+
+                if (PurchaseSCNVMs?.VendorCode != null && subitem.ItemId.HasValue)
+                {
+                    var rates = await _scnService.GetBulkLastUnitPricesAsync(
+                        new List<int> { subitem.ItemId.Value },
+                        PurchaseSCNVMs.VendorCode.Value
+                    );
+
+                    if (rates.TryGetValue(subitem.ItemId.Value, out decimal rate))
+                    {
+                        subitem.UnitPrice = rate;
+                    }
+                }
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _scnService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+                }
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItem = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.HSNCode = null;
+                subitem.MeasureUnit = null;
+                subitem.UnitPrice = 0m;
+                subitem.Specification = null;
+                subitem.Category = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In purchaseGRNUpsert OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _JS.ToastrError("Failed to apply item selection  in purchaseGRNUpsert. Please try again.");
+        }
+    }
+
+    private bool IsItemAlreadySelected(int itemId, int? currentItemId)
+    {
+        return PurchaseSCNVMs.PurchaseSCNSubVMs?.Any(q => q.ItemId == itemId && q.ItemId != currentItemId) == true;
+    }
+    #endregion
+
+    #region Quantity Handlers
+
+    private async Task OnQtyChange(ChangeEventArgs e, PurchaseSCNSubVM SubVM)
+    {
+        try
+        {
+
+            // Common validation: Qty must be positive
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <0)
+            {
+                await _JS.ToastrWarning("Issue Qty must be a positive number.");
+                return;
+            }
+            decimal acceptQty = SubVM.AcceptQty ?? 0m;
+            decimal rejectQty = SubVM.RejectQty ?? 0m;
+            decimal reworkQty = SubVM.ReworkQty ?? 0m;
+            decimal enteredTotal = acceptQty + rejectQty + reworkQty;
+
+            decimal stockQty = await _scnService.GetStockQtyFromStockManager(SubVM.ItemId.Value, PurchaseSCNVMs.StoreIssId.Value);
+            if (stockQty <= 0)
+            {
+                await _JS.ToastrWarning("No stock available for this item.");
+                return;
+            }
+
+            // NEW Po line
+            if (SubVM.SCNSubId == 0)
+            {
+                if (enteredTotal>stockQty)
+                {
+                    await _JS.ToastrWarning($"AcceptQty+RejectQty+ReworkQty.{enteredTotal} Quantity should not be greater than StockQty.");
+                    SubVM.AcceptQty = stockQty;
+                    SubVM.RejectQty = 0;
+                    SubVM.ReworkQty = 0;
+                    return;
+                }
+
+                if (SubVM.RefGRNSubId > 0)
+                {
+                    var grnBalQty = await _scnService.GetGRNItemBalQtyFromGRNSubId(SubVM.RefGRNSubId.Value);
+
+                    // Validation
+                    if (enteredTotal > grnBalQty)
+                    {
+
+                        // Optionally reset to available balance
+                        SubVM.AcceptQty = grnBalQty;
+                        SubVM.BalQty = grnBalQty;
+                    }
+                    else
+                    {
+                        SubVM.AcceptQty = enteredTotal;
+                        SubVM.BalQty = enteredTotal;
+                    }
+                }
+                else
+                {
+                    SubVM.AcceptQty = newQty;
+                    SubVM.BalQty = newQty;
+                }
+            }
+
+            // Modify SCN line
+            else
+            {
+                var original = await _scnService.GetSCNSubItemDetailBySCNSubIdAsync(SubVM.SCNSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.AcceptQty - original.BalQty;
+
+
+                var effectiveStock = (stockQty + original.AcceptQty);
+
+                // Cannot decrease below transacted quantity
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.AcceptQty = alreadyTransacted;
+                    SubVM.BalQty = 0;
+                    await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                if (SubVM.RefGRNSubId > 0)
+                {
+                    var grnBalQty = await _scnService.GetGRNItemBalQtyFromGRNSubId(SubVM.RefGRNSubId.Value);
+                    var maxAllowedQty = original.AcceptQty + grnBalQty;
+
+                    var allowedQty = Math.Min(maxAllowedQty.GetValueOrDefault(), effectiveStock.GetValueOrDefault());
+
+                    if (newQty > maxAllowedQty)
+                    {
+                        SubVM.AcceptQty = maxAllowedQty;
+                        SubVM.BalQty = maxAllowedQty.GetValueOrDefault() - alreadyTransacted.GetValueOrDefault();
+                        await _JS.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.OR Available Stock ({effectiveStock}) ");
+                    }
+                    else
+                    {
+
+                        SubVM.AcceptQty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted.GetValueOrDefault();
+                    }
+                }
+                else
+                {
+                    var allowedQty = effectiveStock;
+
+                    if (newQty > allowedQty)
+                    {
+                        SubVM.AcceptQty = allowedQty;
+                        SubVM.BalQty = allowedQty - alreadyTransacted;
+
+                        await _JS.ToastrWarning($"Issue Qty cannot exceed Stock Qty ({effectiveStock})."
+                        );
+                    }
+                    else
+                    {
+                        SubVM.AcceptQty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted;
+                    }
+
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnQtyChange failed for SCNSubId: {SubVM?.SCNSubId}");
+            await _JS.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    private async Task OnAccpQtyChange(decimal? newValue, PurchaseSCNSubVM subVM)
+    {
+        try
+        {
+            var accp = newValue.GetValueOrDefault();
+            if (accp < 0)
+            {
+                subVM.AcceptQty = 0;
+                await _JS.ToastrWarning("Accepted Qty must be positive.");
+                return;
+            }
+
+            var rej = subVM.RejectQty.GetValueOrDefault();
+            var rew = subVM.ReworkQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Accepted"))
+            {
+                subVM.AcceptQty = accp;
+                subVM.BalQty = accp;
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnAccpQtyChange failed");
+            await _JS.ToastrError("Failed to update Accepted Qty.");
+        }
+    }
+
+    private async Task OnRejQtyChange(decimal? newValue, PurchaseSCNSubVM subVM)
+    {
+        try
+        {
+            var rej = newValue.GetValueOrDefault();
+            if (rej < 0)
+            {
+                subVM.RejectQty = 0;
+                await _JS.ToastrWarning("Rejected Qty must be positive.");
+                return;
+            }
+
+            var accp = subVM.AcceptQty.GetValueOrDefault();
+            var rew = subVM.ReworkQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Rejected"))
+                subVM.RejectQty = rej;
+                subVM.RejectBalQty = rej;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnRejQtyChange failed");
+            await _JS.ToastrError("Failed to update Rejection Qty.");
+        }
+    }
+
+    private async Task OnRewQtyChange(decimal? newValue, PurchaseSCNSubVM subVM)
+    {
+        try
+        {
+            var rew = newValue.GetValueOrDefault();
+            if (rew < 0)
+            {
+                subVM.ReworkQty = 0;
+                await _JS.ToastrWarning("Rework Qty must be positive.");
+                return;
+            }
+
+            var accp = subVM.AcceptQty.GetValueOrDefault();
+            var rej = subVM.RejectQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Rework"))
+                subVM.ReworkQty = rew;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnRewQtyChange failed");
+            await _JS.ToastrError("Failed to update Rework Qty.");
+        }
+    }
+
+    private async Task<bool> ValidateAndAdjustAsync(PurchaseSCNSubVM subVM,decimal newAccp,decimal newRej,decimal newRew,string fieldName)
+    {
+        if(subVM.RefGRNSubId == null || subVM.RefGRNSubId <= 0)
+        {
+            await _JS.ToastrWarning("Please select valid GRN Item for quantity adjustment.");
+            return true;
+        }
+
+        decimal grnBalQty = await _scnService .GetGRNItemBalQtyFromGRNSubId(subVM.RefGRNSubId.Value);
+
+        var original = subVM.SCNSubId > 0 ? await _scnService.GetSCNSubItemDetailBySCNSubIdAsync(subVM.SCNSubId) : null;
+
+        decimal originalAccept = original?.AcceptQty ?? 0m;
+        decimal originalReject = original?.RejectQty ?? 0m;
+        decimal originalRework = original?.ReworkQty ?? 0m;
+
+        decimal originalBalQty = (original?.BalQty ?? 0m) + originalReject + originalRework;
+
+        decimal originalTotal = originalAccept + originalReject + originalRework;
+
+        decimal maxAllowed = grnBalQty + originalTotal;
+
+        decimal total = newAccp + newRej + newRew;
+
+        // For existing SCN line, ensure not less than already transacted
+        decimal alreadyTransacted = originalTotal - originalBalQty;
+
+        if (subVM.SCNSubId > 0 && total < alreadyTransacted)
+        {
+            AdjustQty(subVM, fieldName, alreadyTransacted, newAccp, newRej, newRew);
+            subVM.BalQty = 0m;
+
+            await _JS.ToastrWarning($"Total Qty cannot be less than {alreadyTransacted} (already transacted).");
+            return false;
+        }
+
+        // Ensure not exceeding max allowed
+        if (total > maxAllowed)
+        {
+            AdjustQty(subVM, fieldName, maxAllowed, newAccp, newRej, newRew);
+            RecalculateBalQty(subVM, original);
+            RecalculateRejBalQty(subVM, original);
+
+            await _JS.ToastrWarning($"{fieldName} change exceeded limit. Max allowed total is {maxAllowed}.");
+
+            return false;
+        }
+
+        RecalculateBalQty(subVM, original);
+        RecalculateRejBalQty(subVM, original);
+        return true;
+    }
+
+    private void AdjustQty(PurchaseSCNSubVM subVM, string field, decimal max, decimal accp, decimal rej, decimal rew)
+    {
+        switch (field)
+        {
+            case "Accepted":
+                subVM.AcceptQty = Math.Max(0m, max - (rej + rew));
+                break;
+
+            case "Rejected":
+                subVM.RejectQty = Math.Max(0m, max - (accp + rew));
+                break;
+
+            case "Rework":
+                subVM.ReworkQty = Math.Max(0m, max - (accp + rej));
+                break;
+        }
+    }
+
+
+    private void RecalculateBalQty(PurchaseSCNSubVM subVM, PurchaseSCNSubVM? original)
+    {
+        if (original != null)
+        {
+            decimal diff = subVM.AcceptQty.GetValueOrDefault() - original.AcceptQty.GetValueOrDefault();
+
+            subVM.BalQty = Math.Max(0m, original.BalQty.GetValueOrDefault() + diff);
+        }
+        else
+        {
+            subVM.BalQty = subVM.AcceptQty.GetValueOrDefault();
+        }
+    }
+
+    private void RecalculateRejBalQty(PurchaseSCNSubVM subVM, PurchaseSCNSubVM? original)
+    {
+        if (original != null)
+        {
+            decimal diff = subVM.RejectQty.GetValueOrDefault() - original.RejectQty.GetValueOrDefault();
+
+            subVM.RejectBalQty = Math.Max(0m, original.RejectBalQty.GetValueOrDefault() + diff);
+        }
+        else
+        {
+            subVM.RejectBalQty = subVM.RejectQty.GetValueOrDefault();
+        }
+    }
+
+
+    #endregion
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(PurchaseSCNSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if ((row.AcceptQty.GetValueOrDefault()+ row.RejectQty.GetValueOrDefault()+ row.ReworkQty.GetValueOrDefault()) <=0 )
+                errors.Add("Accecpt + Reject + Re-work must be greater than 0.");
+
+            if (row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _JS.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = PurchaseSCNVMs.PurchaseSCNSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(PurchaseSCNSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            if (!PurchaseSCNVMs.PurchaseSCNSubVMs.Any(x => x.IsEditable))
+            {
+                PurchaseSCNVMs.PurchaseSCNSubVMs.Add(new PurchaseSCNSubVM
+                {
+                    SCNId = PurchaseSCNVMs.SCNId,
+                    IsEditable = true
+                });
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for SCNSubId: {item?.SCNSubId}");
+            await _JS.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(PurchaseSCNSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItem == null && item.ItemId > 0)
+            {
+                item.SelectedItem = await _scnService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for SCNSubId: {item?.SCNSubId}");
+            await _JS.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(PurchaseSCNSubVM? item, PurchaseSCNVM? parentDc)
+    {
+        try
+        {
+            if (item == null || parentDc == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (item.AcceptQty.GetValueOrDefault() <= 0) ||
+                (item.UnitPrice <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentDc.PurchaseSCNSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for SCNSubId: {item?.SCNSubId}");
+            await _JS.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(PurchaseSCNSubVM item)
+    {
+        try
+        {
+            if (PurchaseSCNVMs.PurchaseSCNSubVMs.Count == 1 && item.SCNSubId > 0)
+            {
+                await _JS.ToastrWarning("At least one item must be present in the Purchase SCN.");
+                return;
+            }
+
+            if (PurchaseSCNVMs.SCNCancel)
+            {
+                await _JS.ToastrError("This Purchase SCN is already cancelled. Row deletion is not allowed.");
+                return;
+            }
+
+            if (PurchaseSCNVMs.ShortClose)
+            {
+                await _JS.ToastrError("This SCN is already short closed. Row deletion is not allowed.");
+                return;
+            }
+
+            if (item.ItemCancel)
+            {
+                await _JS.ToastrError("This item is already cancelled and cannot be deleted.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _JS.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction integrity.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                PurchaseSCNVMs.PurchaseSCNSubVMs.Remove(item);
+                await _JS.ToastrSuccess("New item row removed successfully.");
+
+                if (!PurchaseSCNVMs.PurchaseSCNSubVMs.Any())
+                    PurchaseSCNVMs.PurchaseSCNSubVMs = new List<PurchaseSCNSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for ScnSubId: {item?.SCNSubId}");
+            await _JS.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in PurchaseSCNVMs.PurchaseSCNSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _JS.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Vendor" => "Add New Vendor",
+                "Item" => "Add New Item",
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type in PurchasGRNUpsert: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal in PurchasGRNUpsert. Please try again.");
+        }
+    }
+
+    private async Task AskToShortCloseAsync()
+    {
+        try
+        {
+            if (PurchaseSCNVMs == null)
+            {
+                await _JS.ToastrError("Invalid Purchase SCN selected.");
+                return;
+            }
+
+            if (!SCNId.HasValue || SCNId == 0)
+            {
+                await _JS.ToastrError("Short Closed is not allowed before saving the Purchase SCN.");
+                return;
+            }
+
+            if (PurchaseSCNVMs.SCNTally)
+            {
+                await _JS.ToastrWarning("This Purchase SCN is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (PurchaseSCNVMs.SCNCancel)
+            {
+                await _JS.ToastrWarning("This Purchase SCN is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!PurchaseSCNVMs.ShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Purchase SCN?";
+                btnText = "Short Closed";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Purchase SCN?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while AskToShortCloseAsync Purchase SCN.");
+            await LoggingService.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if (!SCNId.HasValue || SCNId == 0)
+            {
+                await _JS.ToastrError("SCN cancel is not allowed before saving the Labour SCN.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _JS.ToastrError("Some Items Transaction Are Made!.. You Can't Cancel the Complete Purchase SCN");
+                return;
+            }
+
+            if (PurchaseSCNVMs.ShortClose)
+            {
+                await _JS.ToastrError("Purchase SCN is already short closed. You can't cancel it.");
+                return;
+            }
+
+            if (PurchaseSCNVMs.PurchaseSCNSubVMs?.Any(x => x.ItemCancel) == true)
+            {
+                await _JS.ToastrError("Some items are already cancelled. Complete SCN cancellation is not allowed.");
+                return;
+            }
+
+            if (PurchaseSCNVMs.SCNCancel)
+            {
+                var subs = await _scnService.GetSCNSubBySCNIdAsync(PurchaseSCNVMs.SCNId);
+                foreach (var sub in subs)
+                {
+                    await _scnService.ValidateGRNBalanceBeforeRevertAsync(sub);
+                }
+            }
+
+            if (!PurchaseSCNVMs.SCNCancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this Purchse SCN?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this Purchse SCN?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+            PurchaseSCNVMs = await _scnService.GetPurchaseSCNByIdAsync(PurchaseSCNVMs.SCNId);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Purchse SCN.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Purchse SCN Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnItemCancelChanged(PurchaseSCNSubVM subitem)
+    {
+        try
+        {
+            if (subitem.SCNSubId == 0)
+            {
+                await _JS.ToastrError("Kindly save the item before cancelling.");
+                return;
+            }
+
+            if (subitem.AcceptQty.GetValueOrDefault() != subitem.BalQty.GetValueOrDefault())
+            {
+                await _JS.ToastrError("Item cannot be cancelled — Purchase SCN transactions have been made on it.");
+                return;
+            }
+
+            if (PurchaseSCNVMs.SCNCancel)
+            {
+                await _JS.ToastrError("Purchase SCN is already Cancel. You can't cancel Item.");
+                return;
+            }
+
+            if(subitem.ItemCancel)
+                await _scnService.ValidateBeforeRevertAsync(subitem.SCNSubId);
+
+
+            var (CanItemCancel, message) = await _scnService.CanSCNItemCancelCheckAsync(subitem);
+
+            if (!CanItemCancel)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.ItemCancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = false;
+                }
+                rowToCancel = subitem;
+
+                await _JS.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _JS.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            PurchaseSCNVMs = await _scnService.GetPurchaseSCNByIdAsync(PurchaseSCNVMs.SCNId);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling Item in Purchase SCN");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Item.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Item Cancel in Purchase SCN");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                case "Cancel":
+                case "Revert":
+                    await CancelSCN();
+                    break;
+
+                case "ItemCancel":
+                    await CancelItem();
+                    break;
+
+                case "ShortClose":
+                    await ShortCloseQuotation();
+                    break;
+
+                default:
+                    await _JS.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action in PurchaseSCNUpsert: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action in PurchaseSCNUpsert. Please try again.");
+        }
+    }
+
+    private async Task ShortCloseQuotation()
+    {
+        if (PurchaseSCNVMs == null)
+        {
+            await _JS.ToastrError("No Sales Quotation selected.");
+            return;
+        }
+
+        try
+        {
+            isProcessing = true;
+            PurchaseSCNVMs.ShortClose = !PurchaseSCNVMs.ShortClose;
+            await _scnService.UpsertSCNShortCloseAsync(PurchaseSCNVMs);
+            StateHasChanged();
+
+            string msg = PurchaseSCNVMs.ShortClose
+                 ? "Purchase SCN ShortClose Successfully!"
+                 : "Purchase SCN ReOpen Successfully!";
+            await _JS.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while updating ShortClose.Purchase SCN");
+            await LoggingService.LogDeveloperError(ex, "Error in ShortClose() Purchase SCN");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelItem()
+    {
+        if (rowToCancel == null || isProcessing)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            bool isCancelling = !rowToCancel.ItemCancel;
+
+            if (isCancelling && string.IsNullOrWhiteSpace(cancelReason))
+            {
+                await _JS.ToastrWarning("Cancel reason is required.");
+                return;
+            }
+
+            rowToCancel.ItemCancel = isCancelling;
+            rowToCancel.ItemCancelReason = isCancelling ? cancelReason : string.Empty;
+
+            await _scnService.UpdateItemCancelAndAddorRevertAsync(rowToCancel,PurchaseSCNVMs, screenCode);
+
+            string actionText = isCancelling ? "Cancelled" : "Reverted";
+
+            await LoggingService.LogUserAction(
+                username,
+                machine,
+                ip,
+                screen: "",
+                action: $"{actionText} SCN No: {PurchaseSCNVMs.SCNNo}, ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: isCancelling
+                    ? $"Reason: {cancelReason}"
+                    : "Item revert operation"
+            );
+
+            if(SCNId.HasValue && SCNId>0)
+                await LoadExistingSCN(SCNId.Value);
+
+            await ResetSlno();
+            await _JS.ToastrSuccess($"Item has been {actionText.ToLower()} successfully.");
+
+            cancelReason = string.Empty;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _JS.ToastrWarning(ex.Message);
+
+            if (SCNId.HasValue && SCNId > 0)
+                await LoadExistingSCN(SCNId.Value);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the item.");
+            await LoggingService.LogDeveloperError(ex, $"Item Cancel/Revert failed for SCNId: {PurchaseSCNVMs?.SCNId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelSCN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!PurchaseSCNVMs.SCNCancel)
+            {
+                PurchaseSCNVMs.SCNCancel = true;
+                PurchaseSCNVMs.CancelDate = DateTime.Now;
+                PurchaseSCNVMs.CancelReason = cancelReason;
+                PurchaseSCNVMs.CancelBy = username;
+
+                await _scnService.UpdatedCancelStatusAndAddOrRevertQty(PurchaseSCNVMs, screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Purchase SCN",
+                    action: $"Cancelled SCN: {PurchaseSCNVMs.SCNNo}",
+                    additionalInfo: $"SCN Id: {PurchaseSCNVMs.SCNId}"
+                );
+
+                await _JS.ToastrSuccess("Quotation cancelled successfully.");
+            }
+            else
+            {
+                PurchaseSCNVMs.SCNCancel = false;
+                PurchaseSCNVMs.CancelDate = null;
+                PurchaseSCNVMs.CancelReason = string.Empty;
+                PurchaseSCNVMs.CancelBy = string.Empty;
+
+                await _scnService.UpdatedCancelStatusAndAddOrRevertQty(PurchaseSCNVMs,screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Purchase SCN",
+                    action: $"Reverted SCN: {PurchaseSCNVMs.SCNNo}",
+                    additionalInfo: $"SCN Id: {PurchaseSCNVMs.SCNId}"
+                );
+
+                await _JS.ToastrSuccess("Purchase SCN has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            if(SCNId.HasValue && SCNId>0)
+                await LoadExistingSCN(SCNId.Value);
+
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"CancelSCN failed for SCNId: {PurchaseSCNVMs.SCNId}");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the CN.");
+            await LoggingService.LogDeveloperError(ex, $"CancelSCN failed for SCNId: {PurchaseSCNVMs.SCNId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _JS.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.SCNSubId > 0)
+            {
+                await _scnService.DeleteAndResequenceAsync(rowToDelete, PurchaseSCNVMs, screenCode);
+
+                if(SCNId.HasValue && SCNId>0)
+                    await LoadExistingSCN(SCNId.Value);
+            }
+            else
+            {
+                PurchaseSCNVMs.PurchaseSCNSubVMs.Remove(rowToDelete);
+
+                if (!PurchaseSCNVMs.PurchaseSCNSubVMs.Any())
+                {
+                    PurchaseSCNVMs.PurchaseSCNSubVMs.Add(new PurchaseSCNSubVM
+                    {
+                        SCNId = PurchaseSCNVMs.SCNId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    await ResetSlno();
+                }
+            }
+
+            await _JS.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for SCNId: {PurchaseSCNVMs.SCNId}");
+            await _JS.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _JS.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _JS.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _scnService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _JS.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region CostCenter And terms
+
+    private Task OnCostCenterChanged(ChangeEventArgs e, PurchaseSCNSubVM row)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            row.CostId = selectedId;
+
+            var selectedCostCenter = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            row.ProjectNo = selectedCostCenter?.ProjectNo; // Will be null if not found
+        }
+        else
+        {
+            // No selection or invalid selection
+            row.CostId = null;
+            row.ProjectNo = null;
+        }
+        return Task.CompletedTask;
+
+    }
+
+    #endregion
+
+    #region Insert Operations
+
+    private async Task UpsertSCN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            PurchaseSCNVMs.PurchaseSCNSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.AcceptQty.HasValue || x.AcceptQty == 0) &&
+                (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (!PurchaseSCNVMs.PurchaseSCNSubVMs.Any())
+            {
+                await _JS.ToastrWarning("Cannot save a Purchase SCN without valid items.");
+                return;
+            }
+
+
+            // Validate each line
+            foreach (var line in PurchaseSCNVMs.PurchaseSCNSubVMs)
+            {
+                bool isValid = await ValidateDcLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewDc = PurchaseSCNVMs.SCNId == 0;
+
+            try
+            {
+                await _scnService.UpsertSCNAsync(PurchaseSCNVMs, screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _JS.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewDc)
+                await _JS.ToastrSuccess("Purchase SCN saved successfully.");
+            else
+                await _JS.ToastrSuccess("Purchase SCN updated successfully.");
+
+            // Discard popup Clear
+            await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigation.NavigateTo("/purchaseSCNList");
+        }
+
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertSCN failed.");
+            await _JS.ToastrError("Error saving purchase SCN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateDcLineAsync(PurchaseSCNSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _JS.ToastrWarning("One or more items are missing Item selection.");
+                return false;
+            }
+
+
+            decimal acceptQty = line.AcceptQty ?? 0m;
+            decimal rejectQty = line.RejectQty ?? 0m;
+            decimal reworkQty = line.ReworkQty ?? 0m;
+            decimal enteredTotal = acceptQty + rejectQty + reworkQty;
+
+            decimal stockQty = await _scnService.GetStockQtyFromStockManager(line.ItemId.Value, PurchaseSCNVMs.StoreIssId.Value);
+
+            if (PurchaseSCNVMs.SCNId == 0 && stockQty<=0)
+            {
+                await _JS.ToastrWarning($"AcceptQty+RejectQty+ReworkQty Quantity should not be greater than Stock Qty.");
+                return false;
+            }
+
+            decimal totalEnteredForSameItem =PurchaseSCNVMs.PurchaseSCNSubVMs.Where(x => x.ItemId == line.ItemId)
+            .Sum(x => (x.AcceptQty ?? 0) + (x.RejectQty ?? 0) + (x.ReworkQty ?? 0));
+
+            if (enteredTotal>(totalEnteredForSameItem+stockQty))
+            {
+                await _JS.ToastrWarning($"Total issued quantity for Item {line.ItemCode} ({totalEnteredForSameItem}) " +
+                    $"cannot exceed Available Stock ({stockQty}).");
+                return false;
+            }
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+            {
+                await _JS.ToastrWarning($"Item {line.ItemCode}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            if (PurchaseSCNVMs.StoreIssId == PurchaseSCNVMs.AddStoreId)
+            {
+                await _JS.ToastrWarning($"Add Store and Issue Store should not be the same.");
+                return false;
+            }
+
+            // Qty vs PO / Already Transacted validation
+            if (line.SCNSubId == 0 && line.RefGRNSubId > 0)
+            {
+
+                var grnBalQty = await _scnService.GetGRNItemBalQtyFromGRNSubId(line.RefGRNSubId.Value);
+
+                if ((line.AcceptQty > grnBalQty))
+                {
+                    line.BalQty = grnBalQty;
+                    line.AcceptQty = grnBalQty;
+                    await _JS.ToastrWarning($"Qty cannot exceed SCN Balance Qty ({grnBalQty}).");
+                    return false;
+                }
+            }
+            else if (line.SCNSubId > 0)
+            {
+                var original = await _scnService.GetSCNSubItemDetailBySCNSubIdAsync(line.SCNSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty.Value;
+                    decimal origQty = original.AcceptQty.GetValueOrDefault();
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.AcceptQty < alreadyTransacted)
+                    {
+                        line.AcceptQty = alreadyTransacted;
+                        // line.AcceptQty = 0m;
+                        await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = line.BalQty.GetValueOrDefault() - origQty;
+                        line.AcceptQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidatePOLineAsync failed.");
+            await _JS.ToastrError("Error Validate Purchase-SCN line.");
+            return false;
+        }
+    }
+    #endregion
+
+    #region Show GRNDetails
+    private async Task ShowGRNDetails()
+    {
+        if (PurchaseSCNVMs?.VendorCode != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                if (PurchaseSCNVMs.VendorCode > 0)
+                {
+                    GRNData = await _scnService.GetGRNDetailsByVendorCode(PurchaseSCNVMs.VendorCode.Value,PurchaseSCNVMs.StoreIssId.Value);
+                }
+                else
+                {
+                    await _JS.ToastrWarning("Select the Vendor/Supplier First");
+                }
+                IsGRNModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogDeveloperError(ex, "ShowPoDetails failed.");
+                await _JS.ToastrError("Error fetching Show PoDetails details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnGRNSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (PurchaseSCNVMs.PurchaseSCNSubVMs == null)
+            PurchaseSCNVMs.PurchaseSCNSubVMs = new List<PurchaseSCNSubVM>();
+
+        try
+        {
+            foreach (var item in selectedItems)
+            {
+                int itemId = GetInt(item, "ItemId");
+                int? poSubId = GetNullableInt(item, "PoSubId");
+                int? grnSubId = GetNullableInt(item, "GRNSubId");
+
+                if (PurchaseSCNVMs.PurchaseSCNSubVMs.Any(x => x.ItemId == itemId && x.RefGRNSubId == grnSubId))
+                    continue;
+
+                decimal balQty = GetDecimal(item, "BalQty");
+                decimal stockQty = GetDecimal(item, "StockQty");
+                decimal unitConvert = Math.Max(GetDecimal(item, "UnitConvert"), 1);
+
+                decimal unitPrice = GetDecimal(item, "UnitPrice");
+                decimal altRate = GetDecimal(item, "AltRate");
+                
+                //======== Important==============
+                // If alternate rate is available and conversion > 0, use alternate
+                if (altRate > 0 && unitConvert > 0)
+                {
+                    unitPrice = altRate;
+                }
+
+                //======== Important==============
+                // Qty conversion
+                decimal qtyConvert = (unitConvert > 0) ? balQty * unitConvert : balQty;
+
+                DateTime? grnDate = GetDate(item, "GRNDate");
+                DateTime? dcDate = GetDate(item, "RefDcDate");
+                string refInvNo = GetString(item, "RefInvNo");
+                DateTime? refInvDate = !string.IsNullOrWhiteSpace(refInvNo) ? GetDate(item, "RefInvDate") : null;
+
+                var subVm = new PurchaseSCNSubVM
+                {
+                    RefPoSubId = poSubId,
+                    RefGRNSubId = grnSubId,
+                    RefGRNNo = GetString(item, "GRNNo"),
+                    RefGRNDate = grnDate,
+
+                    ItemId = itemId,
+                    ItemCode = GetString(item, "ItemCode"),
+                    ItemName = GetString(item, "ItemName"),
+                    Specification = GetString(item, "Specification"),
+                    MeasureUnit = GetString(item, "UOM"),
+                    HSNCode = GetString(item, "HSNCode"),
+                    Category = GetString(item, "Category"),
+
+                    AcceptQty = balQty,
+                    BalQty = balQty,
+                    StockQty = stockQty,
+
+                    UnitPrice = unitPrice,
+                    UnitConvert = unitConvert,
+
+                    BatchNo = GetString(item, "BatchNo"),
+                    HeatNo = GetString(item, "HeatNo"),
+
+                    RefDcNo = GetString(item, "RefDcNo"),
+                    RefDcDate = dcDate,
+
+                    RefInvNo = refInvNo,
+                    RefInvDate = refInvDate,
+
+                    CostId = GetNullableInt(item, "CostId"),
+                    ProjectNo = GetString(item, "ProjectNo"),
+
+                    IsEditable = true
+                };
+
+                PurchaseSCNVMs.PurchaseSCNSubVMs.Add(subVm);
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnGRNSelectedAsync failed.");
+            await _JS.ToastrError("Error processing selected GRN items.");
+        }
+    }
+
+
+    private string GetString(Dictionary<string, object> dic, string key)
+    {
+        return dic.TryGetValue(key, out var val) ? val?.ToString() ?? "" : "";
+    }
+
+    private int GetInt(Dictionary<string, object> dic, string key)
+    {
+        return dic.TryGetValue(key, out var val) && int.TryParse(val?.ToString(), out var result)
+            ? result : 0;
+    }
+
+    private int? GetNullableInt(Dictionary<string, object> dic, string key)
+    {
+        return dic.TryGetValue(key, out var val) && int.TryParse(val?.ToString(), out var result) && result != 0
+            ? result : (int?)null;
+    }
+
+    private decimal GetDecimal(Dictionary<string, object> dic, string key)
+    {
+        return dic.TryGetValue(key, out var val) && decimal.TryParse(val?.ToString(), out var result)
+            ? result : 0;
+    }
+
+    private DateTime? GetDate(Dictionary<string, object> dic, string key)
+    {
+        return dic.TryGetValue(key, out var val) && DateTime.TryParse(val?.ToString(), out var result)
+            ? result : (DateTime?)null;
+    }
+
+
+
+    #endregion
+
+
+    #region Formatting
+
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+    #endregion
+
+
+    #region Store change
+
+    private async Task OnStoreChanged(ChangeEventArgs e)
+    {
+        PurchaseSCNVMs.StoreIssId = int.Parse(e.Value.ToString());
+        await LoadStockForAllItems(PurchaseSCNVMs.StoreIssId.Value);
+    }
+    private async Task LoadStockForAllItems(int storeId)
+    {
+        foreach (var item in PurchaseSCNVMs.PurchaseSCNSubVMs)
+        {
+            item.StockQty = await _scnService.GetStockQtyFromStockManager(item.ItemId.Value, storeId);
+        }
+    }
+    private void OnRejectionChanged(PurchaseSCNSubVM subitem)
+    {
+        var selected = RejectionMasterVMs
+            .FirstOrDefault(x => x.RejectionId == subitem.RejectionId);
+
+        if (selected != null)
+        {
+            subitem.Remark = selected.RejectionDescription;
+        }
+    }
+
+    #endregion
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(SCNId.GetValueOrDefault(), "PurchaseSCN.frx", "SCNId", PurchaseSCNVMs.SCNCancel, ScreenName, "Sp_Print_PurchaseSCN");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf PurchaseSCN");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in PurchaseSCN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

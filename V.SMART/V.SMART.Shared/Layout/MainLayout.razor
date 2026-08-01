@@ -1,0 +1,327 @@
+﻿@using MudBlazor
+@inherits LayoutComponentBase
+
+@inject IJSRuntime _js
+@inject ThemeStateService ThemeStateService
+@inject ILocalStorageService localStorage
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IUserThemePreferenceService UserThemePreferenceService
+@inject NavigationManager NavigationManager
+@inject SessionTimeoutService SessionService
+@inject UserSession session
+
+<MudThemeProvider Theme="@_appTheme" @bind-IsDarkMode="_isDark" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout Class="@($"vs-layout {(_isDark ? "vs-dark" : "vs-light")}")">
+
+    <!-- ══════════════════════════════════════════
+         APP BAR
+         ══════════════════════════════════════════ -->
+    <MudAppBar Elevation="0" Dense="true" Class="vs-appbar">
+
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Size="Size.Medium"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       OnClick="DrawerToggle"
+                       Class="vs-appbar-menu-btn" />
+
+        <div class="vs-appbar-brand">
+            <div class="vs-appbar-logo">
+                <img src="/_content/V.SMART.Shared/images/BSPLLOGO.jpg" alt="BSPL" />
+            </div>
+            <div class="vs-appbar-brand-text">
+                <span class="vs-appbar-kicker">ERP Workspace</span>
+                <span class="vs-appbar-company">Bhargavi Soft-Tech Pvt Ltd</span>
+            </div>
+        </div>
+       
+        <MudSpacer />
+
+        <div class="d-flex align-center me-4">
+            <MudIcon Icon="@Icons.Material.Filled.AccountCircle"
+                     Color="Color.Inherit"
+                     Class="me-1" />
+
+            <MudText Typo="Typo.body2" Class="text-white">
+                @(session?.UserName ?? "Guest")
+            </MudText>
+        </div>
+
+        <!-- Theme toggle -->
+        <MudIconButton Icon="@(_isDark? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit"
+                       Size="Size.Small"
+                       Class="vs-appbar-theme-btn me-2"
+                       OnClick="ToggleTheme" />
+
+        <div class="vs-appbar-badge">V.SMART</div>
+
+    </MudAppBar>
+
+    <!-- ══════════════════════════════════════════
+         MINI SIDEBAR (outside MudDrawer so
+         flyouts can overflow freely)
+         ══════════════════════════════════════════ -->
+    @if (!_drawerOpen)
+    {
+        <div class="vs-mini-sidebar">
+            <NavMenu DrawerOpen="false" ToggleDrawer="DrawerToggle" />
+        </div>
+    }
+
+    <!-- ══════════════════════════════════════════
+         FULL DRAWER (temporary overlay)
+         ══════════════════════════════════════════ -->
+    @if (_drawerOpen)
+    {
+        <MudDrawer @bind-Open="_drawerOpen"
+                   Variant="DrawerVariant.Temporary"
+                   Width="300px"
+                   Elevation="0"
+                   ClipMode="DrawerClipMode.Always"
+                   Class="vs-drawer">
+            <NavMenu DrawerOpen="true" ToggleDrawer="DrawerToggle" />
+        </MudDrawer>
+    }
+
+    <!-- ══════════════════════════════════════════
+         MAIN CONTENT
+         ══════════════════════════════════════════ -->
+    <MudMainContent Class="@($"vs-main {(_drawerOpen ? "vs-main--open" : "vs-main--mini")}")"
+                    @onclick="TrackActivity"
+                    @onmousemove="TrackActivity"
+                    @onkeydown="TrackActivity">
+        <div class="vs-content-shell">
+            @Body
+        </div>
+    </MudMainContent>
+
+</MudLayout>
+@if (_showSessionWarning)
+{
+    <MudOverlay Visible="true" DarkBackground="true">
+        <MudPaper Class="pa-6 mx-auto mt-12"
+                  Elevation="10"
+                  Style="width:450px;">
+
+            <MudText Typo="Typo.h5"
+                     Color="Color.Warning"
+                     Align="MudBlazor.Align.Center">
+                Session Timeout Warning
+            </MudText>
+
+            <MudDivider Class="my-3" />
+
+            <MudText Typo="Typo.body1"
+                     Align="MudBlazor.Align.Center">
+                You have been inactive.
+            </MudText>
+
+            <MudText Typo="Typo.h4"
+                     Color="@(_countdown <= 10 ? Color.Error : Color.Warning)"
+                     Align="MudBlazor.Align.Center">
+                @_countdown Seconds
+            </MudText>
+
+            <MudText Align="MudBlazor.Align.Center">
+                Your session will be closed automatically.
+            </MudText>
+
+            <div class="d-flex justify-center mt-4">
+                <MudButton Color="Color.Success"
+                           Variant="Variant.Filled"
+                           OnClick="ContinueSession">
+                    Continue Session
+                </MudButton>
+            </div>
+
+        </MudPaper>
+    </MudOverlay>
+}
+
+
+@code {
+
+    private bool _drawerOpen = false;
+    private bool _isDark = false;
+
+    private bool _showSessionWarning;
+
+    private PeriodicTimer? _idleTimer;
+    private PeriodicTimer? _countdownTimer;
+
+    private int _countdown = 30;
+
+    protected override void OnInitialized()
+    {
+        NavigationManager.LocationChanged += OnLocationChanged;
+
+        SessionService.Touch();
+
+        _idleTimer = new PeriodicTimer(
+            TimeSpan.FromSeconds(1));
+
+        _ = MonitorIdleTime();
+
+       
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _drawerOpen = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void DrawerToggle() => _drawerOpen = !_drawerOpen;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Initialize Navigation Guard
+        await _js.InvokeVoidAsync("NavigationGuard.initialize");
+
+        _isDark = await UserThemePreferenceService.LoadLocalThemeAsync();
+        ThemeStateService.SetTheme(_isDark);
+        StateHasChanged();
+
+        await UserThemePreferenceService.SyncThemeFromDatabaseAsync(v =>
+        {
+            _isDark = v;
+            ThemeStateService.SetTheme(v);
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+
+    private async Task ToggleTheme()
+    {
+        _isDark = !_isDark;
+        ThemeStateService.SetTheme(_isDark);
+        await UserThemePreferenceService.SaveThemePreferenceAsync(_isDark);
+    }
+
+    // ── MudBlazor theme ──────────────────────────────────────────────────
+    private readonly MudTheme _appTheme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#14b8a6",
+            Secondary = "#7c3aed",
+            AppbarBackground = "#1a4e6e",
+            AppbarText = "#ffffff",
+            DrawerBackground = "#0a0f1e",
+            DrawerText = "#e2e8f0",
+            Surface = "#ffffff",
+            Background = "#eaf0f8",
+            TextPrimary = "#1e293b",
+            TextSecondary = "#64748b",
+            LinesDefault = "#dbe4f0",
+            DrawerIcon = "rgba(148,163,184,0.65)",
+            ActionDefault = "#64748b",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#14b8a6",
+            Secondary = "#a78bfa",
+            Background = "#0a0f1e",
+            Surface = "#111827",
+            AppbarBackground = "#0d1526",
+            AppbarText = "#f1f5f9",
+            DrawerBackground = "#080c1a",
+            DrawerText = "#e2e8f0",
+            TextPrimary = "#f1f5f9",
+            TextSecondary = "#94a3b8",
+            LinesDefault = "#1e293b",
+            DrawerIcon = "#94a3b8",
+            ActionDefault = "#94a3b8",
+        },
+    };
+
+    private async Task MonitorIdleTime()
+    {
+        while (await _idleTimer!.WaitForNextTickAsync())
+        {
+            if (!_showSessionWarning &&
+                SessionService.IsIdle(5)) // 2 minutes
+            {
+                await InvokeAsync(async () =>
+                {
+                    _showSessionWarning = true;
+                    _countdown = 30;
+
+                    StateHasChanged();
+
+                    _ = StartCountdown();
+
+                    await Task.CompletedTask;
+                });
+            }
+        }
+    }
+
+    private async Task StartCountdown()
+    {
+        _countdownTimer?.Dispose();
+
+        _countdownTimer =
+            new PeriodicTimer(TimeSpan.FromSeconds(1));
+
+        while (_showSessionWarning &&
+               await _countdownTimer.WaitForNextTickAsync())
+        {
+            _countdown--;
+
+            await InvokeAsync(StateHasChanged);
+
+            if (_countdown <= 0)
+            {
+                _showSessionWarning = false;
+
+                await InvokeAsync(() =>
+                {
+                    LogoutUser();
+                });
+
+                return;
+            }
+        }
+    }
+
+    private void ContinueSession()
+    {
+        SessionService.Touch();
+
+        _showSessionWarning = false;
+
+        _countdown = 30;
+
+        _countdownTimer?.Dispose();
+
+        StateHasChanged();
+    }
+
+    private void TrackActivity()
+    {
+        SessionService.Touch();
+
+        if (_showSessionWarning)
+        {
+            ContinueSession();
+        }
+    }
+
+    private void LogoutUser()
+    {
+        NavigationManager.NavigateTo("/login", true);
+    }
+
+}

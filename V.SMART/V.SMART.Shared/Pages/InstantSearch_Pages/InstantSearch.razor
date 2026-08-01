@@ -1,0 +1,1184 @@
+﻿@page "/instantSearch"
+
+@using V.SMART.Shared.Data.Master.MasterScreeenManagement
+@using System.Text.Json
+@using V.SMART.Shared.ViewModels.InstantSerchViewModel
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject ICommonService commonService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-0 rounded-3">
+
+            @if (!isModelVisible)
+            {
+                <PageHeader TitleText="@InstantSearchTitle"
+                            TitleIcon="bi bi-search"
+                            Breadcrumbs="@instantSearchBreadcrumbs" />
+            }
+
+            <div class="card-body p-3 p-md-4">
+
+                <!-- Screen Selection -->
+                <div class="row mb-3">
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 border rounded-3 shadow-sm bg-white">
+
+                            <label class="form-label fw-bold text-secondary mb-2">
+                                <i class="bi bi-ui-checks-grid me-1"></i> Select Screen
+                            </label>
+
+                            <select class="form-select fw-semibold"
+                                    value="@selectedScreenId"
+                                    @onchange="OnScreenChanged">
+                                <option value="0" disabled>Select Screen</option>
+                                @foreach (var s in screens)
+                                {
+                                    <option value="@s.ScreenCode">@s.ScreenName</option>
+                                }
+                            </select>
+
+                        </div>
+                    </div>
+
+                    <!-- Search Button -->
+                    
+                        <div class="col-12 col-md-4 mt-1">
+                            <button class="btn btn-primary w-100 shadow-sm" @onclick="Search">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
+                    
+
+                </div>
+
+                <!-- Dynamic Fields -->
+                @if (DynamicFields.Any())
+                {
+                    <div>
+                        <h5 class="fw-bold mb-3 text-primary">
+                            <i class="bi bi-funnel"></i> Search Filters
+                        </h5>
+
+                        <div class="row g-3">
+
+                            @foreach (var field in DynamicFields)
+                            {
+                                var id = $"fld_{field.Label.Replace(" ", "")}";
+
+                                <div class="col-12 col-sm-6">
+
+                                    @if (field.Type == "bool")
+                                    {
+                                        <!-- Checkbox -->
+                                        <div class="form-check mt-4">
+                                            <input type="checkbox"
+                                                   class="form-check-input"
+                                                   id="@id"
+                                                   @bind="field.BoolValue" />
+
+                                            <label class="form-check-label" for="@id">
+                                                @field.Label
+                                            </label>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <!-- Floating Label -->
+                                        <div class="form-floating shadow-sm">
+
+                                            @switch (field.Type)
+                                            {
+                                                case "text":
+                                                    <TrimmedInputText id="@id"
+                                                                      CssClass="form-control rounded-3"
+                                                                      placeholder="@field.Label"
+                                                                      @bind-value="field.Value" />
+                                                    break;
+
+                                                case "number":
+                                                    <input type="number"
+                                                           id="@id"
+                                                           class="form-control rounded-3"
+                                                           placeholder="@field.Label"
+                                                           @bind="field.NumberValue" />
+                                                    break;
+
+                                                case "date":
+                                                    <input type="date"
+                                                           id="@id"
+                                                           class="form-control rounded-3"
+                                                           placeholder="@field.Label"
+                                                           @bind="field.DateValue" />
+                                                    break;
+
+                                                case "dropdown":
+                                                    <select id="@id"
+                                                            class="form-select rounded-3"
+                                                            @bind="field.DropdownValue">
+                                                        <option value=""></option>
+                                                        @foreach (var opt in field.Options)
+                                                        {
+                                                            <option value="@opt">@opt</option>
+                                                        }
+                                                    </select>
+                                                    break;
+                                            }
+
+                                            <label for="@id">@field.Label</label>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                        </div>
+
+
+                       @*  <!-- Search Button -->
+                        <div class="row mt-4">
+                            <div class="col-12 col-md-4">
+                                <button class="btn btn-primary w-100 shadow-sm" @onclick="Search">
+                                    <i class="bi bi-search"></i> Search
+                                </button>
+                            </div>
+                        </div> *@
+
+                    </div>
+                }
+
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    protected override string ScreenName => "Instant Search";
+
+    [Parameter, SupplyParameterFromQuery] public string? Screen { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<Dictionary<string, object>> OnSearch { get; set; }
+
+    [Parameter] public bool isModelVisible { get; set; } = false;
+    [Parameter] public Dictionary<string, object>? Filters { get; set; }
+
+    private bool isProcessing = true;
+    private int selectedScreenId;
+   
+
+    private string? parentScreenName;
+    private List<Screens> screens = new();
+    private List<SearchFieldModel> DynamicFields = new();
+
+    private string InstantSearchTitle => "Instant Search";
+
+    private List<PageHeader.BreadcrumbItem> instantSearchBreadcrumbs =
+    [
+        new PageHeader.BreadcrumbItem { Text = "Instant Search", IsLast = true }
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadScreens();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task LoadScreens()
+    {
+        screens = await commonService.GetAllScreenAsync();
+
+        if (!string.IsNullOrEmpty(Screen))
+        {
+            var screenObj = screens.FirstOrDefault(x =>
+                x.ScreenName.Equals(Screen, StringComparison.OrdinalIgnoreCase));
+
+            if (screenObj != null)
+            {
+                selectedScreenId = screenObj.ScreenCode;
+                parentScreenName = screenObj.ScreenName;
+                await LoadSearchFieldsByScreenName(Screen);
+            }
+        }
+    }
+
+
+    private async Task OnScreenChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int id))
+        {
+            selectedScreenId = id;
+
+            var selected = screens.FirstOrDefault(x => x.ScreenCode == id);
+
+            if (selected != null)
+            {
+                // If coming from modal and screen changed → modal mode off
+                if (isModelVisible && parentScreenName != selected.ScreenName)
+                {
+                    isModelVisible = false;
+                }
+
+                await LoadSearchFieldsByScreenName(selected.ScreenName);
+            }
+        }
+    }
+
+
+    private async Task LoadSearchFieldsByScreenName(string screenName)
+    {
+        DynamicFields = screenName switch
+        {
+
+            string s when s.Equals("User", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("UserName", "User Name", "text"),
+                new("Email", "E-Mail", "text"),
+                new("Role", "Role", "dropdown", new() {"Administrator", "User"}),
+                new("Status", "Status", "dropdown", new() {"Active", "InActive","ReadOnly"}),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("User Level Authorization", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("UserName", "User Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Store", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("StoreName", "Store Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("HSN Master", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("HSNcode", "HSN/SAC Code", "text"),
+                new("HSNCategory", "HSN/SAC Category", "text")
+            },
+
+            string s when s.Equals("Raw Material", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("RmName", "Material Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("BOM", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("AssemblyItemCode", "Assembly Code", "text"),
+                new("SubAssemblyItemCode", "Sub-Assembly Code", "text"),
+                new("PartItemCode", "Item Code/Part No.", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+            string s when s.Equals("BOM Labour", StringComparison.OrdinalIgnoreCase) => new() 
+            {
+                new("AssemblyItemCode", "Assembly Code", "text"),
+                new("SubAssemblyItemCode", "Sub-Assembly Code", "text"),
+                new("PartItemCode", "Item Code/Part No.", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Process", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ProcessName", "Process Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Factors", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("FactorName", "Factor Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Grouping", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("FRCNo", "FRC No.", "text"),
+                new("ProcessName", "Process Name", "text"),
+                new("FactorName", "Factor Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Customer", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("Customer", "Customer Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+                new("Status", "Status", "dropdown", new() {"Active", "In Active"}),
+            },
+
+            string s when s.Equals("Vendor", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("Vendor", "Vendor Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+                new("Status", "Status", "dropdown", new() {"Active", "In Active"}),
+            },
+
+
+            string s when s.Equals("Machine", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("Machine", "Machine Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Terms and Conditions", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("Title", "Title Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Contract Review", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("Description", "Title Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Expense", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ExpenseName", "Expense Type", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Income", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("IncomeName", "Income Type", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Currency", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("CurrName", "Currency Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Cost-Center", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ProjNo", "Project Number", "text"),
+                new("CostCenterName", "Cost Center Name", "text"),
+                new("TypeOfProject", "Type of Project", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            // Human Resource Service
+            string s when s.Equals("LeaveType", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("LeaveName", "Leave Type Number", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Employee Leave Balance", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("Leave Year", "Leave Year", "text"),
+                new("LeaveType", "Leave Type Name", "text"),
+                new("EmployeeName", "Employee Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Shift Allocation", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ShiftCode", "Shift Code", "text"),
+                new("ShiftName", "Shift Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+
+            // Sales And labour
+            string s when s.Equals("Enquiry Sales", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("EnqNo", "Enq. No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Enquiry Feasibility", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("FesNo", "Fes. No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("EnqNo", "Enq No", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Manufacturing Quotation", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("QuoteNo", "Quote. No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("EnqNo", "Enq No", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Sales Order", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("Po", "Sales Order No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("QuoteNo", "Quote. No", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Contract Review CheckList", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ContractNo", "Contract. No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("PoNo", "Po No", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Performa Invoice", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("InvNo", "Performa Inv No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("PoNo", "Sales Order No", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+
+            // Labour
+
+            string s when s.Equals("Labour GRN", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("GRNNo", "GRN No", "text"),
+                new("RefDcNo", "DC No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("PoNo", "Sales Order No", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+
+            string s when s.Equals("Labour SCN", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("SCNNo", "SCN No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("GRNNo", "Ref GRN No", "text"),
+                new("RefDCNo", "Ref DC No", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Labour Delivery Challan", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("DcNo", "DC No", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("PoNo", "PO No.", "text"),
+                new("DCNo", "Customer DC No.", "text"),
+                new("SCNNo", "SCN No.", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Labour Invoice", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("InvNo", "Invoice No", "text"),
+                new("DCNo", "DC No.", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Stock-Add", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("SCNNo", "SCN Gen No.", "text"),
+                new("AssemblyCode", "Assembly Code", "text"),
+                new("AssemblyName", "Assembly Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Material Issue-Note", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("MINNo", "MIN No.", "text"),
+                new("AssemblyCode", "Assembly Code", "text"),
+                new("AssemblyName", "Assembly Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+
+            string s when s.Equals("Category", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("CategoryName", "Category Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Job Order", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("JobNo", "Job No", "text"),
+                new("AssemblyName", "Assembly Name", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("MfgPo", "Mfg PO No.", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Production Issue WO Assembly", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("IssueNo", "Issue No", "text"),
+                new("JobNo", "Job No", "text"),
+                new("AssemblyName", "Assembly/Sub-Assembly", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Production Return GRN Assembly", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ReturnNo", "Return No", "text"),
+                new("JobNo", "Job No", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Production SCN Assembly", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("SCNNo", "SCN No.", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Route Card", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("RCNo", "RC No", "text"),
+                new("RcType", "Rc Type", "dropdown", new() { "Manual", "Auto" }),
+                new("RefPoNo", "Mfg PO No.", "text"),
+                new("CustName", "Customer Name", "text"),
+                new("AssyCode", "Assembly Name", "text"),
+                new("SubAssyCode", "Sub Assembly Name", "text"),
+                new("SubAssyCode2", "Sub Assembly 2", "text"),
+                new("SubAssyCode3", "Sub Assembly 3", "text"),
+
+                new("CompItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+
+                new("RMCode", "RM Code", "text"),
+                new("RMName", "RM Name", "text"),
+
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending","Work-In-Progress", "Cancelled" }),
+
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+
+            string s when s.Equals("Item", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("CategoryName", "Category Name", "text"),
+                new("ActiveStatus", "Active Status", "dropdown", new() { "Active", "InActive" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+                new("AssignedCustomer", "Assigned Customer", "text")
+            },
+
+            string s when s.Equals("Staff", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("EmployeeCode", "Employee Code", "text"),
+                new("EmployeeName", "Employee Name", "text"),
+                new("Department", "Department", "text"),
+                new("Designation", "Designation", "text"),
+                new("Active", "Employee Status", "dropdown", new() { "Active", "InActive" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Item", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("CategoryName", "Category Name", "text"),
+                new("ActiveStatus", "Active Status", "dropdown", new() { "Active", "InActive" }),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date"),
+            },
+
+            string s when s.Equals("Production Log Setting", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("StopType", "Stop Type name", "text"),
+                new("IsActive", "Active Status", "dropdown", new() { "Active", "Inactive" })
+            },
+
+            string s when s.Equals("Invoice", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("InvoiceNo", "Invoice No", "text"),
+                new("Customer", "Customer", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Material Requisition", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("MreqNo", "PR/MR Number", "text"),
+                 new("Customer", "Customer Name", "text"),
+                 new("SalesOrderNo", "Sales Order Number", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("VendorName", "Vendor Name", "text"),
+                 new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                 new("ApprovalStatus", "Approval Status", "dropdown", new() { "Approved", "Rejected" , "Pending"}),
+                 new("CreatedBy", "Created By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Enquiry Purchase", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("EnquiryNo", "Enquiry Number", "text"),
+                 new("VendorName", "Vendor Name", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("MreqNo", "Indent Number", "text"),
+                 new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                 new("CreatedBy", "Created By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("purchase-quotation", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("QuoteNo", "Quotation Number", "text"),
+                 new("VendorName", "Vendor Name", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("EnqNo", "Enquiry Number", "text"),
+                 new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                 new("CreatedBy", "Created By", "text"),
+                 new("ModifiedBy", "Modified By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Purchase Order", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("PONumber", "PO Number", "text"),
+                new("VendorName", "Vendor Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("QuoteNo", "Ref Quote No.", "text"),
+                new("IndentNo", "Ref Indent No.", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("ApprovalStatus", "Approval Status", "dropdown", new() { "Approved", "Rejected" , "Pending"}),
+                new("CreatedBy", "Created By", "text"),
+                new("ModifiedBy", "Modified By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("purchase grn", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("GRNNo", "GRN No", "text"),
+                 new("Vendor", "Vendor", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("PONo","Purchase Order No.","text"),
+                 new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                 new("CreatedBy", "Created By", "text"),
+                 new("ModifieBy", "Modified By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("purchase scn", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("SCNNo", "SCN No", "text"),
+                 new("Vendor", "Vendor", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("GRNNo","GRN No.","text"),
+                 new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                 new("CreatedBy", "Created By", "text"),
+                 new("ModifieBy", "Modified By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("purchase invoice", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("InvNo", "Invoice No", "text"),
+                 new("Vendor", "Vendor", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("SCNNo","SCN No.","text"),
+                 new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                 new("CreatedBy", "Created By", "text"),
+                 new("ModifieBy", "Modified By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Manufacturing Invoice", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("InvNo", "Invoice No", "text"),
+                 new("Customer", "Customer", "text"),
+                 new("RefPoNo", "Ref Po No.", "text"),
+                 new("RefDcNo", "Ref Dc No.", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("CreatedBy", "Created By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Export Invoice", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("ExpInvNo", "Export Invoice No", "text"),
+                 new("Customer", "Customer", "text"),
+                 new("RefPoNo", "Ref Po No.", "text"),
+                 new("RefDcNo", "Ref Dc No.", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("CreatedBy", "Created By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+            string s when s.Equals("Manufacturing DC", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("DcNo", "Dc No", "text"),
+                 new("Customer", "Customer", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("PoNo", "Sales Order Number", "text"),
+                 new("CreatedBy", "Created By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+            string s when s.Equals("Credit Note", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                 new("InvNo", "Credit Note No.", "text"),
+                 new("Customer", "Customer", "text"),
+                 new("RefInvNo", "Ref Invoice No.", "text"),
+                 new("ItemCode", "Item Code", "text"),
+                 new("ItemName", "Item Name", "text"),
+                 new("CreatedBy", "Created By", "text"),
+                 new("FromDate", "From Date", "date"),
+                 new("ToDate", "To Date", "date")
+            },
+            string s when s.Equals("Sub-Contract DC-Out", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("DcNo", "DC No.", "text"),
+                new("Vendor", "Vendor/Supplier Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("PoNo", "PO No.", "text"),
+                new("RCNo", "RC No.", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+            string s when s.Equals("Sub-Contract SCN", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("SCNNo", "SCN No.", "text"),
+                new("Vendor", "Vendor/Supplier Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("RefGRNNo", "Ref GRN No.", "text"),
+                new("RCNo", "RC No.", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Sub-Contrect GRN", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("GRNNo", "GRN No.", "text"),
+                new("Vendor", "Vendor/Supplier Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("RefDcNo", "Ref Dc No.", "text"),
+                new("JobNo", "RC No.", "text"),
+                new("PartyDcNo", "Party DcNo", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+            string s when s.Equals("Sub-Contract Invoice", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("InvNo", "Invoice No.", "text"),
+                new("Vendor", "Vendor/Supplier Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("RefSCNNo", "Ref SCN No.", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("Status", "Status", "dropdown", new() { "Completed", "Pending", "Cancelled","Short Closed" }),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Daily Production Log", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("LogNo", "Log No.", "text"),
+                new("Customer", "Customer Name", "text"),
+                new("ItemCodeIn", "Item Code In", "text"),
+                new("ItemNameIn", "Item Name In", "text"),
+                new("ItemCodeOut", "Item Code Out", "text"),
+                new("ItemNameOut", "Item Name Out", "text"),
+                new("RcNo", "Ref RC No.", "text"),
+                new("Process", "Process", "text"),
+                new("Machine", "Machine", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Tool-Crib Return", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ReturnNo", "Return No.", "text"),
+                new("FromWhom", "From Whom", "text"),
+                new("StoreName", "Store Name", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Tool-Crib Issue", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("IssueNo", "Issue No.", "text"),
+                new("IssueWhom", "Issue To Whom", "text"),
+                new("StoreName", "Store Name", "text"),
+                new("Category", "Category", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+            string s when s.Equals("Estimation", StringComparison.OrdinalIgnoreCase) => new()//Estimate
+            {
+                new("EstiamateNo", "EstiamateNo", "text"),
+                new("Customer", "Customer", "text"),
+                new("ItemCode", "Item Code", "text"),
+                new("ItemName", "Item Name", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+            //Sathish
+            string s when s.Equals("Payments", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("PaymentNo", "Payment No.", "text"),
+                new("PayToName", "Pay To Name", "text"),
+                new("PaymentMode", "Payment Mode", "text"),
+                new("PaymentTypeName", "Payment TypeName", "text"),
+                new("Amount", "Amount", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            string s when s.Equals("Receipts", StringComparison.OrdinalIgnoreCase) => new()
+            {
+                new("ReceiptNo", "Receipt No.", "text"),
+                new("PayFromName", "Pay From Name", "text"),
+                new("PaymentMode", "Payment Mode", "text"),
+                new("PaymentTypeName", "Payment TypeName", "text"),
+                new("Amount", "Amount", "text"),
+                new("CreatedBy", "Created By", "text"),
+                new("FromDate", "From Date", "date"),
+                new("ToDate", "To Date", "date")
+            },
+
+            _ => new()
+        };
+    }
+
+
+    private async Task Search()
+    {
+        try
+        {
+            // Build filters
+            var filterDict = new Dictionary<string, object>();
+
+            foreach (var f in DynamicFields)
+            {
+                var val = f.GetValueAsString();
+
+                if (!string.IsNullOrWhiteSpace(val))
+                {
+                    filterDict[f.Key] = val;
+
+                }
+                
+            }
+
+            var selected = screens.FirstOrDefault(x => x.ScreenCode == selectedScreenId);
+            if (selected == null)
+                return;
+
+            string route = selected.ScreenName switch
+            {
+
+                var s when s.Contains("User", StringComparison.OrdinalIgnoreCase) => "user",
+                var s when s.Contains("User Level Authorization", StringComparison.OrdinalIgnoreCase) => "userLevelAuthorization",
+
+                //Inventory
+                var s when s.Contains("Item", StringComparison.OrdinalIgnoreCase) => "itemList",
+
+                var s when s.Contains("Store", StringComparison.OrdinalIgnoreCase) => "stores",
+                var s when s.Contains("HSN Master", StringComparison.OrdinalIgnoreCase) => "hsnMaster",
+                var s when s.Contains("BOM", StringComparison.OrdinalIgnoreCase) => "bomList",
+                var s when s.Contains("BOM Labour", StringComparison.OrdinalIgnoreCase) => "bomLabourList", 
+                var s when s.Contains("Process", StringComparison.OrdinalIgnoreCase) => "processList",
+                var s when s.Contains("Factors", StringComparison.OrdinalIgnoreCase) => "factorlist",
+                var s when s.Contains("Grouping", StringComparison.OrdinalIgnoreCase) => "groupingList",
+
+                //General
+                var s when s.Contains("Customer", StringComparison.OrdinalIgnoreCase) => "customer",
+                var s when s.Contains("Vendor", StringComparison.OrdinalIgnoreCase) => "vendor",
+                var s when s.Contains("Machine", StringComparison.OrdinalIgnoreCase) => "machineList",
+                var s when s.Contains("Terms and Conditions", StringComparison.OrdinalIgnoreCase) => "terms-and-conditions",
+                var s when s.Contains("Contract Review", StringComparison.OrdinalIgnoreCase) => "contractReviewMasterList",
+
+                //Accounts
+                var s when s.Contains("Expense", StringComparison.OrdinalIgnoreCase) => "expense",
+                var s when s.Contains("Income", StringComparison.OrdinalIgnoreCase) => "income",
+                var s when s.Contains("Currency", StringComparison.OrdinalIgnoreCase) => "currency",
+                var s when s.Contains("Cost-Center", StringComparison.OrdinalIgnoreCase) => "costcenter",
+
+                //Human Resource Service
+                var s when s.Contains("LeaveType", StringComparison.OrdinalIgnoreCase) => "leaveType",
+                var s when s.Contains("Employee Leave Balance", StringComparison.OrdinalIgnoreCase) => "employeeLeaveBalance",
+                var s when s.Contains("Shift Allocation", StringComparison.OrdinalIgnoreCase) => "shiftAllocation",
+                var s when s.Contains("Staff", StringComparison.OrdinalIgnoreCase) => "Staff",
+
+                // Sales And Labour
+                var s when s.Contains("Enquiry Sales", StringComparison.OrdinalIgnoreCase) => "enquirySales",
+                var s when s.Contains("Enquiry Feasibility", StringComparison.OrdinalIgnoreCase) => "enquiryfeasibility",
+                var s when s.Contains("Manufacturing Quotation", StringComparison.OrdinalIgnoreCase) => "mfgQuoteList",
+                var s when s.Contains("Sales Order", StringComparison.OrdinalIgnoreCase) => "mfgPOList",
+                var s when s.Contains("Contract Review CheckList", StringComparison.OrdinalIgnoreCase) => "contractReviewCheckList",
+                var s when s.Contains("Performa Invoice", StringComparison.OrdinalIgnoreCase) => "PerformaInvList",
+
+                var s when s.Contains("Labour GRN", StringComparison.OrdinalIgnoreCase) => "labourGRNList",
+                var s when s.Contains("Labour SCN", StringComparison.OrdinalIgnoreCase) => "labourSCNList",
+                var s when s.Contains("Labour Delivery Challan", StringComparison.OrdinalIgnoreCase) => "labourDcoutgoingList",
+                var s when s.Contains("Labour Invoice", StringComparison.OrdinalIgnoreCase) => "LabourInvoiceList",
+
+
+
+                var s when s.Contains("Stock-Add", StringComparison.OrdinalIgnoreCase) => "scnGenList",
+
+                var s when s.Contains("Category", StringComparison.OrdinalIgnoreCase) => "Category",
+                var s when s.Contains("Job Order", StringComparison.OrdinalIgnoreCase) => "jobOrderList",
+                var s when s.Contains("Production Issue WO Assembly", StringComparison.OrdinalIgnoreCase) => "productionIssueList",
+                var s when s.Contains("Production Return GRN Assembly", StringComparison.OrdinalIgnoreCase) => "productionReturnAssyList",
+
+                var s when s.Contains("Enquiry Purchase", StringComparison.OrdinalIgnoreCase) => "EnquiryPurchase",
+                var s when s.Contains("Purchase-Quotation", StringComparison.OrdinalIgnoreCase) => "purchaseQuoteList",
+                var s when s.Contains("Purchase Order", StringComparison.OrdinalIgnoreCase) => "PurchPOList",
+                var s when s.Contains("Purchase Invoice", StringComparison.OrdinalIgnoreCase) => "purchaseInvoiceList",
+                var s when s.Contains("Purchase SCN", StringComparison.OrdinalIgnoreCase) => "purchaseSCNList",
+                var s when s.Contains("Purchase GRN", StringComparison.OrdinalIgnoreCase) => "purchaseGRNList",
+
+
+                var s when s.Contains("Route Card", StringComparison.OrdinalIgnoreCase) => "routeCardList",
+                var s when s.Contains("Invoice", StringComparison.OrdinalIgnoreCase) => "Invoice",
+
+                var s when s.Contains("Mfg Invoice", StringComparison.OrdinalIgnoreCase) => "mfgInvList",
+                var s when s.Contains("Export Invoice", StringComparison.OrdinalIgnoreCase) => "expInvList",
+                var s when s.Contains("Mfg Dc", StringComparison.OrdinalIgnoreCase) => "mfgDcList",
+                var s when s.Contains("Credit Note", StringComparison.OrdinalIgnoreCase) => "creditNoteList",
+
+                var s when s.Contains("Sub-Contract DC-Out", StringComparison.OrdinalIgnoreCase) => "subConDcOutList",
+
+                var s when s.Contains("Sub-Contract SCN", StringComparison.OrdinalIgnoreCase) => "subConScnList",
+
+                var s when s.Contains("Sub-Contrect GRN", StringComparison.OrdinalIgnoreCase) => "subConGrnList",
+
+                var s when s.Contains("Sub-Contract Invoice", StringComparison.OrdinalIgnoreCase) => "subConInvList",
+
+                var s when s.Contains("Daily Production Log", StringComparison.OrdinalIgnoreCase) => "productionLogList",
+
+                var s when s.Contains("Tool-Crib Return", StringComparison.OrdinalIgnoreCase) => "tcReturnList",
+
+                var s when s.Contains("Tool-Crib Issue", StringComparison.OrdinalIgnoreCase) => "tcIssueList",
+
+                var s when s.Contains("Estimation", StringComparison.OrdinalIgnoreCase) => "Estimation",//Estmation
+
+
+                var s when s.Contains("Receipts", StringComparison.OrdinalIgnoreCase) => "ReceiptList",
+
+                var s when s.Contains("Payments", StringComparison.OrdinalIgnoreCase) => "PaymentList",
+
+
+                _ => selected.ScreenName
+            };
+
+            //===============Don't Touch This Code this Search getting By Multiple Ways==========================
+
+            // CASE 1: Modal + same parent screen → return filter data
+            if (isModelVisible && parentScreenName == selected.ScreenName && OnSearch.HasDelegate)
+            {
+                await OnSearch.InvokeAsync(filterDict);
+                await OnClose.InvokeAsync();
+                return;
+            }
+
+            // CASE 2: Modal but screen changed → open full navigation
+            if (isModelVisible && parentScreenName != selected.ScreenName)
+            {
+                isModelVisible = false;
+            }
+
+            // NAVIGATION
+            var json = JsonSerializer.Serialize(filterDict);
+            var encoded = Uri.EscapeDataString(json);
+
+            _navigation.NavigateTo($"{route}?filter={encoded}", false);
+
+            if (isModelVisible)
+                await OnClose.InvokeAsync();
+
+            //===============Don't Touch This Code ==========================
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error executing search");
+            await _js.ToastrError("Search failed.");
+        }
+    }
+}

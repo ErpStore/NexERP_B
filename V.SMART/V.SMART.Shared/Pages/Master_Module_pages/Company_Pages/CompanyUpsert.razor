@@ -1,0 +1,1202 @@
+﻿@page "/myCompany"
+@page "/myCompany/update/{CompanyId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices
+
+@inject IFileUploadService _fileUploadService
+
+@inherits BaseUserRightsComponent
+
+@inject ICompanyService _companyService
+@inject ICommonService _commonService
+@inject ILoggingService loggingService
+@inject IJSRuntime _js
+@inject NavigationManager _navigationManager
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColour"
+         ButtonText="@buttontext"
+         Title=@ModalTitle>
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="Company Information"
+                            TitleIcon="bi bi-building"
+                            Breadcrumbs="@companyBreadcrumbs" />
+
+
+                <div class="card-body">
+                    <EditForm Model="Company" OnValidSubmit="UpsertCompany">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+
+                        @if (Company != null && Company.CompanyId > 0 && !string.IsNullOrWhiteSpace(Company.CompanyName))
+                        {
+                            <CorrespondenceStatus ReferenceType="CompanyDetails"
+                                                  ReferenceId="@Company.CompanyId"
+                                                  ReferenceTypeName="@Company.CompanyName" />
+                        }
+
+                        <!--Basic Information/Business Details-->
+                        <h6 class="mb-4 text-primary border-bottom pb-2">Basic Information/Business Details</h6>
+                        <div class="row g-4 mb-3">
+
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Company.CompanyName" id="CompanyName" placeholder="Company Name" class="form-control" CssClass="form-control" />
+                                    <label for="CompanyName">Company Name</label>
+                                    <ValidationMessage For="@(() => Company.CompanyName)" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Company.CompanyCode" id="CompanyCode" placeholder="Company Code" class="form-control" CssClass="form-control" />
+                                    <label for="CompanyCode">Company Code</label>
+                                    <ValidationMessage For="@(() => Company.CompanyCode)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputSelect @bind-Value="Company.BusinessType" id="BusinessType" class="form-select" @onchange="OnBusinessTypeChanged">
+                                        <option value="">-- Select Business Type --</option>
+                                        @foreach (var type in BusinessTypes)
+                                        {
+                                            <option value="@type">@type</option>
+                                        }
+                                    </InputSelect>
+                                    <label for="BusinessType">Business Type</label>
+                                    <ValidationMessage For="@(() => Company.BusinessType)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            @if (Company.BusinessType == "Others")
+                            {
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Company.CustomBusinessType" id="CustomBusinessType" class="form-control" placeholder="Enter Custom Business Type" />
+                                        <label for="CustomBusinessType">Enter Business Type</label>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputSelect @bind-Value="Company.IndustryType" id="IndustryType" class="form-select" @onchange="OnIndustryTypeChanged">
+                                        <option value="">-- Select Industry Type --</option>
+                                        @foreach (var type in IndustryTypes)
+                                        {
+                                            <option value="@type">@type</option>
+                                        }
+                                    </InputSelect>
+                                    <label for="IndustryType">Industry Type</label>
+                                    <ValidationMessage For="@(() => Company.IndustryType)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            @if (Company.IndustryType == "Others")
+                            {
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Company.CustomIndustryType" id="CustomIndustryType" class="form-control" placeholder="Enter Custom Industry Type" />
+                                        <label for="CustomIndustryType">Enter Industry Type</label>
+                                    </div>
+                                </div>
+                            }
+
+                        </div>
+
+                        <!--Address Details-->
+                        <h6 class="mb-4 text-primary border-bottom pb-2">Address Details</h6>
+                        <div class="row g-4 mb-3">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="Company.RegisteredAddress" class="form-control" id="RegisteredAddress" placeholder="Registered Address" />
+                                    <label for="RegisteredAddress">Registered Address</label>
+                                    <ValidationMessage For="@(() => Company.RegisteredAddress)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="Company.BillingAddress" class="form-control" id="BillingAddress" placeholder="Billing Address" />
+                                    <label for="BillingAddress">Billing Address</label>
+                                    <ValidationMessage For="@(() => Company.BillingAddress)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="Company.ShippingAddress" class="form-control" id="ShippingAddress" placeholder="Shipping Address" />
+                                    <label for="ShippingAddress">Shipping Address</label>
+                                    <ValidationMessage For="@(() => Company.ShippingAddress)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Company.ZipCode" class="form-control" id="ZipCode" placeholder="Zip Code"
+                                               oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                                    <label for="ZipCode">Zip / Pin Code</label>
+                                    <ValidationMessage For="@(() => Company.ZipCode)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Company.City" class="form-control" id="City" placeholder="City" CssClass="form-control" />
+                                    <label for="City">City</label>
+                                    <ValidationMessage For="@(() => Company.City)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-floating">
+
+                                    <select class="form-select"
+                                            value="@Company.StateCode"
+                                            @onchange="OnStateChanged">
+                                        <option value="">--Select State--</option>
+                                        @foreach (var sta in state)
+                                        {
+                                            <option value="@sta.StateCode">@sta.StateCode - @sta.StateName</option>
+                                        }
+                                    </select>
+                                    <label for="stateSelect">State</label>
+                                </div>
+                                <ValidationMessage For="@(() => Company.StateName)" />
+
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Company.Country" class="form-control" id="Country" placeholder="Country" CssClass="form-control" />
+                                    <label for="Country">Country</label>
+                                    <ValidationMessage For="@(() => Company.Country)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!--Contact Details-->
+                        <h6 class="mb-4 text-primary border-bottom pb-2">Contact Details</h6>
+                        <div class="row g-4 mb-3">
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Company.PhoneNumber"
+                                               class="form-control" id="PhoneNumber"
+                                               placeholder="Phone Number"
+                                               oninput="this.value = this.value.replace(/[^0-9+]/g, '')" />
+                                    <label for="PhoneNumber">Phone Number</label>
+                                    <ValidationMessage For="@(() => Company.PhoneNumber)" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Company.MobileNumber" class="form-control" id="MobileNumber"
+                                               placeholder="Mobile Number" oninput="this.value = this.value.replace(/[^0-9+]/g, '')" />
+                                    <label for="MobileNumber">Mobile Number</label>
+                                    <ValidationMessage For="@(() => Company.MobileNumber)" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Company.ContactPersonName" class="form-control" id="ContactPersonName" placeholder="Contact Person Name" />
+                                    <label for="ContactPersonName">Contact Person Name</label>
+                                    <ValidationMessage For="@(() => Company.ContactPersonName)" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Company.EmailId" class="form-control" id="EmailId" placeholder="Email Id" CssClass="form-control" />
+                                    <label for="EmailId">Email Id</label>
+                                    <ValidationMessage For="@(() => Company.EmailId)" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Company.AlternateEmail" class="form-control" id="AlternateEmail" placeholder="Alternate Email" />
+                                    <label for="AlternateEmail">Alternate Email</label>
+                                    <ValidationMessage For="@(() => Company.AlternateEmail)" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Company.Website" class="form-control" id="Website" placeholder="Website" CssClass="form-control" />
+                                    <label for="Website">Website</label>
+                                    <ValidationMessage For="@(() => Company.Website)" class="text-danger small" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--Tax Details-->
+                        <h6 class="mb-4 text-primary border-bottom pb-2">Tax Details</h6>
+                        <div class="row g-4 mb-5">
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputText class="form-control form-control-sm"
+                                               @bind-Value="Company.GSTIN"
+                                               @oninput="@(e => OnGstChanged(e))"
+                                               maxlength="15"
+                                               id="GSTIN"
+                                               placeholder="GSTIN" />
+                                    <label for="GSTIN">GSTIN</label>
+                                    <ValidationMessage For="@(() => Company.GSTIN)" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Company.PAN" class="form-control" id="PAN" placeholder="PAN" CssClass="form-control" readonly />
+                                    <label for="PAN">PAN</label>
+                                    <ValidationMessage For="@(() => Company.PAN)" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Company.CIN" class="form-control" id="CIN" placeholder="CIN" />
+                                    <label for="CIN">CIN</label>
+                                    <ValidationMessage For="@(() => Company.CIN)" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Company.TIN" class="form-control" id="TIN" placeholder="TIN" />
+                                    <label for="TIN">TIN</label>
+                                    <ValidationMessage For="@(() => Company.TIN)" class="text-danger small" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--Tab index-->
+                        <div class="row g-3">
+                            <ul class="nav nav-tabs flex-wrap border-0 rounded bg-light-subtle shadow-sm px-2 py-2" id="tabNav" style="--bs-nav-tabs-border-color: transparent;">
+
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "eou" ? "active text-white bg-primary fw-semibold" : "text-success bg-white") rounded px-3 py-2 me-2"
+                                       role="tab"
+                                       @onclick="@(() => SetTab("eou"))"
+                                       style="transition: background 0.3s;">
+                                        <i class="bi bi-globe2 me-1"></i> Export Oriented Units
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "finYear" ? "active text-white bg-primary fw-semibold" : "text-success bg-white") rounded px-3 py-2 me-2"
+                                       role="tab"
+                                       @onclick="@(() => SetTab("finYear"))"
+                                       style="transition: background 0.3s;">
+                                        <i class="bi bi-cash-stack me-1"></i> Financials & Statutory Compliance
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "bankDetails" ? "active text-white bg-primary fw-semibold" : "text-success bg-white") rounded px-3 py-2 me-2"
+                                       role="tab"
+                                       @onclick="@(() => SetTab("bankDetails"))"
+                                       style="transition: background 0.3s;">
+                                        <i class="bi bi-bank2 me-1"></i> Bank Details
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "legalGovt" ? "active text-white bg-primary fw-semibold" : "text-success bg-white") rounded px-3 py-2 me-2"
+                                       role="tab"
+                                       @onclick="@(() => SetTab("legalGovt"))"
+                                       style="transition: background 0.3s;">
+                                        <i class="bi bi-briefcase me-1"></i> Legal / Govt Registrations
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "logos" ? "active text-white bg-primary fw-semibold" : "text-success bg-white") rounded px-3 py-2 me-2"
+                                       role="tab"
+                                       @onclick="@(() => SetTab("logos"))"
+                                       style="transition: background 0.3s;">
+                                        <i class="bi bi-briefcase me-1"></i> Logo's
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "others" ? "active text-white bg-primary fw-semibold" : "text-success bg-white") rounded px-3 py-2 me-2"
+                                       role="tab"
+                                       @onclick="@(() => SetTab("others"))"
+                                       style="transition: background 0.3s;">
+                                        <i class="bi bi-briefcase me-1"></i> Other Settings
+                                    </a>
+                                </li>
+
+                            </ul>
+                        </div>
+
+
+                        <div class="tab-content mt-3">
+                            <!-- Export Oriented Units -->
+                            @if (activeTab == "eou")
+                            {
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-secondary text-white text-center py-2 fs-5">
+                                        <i class="bi-globe-americas"></i> Export Oriented Units
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-4 mb-5">
+                                            <div class="col-md-3">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.IECNumber" class="form-control" id="IECNumber" placeholder="IEC Number" />
+                                                    <label for="IECNumber">IEC Number</label>
+                                                    <ValidationMessage For="@(() => Company.IECNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3 d-flex align-items-center">
+                                                <div class="form-check">
+                                                    <InputCheckbox @bind-Value="Company.IsEOURegistered" class="form-check-input" id="IsEOURegistered" />
+                                                    <label for="IsEOURegistered" class="form-check-label">EOU Registered</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.EOUType" class="form-control" id="EOUType" placeholder="EOU Type" />
+                                                    <label for="EOUType">EOU Type</label>
+                                                    <ValidationMessage For="@(() => Company.EOUType)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.LUTNumber" class="form-control" id="LUTNumber" placeholder="LUT Number" />
+                                                    <label for="LUTNumber">LUT Number</label>
+                                                    <ValidationMessage For="@(() => Company.LUTNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.BankAuthorizedDealerCode" class="form-control" id="BankAuthorizedDealerCode" placeholder="Bank AD Code" />
+                                                    <label for="BankAuthorizedDealerCode">Bank AD Code</label>
+                                                    <ValidationMessage For="@(() => Company.BankAuthorizedDealerCode)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.EOURegistrationNo" class="form-control" id="EOURegistrationNo" placeholder="EOU Registration No." />
+                                                    <label for="EOURegistrationNo">EOU Registration No.</label>
+                                                    <ValidationMessage For="@(() => Company.EOURegistrationNo)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-floating">
+                                                    <InputDate @bind-Value="Company.EOURegistrationDate" class="form-control" id="EOURegistrationDate" />
+                                                    <label for="EOURegistrationDate">EOU Registration Date</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.EOUStatus" class="form-control" id="EOUStatus" placeholder="EOU Status" />
+                                                    <label for="EOUStatus">EOU Status</label>
+                                                    <ValidationMessage For="@(() => Company.EOUStatus)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-floating">
+                                                    <InputDate @bind-Value="Company.EOUValidityTill" class="form-control" id="EOUValidityTill" />
+                                                    <label for="EOUValidityTill">EOU Validity Till</label>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <!-- Financials & Statutory Compliance -->
+                            @if (activeTab == "finYear")
+                            {
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-secondary text-white text-center py-2 fs-5">
+                                        <i class="bi-receipt"></i> Financials & Statutory Compliance
+                                    </div>
+                                    <div class="card-body">
+
+                                        <div class="row g-4">
+                                            <div class="col-md-4">
+                                                <div class="form-floating">
+                                                    <InputSelect @bind-Value="Company.FinancialYearType"
+                                                                 class="form-select"
+                                                                 id="FinancialYearType"
+                                                                 @onchange="OnFinancialYearTypeChanged">
+                                                        <option disabled value="">-- Select Financial Year Type --</option>
+                                                        @foreach (var type in FinancialYearTypes)
+                                                        {
+                                                            <option value="@type">@type</option>
+                                                        }
+                                                    </InputSelect>
+
+                                                    <label for="FinancialYearType">Financial Year Type</label>
+                                                    <ValidationMessage For="@(() => Company.FinancialYearType)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            @if (Company.FinancialYearType == "Others")
+                                            {
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Company.CustomFinancialYearType" class="form-control" id="CustomFinancialYear" placeholder="Enter Custom Financial Year" />
+                                                        <label for="CustomFinancialYear">Enter Custom Financial Year</label>
+                                                    </div>
+                                                </div>
+                                            }
+
+                                            <div class="col-md-4">
+                                                <div class="form-floating">
+                                                    <InputNumber @bind-Value="Company.OpeningBalance" class="form-control" id="OpeningBalance" placeholder="Opening Balance"
+                                                                 onkeypress="return isNumericWithDot(event)" />
+                                                    <label for="OpeningBalance">Opening Balance</label>
+                                                    <ValidationMessage For="@(() => Company.OpeningBalance)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-floating">
+                                                    <InputDate @bind-Value="Company.OpeningBalanceDate" class="form-control" id="OpeningBalanceDate" />
+                                                    <label for="OpeningBalanceDate">Opening Balance Date</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-floating">
+                                                    <InputSelect id="currencySelect" class="form-select" @bind-value="Company.CurrencyCode">
+                                                        <option disabled value="">-- Select Currency --</option>
+                                                        @foreach (var curr in Currency)
+                                                        {
+                                                            <option value="@curr.CurrId">@curr.Symbol - @curr.CurrName</option>
+                                                        }
+                                                    </InputSelect>
+                                                    <label for="currencySelect">Currency</label>
+                                                    <ValidationMessage For="@(() => Company.CurrencyCode)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.TimeZone" class="form-control" id="TimeZone" placeholder="Time Zone" readonly />
+                                                    <label for="TimeZone">Time Zone</label>
+                                                    <ValidationMessage For="@(() => Company.TimeZone)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+
+                                            @*                                             <div class="col-md-3 d-flex align-items-center">
+                                                <div class="form-check">
+                                                    <InputCheckbox @bind-Value="Company.IsActive" class="form-check-input" id="IsActive" />
+                                                    <label for="IsActive" class="form-check-label">Is Active</label>
+                                                </div>
+                                            </div> *@
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <!-- Bank Details -->
+                            @if (activeTab == "bankDetails")
+                            {
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-secondary text-white text-center py-2 fs-5">
+                                        <i class="bi-currency-rupee / bi-currency-dollar"></i> Bank Details
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-4">
+
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.BankAccountNumber" class="form-control" id="BankAccountNumber" placeholder="Account Number" />
+                                                    <label for="BankAccountNumber">Account Number</label>
+                                                    <ValidationMessage For="@(() => Company.BankAccountNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.IFSCCode"
+                                                               class="form-control"
+                                                               id="IFSCCode"
+                                                               placeholder="IFSC Code"
+                                                               @onblur="FetchBankDetailsByIFSC" />
+                                                    <label for="IFSCCode">IFSC Code</label>
+                                                    <ValidationMessage For="@(() => Company.IFSCCode)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.BankName" class="form-control" id="BankName" placeholder="Bank Name" />
+                                                    <label for="BankName">Bank Name</label>
+                                                    <ValidationMessage For="@(() => Company.BankName)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.BankBranch" class="form-control" id="BankBranch" placeholder="Bank Branch" />
+                                                    <label for="BankBranch">Bank Branch</label>
+                                                    <ValidationMessage For="@(() => Company.BankBranch)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputTextArea @bind-Value="Company.BankAddress" class="form-control" id="BankAddress" placeholder="Bank Address" />
+                                                    <label for="BankAddress">Bank Address</label>
+                                                    <ValidationMessage For="@(() => Company.BankAddress)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.BankCity" class="form-control" id="BankCity" placeholder="Bank City" />
+                                                    <label for="BankCity">Bank City</label>
+                                                    <ValidationMessage For="@(() => Company.BankCity)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.BankState" class="form-control" id="BankState" placeholder="Bank State" />
+                                                    <label for="BankState">Bank State</label>
+                                                    <ValidationMessage For="@(() => Company.BankState)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.AccountType" class="form-control" id="AccountType" placeholder="Account Type" />
+                                                    <label for="AccountType">Account Type</label>
+                                                    <ValidationMessage For="@(() => Company.AccountType)" class="text-danger small" />
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.MICRCode" class="form-control" id="MICRCode" placeholder="MICR Code" />
+                                                    <label for="MICRCode">MICR Code</label>
+                                                    <ValidationMessage For="@(() => Company.MICRCode)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.SWIFTCode" class="form-control" id="SWIFTCode" placeholder="SWIFT Code" />
+                                                    <label for="SWIFTCode">SWIFT Code</label>
+                                                    <ValidationMessage For="@(() => Company.SWIFTCode)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <!-- Legal / Government Registrations -->
+                            @if (activeTab == "legalGovt")
+                            {
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-secondary text-white text-center py-2 fs-5">
+                                        <i class="bi-file-earmark-text"></i> Legal / Government Registrations
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-4">
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.UdyamNumber" class="form-control" id="UdyamNumber" placeholder="MSME / UDYAM Number" />
+                                                    <label for="UdyamNumber">MSME / UDYAM Number</label>
+                                                    <ValidationMessage For="@(() => Company.UdyamNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.PFRegistrationNumber" class="form-control" id="PFRegistrationNumber" placeholder="PF Registration Number" />
+                                                    <label for="PFRegistrationNumber">PF Registration Number</label>
+                                                    <ValidationMessage For="@(() => Company.PFRegistrationNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.ESIRegistrationNumber" class="form-control" id="ESIRegistrationNumber" placeholder="ESI Registration Number" />
+                                                    <label for="ESIRegistrationNumber">ESI Registration Number</label>
+                                                    <ValidationMessage For="@(() => Company.ESIRegistrationNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.ShopEstablishmentNumber" class="form-control" id="ShopEstablishmentNumber" placeholder="Shops & Establishment Reg. Number" />
+                                                    <label for="ShopEstablishmentNumber">Shops & Establishment Reg. No.</label>
+                                                    <ValidationMessage For="@(() => Company.ShopEstablishmentNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.ExciseRegistrationNumber" class="form-control" id="ExciseRegistrationNumber" placeholder="Excise Registration Number" />
+                                                    <label for="ExciseRegistrationNumber">Excise Registration Number</label>
+                                                    <ValidationMessage For="@(() => Company.ExciseRegistrationNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.SEZRegistrationNumber" class="form-control" id="SEZRegistrationNumber" placeholder="SEZ Registration Number" />
+                                                    <label for="SEZRegistrationNumber">SEZ Registration Number</label>
+                                                    <ValidationMessage For="@(() => Company.SEZRegistrationNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating">
+                                                    <InputText @bind-Value="Company.CustomsRegistrationNumber" class="form-control" id="CustomsRegistrationNumber" placeholder="Customs Registration Number" />
+                                                    <label for="CustomsRegistrationNumber">Customs Registration Number</label>
+                                                    <ValidationMessage For="@(() => Company.CustomsRegistrationNumber)" class="text-danger small" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            }
+
+                            @if (activeTab == "logos")
+                            {
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-dark text-white text-center py-3 fs-5 rounded-top">
+                                        <i class="bi bi-images me-2"></i> Company Branding Logos
+                                    </div>
+
+                                    <div class="card-body p-4">
+                                        <div class="row gy-5">
+
+                                            <!-- Company Logo Section -->
+                                            <div class="col col-md-6">
+                                                <div class="border rounded p-3 bg-light shadow-sm">
+                                                    <h6 class="text-primary mb-3">
+                                                        <i class="bi bi-building me-2"></i> Company Logo <span class="text-muted small">(Max: 300×100px, 200KB)</span>
+                                                    </h6>
+
+                                                    @if (string.IsNullOrEmpty(Company.LogoUrl))
+                                                    {
+                                                        <InputFile OnChange="@(e => LoadFiles(e, "Logo"))" class="form-control" id="logoFile" accept="image/png,image/jpeg" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="d-flex align-items-center gap-4">
+                                                            <img src="@Company.LogoUrl" alt="Company Logo" class="img-thumbnail border border-2" style="max-height: 80px;" />
+                                                            <button type="button" class="btn btn-outline-danger btn-sm" @onclick='() => DeleteLogo("Logo")'>
+                                                                <i class="bi bi-trash"></i> Remove Logo
+                                                            </button>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+
+                                            <!-- ISO Logo Section -->
+                                            <div class="col col-md-6">
+                                                <div class="border rounded p-3 bg-light shadow-sm">
+                                                    <h6 class="text-success mb-3">
+                                                        <i class="bi bi-shield-check me-2"></i> ISO Logo <span class="text-muted small">(Max: 100×100px, 100KB)</span>
+                                                    </h6>
+
+                                                    @if (string.IsNullOrEmpty(Company.IsoLogoUrl))
+                                                    {
+                                                        <InputFile OnChange="@(e => LoadFiles(e, "Iso"))" class="form-control" id="isoFile" accept="image/png,image/jpeg" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="d-flex align-items-center gap-4">
+                                                            <img src="@Company.IsoLogoUrl" alt="ISO Logo" class="img-thumbnail border border-2" style="max-height: 80px;" />
+                                                            <button type="button" class="btn btn-outline-danger btn-sm" @onclick='() => DeleteLogo("Iso")'>
+                                                                <i class="bi bi-trash"></i> Remove ISO
+                                                            </button>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (activeTab == "others")
+                            {
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-dark text-white text-center py-3 fs-5 rounded-top">
+                                        <i class="bi bi-images me-2"></i> Common settings
+                                    </div>
+
+                                    <div class="card-body p-4">
+                                        <div class="row gy-5">
+
+                                            <!-- ================= Decimal Places ================= -->
+                                            <div class="col-12 col-md-4">
+                                                <div class="form-floating">
+                                                    <input type="number" class="form-control" id="decimalPlacesInput"
+                                                           @bind="Company.DecimalPlaces"
+                                                           min="0" max="4" step="1" />
+                                                    <label for="decimalPlacesInput">Decimal Places</label>
+                                                </div>
+                                                <small class="text-muted">Set how many digits to display for amounts (0-4)</small>
+                                            </div>
+
+
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row g-4 mt-2">
+                                    <!-- ================= DC Outgoing Type ================= -->
+                                    <div class="col-12 col-md-6">
+                                        <div class="p-3 rounded border h-100" style="background-color:#f5edc8;">
+
+                                            <div class="fw-bold text-danger mb-2">
+                                                Choose DC Outgoing Type (for Auto Running No.)
+                                            </div>
+
+                                            <InputRadioGroup @bind-Value="Company.BookTypeDc">
+
+                                                <div class="form-check">
+                                                    <InputRadio class="form-check-input" Value="@((byte)1)" />
+                                                    <label class="form-check-label">
+                                                        Sales, Labour, SubContract - ALL SEPARATE BOOKS
+                                                    </label>
+                                                </div>
+
+                                                <div class="form-check">
+                                                    <InputRadio class="form-check-input" Value="@((byte)2)" />
+                                                    <label class="form-check-label">
+                                                        Sales, Labour - ONE COMBINED BOOK, SubContract - ONE BOOK
+                                                    </label>
+                                                </div>
+
+                                                <div class="form-check">
+                                                    <InputRadio class="form-check-input" Value="@((byte)3)" />
+                                                    <label class="form-check-label">
+                                                        Sales, Labour, SubContract - ALL IN ONE BOOK
+                                                    </label>
+                                                </div>
+
+                                            </InputRadioGroup>
+
+                                        </div>
+                                    </div>
+
+
+                                    <!-- ================= Invoice Type ================= -->
+                                    <div class="col-12 col-md-6">
+                                        <div class="p-3 rounded border h-100" style="background-color:#f5edc8;">
+
+                                            <div class="fw-bold text-danger mb-2">
+                                                Choose Inv. Type (for Auto Running No.)
+                                            </div>
+
+                                            <InputRadioGroup @bind-Value="Company.BookTypeInvoice">
+
+                                                <div class="form-check">
+                                                    <InputRadio class="form-check-input" Value="@((byte)1)" />
+                                                    <label class="form-check-label">
+                                                        Sales & Labour - ONE COMBINED BOOK
+                                                    </label>
+                                                </div>
+
+                                                <div class="form-check">
+                                                    <InputRadio class="form-check-input" Value="@((byte)2)" />
+                                                    <label class="form-check-label">
+                                                        Sales , Labour and Export - SEPARATE BOOKS
+                                                    </label>
+                                                </div>
+
+                                                <div class="form-check">
+                                                    <InputRadio class="form-check-input" Value="@((byte)3)" />
+                                                    <label class="form-check-label">
+                                                        Sales, Export and Labour - ONE COMBINED BOOK
+                                                    </label>
+                                                </div>
+                                            </InputRadioGroup>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            }
+
+                        </div>
+
+                        <!--Audit Fields-->
+                        <div class="tab-content mt-4">
+                            <h6 class="mb-4 text-primary border-bottom pb-2">Audit Information</h6>
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Company.CreatedBy" id="CreatedBy" class="form-control" disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="CreatedDate" value="@Company.CreatedDate?.ToString("dd/MM/yyyy hh:mm tt")" disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Company.ModifiedBy" id="ModifiedBy" class="form-control" disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="ModifiedDate" value="@Company.ModifiedDate?.ToString("dd/MM/yyyy hh:mm tt")" disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-5 g-3">
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                    <button type="submit"
+                                            class="btn btn-success w-100 py-2 rounded-pill"
+                                            disabled="@isProcessing">
+
+                                        <i class="bi bi-floppy2-fill me-2"></i>
+
+                                        @(CompanyId == 0 || CompanyId == null
+                                        ? "Create Company"
+                                        : "Update Company")
+
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                <SmartBackButton Url="/" />
+                            </div>
+
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+
+@code {
+    protected override string ScreenName => "Company";
+
+    [Parameter]
+    public int? CompanyId { get; set; }
+
+    private bool isProcessing = true;
+    private Companydetails Company { get; set; } = new Companydetails();
+    private List<State> state = new();
+    private List<Currency> Currency = new();
+
+    private string activeTab = "";
+    private void SetTab(string tab) => activeTab = tab;
+
+    // BsModal properties remain the same
+    private string ModalTitle = string.Empty;
+    private string buttontext = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColour = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> companyBreadcrumbs = new()
+  {
+    new PageHeader.BreadcrumbItem { Text = "Master" },
+    new PageHeader.BreadcrumbItem { Text = "My Company Details", IsLast = true }
+  };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadInitialData();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occurred while loading Company Upsert screen.");
+        }
+    }
+
+    private async Task LoadInitialData()
+    {
+        Company = await _companyService.GetCompanyDetailsAsync() ?? new Companydetails();
+        state = (await _commonService.GetStatesAsync()).ToList();
+        Currency = (await _commonService.GetCurrenciesAsync()).ToList();
+
+        // Business rules that apply to initial data state
+        Company.FinancialYearType ??= "Apr-Mar";
+        Company.CurrencyCode = 1;
+        Company.TimeZone ??= "Asia/Kolkata (IST)";
+    }
+
+    private async Task OnGstChanged(ChangeEventArgs e)
+    {
+        var gst = e.Value?.ToString();
+        Company.GSTIN = gst.ToUpper().Trim();
+
+        if (!string.IsNullOrWhiteSpace(gst) && gst.Length == 15)
+        {
+            Company.PAN = gst.Substring(2, 10);
+        }
+    }
+
+    private List<string> FinancialYearTypes = new()
+    {
+        "Apr-Mar",         // India, UK (individuals)
+        "Jan-Dec",         // Calendar year (USA, Europe, Gulf)
+        "Jul-Jun",         // Australia, Egypt
+        "Oct-Sep",         // Thailand, USA federal
+        "May-Apr",         // Nepal
+        "Jun-May",         // Bangladesh
+        "Sep-Aug",         // Pakistan (some sectors)
+        "Feb-Jan",         // Custom usage
+        "Nov-Oct",         // Agricultural companies
+        "Aug-Jul",         // Academic institutions
+        "Custom Period",   // Allows defining From / To Dates
+        "Others"
+    };
+
+    private List<string> BusinessTypes = new()
+    {
+        "Proprietorship",
+        "Partnership",
+        "Private Limited",
+        "Public Limited",
+        "LLP",
+        "NGO / Non-Profit",
+        "Joint Venture",
+        "Government Enterprise",
+        "Franchise",
+        "Others"
+    };
+
+    private List<string> IndustryTypes = new()
+    {
+        "Automobile & Auto Components",
+        "Pharmaceuticals",
+        "Food & Beverage",
+        "Textile & Garments",
+        "Chemical Manufacturing",
+        "CNC Machining",
+        "Heavy Engineering",
+        "Packaging",
+        "Medical Devices",
+        "Renewable Energy",
+        "Others"
+    };
+
+    private async void OnBusinessTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var value = e.Value?.ToString();
+            if (value != "Others")
+            {
+                Company.CustomBusinessType = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occurred while handling OnBusinessTypeChanged");
+        }
+    }
+
+    private async void OnIndustryTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var value = e.Value?.ToString();
+            if (value != "Others")
+            {
+                Company.CustomIndustryType = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occurred while handling OnIndustryTypeChanged");
+        }
+    }
+
+
+
+    private void OnFinancialYearTypeChanged(ChangeEventArgs e)
+    {
+        var selectedValue = e.Value?.ToString();
+        if (selectedValue == "Others" && !string.IsNullOrWhiteSpace(Company.CustomFinancialYearType))
+        {
+            Company.FinancialYearType = Company.CustomFinancialYearType;
+        }
+    }
+
+    private async Task OnStateChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int stateId))
+            {
+                var stateItem = state.FirstOrDefault(s => s.StateCode == stateId);
+                if (stateItem != null)
+                {
+                    Company.StateCode = stateItem.StateCode;
+                    Company.StateName = stateItem.StateName;
+                }
+            }
+            else
+            {
+                Company.StateCode = 0;
+                Company.StateName = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error occurred while handling the Company OnStateChanged event");
+        }
+
+    }
+
+    private async Task FetchBankDetailsByIFSC()
+    {
+        var bankData = await _companyService.GetBankDetailsByIFSCAsync(Company.IFSCCode);
+        if (bankData != null)
+        {
+            Company.BankName = bankData.BANK;
+            Company.BankBranch = bankData.BRANCH;
+            Company.BankAddress = bankData.ADDRESS;
+            Company.BankCity = bankData.CITY;
+            Company.BankState = bankData.STATE;
+        }
+        else
+        {
+            // Clear fields or show error
+            Company.BankName = Company.BankBranch = Company.BankAddress = Company.BankCity = Company.BankState = null;
+        }
+    }
+
+    private async Task LoadFiles(InputFileChangeEventArgs e, string target)
+    {
+        var maxFileSize = (target == "Logo" ? 200 : 100) * 1024;
+
+        var (success, path, url) = await _companyService.UploadFileAsync(e.File, target, maxFileSize);
+
+        if (success)
+        {
+            if (target == "Logo")
+            {
+                Company.LogoUrl = url;
+                Company.LogoPath = path;
+            }
+            else if (target == "Iso")
+            {
+                Company.IsoLogoUrl = url;
+                Company.IsoLogoPath = path;
+            }
+            await _companyService.UpsertCompanyAsync(Company);
+            await _js.ToastrSuccess($"{target} logo updated successfully.");
+        }
+        else
+        {
+            await _js.ToastrError(path);
+        }
+    }
+
+    private async Task DeleteLogo(string logoType)
+    {
+        ModalTitle = logoType == "Logo" ? "Are you sure you want to delete this logo?" : "Are you sure you want to delete the ISO logo?";
+        btnColour = "btn-danger";
+        buttontext = "Yes! Delete";
+        confirmation = $"ConfirmDelete{logoType}";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ConfirmDeleteLogo(string logoType)
+    {
+        string path = logoType == "Logo" ? Company.LogoPath : Company.IsoLogoPath;
+
+        var (success, message) = await _companyService.DeleteFileAsync(path);
+
+        if (success)
+        {
+            if (logoType == "Logo")
+            {
+                Company.LogoPath = Company.LogoUrl = null;
+            }
+            else if (logoType == "Iso")
+            {
+                Company.IsoLogoPath = Company.IsoLogoUrl = null;
+            }
+
+            // Update the company in the database
+            await _companyService.UpsertCompanyAsync(Company);
+            await _js.ToastrSuccess(message);
+        }
+        else
+        {
+            await _js.ToastrError(message);
+        }
+    }
+
+    private async Task HandleModalConfirmation()
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+        if (confirmation.StartsWith("ConfirmDelete"))
+        {
+            var logoType = confirmation.Replace("ConfirmDelete", "");
+            await ConfirmDeleteLogo(logoType);
+        }
+        else
+        {
+            await _js.ToastrError("Unknown confirmation action.");
+        }
+    }
+
+    private async Task UpsertCompany()
+    {
+        isProcessing = true;
+        var (success, message) = await _companyService.UpsertCompanyAsync(Company);
+        isProcessing = false;
+
+        if (success)
+        {
+            await _js.ToastrSuccess(message);
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/myCompany");
+        }
+        else
+        {
+            await _js.ToastrError(message);
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+        }
+    }
+}

@@ -1,0 +1,574 @@
+﻿@page "/currency_today"
+@using V.SMART.Shared.Data.Master.Accounts
+@using V.SMART.Shared.Data.Master.Accounts_Module
+
+@inherits BaseUserRightsComponent
+
+
+@inject CurrentUserService CurrentUserService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColour"
+         ButtonText="@buttontext"
+         Title=@ModalTitle>
+</BsModal>
+
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- Card Header -->
+                <PageHeader TitleText="@(Id == 0 || Id == null ? "Create Currency Today" : "Update Currency Today")"
+                            TitleIcon="bi bi-graph-up-arrow"
+                            Breadcrumbs="@currencyTodayBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="CurrencyToday">
+                        <DataAnnotationsValidator />
+
+                        <div class="row">
+                            <!-- Left Frame -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-info shadow-sm p-3 mb-4 h-100">
+                                    <div class="card-header bg-info text-white fw-bold text-center">
+                                        Currency Input
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Select a Currency</label>
+                                            <select class="form-select" id="Currency" value="@CurrencyToday.CurrId" @onchange="OnCurrencyChanged">
+                                                <option value="">Select a Currency</option>
+                                                @foreach (var curr in Currency)
+                                                {
+                                                    <option value="@curr.CurrId">@curr.CurrName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage for="@(() => CurrencyToday.CurrId)" />
+                                        </div>
+                                        <p class="fw-bold mb-0">
+                                            PatCurrency Name:
+                                            <span style="color: green;">@CurrSub</span>
+                                        </p><br />
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Today Rate One </label><span class="text-primary ms-2">@OneCurrencyText</span>
+                                            <div class="input-group">
+                                                <input type="text"
+                                                       class="form-control"
+                                                       @bind="CurrencyToday.CurrValueInRs"
+                                                       onkeypress="return isNumericWithDot(event)" />
+                                                <span class="input-group-text">₹</span>
+                                            </div>
+                                        </div>
+
+
+
+                                        <div class="mb-3 text-muted">
+                                            <small>Previous Rate: <strong>@PreviousRate</strong></small><br />
+                                            <small>On: <strong>@PreviousRateDateTime</strong></small>
+                                        </div>
+
+                                        <div class="row mt-3">
+                                            @if (CanCreate || CanEdit)
+                                            {
+                                                <div class="col mb-3 mt-3">
+                                                    <button type="submit"
+                                                            class="btn btn-primary w-100"
+                                                            @onclick="OnSubmit">
+                                                        @*  disabled="@(IsValidCurrency ? null : true)"> *@
+                                                        <i class="bi bi-floppy2-fill me-1"></i> @(!Isexist ? "Create" : "Update")
+                                                    </button>
+                                                </div>
+                                            }
+
+                                            @if (!History.Any() == false && CanDelete)
+                                            {
+                                                <div class="col mb-3 mt-3">
+                                                    <button class="btn btn-outline-danger w-100"
+                                                            @onclick="() => HandleDelete(CurrencyToday.Id)"
+                                                            disabled="@(IsValidCurrency ? null : true)">
+                                                        <i class="bi bi-trash3"></i><span class="ms-2">Delete</span>
+                                                    </button>
+                                                </div>
+                                            }
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- Right Frame -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-success shadow-sm p-3 mb-4 h-100">
+                                    <div class="card-header  bg-success text-white fw-bold text-center">
+                                        Display Currency Today Values
+                                    </div>
+                                    <div class="card-body table-responsive">
+                                        <table class="table table-bordered table-hover table-sm text-center">
+                                            <thead class="table-success">
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Current Value (INR)</th>
+                                                    <th>Created By</th>
+                                                    <th>Created Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @if (!History.Any())
+                                                {
+                                                    <tr>
+                                                        <td colspan="4" class="text-muted">No data available.</td>
+                                                    </tr>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var item in FilteredHistory)
+                                                    {
+                                                        <tr style="font-size: 12px;">
+                                                            <td>@item.CurrValueDate.ToShortDateString()</td>
+                                                            <td>@item.CurrValueInRs</td>
+                                                            <td>@item.CreatedBy</td>
+                                                            <td>@item.CreatedDate.ToString()</td>
+                                                        </tr>
+
+                                                    }
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                        </div>
+
+
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    //User Rights
+    protected override string ScreenName => "Currency Today";
+
+    private string ModalTitle = string.Empty;
+    private string buttontext = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColour = string.Empty;
+
+    public int? Id { get; set; }
+    bool Isexist = false;
+    bool confirmed = false;
+    int selectedId;
+    private string cmb_Currency = "";
+    private bool isProcessing = true;
+    private string CurrSub = string.Empty;
+    private string RateButtonLabel = "Save";
+    private string OneCurrencyText = "";
+    private decimal PreviousRate = 0;
+    private DateTime? PreviousRateDateTime = DateTime.Now;
+    private IEnumerable<CurrencyToday> History { get; set; } = new List<CurrencyToday>();
+    private List<CurrencyToday> FilteredHistory { get; set; } = new();
+
+    private CurrencyToday CurrencyToday { get; set; } = new CurrencyToday();
+    private List<Currency> Currency = new();
+
+    private bool IsValidCurrency =>
+    CurrencyToday?.CurrId >= 1 && CurrencyToday?.CurrValueInRs > 0;
+
+    private List<PageHeader.BreadcrumbItem> currencyTodayBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Accounts" },
+        new PageHeader.BreadcrumbItem { Text = "Currency Today", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadCurrencyToday();
+            await LoadCurrency();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Currency OnInitializedAsync() Method");
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        await HandleUpsert(CurrencyToday.Id); // Or any relevant ID
+    }
+
+
+
+
+    private async Task LoadCurrency()
+    {
+        try
+        {
+            var existing = await _unitOfWork.Currencyis.GetAllAsync(true);
+            if (existing != null)
+            {
+                Currency = existing.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CurrencyToday LoadCurrency() method");
+        }
+    }
+
+    private async Task LoadCurrencyToday()
+    {
+        try
+        {
+
+            var allHistory = await _unitOfWork.CurrencyTodays.GetAllAsync(true);
+            History = allHistory;
+            await Display_Records(selectedId, History);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CurrencyToday LoadCurrency() method");
+        }
+    }
+
+    private async Task HandleUpsert(int? id)
+    {
+        if (selectedId < 0)
+        {
+            await _js.ToastrError("Please select a currency.");
+            isProcessing = false;
+            return;
+        }
+
+        if (PreviousRate == CurrencyToday.CurrValueInRs)
+        {
+            await _js.ToastrError("No need to save this record, since the previous rate and today's rate are the same.");
+            isProcessing = false;
+            return;
+        }
+
+        if (id.HasValue && id.Value > 0)
+        {
+            ModalTitle = "Are you sure you want to modify today's currency rate?";
+        }
+        else
+        {
+            ModalTitle = "Are you sure you want to save today's currency rate?";
+        }
+
+        btnColour = "btn-success";
+        buttontext = "Yes";
+        confirmation = "confirmUpsert_Click";
+
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+
+    private async Task HandleModalConfirmation()
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+
+        if (confirmation == "confirmUpsert_Click")
+        {
+            await confirmUpsert_Click(true); 
+        }
+
+        if (confirmation == "Confirm_Delete")
+        {
+            await Confirm_Delete(true);
+        }
+    }
+
+    private async Task confirmUpsert_Click(bool isConfirmed)
+    {
+        try
+        {
+            isProcessing = true;
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed)
+            {
+                if (CurrencyToday.Id == 0 && !Isexist)
+                {
+                    await Save();
+                }
+                else
+                {
+
+                    if (PreviousRateDateTime.HasValue && PreviousRateDateTime.Value.Date == DateTime.Now.Date)
+                    {
+
+                        CurrencyToday.ModifiedBy = await _userService.GetUsernameAsync();
+                        CurrencyToday.ModifiedDate = DateTime.Now;
+
+                        await _unitOfWork.CurrencyTodays.UpdateAsync(CurrencyToday);
+
+                        await LoggingService.LogUserAction(
+                            UserName: await _userService.GetUsernameAsync(),
+                            Machine: _userService.MachineName,
+                            IP_Address: _userService.IpAddress,
+                            screen: "Currency Today",
+                            action: "Currency Today Modified",
+                            additionalInfo: $"{CurrencyToday.Id}"
+                        );
+                        await LoadCurrencyToday();
+                        await _js.ToastrSuccess("CurrencyToday Updated Successfully");
+
+                    }
+                    else
+                    {
+                        await Save(); // Assuming Save is a method that handles new insert logic
+                    }
+                }
+                CurrencyToday = new CurrencyToday
+                {
+                    CurrId = selectedId
+
+                };
+                await LoadCurrencyToday();
+                await OnCurrencyChanged(new ChangeEventArgs { Value = selectedId });
+                StateHasChanged();
+            }
+
+            isProcessing = false;
+            _navigationManager.NavigateTo("/currency_today");
+
+            await LoadCurrencyToday();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CurrencyToday UpsertCurrency() method");
+
+        }
+    }
+
+    public async Task Save()
+    {
+        try
+        {
+
+            CurrencyToday.CreatedBy = await _userService.GetUsernameAsync();
+            CurrencyToday.CreatedDate = DateTime.Now;
+            await _unitOfWork.CurrencyTodays.CreateAsync(CurrencyToday);
+            await _unitOfWork.SaveAsync();
+
+            await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+            screen: "Currency Today", action: $"Currency Today Created ",
+            additionalInfo: $"{CurrencyToday.Id}");
+            await _js.ToastrSuccess("CurrecyToday Created Successfully");
+            await LoadCurrencyToday();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CurrencyToday Save() method");
+        }
+    }
+
+    private async Task OnCurrencyChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(e.Value?.ToString()))
+            {
+                await _js.ToastrError("Please select a valid currency");
+                isProcessing = false;
+                return;
+            }
+
+            selectedId = Convert.ToInt32(e.Value);
+
+
+            var selectedCurrency = Currency.FirstOrDefault(x => x.CurrId == selectedId);
+            var selectedCurrencyTodayList = History
+                .Where(x => x.CurrId == selectedId)
+                .OrderByDescending(x => x.Id)
+                .ToList();
+
+            if (selectedCurrency == null)
+                return;
+
+            CurrencyToday.CurrId = selectedId;
+            OneCurrencyText = $"{selectedCurrency.CurrName} =";
+            CurrSub = selectedCurrency.CurrSub;
+            cmb_Currency = selectedCurrency.CurrName;
+            selectedId = selectedCurrency.CurrId;
+            var previous = selectedCurrencyTodayList.FirstOrDefault();
+
+            if (previous != null)
+            {
+                PreviousRate = previous.CurrValueInRs;
+                PreviousRateDateTime = previous.CurrValueDate;
+                CurrencyToday.Id = previous.Id;
+                if (PreviousRateDateTime.Value.Date == DateTime.Now.Date)
+                {
+                    Isexist = true;
+                }
+                else
+                {
+                    Isexist = false;
+                    CurrencyToday.Id = 0;
+                }
+
+            }
+            else
+            {
+                PreviousRate = 0;
+                PreviousRateDateTime = null;
+                Isexist = false;
+                CurrencyToday.Id = 0;
+            }
+
+            if (previous != null && previous.CurrValueDate.Date == DateTime.Today)
+            {
+
+                CurrencyToday.CurrValueInRs = previous.CurrValueInRs;
+
+            }
+            else
+            {
+
+                CurrencyToday.CurrValueInRs = PreviousRate;
+
+            }
+
+            await Display_Records(selectedId, History);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CurrencyToday OnCurrencyChanged() method");
+        }
+
+
+    }
+
+    private async Task Display_Records(int selectedId, IEnumerable<CurrencyToday> fullHistory)
+    {
+        try
+        {
+            //History = History.Where(x => x.CurrId == CurrId).ToList();
+            FilteredHistory.Clear();
+            FilteredHistory = fullHistory
+           .Where(x => x.CurrId == selectedId)
+           .OrderByDescending(x => x.CurrValueDate)
+           .ToList();
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CurrencyToday Display_Records() method");
+        }
+    }
+
+    private async Task Confirm_Delete(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            if (CurrencyToday.Id != 0)
+            {
+                var currency = await _unitOfWork.CurrencyTodays.GetAsync(CurrencyToday.Id);
+
+                var deleted = await _unitOfWork.CurrencyTodays.DeleteAsync(CurrencyToday.Id);
+                if (deleted)
+                {
+                    await _unitOfWork.SaveAsync();
+
+                    await LoggingService.LogUserAction(
+                        UserName: await _userService.GetUsernameAsync(),
+                        Machine: CurrentUserService.MachineName,
+                        IP_Address: CurrentUserService.IpAddress,
+                        screen: "CurrencyToday",
+                        action: "Deleted CurrencyToday",
+                        additionalInfo: ""
+                    );
+
+                    await _js.ToastrSuccess("CurrencyToday deleted successfully.");
+
+                    CurrencyToday = new CurrencyToday
+                    {
+                        CurrId = selectedId
+
+                    };
+                    await LoadCurrencyToday();
+                    await OnCurrencyChanged(new ChangeEventArgs { Value = selectedId });
+
+                    StateHasChanged();
+                }
+                else
+                {
+                    await _js.ToastrError("Error encountered while deleting CurrencyToday.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred in Confirm_Delete() for CurrencyToday");
+        }
+    }
+
+    private async Task HandleDelete(int id)
+    {
+        try
+        {
+            Id = id;
+
+            ModalTitle = "Are you sure you want to delete this Currency Today";
+            btnColour = "btn-danger";
+            buttontext = "Yes! Delete";
+            confirmation = "Confirm_Delete";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred in HandleDelete() for CurrencyToday");
+
+            await _js.ToastrError("An unexpected error occurred during deletion.");
+        }
+        finally
+        {
+            //isProcessing = false;
+        }
+    }
+
+}

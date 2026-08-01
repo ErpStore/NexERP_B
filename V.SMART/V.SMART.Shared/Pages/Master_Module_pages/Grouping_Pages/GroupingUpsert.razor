@@ -1,0 +1,562 @@
+﻿@page "/grouping/create"
+@page "/grouping/update/{Id:int}"
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService currentUserService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<BsModal OnModalConfirmation="UpsertGrouping"
+         ButtonBootstrapStyle="btn-success"
+         ButtonText="@buttontext"
+         Title=@ModalTitle>
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@groupingTitle"
+                        TitleIcon="@groupingIcon"
+                        Breadcrumbs="@groupingBreadcrumbs" />
+
+
+            <div class="card-body">
+                <EditForm Model="grouping" OnValidSubmit="ShowConfirmationModal">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <TrimmedInputText @bind-Value="grouping.Prefix"
+                                                  Id="Prefix"
+                                                  Placeholder="Prefix"
+                                                  CssClass="form-control" />
+                                <label for="Prefix">Prefix</label>
+                                <ValidationMessage For="@(() => grouping.Prefix)" />
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <TrimmedInputText @bind-Value="grouping.FRCNo"
+                                                  Id="FRCNo"
+                                                  Placeholder="FRC No"
+                                                  CssClass="form-control"
+                                                  readonly />
+                                <label for="FRCNo">FRC No</label>
+                                <ValidationMessage For="@(() => grouping.FRCNo)" />
+                            </div>
+                        </div>
+
+
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <InputNumber @bind-Value="grouping.LeadTime" Id="LeadTime" class="form-control" />
+                                <label for="LeadTime">Lead Time in (Days)</label>
+                                <ValidationMessage For="@(() => grouping.LeadTime)" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section Heading -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-12">
+                            <i class="bi bi-backpack2-fill"></i> <span class="badge bg-success fst-italic">Factor Process Mapping</span>
+                        </div>
+                    </div>
+
+                    <!-- Input Row -->
+                    <div class="row g-2 mb-3 align-items-end">
+                        <div class="col-6 col-md-2">
+                            <input type="number" value="@GetNextSlNo()" class="form-control" readonly />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <InputSelect @bind-Value="currentSub.Factors" class="form-select">
+                                <option value="0">-- Select Factor --</option>
+                                @foreach (var f in factors)
+                                {
+                                    <option value="@f.Id">@f.Factors</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <InputSelect @bind-Value="currentSub.Processid" class="form-select">
+                                <option value="0">-- Select Process --</option>
+                                @foreach (var p in process)
+                                {
+                                    <option value="@p.ProcessId">@p.ProcessName</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <button type="button" class="btn btn-success w-100 mt-md-0 mt-2" @onclick="AddSubAsync">
+                                <i class="bi bi-plus-square me-1"></i> Add
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    @if (groupingSubs.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped table-sm align-middle text-center">
+                                <thead class="text-white">
+                                    <tr>
+                                        <th class="text-white" style="background-color: #1f7fb9">Sl No</th>
+                                        <th class="text-white" style="background-color: #1f7fb9">Factor</th>
+                                        <th class="text-white" style="background-color: #1f7fb9"> Process</th>
+                                        <th class="text-white" style="background-color: #1f7fb9">Action</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    @foreach (var item in groupingSubs)
+                                    {
+                                        <tr>
+                                            <td>@item.SlNo</td>
+                                            <td>@factors.FirstOrDefault(f => f.Id == item.Factors)?.Factors</td>
+                                            <td>@process.FirstOrDefault(p => p.ProcessId == item.Processid)?.ProcessName</td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-danger" @onclick="() => RemoveSub(item)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    <div class="row g-2 mt-4">
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(Id == 0 || Id == null ? "Create" : "Update")
+                                </button>
+                            </div>
+                        }
+                        <div class="col-md-3">
+                            <SmartBackButton Url="/groupingList" />
+                        </div>
+                    </div>
+
+                    @if (Id > 0)
+                    {
+                        <div class="mt-4 small text-muted">
+                            <p><strong>Created By:</strong> @grouping.CreatedBy</p>
+                            <p><strong>Created Date:</strong> @grouping.CreatedDate?.ToString("g")</p>
+                            <p><strong>Modified By:</strong> @grouping.ModifiedBy</p>
+                            <p><strong>Modified Date:</strong> @grouping.ModifiedDate?.ToString("g")</p>
+                        </div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Grouping";
+    [Parameter] public int? Id { get; set; }
+
+    private bool isProcessing = true;
+    private Grouping grouping = new();
+    private List<GroupingSub> groupingSubs = new();
+    private GroupingSub currentSub = new();
+    private List<Process> process = new();
+    private List<Factor> factors = new();
+    private string currentUser = "";
+    private string ModalTitle => $"Are you sure you want to {(grouping.ID == 0 ? "Save" : "Update")} this Grouping?";
+    private string buttontext => $"{(grouping.ID == 0 ? "Save" : "Update")}";
+
+    private List<PageHeader.BreadcrumbItem> groupingBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "Grouping", IsLast = true }
+    };
+
+    private string groupingIcon = "bi bi-collection";
+    private string groupingTitle => (Id == 0 || Id == null ? "Create" : "Update") + " Grouping";
+
+
+    private async Task RemoveSub(GroupingSub sub)
+    {
+        try
+        {
+            int totalWithFactor = groupingSubs.Count(x => x.Factors != null && x.Factors > 0);
+
+            if ((sub.Factors != null && sub.Factors > 0) && totalWithFactor <= 1)
+            {
+                await _js.ToastrError("Cannot remove. At least one entry with a Factor must remain.");
+                await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress, 
+                screen: "Grouping", action: $"User tried remove At least one entry with a Factor must remain.",
+                additionalInfo: $"");
+                return;
+            }
+
+            groupingSubs.Remove(sub);
+            RenumberSubSlNos(); // Reorder SlNo
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the RemoveSub() method for Grouping");
+        }
+    }
+
+    private void RenumberSubSlNos()
+    {
+        int sl = 1;
+        foreach (var s in groupingSubs)
+        {
+            s.SlNo = sl++;
+        }
+    }
+
+    private async Task ShowConfirmationModal()
+    {
+        try
+        {
+            if (groupingSubs.Count > 0)
+            {
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("Please allocate the process to the respected factor.");
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the ShowConfirmationModal() method for Grouping");
+        }
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await GetCurrentUser();
+            await LoadProcesses();
+            await LoadFactors();
+
+            if (Id > 0)
+                await LoadGrouping();
+            else
+                await GenerateFRCNoAsync();
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() method for Grouping");
+        }
+    }
+
+    private async Task GenerateFRCNoAsync()
+    {
+        try
+        {
+            (string prefix, string frcNo) = await _unitOfWork.Groupings.GetInitialPrefixAndFRCNoAsync();
+            grouping.Prefix = prefix;
+            grouping.FRCNo = frcNo;
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the GenerateFRCNoAsync() method for Grouping");
+        }
+    }
+
+
+    private async Task GetCurrentUser()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            currentUser = user.Identity?.Name ?? "Unknown";
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the GetCurrentUser() method for Grouping");
+        }
+    }
+
+    private async Task LoadProcesses() => process = (await _unitOfWork.Processes.GetAllAsync())?.ToList() ?? new();
+    private async Task LoadFactors() => factors = (await _unitOfWork.Factors.GetAllAsync())?.ToList() ?? new();
+
+    private async Task LoadGrouping()
+    {
+        try
+        {
+            grouping = await _unitOfWork.Groupings.GetAsync(Id.Value) ?? new();
+            groupingSubs = (await _unitOfWork.GroupingSubs.FindAsync(x => x.GroupingId == Id))?.ToList() ?? new();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LoadGrouping() method for Grouping");
+        }
+    }
+
+    private async Task UpsertGrouping()
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+        isProcessing = true;
+
+        try
+        {
+            // Check for duplicate FRC No
+            bool isDuplicate = await _unitOfWork.Groupings.ExistsByNameAsync(
+                "FRCNo",
+                grouping.FRCNo?.Trim(),
+                "ID",
+                grouping.ID == 0 ? null : grouping.ID
+            );
+
+            if (isDuplicate)
+            {
+                await _js.ToastrError("An entry already exists with the same FRC No. Try another.");
+                await LoggingService.LogUserAction(
+                    UserName: await currentUserService.GetUsernameAsync(),
+                    Machine: currentUserService.MachineName,
+                    IP_Address: currentUserService.IpAddress,
+                    screen: "Grouping",
+                    action: $"User tried to enter a duplicate FRC No.",
+                    additionalInfo: $""
+                );
+                return;
+            }
+
+            var now = DateTime.Now;
+
+            if (grouping.ID == 0)
+            {
+                grouping.CreatedBy = currentUser;
+                grouping.CreatedDate = now;
+                await _unitOfWork.Groupings.CreateAsync(grouping);
+                await _unitOfWork.SaveAsync(); // Needed to get generated ID
+                await LoggingService.LogUserAction(
+                    UserName: await currentUserService.GetUsernameAsync(),
+                    Machine: currentUserService.MachineName,
+                    IP_Address: currentUserService.IpAddress,
+                    screen: "Grouping",
+                    action: $"User created a new grouping",
+                    additionalInfo: $""
+                );
+            }
+            else
+            {
+                grouping.ModifiedBy = currentUser;
+                grouping.ModifiedDate = now;
+                await _unitOfWork.Groupings.UpdateAsync(grouping);
+
+                // Delete old sub records
+                var oldSubs = await _unitOfWork.GroupingSubs.FindAsync(s => s.GroupingId == grouping.ID);
+                foreach (var oldSub in oldSubs)
+                {
+                    await _unitOfWork.GroupingSubs.DeleteAsync(oldSub.ID);
+                }
+
+                await LoggingService.LogUserAction(
+                    UserName: await currentUserService.GetUsernameAsync(),
+                    Machine: currentUserService.MachineName,
+                    IP_Address: currentUserService.IpAddress,
+                    screen: "Grouping",
+                    action: $"User deleted old sub-records for grouping",
+                    additionalInfo: $"Grouping ID: {grouping.ID}"
+                );
+
+                await _unitOfWork.SaveAsync();
+            }
+
+            var factorIds = groupingSubs
+                .Select(g => g.Factors)
+                .Where(id => id != null)
+                .Select(id => id.Value)
+                .Distinct()
+                .ToList();
+
+            var existingFactors = await _unitOfWork.Factors.FindAsync(f => factorIds.Contains(f.Id));
+            var existingFactorIds = existingFactors.Select(f => f.Id).ToList();
+
+            var invalidFactors = factorIds.Except(existingFactorIds).ToList();
+            if (invalidFactors.Any())
+            {
+                await _js.ToastrError("One or more selected Factors are invalid. Please check and try again.");
+                return;
+            }
+
+
+            // Insert new sub-records
+            int sl = 1;
+            foreach (var sub in groupingSubs)
+            {
+                sub.ID = 0;
+                sub.GroupingId = grouping.ID;
+                sub.SlNo = sl++;
+                await _unitOfWork.GroupingSubs.CreateAsync(sub);
+            }
+
+            await _unitOfWork.SaveAsync();
+
+            await _js.ToastrSuccess($"Record {(grouping.ID == 0 ? "Created" : "Updated")} Successfully.");
+            
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/groupingList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertGrouping() method for Grouping");
+            await _js.ToastrError("Error while saving the record.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+
+    private async Task AddSubAsync()
+    {
+        try
+        {
+            bool isFirstEntry = groupingSubs.Count == 0;
+
+            // First entry must have both Factor and Process
+            if (isFirstEntry && (currentSub.Factors == 0 || currentSub.Factors is null))
+            {
+                await _js.ToastrInfo("Please select both Factor and Process for the first entry.");
+                return;
+            }
+
+            if ((currentSub.Processid == 0 || currentSub.Processid is null) && (currentSub.Factors == 0 || currentSub.Factors is null))
+            {
+                await _js.ToastrInfo("Please select a process.");
+                return;
+            }
+
+            if (currentSub.Factors > 0)
+            {
+                bool factorExists = groupingSubs.Any(sub => sub.Factors == currentSub.Factors);
+                if (factorExists)
+                {
+                    await _js.ToastrInfo("This Factor is already added.");
+                    return;
+                }
+                else if (currentSub.Processid == 0 || currentSub.Processid is null)
+                {
+                    await _js.ToastrInfo("Please select a process.");
+                    return;
+                }
+            }
+
+            if (currentSub.Processid > 0)
+            {
+
+                bool processExists = groupingSubs.Any(sub => sub.Processid == currentSub.Processid);
+                if (processExists)
+                {
+                    await _js.ToastrInfo("This Process is already added.");
+                    return;
+                }
+            }
+
+            groupingSubs.Add(new GroupingSub
+            {
+                Factors = currentSub.Factors,
+                Processid = currentSub.Processid
+            });
+
+            RenumberSubSlNos();
+            currentSub = new();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the AddSubAsync() method for Grouping");
+        }
+    }
+
+    private async Task<int> GetNextSlNo()
+    {
+        try
+        {
+            var existingSlNos = groupingSubs.Select(s => s.SlNo).OrderBy(s => s).ToList();
+            int nextSlNo = 1;
+            foreach (var sl in existingSlNos)
+            {
+                if (sl == nextSlNo)
+                    nextSlNo++;
+                else
+                    break;
+            }
+            return nextSlNo;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the GetNextSlNo() method for Grouping");
+            return 1; // or some default/fallback value
+        }
+    }
+
+    // private async Task int GetNextSlNo()
+    // {
+    //     try
+    //     {
+    //         var existingSlNos = groupingSubs.Select(s => s.SlNo).OrderBy(s => s).ToList();
+    //         int nextSlNo = 1;
+    //         foreach (var sl in existingSlNos)
+    //         {
+    //             if (sl == nextSlNo)
+    //                 nextSlNo++;
+    //             else
+    //                 break;
+    //         }
+    //         return nextSlNo;
+
+    //     }
+    //     catch (Exception ex)
+    //     {
+
+
+    //         await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnPageSizeChanged() event for Stores");
+    //     }
+    // }
+}

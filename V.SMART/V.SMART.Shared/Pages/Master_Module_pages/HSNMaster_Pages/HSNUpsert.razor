@@ -1,0 +1,407 @@
+﻿@page "/hsn/create"
+@page "/hsn/update/{Slno:int}"
+@using System.Text
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService currentUserService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@hsnTitle"
+                        TitleIcon="@hsnIcon"
+                        Breadcrumbs="@hsnBreadcrumbs" />
+
+
+            <div class="card-body">
+                <EditForm Model="HSNMaster" OnValidSubmit="UpsertHSN">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <InputText @bind-Value="HSNMaster.HSNCategoryCode" class="form-control" id="HSNCategoryCode" />
+                                <label for="HSNCategoryCode">HSN/SAC Category Code</label>
+                                <ValidationMessage For="@(() => HSNMaster.HSNCategoryCode)" />
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <InputText @bind-Value="HSNMaster.HSNcode" class="form-control" id="HSNcode" />
+                                <label for="HSNcode">HSN/SAC Code</label>
+                                <ValidationMessage For="@(() => HSNMaster.HSNcode)" />
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="border rounded p-3 d-flex align-items-center">
+                                <div class="form-check form-switch ms-2">
+                                    <InputCheckbox @bind-Value="HSNMaster.Required" class="form-check-input" id="Required" />
+                                    <label class="form-check-label ms-2" for="Required">
+                                        Required: @(HSNMaster.Required ? "Yes" : "No")
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <InputText @bind-Value="HSNMaster.HSNCategory" class="form-control" id="HSNCategory" />
+                                <label for="HSNCategory">HSN/SAC Category</label>
+                                <ValidationMessage For="@(() => HSNMaster.HSNCategory)" />
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                <i class="bi bi-floppy2-fill me-1"></i> @(Slno == null || Slno == 0 ? "Create" : "Update")
+                            </button>
+                        </div>
+                        <div class="col-6 col-md-3 mt-3">
+                            <SmartBackButton Url="/hsnMaster" />
+                        </div>
+                    </div>
+                </EditForm>
+
+                <hr class="mt-4 mb-0" />
+
+                <h5>📥 CSV Upload</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <InputFile OnChange="OnFileChange" accept=".csv" class="form-control" />
+                    </div>
+                    <div class="col-md-6 mt-2">
+                        <button class="btn btn-success" @onclick="UploadCSVSave" disabled="@(!uploadedHSNMasters.Any() || !isFileSelected || isProcessing)">
+                            <i class="bi bi-upload me-1"></i> Save Uploaded Records
+                        </button>
+                        <button class="btn btn-outline-secondary ms-2" @onclick="ClearCSV" disabled="@isProcessing">
+                            Clear List
+                        </button>
+                        @if (!string.IsNullOrWhiteSpace(fileValidationError))
+                        {
+                            <div class="text-danger mt-2">@fileValidationError</div>
+                        }
+                    </div>
+                </div>
+
+                @if (uploadedHSNMasters.Any())
+                {
+                    <div class="table-responsive mt-4">
+                        <table class="table table-bordered table-striped">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>#</th>
+                                    <th>HSN Category Code</th>
+                                    <th>HSN Code</th>
+                                    <th>Required</th>
+                                    <th>HSN Category</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var (item, index) in uploadedHSNMasters.Select((val, i) => (val, i + 1)))
+                                {
+                                    <tr>
+                                        <td>@index</td>
+                                        <td>@item.HSNCategoryCode</td>
+                                        <td>@item.HSNcode</td>
+                                        <td>@(item.Required ? "Yes" : "No")</td>
+                                        <td>@item.HSNCategory</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "HSN Master";
+    [Parameter] public int? Slno { get; set; }
+
+    private bool isProcessing = true;
+    private bool isFileSelected = false;
+    private string fileValidationError = "";
+    private HSNMaster HSNMaster { get; set; } = new();
+    private List<HSNMaster> uploadedHSNMasters = new();
+    private string currentUser = "";
+
+    private List<PageHeader.BreadcrumbItem> hsnBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory Master" },
+        new PageHeader.BreadcrumbItem { Text = "HSN/SAC Master", IsLast = true }
+    };
+
+    private string hsnIcon = "bi bi-tag-fill";
+    private string hsnTitle => (Slno == null || Slno == 0 ? "Create" : "Update") + " HSN/SAC Code";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await GetCurrentUser();
+            await LoadHSNMaster();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() Method for HSNUpsert");
+        }
+    }
+
+    private async Task GetCurrentUser()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUser = authState.User?.Identity?.Name ?? "";
+    }
+
+    private async Task LoadHSNMaster()
+    {
+        try
+        {
+            if (Slno.HasValue && Slno.Value > 0)
+            {
+                var existing = await _unitOfWork.HSNMasters.GetAsync(Slno.Value);
+                if (existing != null)
+                {
+                    HSNMaster = existing;
+                }
+                else
+                {
+                    HSNMaster.Required = true;
+                }
+            }
+            else
+            {
+                HSNMaster.Required = true;
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LoadHSNMaster() Method for HSNUpsert");
+        }
+    }
+
+    private async Task UpsertHSN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            bool isDuplicate = await _unitOfWork.HSNMasters.ExistsByNameAsync("HSNcode", HSNMaster.HSNcode?.Trim(), "Slno", HSNMaster.Slno == 0 ? null : HSNMaster.Slno);
+            if (isDuplicate)
+            {
+                await _js.ToastrError("HSN Code already exists.");
+                await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress, 
+                screen: "HSNUpsert", action: $"User tried to create duplicate HSN Code {HSNMaster.HSNcode} ",
+                additionalInfo: $"User tried to create duplicate HSN Code");
+                isProcessing = false;
+                return;
+            }
+
+            if (HSNMaster.Slno == 0)
+            {
+                await _unitOfWork.HSNMasters.CreateAsync(HSNMaster);
+                await _unitOfWork.SaveAsync();
+                await _js.ToastrSuccess("HSN Code Created Successfully");
+
+                await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress, 
+                screen: "HSNUpsert", action: $"User  created New HSN Code {HSNMaster.HSNcode}",
+                additionalInfo: $"User  created New HSN Code");
+            }
+            else
+            {
+                await _unitOfWork.HSNMasters.UpdateAsync(HSNMaster);
+                await _unitOfWork.SaveAsync();
+                await _js.ToastrSuccess("HSN Code Updated Successfully");
+                await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress, 
+                screen: "HSNUpsert", action: $"User  Modified HSN Code {HSNMaster.HSNcode} ",
+                additionalInfo: $"User  Modified HSN Code");
+            }
+
+            isProcessing = false;
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/hsnMaster");
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertHSN() Method for HSNUpsert");
+        }
+    }
+
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        isFileSelected = false;
+        fileValidationError = "";
+        uploadedHSNMasters.Clear();
+
+        var file = e.File;
+
+        if (file == null)
+        {
+            fileValidationError = "No file selected.";
+            await _js.ToastrError(fileValidationError);
+            return;
+        }
+
+        const long maxFileSize = 10 * 1024 * 1024;
+        if (file.Size > maxFileSize)
+        {
+            fileValidationError = "File size exceeds 10MB.";
+            await _js.ToastrError(fileValidationError);
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxFileSize);
+            using var reader = new StreamReader(stream);
+
+            bool isFirstRow = true;
+            string? line;
+
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                if (isFirstRow) { isFirstRow = false; continue; }
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var values = line.Split(',');
+
+                if (values.Length >= 5)
+                {
+                    uploadedHSNMasters.Add(new HSNMaster
+                    {
+                        HSNCategoryCode = values[1].Trim(),
+                        HSNcode = values[2].Trim(),
+                        Required = values[3].Trim().ToLower() is "yes" or "true",
+                        HSNCategory = values[4].Trim()
+                    });
+                }
+            }
+
+            if (uploadedHSNMasters.Any())
+            {
+                isFileSelected = true;
+                await _js.ToastrSuccess("File uploaded and parsed successfully.");
+                await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress, screen: "HSNUpsert", action: $"User File uploaded and parsed successfully",
+                additionalInfo: $"");
+            }
+            else
+            {
+                fileValidationError = "No valid records found.";
+                await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress, screen: "HSNUpsert", action: $"User tried to Upload file but  No valid records found.",
+                additionalInfo: $"");
+                await _js.ToastrWarning(fileValidationError);
+            }
+        }
+        catch (Exception ex)
+        {
+            fileValidationError = "Error processing file.";
+            await _js.ToastrError(fileValidationError);
+            Console.WriteLine("CSV Upload Error: " + ex.Message);
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnFileChange() event for HSNUpsert");
+        }
+    }
+
+    private async Task UploadCSVSave()
+    {
+        isProcessing = true;
+
+        try
+        {
+            if (uploadedHSNMasters.Any())
+            {
+                var allHSNCodes = uploadedHSNMasters
+                    .Select(h => h.HSNcode?.Trim())
+                    .Where(code => !string.IsNullOrWhiteSpace(code))
+                    .Distinct()
+                    .ToList();
+
+                // Query DB only once to get existing HSN codes
+                var existingHSNCodes = await _unitOfWork.HSNMasters
+                    .GetExistingHSNCodesAsync(allHSNCodes); // Implement this in your repo
+
+                var newHSNs = uploadedHSNMasters
+                    .Where(h => !existingHSNCodes.Contains(h.HSNcode?.Trim()))
+                    .ToList();
+
+                if (newHSNs.Any())
+                {
+                    _unitOfWork.HSNMasters.AddRange(newHSNs);
+                    await _unitOfWork.SaveAsync();
+                    await _js.ToastrSuccess($"{newHSNs.Count} new record(s) saved.");
+                    await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress, 
+                    screen: "HSNUpsert", action: $"User Created a new HSNCODE.{HSNMaster.HSNcode}",
+                    additionalInfo: $"HSNCODE: {HSNMaster.HSNcode}");
+                }
+                else
+                {
+
+                    await _js.ToastrInfo("All records already exist. Nothing saved.");
+
+                    await LoggingService.LogUserAction(UserName: await currentUserService.GetUsernameAsync(), Machine: currentUserService.MachineName, IP_Address: currentUserService.IpAddress,
+                    screen: "HSNUpsert", action: $"User Created a new HSNCODE.{HSNMaster.HSNcode}",
+                    additionalInfo: $"HSNCODE: {HSNMaster.HSNcode}");
+
+                }
+
+                uploadedHSNMasters.Clear();
+                isFileSelected = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UploadCSVSave() Method for HSNUpsert");
+        }
+        finally
+        {
+            isProcessing = false;
+            _navigationManager.NavigateTo("/hsnMaster");
+        }
+    }
+
+
+    private void ClearCSV()
+    {
+        uploadedHSNMasters.Clear();
+        isFileSelected = false;
+        fileValidationError = "";
+    }
+}

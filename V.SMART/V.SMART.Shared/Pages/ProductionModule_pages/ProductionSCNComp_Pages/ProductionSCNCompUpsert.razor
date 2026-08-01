@@ -1,0 +1,1791 @@
+﻿@page "/productionCompScn/create"
+@page "/productionCompScn/update/{SCNId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IProductionService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.ProductionViewModel.ProductionSCNAssyViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject IProductionSCNCompService productionSCNService
+@inject ILoggingService LoggingService
+@inject ReportService reportService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<DetailsModal Title="Production Assy Return Details"
+              Columns="@ProdReturnColumns"
+              ColumnFields="@ProdReturnFields"
+              HiddenColumns="@ProdReturnHiddenColumns"
+              Data="@ProdReturnData"
+              IsVisible="@IsProdreturnModalVisible"
+              IsVisibleChanged="@((val) => IsProdreturnModalVisible = val)"
+              OnSelectedItems="OnProductionReturnSelectedAsync">
+</DetailsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+  position: sticky;
+  right: 0;
+  background-color: #f8f9fa;
+  z-index: 10;
+}
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@(ProductionSCNCompVMs.SCNId > 0 ? "Update Production SCN" : "Create Production SCN")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@scnBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="ProductionSCNCompVMs" OnValidSubmit="UpsertProdSCN">
+                    <ObjectGraphDataAnnotationsValidator  />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <div class="col-12 col-md-6">
+                            
+                        </div>
+
+                        <div class="col-12 col-md-6 d-flex justify-content-end align-items-center">
+                            @if (ProductionSCNCompVMs.SCNId > 0 && !string.IsNullOrWhiteSpace(ProductionSCNCompVMs.SCNNo))
+                            {
+                                <CorrespondenceStatus 
+                                    ReferenceType="Production SCN Assembly"
+                                    ReferenceId="@ProductionSCNCompVMs.SCNId"
+                                    ReferenceTypeName="@ProductionSCNCompVMs.SCNNo" />
+                            }
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <!-- =================== Production SCN Details =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Production SCN Details</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- SCN No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>SCN No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                            placeholder="SCN No."
+                                                            maxlength="30"
+                                                            @bind-Value="@ProductionSCNCompVMs.SCNNo" 
+                                                            readonly />
+                                                <span class="input-group-text rounded-3">@ProductionSCNCompVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => ProductionSCNCompVMs.SCNNo)" />
+                                            <ValidationMessage For="@(() => ProductionSCNCompVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- SCN Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>SCN Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                        @bind-Value="@ProductionSCNCompVMs.SCNDate" />
+                                            <ValidationMessage For="@(() => ProductionSCNCompVMs.SCNDate)" />
+                                        </div>
+                                    </div>
+
+                                     <!-- Reference -->
+                                    @if (prodReturnPendingCount > 0)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. Return GRN</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-warning w-100 d-flex align-items-center justify-content-center"
+                                                        @onclick="ShowProductionReturnDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> Return GRN / Route Card Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                    @if (IsProductionlog)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Inspected By</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <select class="form-select form-select-sm rounded-3 w-100"
+                                                        @bind="@ProductionSCNCompVMs.InspectBy">
+                                                    <option value="">-- Select Staff --</option>
+                                                    @foreach (var staff in AllStaff)
+                                                    {
+                                                        <option value="@staff.StaffName">@staff.StaffName</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Store Details</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- Store -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Issue To Store</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    id="storeIssId"
+                                                    @bind="ProductionSCNCompVMs.IssueStoreId" disabled>
+                                                <option value="0">--Select Store--</option>
+                                                @foreach (var storeid in IssueStores)
+                                                {
+                                                    <option value="@storeid.StoreId">@storeid.StoreName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => ProductionSCNCompVMs.IssueStoreId)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Add Stores -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Add To Store</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    @bind="ProductionSCNCompVMs.AddStoreId">
+                                                @foreach (var store in AddStores)
+                                                {
+                                                    <option value="@store.StoreId">@store.StoreName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => ProductionSCNCompVMs.AddStoreId)" />
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      @bind="ProductionSCNCompVMs.MainRemark"></textarea>
+                                            <ValidationMessage For="@(() => ProductionSCNCompVMs.MainRemark)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Item Details</span>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+
+                                                    <th style="width:110px;">Ref Return No.</th>
+                                                    <th style="width:110px;">Ref Return Date</th>
+
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:120px;">AccQty</th>
+                                                    <th style="width:120px;">RejQty</th>
+                                                    @if (IsRejectionSelection)
+                                                    {
+                                                        <th style="width:200px;">RejectionCode</th>
+                                                    }
+                                                    <th style="width:120px;">Rej. Reason</th>
+                                                    <th style="width:120px;">RewQty</th>
+                                                    <th style="width:120px;">Rew. Reason</th>
+                                                    <th style="width:120px;">Unit Price</th>
+
+                                                    <th style="width:120px;">StockQty</th>
+
+                                                    <th style="width:120px;">Ins No.</th>
+                                                    <th style="width:120px;">NCR No.</th>
+
+                                                    <th style="width:120px;">Ref PO No.</th>
+                                                    <th style="width:120px;">Ref PO Date</th>
+                                                    <th style="width:120px;">Ref RC No.</th>
+                                                    <th style="width:120px;">Ref RC Date</th>
+                                                    <th style="width:120px;">Process</th>
+
+                                                    <th style="width:150px;">Cost-Center</th>
+
+                                                    <th style="width:200px;">Remarks</th>
+
+                                                    <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in ProductionSCNCompVMs.ProductionSCNCompSubVMs)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Ref Return  -->
+                                                        <td>@subitem.RefReturnNo</td>
+                                                        <td>@subitem.RefReturnDate?.ToString("dd/MM/yyyy")</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @subitem.ItemCode
+                                                                </div>
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                        Size="Size.Small"
+                                                                                        Color="Color.Primary"
+                                                                                        OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                        Edge="Edge.End"
+                                                                                        Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.MeasureUnit</td>
+
+                                                        <!-- Acc Qty -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm text-end"
+                                                                       placeholder="Acc Qty"
+                                                                       min="0"
+                                                                       step="any"
+                                                                       @bind="subitem.AccQty"
+                                                                       @bind:event="oninput"
+                                                                       @bind:after="async () => await OnAccpQtyChange(subitem.AccQty, subitem)" />
+                                                                <ValidationMessage For="@(() => subitem.AccQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.AccQty</span>
+                                                            }
+                                                        </td>
+
+                                                        <!-- Rej Qty -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm text-end"
+                                                                       placeholder="Rej Qty"
+                                                                       min="0"
+                                                                       step="any"
+                                                                       @bind="subitem.RejQty"
+                                                                       @bind:event="oninput"
+                                                                       @bind:after="async () => await OnRejQtyChange(subitem.RejQty, subitem)" />
+                                                                <ValidationMessage For="@(() => subitem.RejQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.RejQty</span>
+                                                            }
+                                                        </td>
+                                                        @if (IsRejectionSelection)
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <select class="form-select"
+                                                                            @bind="subitem.RejectionId"
+                                                                            @bind:after="() => OnRejectionChanged(subitem)">
+
+                                                                        <option value="">-- Select Rejection --</option>
+
+                                                                        @foreach (var rejection in RejectionMasterVMs)
+                                                                        {
+                                                                            <option value="@rejection.RejectionId">
+                                                                                @rejection.RejectionCode
+                                                                            </option>
+                                                                        }
+                                                                    </select>
+                                                                }
+                                                                else
+                                                                {
+                                                                    @(RejectionMasterVMs .FirstOrDefault(x => x.RejectionId == subitem.RejectionId)
+                                                                                                                        ?.RejectionCode ?? "")
+                                                                                                        }
+                                                            </td>
+
+
+                                                        }
+
+                                                         <!-- Rej Reason -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea rows="1" @bind-Value="subitem.RejReason" class="form-control form-control-sm" placeholder="Rej. Reason" />
+                                                                <ValidationMessage For="@(() => subitem.RejReason)" />
+
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.RejReason
+                                                            }
+                                                        </td>
+
+                                                        <!-- Rew Qty -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm text-end"
+                                                                       placeholder="Rew Qty"
+                                                                       min="0"
+                                                                       step="any"
+                                                                       @bind="subitem.RewQty"
+                                                                       @bind:event="oninput"
+                                                                       @bind:after="async () => await OnRewQtyChange(subitem.RewQty, subitem)" />
+                                                                <ValidationMessage For="@(() => subitem.RewQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.RewQty</span>
+                                                            }
+                                                        </td>
+
+                                                         <!-- Re-work Reason -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea rows="1" @bind-Value="subitem.RewReason" class="form-control form-control-sm" placeholder="Rework Reason" />
+                                                                <ValidationMessage For="@(() => subitem.RewReason)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.RewReason
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm text-end"
+                                                                       placeholder="Unit Price"
+                                                                       min="0"
+                                                                       step="any"
+                                                                       @bind="subitem.UnitPrice"/>
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.UnitPrice</span>
+                                                            }
+                                                        </td>
+
+                                                         <!-- Stock Qty -->
+                                                        <td class="fw-bold text-danger">
+                                                            @subitem.StockQty
+                                                        </td>
+
+                                                         <!-- Inspection No. -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputText @bind-Value="subitem.InsNo" class="form-control form-control-sm" placeholder="Ins No." />
+                                                                <ValidationMessage For="@(() => subitem.InsNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.InsNo
+                                                            }
+                                                        </td>
+
+                                                         <!-- NCR No. -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputText @bind-Value="subitem.NCRNo" class="form-control form-control-sm" placeholder="NCR No." />
+                                                                <ValidationMessage For="@(() => subitem.NCRNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.NCRNo
+                                                            }
+                                                        </td>
+
+                                                        <td>@subitem.PoNo</td>
+                                                        <td>@subitem.PoDate?.ToString("dd/MM/yyyy")</td>
+
+                                                        <td>@subitem.RcNo</td>
+                                                        <td>@subitem.RcDate?.ToString("dd/MM/yyyy")</td>
+                                                        <td>@subitem.Process</td>
+                                                        <td>@subitem.ProjectNo</td>
+
+                                                        <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea rows="1" @bind-Value="subitem.Remark" class="form-control form-control-sm" placeholder="Enter Remarks" />
+                                                                <ValidationMessage For="@(() => subitem.Remark)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remark
+                                                            }
+                                                        </td>
+
+                                                        <!-- Action Buttons -->
+                                                        <td class="freeze-last-col text-end">
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <button type="button" class="btn btn-success btn-icon btn-sm" title="Save" 
+                                                                        @onclick="async () => await SaveRow(subitem)">
+                                                                    <i class="bi bi-check-lg"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel" 
+                                                                        @onclick="async () => await CancelEdit(subitem, ProductionSCNCompVMs)">
+                                                                    <i class="bi bi-x-lg"></i>
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit" 
+                                                                        @onclick="async () => await EditRowAsync(subitem)">
+                                                                    <i class="bi bi-pencil"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete" 
+                                                                        @onclick="async () => await RemoveRow(subitem)">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--Action Buttons -->
+                        @if (CanCreate || CanEdit)
+                        {
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(ProductionSCNCompVMs.SCNId > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                          
+                        }
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <SmartBackButton Url="@($"/productionCompSCNList?currentPage={currentPage}")" />
+                        </div>
+
+
+                        @if (CanCreate || CanEdit && SCNId > 0)
+                        {
+                            <div class="col-12 col-md-3">
+                                <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                    <i class="bi bi-printer me-1"></i>Print
+                                </button>
+                            </div>
+                        }
+                    </div>
+                   
+                </EditForm>
+            </div>
+        </div>
+    </div>
+} 
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Production SCN Component";
+
+    [Parameter] public int? SCNId { get; set; }
+
+    private int screenCode { get; set; }
+
+    private bool isProcessing = true;
+    private ProductionSCNCompVM ProductionSCNCompVMs { get; set; } = new();
+    private ProductionSCNCompSubVM? rowToDelete;
+    private List<Store> IssueStores = new();
+    private List<Store> AddStores = new();
+
+    private int prodReturnPendingCount = 0;
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    private string? pdfBase64;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private bool IsProdreturnModalVisible = false;
+    private List<Dictionary<string, object>>? ProdReturnData;
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<string> ProdReturnColumns = new() 
+    {
+        "RefReturnSubId","ReturnNo", "ReturnDate","RCSubId", "RC No.","RC Dt.","POSubId", "PO No.","PO Dt.","ItemId", "ItemCode", "ItemName",
+        "MeasureUnit", "Qty","Unit Price","BalQty.","CostCenterId","ProjectNo","Process"
+    };
+
+    private List<string> ProdReturnFields = new() 
+    { 
+        "RefReturnSubId", "ReturnNo", "ReturnDate", "RCSubId", "RCNo", "RCDt","POSubId", "PONo", "PODt", "ItemId" ,"ItemCode", "ItemName",
+        "MeasureUnit", "Qty","UnitPrice", "BalQty","CostCenterId" ,"ProjectNo","Process"
+    };
+
+    private List<string> ProdReturnHiddenColumns = new() { "RefReturnSubId","RCSubId","POSubId", "ItemId", "CostCenterId" };
+
+    private List<PageHeader.BreadcrumbItem> scnBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Production" },
+        new PageHeader.BreadcrumbItem { Text = "Component" },
+        new PageHeader.BreadcrumbItem { Text = "Store Credit Note (SCN)", IsLast = true }
+    };
+
+
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private bool IsRejectionSelection { get; set; } = false;
+
+    private List<RejectionMasterVM> RejectionMasterVMs = new();
+
+    private List<Staff> AllStaff = new();
+    private bool IsProductionlog { get; set; } = false;
+
+
+    #endregion
+
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+         {
+            isProcessing = true;
+             await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            screenCode = await productionSCNService.GetScreenCodeByScreenNameAsync(ScreenName);
+            //////////////////vs//////////////////vs
+          //  IssueStores = await productionSCNService.GetAllIssueStoresAsync();
+            ////////////////////////////////////////////
+            AddStores = await productionSCNService.GetAllAddStoresAsync();
+            prodReturnPendingCount= await productionSCNService.GetReturnPendingCountAsync();
+            IsRejectionSelection = await productionSCNService.GetRejectionSelectionEnableAsync();
+            RejectionMasterVMs = await productionSCNService.GetAllRejectionReasonAsync();
+            AllStaff = await productionSCNService.GetAllStaffAsync();
+            IsProductionlog = await productionSCNService.IsProductionLogAsync();
+
+            if (SCNId.HasValue)
+            {
+                await LoadExistingProdSCN(SCNId.Value);
+            }
+            else
+            {
+                await InitializeNewProdScn();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingProdSCN(int scnId)
+    {
+        try
+        {
+            ProductionSCNCompVMs = await productionSCNService.GetProductionSCNByScnIdAsync(scnId);
+            if (ProductionSCNCompVMs == null)
+            {
+                await _js.ToastrWarning("Production SCN not found.");
+                return;
+            }
+
+            foreach (var sub in ProductionSCNCompVMs.ProductionSCNCompSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[sub.ItemId.Value] =
+                    await productionSCNService.GetCorrespondenceAttachmentsCountAsync(sub.ItemId.Value, "Item");
+            }
+
+            IsSomeItemsTransMade = await productionSCNService.CheckIfTransactionsMadeAsync(
+                                ProductionSCNCompVMs.ProductionSCNCompSubVMs
+                                    .Where(s => s.ItemId.HasValue)
+                                    .Select(s => s.ItemId!.Value)
+                                    .ToList(),
+                                ProductionSCNCompVMs.AddStoreId ?? 0,
+                                screenCode,
+                                ProductionSCNCompVMs.ProductionSCNCompSubVMs
+                                    .Select(s => s.SCNSubId)
+                                    .ToList());
+
+            ///////////////////////////vs/////////////////////////////////////
+            var MapStoreForProdIssue = await productionSCNService.GetMappedStoreForFormAsync("PMReturnAssyForm");
+            if (MapStoreForProdIssue.StoreId > 0)
+            {
+                //////////////////vs//////////////////vs
+                IssueStores.Clear();
+
+                IssueStores.Add(new Store
+                {
+                    StoreId = MapStoreForProdIssue.StoreId,
+                    StoreName = MapStoreForProdIssue.StoreName
+                });
+                /////////////////////////
+
+                ProductionSCNCompVMs.IssueStoreId = MapStoreForProdIssue.StoreId;
+                ProductionSCNCompVMs.IssueStoreName = MapStoreForProdIssue.StoreName;
+            }
+            else
+            {
+                ProductionSCNCompVMs.IssueStoreId = null;
+                ProductionSCNCompVMs.IssueStoreName = null;
+            }
+            /////////////////////////////////////////////////////////////////
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing Production SCN.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingProductionSCN failed for scnId: {scnId}");
+        }
+    }
+
+    
+
+    private async Task InitializeNewProdScn()
+    {
+        try
+        {
+            ProductionSCNCompVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            ProductionSCNCompVMs.SCNNo = await productionSCNService.GetSCNNumberAsync(ProductionSCNCompVMs.Suffix);
+
+            var MapStoreForProdIssue = await productionSCNService.GetMappedStoreForFormAsync("PMReturnAssyForm");
+            if (MapStoreForProdIssue.StoreId > 0)
+            {
+                //////////////////vs//////////////////vs
+                IssueStores.Clear();
+
+                IssueStores.Add(new Store
+                {
+                    StoreId = MapStoreForProdIssue.StoreId,
+                    StoreName = MapStoreForProdIssue.StoreName
+                });
+                /////////////////////////
+
+                ProductionSCNCompVMs.IssueStoreId = MapStoreForProdIssue.StoreId;
+                ProductionSCNCompVMs.IssueStoreName = MapStoreForProdIssue.StoreName;
+            }
+            else
+            {
+                ProductionSCNCompVMs.IssueStoreId = null;
+                ProductionSCNCompVMs.IssueStoreName = null;
+            }
+
+            var MapStoreFromProdAdd = await productionSCNService.GetMappedStoreForFormAsync("SCNProductionAssyForm");
+            if (MapStoreFromProdAdd.StoreId > 0)
+            {
+                ProductionSCNCompVMs.AddStoreId = MapStoreFromProdAdd.StoreId;
+                ProductionSCNCompVMs.AddStoreName = MapStoreFromProdAdd.StoreName;
+            }
+            else
+            {
+                ProductionSCNCompVMs.AddStoreId = null;
+                ProductionSCNCompVMs.AddStoreName = null;
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new Production SCN.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewProdScn failed");
+        }
+    }
+
+    #endregion
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(ProductionSCNCompSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = ProductionSCNCompVMs.ProductionSCNCompSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            ProductionSCNCompVMs.ProductionSCNCompSubVMs.Add(new ProductionSCNCompSubVM
+            {
+                SCNId = ProductionSCNCompVMs.SCNId,
+                IsEditable = true
+            });
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(ProductionSCNCompSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            // Ensure at least one editable row exists for new entries
+            if (!ProductionSCNCompVMs.ProductionSCNCompSubVMs.Any(x => x.IsEditable))
+            {
+                ProductionSCNCompVMs.ProductionSCNCompSubVMs.Add(new ProductionSCNCompSubVM
+                {
+                    SCNId = ProductionSCNCompVMs.SCNId,
+                    IsEditable = true
+                });
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for ScnSubId: {item?.SCNSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(ProductionSCNCompSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItem == null && item.ItemId > 0)
+            {
+                item.SelectedItem = await productionSCNService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for SCNSubId: {item?.SCNSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(ProductionSCNCompSubVM? item, ProductionSCNCompVM? parentSCN)
+    {
+        try
+        {
+            if (item == null || parentSCN == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentSCN.ProductionSCNCompSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for SCNSubId: {item?.SCNSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(ProductionSCNCompSubVM item)
+    {
+        try
+        {
+            if (ProductionSCNCompVMs.ProductionSCNCompSubVMs.Count == 1 && item.SCNSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if(IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction history.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                ProductionSCNCompVMs.ProductionSCNCompSubVMs.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                if (!ProductionSCNCompVMs.ProductionSCNCompSubVMs.Any())
+                    ProductionSCNCompVMs.ProductionSCNCompSubVMs = new List<ProductionSCNCompSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for SCNSubId: {item?.SCNSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in ProductionSCNCompVMs.ProductionSCNCompSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+    #region Store Handlers
+
+    private async Task OnStoreChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var newStoreId))
+                return;
+
+            ProductionSCNCompVMs.IssueStoreId = newStoreId;
+
+            if (newStoreId == 0)
+            {
+                await _js.ToastrWarning("Please select a valid Store. Store is required.");
+
+                if (ProductionSCNCompVMs.ProductionSCNCompSubVMs != null)
+                {
+                    foreach (var sub in ProductionSCNCompVMs.ProductionSCNCompSubVMs)
+                        sub.StockQty = 0;
+                }
+
+                StateHasChanged();
+                return;
+            }
+
+            if (ProductionSCNCompVMs.ProductionSCNCompSubVMs != null && ProductionSCNCompVMs.ProductionSCNCompSubVMs.Any())
+            {
+                var itemIds = ProductionSCNCompVMs.ProductionSCNCompSubVMs
+                    .Where(s => s.ItemId.HasValue)
+                    .Select(s => s.ItemId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (itemIds.Count == 0)
+                {
+                    await _js.ToastrInfo("No items found to update stock for this store.");
+                    return;
+                }
+
+                var stockDict = await productionSCNService.GetStockForItemsAsync(itemIds, newStoreId);
+
+                foreach (var sub in ProductionSCNCompVMs.ProductionSCNCompSubVMs)
+                {
+                    if (sub.ItemId.HasValue && stockDict.TryGetValue(sub.ItemId.Value, out var qty))
+                        sub.StockQty = qty;
+                    else
+                        sub.StockQty = 0;
+                }
+
+                await _js.ToastrSuccess("Stock quantities updated based on selected store.");
+            }
+            else
+            {
+                await _js.ToastrInfo("No sub-items available to update stock.");
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error occurred in OnStoreChanged while updating stock quantities.");
+            await _js.ToastrError("An unexpected error occurred while updating stock. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.SCNSubId > 0)
+            {
+                await productionSCNService.DeleteAndResequenceAsync(rowToDelete, ProductionSCNCompVMs, screenCode);
+
+                ProductionSCNCompVMs.ProductionSCNCompSubVMs = await productionSCNService.GetProdSCNSubBySCNIdAsync(ProductionSCNCompVMs.SCNId);
+            }
+            else
+            {
+                ProductionSCNCompVMs.ProductionSCNCompSubVMs.Remove(rowToDelete);
+
+                if (!ProductionSCNCompVMs.ProductionSCNCompSubVMs.Any())
+                {
+                    ProductionSCNCompVMs.ProductionSCNCompSubVMs.Add(new ProductionSCNCompSubVM
+                    {
+                        SCNId = ProductionSCNCompVMs.SCNId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < ProductionSCNCompVMs.ProductionSCNCompSubVMs.Count; i++)
+                        ProductionSCNCompVMs.ProductionSCNCompSubVMs[i].SlNo = i + 1;
+                }
+            }
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for SCNId: {ProductionSCNCompVMs.SCNId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await productionSCNService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+
+    #region Qty Handlers
+
+    private async Task<decimal> GetIssueQtyAsync(ProductionSCNCompSubVM subVM)
+    {
+        if (subVM.RefReturnSubId is null or 0)
+            return 0;
+
+        return await productionSCNService.GetProdReturnItemBalQtyFromReturnSubId(subVM.RefReturnSubId.Value);
+    }
+
+    private async Task OnAccpQtyChange(decimal? newValue, ProductionSCNCompSubVM subVM)
+    {
+        try
+        {
+            var accp = newValue.GetValueOrDefault();
+            if (accp < 0)
+            {
+                subVM.AccQty = 0;
+                await _js.ToastrWarning("Accepted Qty must be positive.");
+                return;
+            }
+
+            var rej = subVM.RejQty.GetValueOrDefault();
+            var rew = subVM.RewQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Accepted"))
+            {
+                subVM.AccQty = accp;
+                subVM.BalQty = subVM.BalQty;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnAccpQtyChange failed");
+            await _js.ToastrError("Failed to update Accepted Qty.");
+        }
+    }
+
+    private async Task AdjustQty(ProductionSCNCompSubVM subVM, string field, decimal max, decimal accp, decimal rej, decimal rew)
+    {
+        switch (field)
+        {
+            case "Accepted":
+                subVM.AccQty = max - (rej + rew);
+                break;
+
+            case "Rejected":
+                subVM.RejQty = max - (accp + rew);
+
+                break;
+
+            case "Rework":
+                subVM.RewQty = max - (accp + rej);
+
+                break;
+        }
+
+    }
+
+
+    private async Task<bool> ValidateAndAdjustAsync(ProductionSCNCompSubVM subVM, decimal newAccp, decimal newRej, decimal newRew, string fieldName)
+    {
+        var grnBalQty = await productionSCNService
+            .GetProdReturnItemBalQtyFromReturnSubId(subVM.RefReturnSubId!.Value);
+
+        var original = subVM.SCNSubId > 0
+            ? await productionSCNService.GetSCNCompItemDetailByScnSubIdAsync(subVM.SCNSubId)
+            : null;
+
+        decimal origAccp = original?.AccQty ?? 0;
+        decimal origRej = original?.RejQty ?? 0;
+        decimal origRew = original?.RewQty ?? 0;
+        decimal origBal = original?.BalQty ?? 0;
+        decimal origSCnBal = original?.SCNBalQty ?? 0;
+
+        decimal originalTotal = origAccp + origRej + origRew;
+        decimal maxAllowed = grnBalQty + originalTotal;
+        decimal total = newAccp + newRej + newRew;
+        decimal totalRejRew = newRej + newRew;
+
+
+        decimal originalRejRewTotal = origRej + origRew;
+
+        decimal alreadyTransacted = 0;
+        decimal alreadyTransactedSCN = 0;
+
+        if (original != null)
+        {
+            alreadyTransacted = originalTotal - (origBal + origRej + origRew);
+            alreadyTransactedSCN = originalRejRewTotal - origSCnBal;
+        }
+        else
+        {
+            alreadyTransacted = 0;
+        }
+
+        if (subVM.SCNSubId > 0 && total < alreadyTransacted)
+        {
+            alreadyTransacted = alreadyTransacted + origRej + origRew;
+
+            await AdjustQty(subVM, fieldName, alreadyTransacted, newAccp, newRej, newRew);
+            subVM.BalQty = 0m;
+
+            if (originalRejRewTotal < alreadyTransactedSCN)
+            {
+                subVM.SCNBalQty = 0m;
+            }
+
+            await _js.ToastrWarning(
+                $"Total Qty cannot be less than {alreadyTransacted} (already transacted).");
+            return false;
+        }
+        if (subVM.SCNSubId > 0 && totalRejRew < alreadyTransactedSCN)
+        {
+            alreadyTransactedSCN = originalTotal - alreadyTransactedSCN;
+
+            await AdjustQty(subVM, fieldName, alreadyTransactedSCN, newAccp, newRej, newRew);
+            subVM.SCNBalQty = 0m;
+
+            await _js.ToastrWarning(
+                $"Total Qty cannot be less than {alreadyTransacted} (already transacted).");
+            return false;
+        }
+
+        if (total > maxAllowed)
+        {
+            await AdjustQty(subVM, fieldName, maxAllowed, newAccp, newRej, newRew);
+
+            if (original != null)
+            {
+                var diff = subVM.AccQty.GetValueOrDefault() - origAccp;
+                subVM.BalQty = Math.Max(0m, origBal + diff);
+
+                var Diffrej = (subVM.RejQty.GetValueOrDefault() + subVM.RewQty.GetValueOrDefault()) - originalRejRewTotal;
+                subVM.SCNBalQty = Math.Max(0m, alreadyTransactedSCN + Diffrej);
+
+
+            }
+            else
+            {
+                subVM.BalQty = subVM.AccQty;
+                subVM.SCNBalQty =
+                   subVM.RejQty.GetValueOrDefault()
+                  + subVM.RewQty.GetValueOrDefault();
+
+            }
+
+            await _js.ToastrWarning($"{fieldName} change exceeded limit. Max allowed total is {maxAllowed}.");
+            return false;
+        }
+
+        if (original != null)
+        {
+            var diff = subVM.AccQty.GetValueOrDefault() - origAccp;
+
+            subVM.BalQty = Math.Max(0m, origBal + diff);
+
+            var Diffrej = (subVM.RejQty.GetValueOrDefault() + subVM.RewQty.GetValueOrDefault()) - originalRejRewTotal;
+            subVM.SCNBalQty = Math.Max(0m, alreadyTransactedSCN + Diffrej);
+
+        }
+        else
+        {
+            subVM.BalQty = subVM.AccQty;
+            subVM.SCNBalQty = subVM.RejQty.GetValueOrDefault() + subVM.RewQty.GetValueOrDefault();
+        }
+
+        return true;
+    }
+
+
+
+    private async Task OnRejQtyChange(decimal? newValue, ProductionSCNCompSubVM subVM)
+    {
+        try
+        {
+            var rej = newValue.GetValueOrDefault();
+            if (rej < 0)
+            {
+                subVM.RejQty = 0;
+                await _js.ToastrWarning("Rejected Qty must be positive.");
+                return;
+            }
+
+            var accp = subVM.AccQty.GetValueOrDefault();
+            var rew = subVM.RewQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Rejected"))
+                subVM.RejQty = rej;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnRejQtyChange failed");
+            await _js.ToastrError("Failed to update Rejection Qty.");
+        }
+    }
+
+    private async Task OnRewQtyChange(decimal? newValue, ProductionSCNCompSubVM subVM)
+    {
+        try
+        {
+            var rew = newValue.GetValueOrDefault();
+            if (rew < 0)
+            {
+                subVM.RewQty = 0;
+
+                await _js.ToastrWarning("Rework Qty must be positive.");
+                return;
+            }
+
+            var accp = subVM.AccQty.GetValueOrDefault();
+            var rej = subVM.RejQty.GetValueOrDefault();
+
+            if (await ValidateAndAdjustAsync(subVM, accp, rej, rew, "Rework"))
+                subVM.RewQty = rew;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnRewQtyChange failed");
+            await _js.ToastrError("Failed to update Rework Qty.");
+        }
+    }
+
+
+    #endregion
+
+    #region Production Assembly SCN Operations
+
+    private async Task UpsertProdSCN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            ProductionSCNCompVMs.ProductionSCNCompSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue || x.ItemId == 0);
+
+            if (!ProductionSCNCompVMs.ProductionSCNCompSubVMs.Any())
+            {
+                await _js.ToastrError("Cannot save a Production SCN without valid items.");
+                return;
+            }
+
+            // Validate each line
+            foreach (var line in ProductionSCNCompVMs.ProductionSCNCompSubVMs)
+            {
+                bool isValid = await ValidateProdSCNLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewProdSCN = ProductionSCNCompVMs.SCNId == 0;
+
+            try
+            {
+                await productionSCNService.UpsertproductionSCNAsync(ProductionSCNCompVMs, screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewProdSCN)
+                await _js.ToastrSuccess("Production SCN saved successfully.");
+            else
+                await _js.ToastrSuccess("Production SCN updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/productionCompSCNList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertProdSCN failed.");
+            await _js.ToastrError("Error saving Production Component SCN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateProdSCNLineAsync(ProductionSCNCompSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            // Qty vs Enquiry / Already Transacted validation
+            if (line.SCNSubId == 0 && line.RefReturnSubId > 0)
+            {
+                var returnBalQty = await productionSCNService.GetProdReturnItemBalQtyFromReturnSubId(line.RefReturnSubId.Value);
+                if (line.AccQty + line.RejQty +line.RewQty > returnBalQty)
+                {
+                    line.AccQty = returnBalQty;
+                    line.RejQty = 0;
+                    line.RewQty = 0;
+                    line.BalQty = returnBalQty;
+                    await _js.ToastrWarning($"Qty cannot exceed Production Return Balance Qty ({returnBalQty}).");
+                }
+            }
+            else if (line.SCNSubId > 0)
+            {
+                var original = await productionSCNService.GetProdScnSubItemDetailByScnSubIdAsync(line.SCNSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty ?? 0m;
+                    decimal origQty = original.AccQty ?? 0m;
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.AccQty < alreadyTransacted)
+                    {
+                        line.AccQty = alreadyTransacted;
+                        line.BalQty = 0m;
+                        await _js.ToastrWarning($"AccQty cannot be less than {alreadyTransacted} (already transacted).");
+                    }
+                    else
+                    {
+                        var difference = line.AccQty.GetValueOrDefault() - origQty;
+                        line.BalQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidateQuoteLineAsync failed.");
+            await _js.ToastrError("Error validating quotation line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+
+    #region Production Return Selection
+
+    private async Task ShowProductionReturnDetails()
+    {
+        try
+        {
+            isProcessing = true;
+            ProdReturnData = await productionSCNService.GetProductionCompReturnDetails();
+            IsProdreturnModalVisible = true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ShowProductionReturnDetails failed.");
+            await _js.ToastrError("Error fetching Production Return details.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnProductionReturnSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (ProductionSCNCompVMs.ProductionSCNCompSubVMs == null)
+            ProductionSCNCompVMs.ProductionSCNCompSubVMs = new List<ProductionSCNCompSubVM>();
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .Distinct()
+                .ToList();
+
+            int storeId = ProductionSCNCompVMs.IssueStoreId ?? 0;
+
+            var storeStock = await _unitOfWork.StockAdds.GetQueryable()
+                .Where(s => s.StoreId == storeId && itemIds.Contains(s.ItemId))
+                .GroupBy(s => s.ItemId)
+                .Select(g => new
+                {
+                    ItemId = g.Key,
+                    StockQty = g.Sum(x => x.BalQty)
+                })
+                .ToDictionaryAsync(x => x.ItemId, x => x.StockQty);
+
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? RefReturnSubId = item.ContainsKey("RefReturnSubId") && item["RefReturnSubId"] != null
+                    ? Convert.ToInt32(item["RefReturnSubId"])
+                    : (int?)null;
+
+                int? RefPoSubId = item.ContainsKey("POSubId") && item["POSubId"] != null
+                    ? Convert.ToInt32(item["POSubId"])
+                    : (int?)null;
+
+                int? RefRcSubId = item.ContainsKey("RCSubId") && item["RCSubId"] != null
+                    ? Convert.ToInt32(item["RCSubId"])
+                    : (int?)null;
+
+                if (ProductionSCNCompVMs.ProductionSCNCompSubVMs
+                    .Any(x => x.ItemId == itemId && x.RefReturnSubId == RefReturnSubId))
+                    continue;
+
+                decimal stockQty = storeStock.ContainsKey(itemId)
+                    ? storeStock[itemId]
+                    : 0;
+
+                decimal returnBalQty = item.ContainsKey("BalQty") && item["BalQty"] != null
+                    ? Convert.ToDecimal(item["BalQty"])
+                    : 0;
+
+                decimal allowedQty = Math.Min(stockQty, returnBalQty);
+
+                var subVm = new ProductionSCNCompSubVM
+                {
+                    RefReturnSubId = RefReturnSubId,
+                    RefReturnNo = item.ContainsKey("ReturnNo") ? item["ReturnNo"]?.ToString() : "",
+                    RefReturnDate = item.ContainsKey("ReturnDate") && item["ReturnDate"] != null
+                        ? Convert.ToDateTime(item["ReturnDate"])
+                        : null,
+
+                    RcSubId = RefRcSubId,
+                    RcNo = item.ContainsKey("RCNo") ? item["RCNo"]?.ToString() : "",
+                    RcDate = item.ContainsKey("RCDt") && item["RCDt"] != null
+                        ? Convert.ToDateTime(item["RCDt"])
+                        : null,
+                  
+                    Process = item.ContainsKey("Process") ? item["Process"]?.ToString() : "",
+
+                    PoSubId = RefPoSubId,
+                    PoNo = item.ContainsKey("PONo") ? item["PONo"]?.ToString() : "",
+                    PoDate = item.ContainsKey("PODt") && item["PODt"] != null
+                        ? Convert.ToDateTime(item["PODt"])
+                        : null,
+
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    MeasureUnit = item.ContainsKey("MeasureUnit") ? item["MeasureUnit"]?.ToString() : "",
+
+                    // IMPORTANT CHANGE HERE
+                    AccQty = allowedQty,
+                    BalQty = allowedQty,
+                    QtyReceived = allowedQty,
+                    UnitPrice = item.ContainsKey("UnitPrice") ? Convert.ToDecimal(item["UnitPrice"]) : 0,
+
+                    StockQty = stockQty,
+
+                    CostId = item.ContainsKey("CostCenterId") && item["CostCenterId"] != null
+                        ? (Convert.ToInt32(item["CostCenterId"]) == 0 ? (int?)null : Convert.ToInt32(item["CostCenterId"]))
+                        : (int?)null,
+
+                    ProjectNo = item.ContainsKey("ProjectNo") ? item["ProjectNo"]?.ToString() : "",
+
+                    IsEditable = true
+                };
+
+                ProductionSCNCompVMs.ProductionSCNCompSubVMs.Add(subVm);
+            }
+
+            int slNo = 1;
+            foreach (var row in ProductionSCNCompVMs.ProductionSCNCompSubVMs)
+            {
+                row.SlNo = slNo++;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnProductionReturnSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected items.");
+        }
+    }
+    private void OnRejectionChanged(ProductionSCNCompSubVM subitem)
+    {
+        var selected = RejectionMasterVMs
+            .FirstOrDefault(x => x.RejectionId == subitem.RejectionId);
+
+        if (selected != null)
+        {
+            subitem.RejReason = selected.RejectionDescription;
+        }
+    }
+    #endregion
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(SCNId.GetValueOrDefault(), "ProdCompSCN.frx", "SCNId", false, ScreenName, "Sp_Print_ProdCompSCN");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        { 
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Production SCN Component details");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Production SCN Component details.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

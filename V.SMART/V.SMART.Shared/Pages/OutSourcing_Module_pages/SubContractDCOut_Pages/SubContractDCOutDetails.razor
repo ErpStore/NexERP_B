@@ -1,0 +1,315 @@
+﻿@page "/SubConDcOut/details/{DcId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.ISubContractDcOutservice
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.SubContractViewModel
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ISubConDcOutService subConDcOutService
+@inject ReportService reportService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+        <!-- Company Details Section -->
+        <div class="row align-items-center mb-4 g-4">
+            <div class="col-12 col-lg-3 text-center">
+                @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                {
+                    <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid rounded-3" style="max-height:120px;" />
+                }
+            </div>
+            <div class="col-12 col-lg-9 text-lg-start text-center">
+                <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+                <p class="text-muted mb-0"><strong>GST No:</strong> @(company?.GSTIN ?? "N/A")</p>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <!-- Customer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Vendor Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(SubConDcOutVMs?.VendorName) ? SubConDcOutVMs.VendorName : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(SubConDcOutVMs?.VendorAddress) ? SubConDcOutVMs.VendorAddress : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(SubConDcOutVMs?.VendorGstNo) ? SubConDcOutVMs.VendorGstNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(SubConDcOutVMs?.VendorContactNo) ? SubConDcOutVMs.VendorContactNo : "N/A")</td></tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;">
+                                        <strong>Mode Of Transport</strong>
+                                    </td>
+                                    <td>
+                                        @{
+                                            var modeText = SubConDcOutVMs?.ModeOfTransportId switch
+                                            {
+                                                1 => "By Road",
+                                                2 => "By Railway",
+                                                3 => "By Airway",
+                                                4 => "By Ship",
+                                                _ => "N/A"
+                                            };
+                                        }
+                                        @modeText
+                                    </td>
+                                </tr>
+
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Vehicle No.</strong></td><td>@(!string.IsNullOrEmpty(SubConDcOutVMs?.VehicleNo) ? SubConDcOutVMs.VehicleNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Trans. From</strong></td><td>@(!string.IsNullOrEmpty(SubConDcOutVMs?.TransFrom) ? SubConDcOutVMs.TransFrom : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Trans. To</strong></td><td>@(!string.IsNullOrEmpty(SubConDcOutVMs?.TransTo) ? SubConDcOutVMs.TransTo : "N/A")</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Document Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>GRN No</strong></td>
+                                    <td>@(SubConDcOutVMs != null ? $"{SubConDcOutVMs.DcNo}{SubConDcOutVMs.Suffix}" : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>GRN Date</strong></td>
+                                    <td>@(SubConDcOutVMs?.DcDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Issue Store Name</strong></td>
+                                    <td>@(SubConDcOutVMs?.StoreIssueName?.ToString() ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Remarks</strong></td>
+                                    <td>@(SubConDcOutVMs?.MainRemarks?.ToString() ?? "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DC Items Section -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                Labour GRN Items
+            </div>
+            <div class="table-responsive" style="overflow-x:auto;">
+                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th>Sl No.</th>
+                            <th>Item Code-In</th>
+                            <th>Description-In</th>
+                            <th>UOM</th>
+                            <th>Qty-In</th>
+                            <th>Item Code-Out</th>
+                            <th>Description-Out</th>
+                            <th>UOM</th>
+                            <th>Qty-Out</th>
+                            <th>Unit Price</th>
+                            <th>Basic Amount</th>
+                            <th>PoBalQty</th>
+                            <th>Ref Po No.</th>
+                            <th>Ref Po Date</th>
+                            <th>Batch No.</th>
+                            <th>Heat No.</th>
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (SubConDcOutVMs?.SubConDcOutSubVMs != null && SubConDcOutVMs.SubConDcOutSubVMs.Any())
+                        {
+                            @foreach (var item in SubConDcOutVMs.SubConDcOutSubVMs)
+                            {
+                                <tr>
+                                    <td>@item.SlNo</td>
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td>@item.MeasureUnit</td>
+                                    <td>@FormatDecimal(item.Qty)</td>
+
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td>@item.MeasureUnit</td>
+                                    <td>@FormatDecimal(item.Qty)</td>
+                                    <td>@FormatDecimal(item.UnitPrice)</td>
+                                    <td>@FormatDecimal(item.Qty * item.UnitPrice)</td>
+                                    <td>@item.BalQty</td>
+                                    <td>@item.RefPoNo</td>
+                                    <td>@item.RefPoDate</td>
+                                    <td>@item.BatchNo</td>
+                                    <td>@item.HeatNo</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="13" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Actions -->
+
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="/subConDcOutList" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left-circle"></i> Back To List
+            </a>
+
+            <a href="@($"/DcSubConOutgoing/update/{DcId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+
+            <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Sub-Contract DC-Out";
+    [Parameter]
+    public int DcId { get; set; }
+    string? pdfBase64;
+    private bool isProcessing { get; set; } = true;
+
+    private SubConDcOutVM SubConDcOutVMs { get; set; } = new SubConDcOutVM();
+    private VendorVM VendorVMs { get; set; } = new VendorVM();
+
+    private Companydetails company { get; set; } = new Companydetails();
+    private List<SubConDcOutSubVM> refPos = new();
+    private string refPoNosDisplay = "N/A";
+    private string refPoDatesDisplay = "N/A";
+    private int Decimalplaces { get; set; } = 2;
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            company = await subConDcOutService.GetCompanyDetailsAsync();
+            await LoadDcDetails();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Faild in OnInitializedAsync Sub Contract DC");
+        }
+    }
+
+    private async Task LoadDcDetails()
+    {
+        if (DcId > 0)
+        {
+            var dc = await subConDcOutService.GetSubConDcOutByDcIdAsync(DcId);
+            if (dc != null)
+            {
+                SubConDcOutVMs = dc;
+            }
+
+            Decimalplaces = await subConDcOutService.GetDecimalPlacesAsync();
+
+            VendorVMs = await subConDcOutService.GetVendorByIdAsync(SubConDcOutVMs.VendorCode.Value);
+
+            /// refPos = await _grnService.GetDistinctRefPoByDcIdAsync(MfgDcVMs.DcId);
+
+            if (refPos.Any())
+            {
+                // Only join the existing items, no extra commas
+                refPoNosDisplay = string.Join(", ", refPos.Select(e => e.RefPoNo).Where(n => !string.IsNullOrEmpty(n)));
+                refPoDatesDisplay = string.Join(", ", refPos
+                    .Select(e => e.RefPoDate.HasValue ? e.RefPoDate.Value.ToString("dd/MM/yyyy") : null)
+                    .Where(d => !string.IsNullOrEmpty(d)));
+            }
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        await GenerateAndOpenPdfCommon("SubConDC.frx", ScreenName, "Sp_Print_SubConDcOut", "Error in GenerateAndOpenPdf Subcontract DC");
+    }
+
+
+    private async Task GenerateAndOpenPdfCommon(string reportFileName, string screenName, string storedProcedure, string logMessage)
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(
+                DcId,
+                reportFileName,
+                "DcId",
+                SubConDcOutVMs.Cancel,
+                screenName,
+                storedProcedure);
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _JS.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _JS.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, logMessage);
+            await _JS.ToastrError("Unexpected error occurred while generating report.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

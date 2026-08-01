@@ -1,0 +1,1106 @@
+﻿@page "/debitNoteList"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IDebitNote_Service
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.DebitNote_VM
+
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ExcelExportService ExcelExportService
+@inject IDebitNoteService _debitNoteService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true"
+                       Screen="@ScreenName"
+                       Filters="SearchFilters"
+                       OnClose="CloseModal"
+                       OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Debit Note List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@debitNoteBreadcrumbs" />
+
+            <div class="card-body p-4">
+                <div class="row g-2 g-md-3 mb-3">
+
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                  @*   <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                 value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+
+                            <option value="">All</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Short-Closed">Short-Closed</option>
+                        </select>
+                    </div> *@
+
+
+                    @if (CanCreate)
+                    {
+                       <div class="col-12 col-md-2 ms-md-auto text-end">
+                            <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewInv">
+                                <i class="bi bi-plus-square me-1"></i> Add New Debit Note
+                            </button>
+                       </div>
+                    }
+
+                </div>
+
+                @if (DebitNoteVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="DebitNoteVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            case "DbId":
+                                                <PropertyColumn Title="CreditNote ID" Property="@(c => c.DbId)" />
+                                                break;
+
+                                            case "Prefix":
+                                                <PropertyColumn Title="Prefix" Property="@(c => c.Prefix)" />
+                                                break;
+
+                                            case "DebitNo":
+                                                <PropertyColumn Title="DebitNote No." Property="@(c => c.DebitNo)" />
+                                                break;
+
+                                            case "Suffix":
+                                                <PropertyColumn Title="Suffix" Property="@(c => c.Suffix)" />
+                                                break;
+
+                                            case "DebitDate":
+                                                <PropertyColumn Title="DebitNote Date" Property="@(c => c.DebitDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "DebitDateNow":
+                                                <PropertyColumn Title="DebitNote Date (Now)" Property="@(c => c.DebitDateNow)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "VendorCode":
+                                                <PropertyColumn Title="VendorCode" Property="@(c => c.VendorCode)" />
+                                                break;
+
+                                            case "VendorName":
+                                                <PropertyColumn Title="Vendor/Supplier Name" Property="@(c => c.VendorName)" />
+                                                break;
+
+                                            case "VendorAddress":
+                                                <PropertyColumn Title="Vendor/Supplier Address" Property="@(c => c.VendorAddress)" />
+                                                break;
+
+                                            case "VendorContactNo":
+                                                <PropertyColumn Title="Contact Number" Property="@(c => c.VendorContactNo)" />
+                                                break;
+
+                                            case "VendorGstNo":
+                                                <PropertyColumn Title="GST No" Property="@(c => c.VendorGstNo)" />
+                                                break;
+
+                                            case "PAN":
+                                                <PropertyColumn Title="PAN No" Property="@(c => c.PAN)" />
+                                                break;
+
+                                            case "KindofAttention":
+                                                <PropertyColumn Title="Attention" Property="@(c => c.KindofAttention)" />
+                                                break;
+
+                                            case "ShippingName":
+                                                <PropertyColumn Title="Shipping Name" Property="@(c => c.ShippingName)" />
+                                                break;
+
+                                            case "ShippingAddress":
+                                                <PropertyColumn Title="Shipping Address" Property="@(c => c.ShippingAddress)" />
+                                                break;
+
+                                            case "ShippingGstin":
+                                                <PropertyColumn Title="Shipping GSTIN" Property="@(c => c.ShippingGstin)" />
+                                                break;
+
+                                            case "ShippingContactNo":
+                                                <PropertyColumn Title="Shipping Contact" Property="@(c => c.ShippingContactNo)" />
+                                                break;
+
+                                            case "NoOfItems":
+                                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+                                                break;
+
+                                            case "MainRemark":
+                                                <PropertyColumn Title="Main Remark" Property="@(c => c.MainRemark)" />
+                                                break;
+
+                                            case "CurrName":
+                                                <PropertyColumn Title="Currency" Property="@(c => c.CurrName)" />
+                                                break;
+
+                                            case "TodayVal":
+                                                <PropertyColumn Title="Today's Value" Property="@(c => c.TodayVal)" />
+                                                break;
+                                            case "Rejection":
+                                                <TemplateColumn Title="CreditNote Raised " Context="c">
+                                                    @if (c.Rejection.Value)
+                                                    {
+                                                         <span class="badge bg-danger rounded-pill px-3">
+                                                            <i class="bi bi-x-circle me-1"></i> Rejection
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                            <i class="bi bi-hourglass-split me-1"></i> RateDifference 
+                                                        </span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "Purchase":
+                                            <TemplateColumn Title="Topics" Context="c">
+                                                @if (c.Purchase.Value)
+                                                {
+                                                    <span class="badge bg-danger rounded-pill px-3">
+                                                        <i class="bi bi-x-circle me-1"></i> Purchase
+                                                    </span>
+                                                }
+                                                else if(c.SubContract.Value)
+                                                {
+                                                    <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                        <i class="bi bi-hourglass-split me-1"></i> SubContract 
+                                                    </span>
+
+                                                }
+                                                </TemplateColumn>
+                                            break;
+
+                                            case "TotalGrossAmount":
+                                                <PropertyColumn Title="Gross Amount" Property="@(c => c.TotalGrossAmount)" />
+                                                break;
+
+                                            case "DiscountPercent":
+                                                <PropertyColumn Title="Discount %" Property="@(c => c.DiscountPercent)" />
+                                                break;
+
+                                            case "DiscountAmount":
+                                                <PropertyColumn Title="Discount Amount" Property="@(c => c.DiscountAmount)" />
+                                                break;
+
+                                            case "TotalBasicAmount":
+                                                <PropertyColumn Title="Basic Amount" Property="@(c => c.TotalBasicAmount)" />
+                                                break;
+
+                                            case "FreightCharges":
+                                                <PropertyColumn Title="Freight Charges" Property="@(c => c.FreightCharges)" />
+                                                break;
+
+                                            case "PackingPercent":
+                                                <PropertyColumn Title="Packing %" Property="@(c => c.PackingPercent)" />
+                                                break;
+
+                                            case "PackingCharges":
+                                                <PropertyColumn Title="Packing Charges" Property="@(c => c.PackingCharges)" />
+                                                break;
+
+                                            case "InsurancePercent":
+                                                <PropertyColumn Title="Insurance %" Property="@(c => c.InsurancePercent)" />
+                                                break;
+
+                                            case "InsuranceCharges":
+                                                <PropertyColumn Title="Insurance Charges" Property="@(c => c.InsuranceCharges)" />
+                                                break;
+
+                                            case "CGstRate":
+                                                <PropertyColumn Title="CGST Rate" Property="@(c => c.CGstRate)" />
+                                                break;
+
+                                            case "SGstRate":
+                                                <PropertyColumn Title="SGST Rate" Property="@(c => c.SGstRate)" />
+                                                break;
+
+                                            case "IGstRate":
+                                                <PropertyColumn Title="IGST Rate" Property="@(c => c.IGstRate)" />
+                                                break;
+
+                                            case "TotalCGSTAmount":
+                                                <PropertyColumn Title="CGST Amount" Property="@(c => c.TotalCGSTAmount)" />
+                                                break;
+
+                                            case "TotalSGSTAmount":
+                                                <PropertyColumn Title="SGST Amount" Property="@(c => c.TotalSGSTAmount)" />
+                                                break;
+
+                                            case "TotalIGSTAmount":
+                                                <PropertyColumn Title="IGST Amount" Property="@(c => c.TotalIGSTAmount)" />
+                                                break;
+
+                                            case "OtherCharges":
+                                                <PropertyColumn Title="Other Charges" Property="@(c => c.OtherCharges)" />
+                                                break;
+
+                                            case "TCSPercent":
+                                                <PropertyColumn Title="TCS %" Property="@(c => c.TCSPercent)" />
+                                                break;
+
+                                            case "TCSAmount":
+                                                <PropertyColumn Title="TCS Amount" Property="@(c => c.TCSAmount)" />
+                                                break;
+
+                                            case "TotalTaxable":
+                                                <PropertyColumn Title="Taxable Total" Property="@(c => c.TotalTaxable)" />
+                                                break;
+
+                                            case "RoundOff":
+                                                <PropertyColumn Title="Round Off" Property="@(c => c.RoundOff)" />
+                                                break;
+
+                                            case "GrandTotal":
+                                                <PropertyColumn Title="Grand Total" Property="@(c => c.GrandTotal)" />
+                                                break;
+
+                                            case "Balance":
+                                                <PropertyColumn Title="Balance" Property="@(c => c.Balance)" />
+                                                break;
+                                           
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex justify-content-end gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"debitNote/update/{c.DbId}?currentPage={currentPage}")"
+                                            class="btn btn-sm btn-outline-primary"
+                                            title="Edit">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"debitNote/details/{c.DbId}?currentPage={currentPage}")"
+                                            class="btn btn-sm btn-outline-info"
+                                            title="View">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete"
+                                                @onclick="() => HandleDelete(c)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+                    </div>
+
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5"
+                                        @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export Debit's
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Item available.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+@code 
+{
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "Debit Note";
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private int DeleteDbId = 0;
+    private string selectedStatus = "";
+
+    private int screenCode { get; set; }
+
+    private List<DebitNoteVM> DebitNoteVMs = new();
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    // === Paging & Search ===
+    private int totalItems;
+    //private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+    // Instant Search filter parameter
+    [Parameter, SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    #endregion
+
+
+    #region === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    #endregion
+
+    private List<PageHeader.BreadcrumbItem> debitNoteBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Out Sourcing" },
+        new PageHeader.BreadcrumbItem { Text = "Debit Note", IsLast = true }
+    };
+
+    #region === initilization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            screenCode = await _debitNoteService.GetScreenCodeByScreenNameAsync(ScreenName);
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            //InstantSearch
+            //Important : Deserialize Filter parameter from query string if exists
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+            //Sathish
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+
+            await LoadAllDebitNotes();
+            await LoadColumnPreferences(UserName);
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+
+    #endregion
+
+    private void AddNewInv()
+    {
+        var returnUrl = Uri.EscapeDataString("debitNote/create/{id}");
+        _navigation.NavigateTo($"/Vendor/Select?ReturnUrl={returnUrl}");
+       // _navigation.NavigateTo("/Vendor/Select?ReturnUrl=debitNote/create/{id}");
+    }
+
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "DebitNote ID", Field = "DbId", IsVisible = false },
+                new() { Title = "Prefix", Field = "Prefix" , IsVisible = false },
+                new() { Title = "DebitNote No.", Field = "DebitNo" , IsVisible = true },
+                new() { Title = "DebitNote Date", Field = "DebitDate", IsVisible = true  },
+                new() { Title = "DebitNote Date Now", Field = "DebitDateNow", IsVisible = false },
+
+                new() { Title = "Vendor Code", Field = "VendorCode", IsVisible = false },
+                new() { Title = "Vendor/Supplier Name", Field = "VendorName" , IsVisible = true },
+                new() { Title = "Vendor Address ", Field = "VendorAddress", IsVisible = false  },
+                new() { Title = "Contact No", Field = "VendorContactNo" , IsVisible = false },
+                new() { Title = "GST No", Field = "VendorGstNo" , IsVisible = false },
+                new() { Title = "PAN No", Field = "PAN" , IsVisible = false },
+                new() { Title = "Attention", Field = "KindOfAttention" , IsVisible = false },
+
+                new() { Title = "Shipping Name", Field = "ShippingName", IsVisible = false  },
+                new() { Title = "Shipping Address", Field = "ShippingAddress" , IsVisible = false },
+                new() { Title = "Shipping GSTIN", Field = "ShippingGstin", IsVisible = false  },
+                new() { Title = "Shipping Contact", Field = "ShippingContactNo", IsVisible = false  },
+
+                new() { Title = "No Of Items", Field = "NoOfItems" , IsVisible = false },
+                new() { Title = "Main Remark", Field = "MainRemark" , IsVisible = false },
+
+                new() { Title = "Currency", Field = "CurrName" , IsVisible = true },
+                new() { Title = "Today Value", Field = "TodayVal" , IsVisible = false },
+
+                new() { Title = "Debit Note Reason", Field = "Rejection" , IsVisible = false },
+                new() { Title = "Topics", Field = "Purchase" , IsVisible = false },
+
+                // Calculation Fields
+                new() { Title = "Gross Amount", Field = "TotalGrossAmount" , IsVisible = true },
+                new() { Title = "Discount %", Field = "DiscountPercent", IsVisible = false  },
+                new() { Title = "Discount Amt", Field = "DiscountAmount" , IsVisible = false },
+                new() { Title = "Basic Amount", Field = "TotalBasicAmount", IsVisible = true  },
+                new() { Title = "Freight Charges", Field = "FreightCharges" , IsVisible = false },
+                new() { Title = "Packing %", Field = "PackingPercent" , IsVisible = false },
+                new() { Title = "Packing Charges", Field = "PackingCharges" , IsVisible = false },
+                new() { Title = "Insurance %", Field = "InsurancePercent" , IsVisible = false },
+                new() { Title = "Insurance Charges", Field = "InsuranceCharges" , IsVisible = false },
+
+                new() { Title = "CGST Rate", Field = "CGstRate" , IsVisible = false },
+                new() { Title = "SGST Rate", Field = "SGstRate" , IsVisible = false },
+                new() { Title = "IGST Rate", Field = "IGstRate" , IsVisible = false },
+                new() { Title = "Total CGST Amount", Field = "TotalCGSTAmount" , IsVisible = false },
+                new() { Title = "Total SGST Amount", Field = "TotalSGSTAmount", IsVisible = false  },
+                new() { Title = "Total IGST Amount", Field = "TotalIGSTAmount" , IsVisible = false },
+
+                new() { Title = "Other Charges", Field = "OtherCharges" , IsVisible = false },
+
+                new() { Title = "TCS %", Field = "TCSPercent" , IsVisible = false },
+
+                new() { Title = "TCS Amount", Field = "TCSAmount" , IsVisible = false },
+
+                new() { Title = "Taxable Total", Field = "TotalTaxable", IsVisible = false  },
+
+                new() { Title = "Round Off", Field = "RoundOff", IsVisible = false },
+
+                new() { Title = "Grand Total", Field = "GrandTotal" , IsVisible = true},
+
+                new() { Title = "Balance", Field = "Balance" , IsVisible = false},
+
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false },
+            };
+
+            if (!Hidden)
+            {
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the DebitNote list HandleColumnChange() Method");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for Debit Note List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    #region == PAGINATION ==
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllDebitNotes();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in Debit Note List");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllDebitNotes();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in Debit Note List");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllDebitNotes();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Debit Note List");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllDebitNotes();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in Debit Note List");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllDebitNotes();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Debit Note List");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllDebitNotes();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Debit Note List");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region Manufacturing Invoice Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SearchFilters = new();
+            selectedStatus = e.Value?.ToString() ?? "";
+
+            if (string.IsNullOrWhiteSpace(selectedStatus))
+                SearchFilters.Remove("Status");
+            else
+                SearchFilters["Status"] = selectedStatus;
+
+
+            currentPage = 1;
+            await LoadAllDebitNotes();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error OnStatusChanged in   Debit Note  List");
+            await _JS.ToastrError("Failed to Load Debit Note List filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion 
+
+    #region === Data Loading ===
+
+    private async Task LoadAllDebitNotes()
+    {
+        try
+        {
+            var result = await _debitNoteService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            DebitNoteVMs = result.debitNoteVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading Debit Note List");
+        }
+    }
+
+    #endregion
+
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(DebitNoteVM note)
+    {
+        try
+        {
+            if (note.GrandTotal!=note.Balance)
+            {
+                await _JS.ToastrWarning("Deletion not allowed. Payments have already been processed for this Debit Note.");
+                return;
+
+            }
+            if (!string.IsNullOrEmpty(note.ACKNO) && !string.IsNullOrEmpty(note.IRNNo))
+            {
+                await _JS.ToastrWarning("Deletion not allowed. Already have been E-Invoice done for this Debit Note.");
+                return;
+
+            }
+
+            ModalTitle = "Are you sure you want to delete this DebitNote?";
+            btnColor = "btn-danger";
+            btnText = "Yes, Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            DeleteDbId = note.DbId.Value;
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete in Debit Note List for CrId: {note.DbId}");
+            await _JS.ToastrError("Failed to initiate delete in Debit Note List operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            string type = null;
+            var item = DebitNoteVMs.FirstOrDefault();
+
+            if (item != null)
+            {
+                if (item.Purchase == true)
+                    type = "Purchase";
+                else if (item.SubContract == true)
+                    type = "SubContract";
+               
+            }
+
+            var deleted = await _debitNoteService.DeleteDebitNoteByDbIdAsync(DeleteDbId, screenCode, type);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Debit Note deleted successfully.");
+                await LoadAllDebitNotes();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Debit Note could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+            
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting Debit Note for CrId: {DeleteDbId}");
+            await _JS.ToastrError("Failed to delete Debit Note");
+        }
+        finally
+        {
+            isProcessing = false;
+            DeleteDbId = 0;
+        }
+    }
+
+    #endregion
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else if (confirmation == "Export")
+            {
+                await ExportToExcel(isConfirmed);
+            }
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed in Debit Note List for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action in Debit Note List. Please try again.");
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed in Debit Note  List for type: {type}");
+            await _JS.ToastrError("Failed to open modal in Debit Note List. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed in Debit Note List for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal in Debit Note List. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region SEARCH FILTER
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllDebitNotes();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Debit Note List");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    #endregion
+
+    private async Task HandleExport()
+    {
+        selectedStatus = selectedStatus == "" ? "All" : selectedStatus;
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+
+            var exportData = await _debitNoteService.GetDebitNoteListAsync(selectedStatus);
+
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "DebitNote", "Debit Note's List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.DownloadExcelAsync(base64, "DebitNoteExport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (DebitNote)");
+            await _JS.ToastrError("Error while exporting DebitNote!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

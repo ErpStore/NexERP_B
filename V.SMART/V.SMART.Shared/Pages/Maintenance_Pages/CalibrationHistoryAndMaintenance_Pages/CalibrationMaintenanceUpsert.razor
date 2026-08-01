@@ -1,0 +1,745 @@
+﻿@page "/CalibrationMaintenance/create"
+@page "/CalibrationMaintenance/update/{CalibrateId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMaintenanceService
+@using V.SMART.Shared.Data.Maintenance.CalibrationHistoryAndMaintenance
+
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigationManager
+@inject ICommonService _commonService
+@inject ICalibrationHistoryAndMaintenanceService calibrationservice
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="CancelCalibrationHistory"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Cancelled Watermark -->
+            @if (calibrationHistory.CalibrateCancl)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+
+            <!-- Card Header -->
+            <PageHeader TitleText="@(CalibrateId == 0 || CalibrateId == null ? "Create Calibration" : "Update Calibration")"
+                        TitleIcon="@(CalibrateId == 0 || CalibrateId == null ? "bi bi-plus-circle" : "bi bi-pencil-square")"
+                        Breadcrumbs="@ScreenBreadcrumbs" />
+
+            <EditForm Model="instrumentDetails" OnValidSubmit="Upsert">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="card-body fw-bold">
+                    <div class="row">
+
+                        <!-- LEFT PANEL -->
+                        <div class="col-12 mb-4">
+                            <div class="shadow rounded-4 border-0">
+
+                                <!-- Header -->
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6"> Details of Instrument / Gauges</span>
+                                    @if (calibrationHistory.CalibrateId > 0)
+                                    {
+                                        <div class="d-flex align-items-center gap-2">
+                                            <!-- Cancel / Revert -->
+                                            <button type="button"
+                                                    class="btn btn-sm px-3 rounded-3 d-flex align-items-center
+                                                                @(calibrationHistory.CalibrateCancl ? "btn-success" : "btn-danger")"
+                                                    @onclick="Cancel">
+
+                                                @if (!calibrationHistory.CalibrateCancl)
+                                                {
+                                                    <i class="bi bi-x-circle me-1"></i>
+                                                    <span>Cancel</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Revert</span>
+                                                }
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="p-3 bg-white rounded-bottom-4">
+
+                                    <label class="form-label">Instrument / Gauges Name</label>
+                                    @if (!IsEditMode)
+                                    {
+                                        <select class="form-select mb-3" @onchange="OnSelectedChange">
+                                            <option value="0">--Select Instrument--</option>
+                                            @foreach (var item in InstrumentList)
+                                            {
+                                                <option value="@item.ItemId">@item.ItemCode</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <input class="form-control mb-3" value="@instrumentDetails.ItemCode" readonly />
+                                    }
+
+                                    <label class="form-label">Unique Identification No.</label>
+                                    <div class="input-group input-group-sm mb-3">
+
+                                        @if (!IsAddNewInstrument)
+                                        {
+                                            <!-- SELECT EXISTING INSTRUMENT -->
+                                            @if (!IsEditMode)
+                                            {
+                                                <select class="form-select"
+                                                        @onchange="OnTextOrSelectChange">
+                                                    <option value="">-- Select Instrument ID --</option>
+                                                    @foreach (var detail in InstrumentDetailsList)
+                                                    {
+                                                        <option value="@detail.UniqueId">@detail.UniqueId</option>
+                                                    }
+                                                </select>
+                                            }
+                                            else
+                                            {
+                                                @if (!IsEditMode)
+                                                {
+                                                    <input class="form-control mb-3" @bind-value=instrumentDetails.UniqueId />
+                                                }
+                                                else
+                                                {
+                                                    <input class="form-control mb-3" @bind-value=instrumentDetails.UniqueId readonly />
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <!-- ADD NEW INSTRUMENT -->
+                                            <input type="text"
+                                                   class="form-control border-primary"
+                                                   placeholder="Enter new Instrument ID" @bind-value="instrumentDetails.UniqueId" />
+                                        }
+
+                                        @if (!IsEditMode)
+                                        {
+                                            <!-- TOGGLE ADD NEW -->
+                                            <button class="btn btn-outline-secondary"
+                                                    type="button"
+                                                    title="Add new Instrument"
+                                                    @onclick="ToggleAddNewInstrument">
+                                                <i class="bi @(IsAddNewInstrument ? "bi-x-lg" : "bi-plus-lg")"></i>
+                                            </button>
+                                        }
+                                    </div>
+
+                                    <label class="form-label">Frequency of Calibration</label>
+                                    <input class="form-control mb-3" placeholder="Enter frequency" @bind-value=instrumentDetails.Frequency readonly="@IsEditMode" />
+
+                                    <div class="row">
+                                        <div class="col">
+                                            <label class="form-label">Range</label>
+                                            <input class="form-control mb-3" @bind-value=instrumentDetails.Range readonly="@IsEditMode" />
+                                        </div>
+                                        <div class="col">
+                                            <label class="form-label">Least Count</label>
+                                            <input class="form-control mb-3" @bind-value=instrumentDetails.LeastCount readonly="@IsEditMode" />
+                                        </div>
+                                    </div>
+
+                                    <label class="form-label">Other Details</label>
+                                    <InputTextArea class="form-control mb-3" rows="3" placeholder="Additional info" @bind-value="instrumentDetails.OtherDetails"></InputTextArea>
+
+                                    @if (CalibrateId == null)
+                                    {
+                                        <label class="form-label">Scheduled Date of NEXT Calibration</label>
+                                        <div class="col-lg-4 d-flex gap-2">
+                                            <input type="date" class="form-control" @bind-value="instrumentDetails.NextCalibrate" />
+                                            <button type="button" class="btn btn-success" @onclick="Upsert">
+                                                <i class="bi bi-save"></i> @SaveButtonTitle
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT PANEL -->
+                        <div class="col-12 mb-4">
+                            <div class="shadow rounded-4 border-0">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-danger-subtle text-dark">
+                                    <span class="fw-bold fs-6"> Calibration Report Details</span>
+                                </div>
+
+                                <div class="p-3 bg-white rounded-bottom-4">
+
+                                    <!-- Scheduled NEXT Calibration - READ ONLY -->
+                                    <label class="form-label">Scheduled Date of NEXT Calibration</label>
+                                    <input type="date"
+                                           class="form-control mb-3 bg-warning-subtle fw-bold"
+                                           value="@instrumentDetails.NextCalibrate?.ToString("yyyy-MM-dd")"
+                                           readonly />
+
+                                    <!-- Date Calibration was made -->
+                                    <label class="form-label">Date of Calibration was made</label>
+                                    <InputDate class="form-control mb-3"
+                                               @bind-Value="calibrationHistory.PrevDate" />
+
+                                    <!-- Report No -->
+                                    <label class="form-label">Calibration Report No.</label>
+                                    <InputText class="form-control mb-3"
+                                               @bind-Value="calibrationHistory.CalibrateNo" />
+
+                                    <!-- Status -->
+                                    <label class="form-label">Calibration Status</label>
+                                    <select class="form-select mb-3" @bind="calibrationHistory.CalibrateStatus">
+                                        <option value="0">--Select--</option>
+                                        <option value="Accepted">Accepted</option>
+                                        <option value="Rejected">Rejected</option>
+
+                                    </select>
+
+                                    <!-- Authorised -->
+                                    <label class="form-label">Authorised By</label>
+                                    <InputText class="form-control mb-3"
+                                               @bind-Value="calibrationHistory.Authorised" />
+
+                                    <!-- Details -->
+                                    <label class="form-label">Calibration Details</label>
+                                    <InputTextArea class="form-control mb-3"
+                                                   style="height:58px;"
+                                                   @bind-Value="calibrationHistory.CalibrateDetails" />
+
+                                    @if (CalibrateId == null)
+                                    {
+                                        <div class="d-flex gap-2">
+                                            <button type="submit" class="btn btn-primary" @onclick="CreateNew">
+                                                <i class="bi bi-save"></i> Save
+                                            </button>
+                                        </div>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="shadow rounded-4 border-0 p-3">
+                        <div class="col-12 col-lg-4 ms-lg-auto">
+                            <SmartBackButton Url="/CalibrationMaintenance" />
+                        </div>
+                    </div>
+
+                </div>
+
+            </EditForm>
+
+        </div>
+    </div>
+}
+
+@code {
+
+    #region Declarations And Properties
+    protected override string ScreenName => "CalibrationHistoryAndMaintenance";
+    private bool isProcessing = false;
+    [Parameter]
+    public int? CalibrateId { get; set; }
+    private bool fromdelete = false;
+    private bool IsEditMode = false;
+    private bool IsAddNewInstrument;
+    private bool IsModify = false;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+
+    private CalibrationHistoryVM calibrationHistory = new();
+    private List<InstrumentDetailsVM> InstrumentDetailsList = new();
+    private InstrumentDetailsVM instrumentDetails = new();
+    private List<ItemVM> InstrumentList = new();
+
+    private string SaveButtonTitle = "Save";
+    private List<PageHeader.BreadcrumbItem> ScreenBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Maintenance" },
+        new PageHeader.BreadcrumbItem { Text = "Calibration History & Maintenance", IsLast = true }
+    };
+    private bool CanView = true; // Set this based on user authorization logic
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        isProcessing = true;
+        await LoadRightsAsync();
+
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        // Simulate data loading
+        await Task.Delay(500);
+        // Here you would typically check user permissions and load any necessary data
+        InstrumentList = await _commonService.GetAllItemsByCategoryCode(5);
+        instrumentDetails.NextCalibrate = DateTime.Now;
+        calibrationHistory.PrevDate = DateTime.Now;
+        await LoadCalibrationHistory();
+        isProcessing = false;
+    }
+    #endregion
+
+    #region Load CalibrationHistory
+    private async Task LoadCalibrationHistory()
+    {
+        try
+        {
+
+            isProcessing = true;
+            if (CalibrateId is int id && id > 0)
+            {
+                IsEditMode = true;
+                SaveButtonTitle = "Modify";
+                var existing = await calibrationservice.GetCalbrationById(id);
+
+                if (existing != null)
+                    calibrationHistory = existing;
+                if (!fromdelete)
+                {
+                    //Sathish
+                    if (existing != null)
+                    {
+                        calibrationHistory = existing;
+
+                        if (!fromdelete)
+                        {
+                            var details =
+                                await calibrationservice.GetInstrumentDetailsById(existing.InstrumentId);
+
+                            if (details != null)
+                                instrumentDetails = details;
+                        }
+                    }
+
+                }
+            }
+            else
+            {
+                instrumentDetails = new InstrumentDetailsVM();
+            }
+            isProcessing = false;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadCalibrationHistory()");
+            await _js.ToastrError("An error occurred while loading calibration history.");
+        }
+    }
+    #endregion
+
+    #region Saving Instrument Details
+    private async Task Upsert()
+    {
+        if (isProcessing)
+            return;
+        try
+        {
+            isProcessing = true;
+            if (instrumentDetails.ItemId == 0)
+            {
+                await _js.ToastrError("Please select Instrument.");
+                isProcessing = false;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(instrumentDetails.UniqueId))
+            {
+                await _js.ToastrError("Unique ID cannot be empty.");
+                isProcessing = false;
+                return;
+            }
+
+            bool isDuplicate = false;
+
+            if (instrumentDetails.Id == 0)
+            {
+                isDuplicate = await calibrationservice.IsUniqueIdExists(
+                    instrumentDetails.ItemId,
+                    instrumentDetails.UniqueId ?? string.Empty
+                );
+            }
+            if (isDuplicate)
+            {
+                if (IsAddNewInstrument)
+                {
+                    ToggleAddNewInstrument();
+                    await _js.ToastrError("Instrument with Unique Id already Exists");
+                    isProcessing = false;
+                    return;
+                }
+                else
+                {
+                    IsModify = true;
+                }
+
+            }
+
+            if (instrumentDetails.Id == 0) // New
+            {
+                instrumentDetails.CreatedBy = await _userService.GetUsernameAsync();
+                instrumentDetails.CreatedDate = DateTime.Now;
+                instrumentDetails = await calibrationservice.CreateInstrumentDetailsAsync(instrumentDetails);
+                await _js.ToastrSuccess("instrumentDetails created successfully.");
+                SaveButtonTitle = "Modify";
+                IsEditMode = true;
+                await LoggingService.LogUserAction(
+                    UserName: instrumentDetails.CreatedBy,
+                    Machine: instrumentDetails?.ItemCode ?? "",
+                    IP_Address: _userService.IpAddress,
+                    screen: "Calibration History & Maintenance",
+                    action: $"User created new Calibration. {instrumentDetails.UniqueId}",
+                    additionalInfo: $"ItemId: {instrumentDetails.ItemId}, CreatedDate: {instrumentDetails.CreatedDate}");
+            }
+            else // Update
+            {
+                instrumentDetails.ModifiedBy = await _userService.GetUsernameAsync();
+                instrumentDetails.ModifiedDate = DateTime.Now;
+                instrumentDetails = await calibrationservice.UpdateInstrumentDetails(instrumentDetails);
+                await _js.ToastrSuccess("instrumentDetails updated successfully.");
+                IsEditMode = true;
+                await LoggingService.LogUserAction(
+                    UserName: instrumentDetails.ModifiedBy,
+                    Machine: instrumentDetails.ItemCode ?? "",
+                    IP_Address: _userService.IpAddress,
+                    screen: "Calibra tion History & Maintenance",
+                    action: $"User created new Calibration. {instrumentDetails.UniqueId}",
+                    additionalInfo: $"ItemId: {instrumentDetails.ItemId}, CreatedDate: {instrumentDetails.CreatedDate}");
+            }
+            StateHasChanged();
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while Saving Calibration History");
+            await _js.ToastrError("An error occurred while saving calibration history.");
+        }
+        finally
+        {
+            StateHasChanged();
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region On selecting Instrument ref Item UIDs will load automatically
+    private async Task OnSelectedChange(ChangeEventArgs e)
+    {
+        try
+        {
+            var selectedId = Convert.ToInt32(e.Value);
+            instrumentDetails.ItemId = selectedId;
+            instrumentDetails.ItemCode = InstrumentList.FirstOrDefault(i => i.ItemId == instrumentDetails.ItemId)?.ItemCode;
+            instrumentDetails.ItemName = InstrumentList.FirstOrDefault(i => i.ItemId == instrumentDetails.ItemId)?.ItemName;
+            InstrumentDetailsList = await calibrationservice.FindAllUID(selectedId);
+
+            // Reset fields when different instrument selected
+            instrumentDetails.UniqueId = string.Empty;
+            instrumentDetails.Range = string.Empty;
+            instrumentDetails.LeastCount = string.Empty;
+            instrumentDetails.OtherDetails = string.Empty;
+            instrumentDetails.NextCalibrate = DateTime.Now;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnSelectedChange() event for CalibrationMaintenanceUpsert");
+            await _js.ToastrError("An error occurred while selecting the instrument.");
+        }
+    }
+    #endregion
+
+    #region On selecting Instrument ref Item Details will load automatically
+    private async Task OnTextOrSelectChange(ChangeEventArgs e)
+    {
+        try
+        {
+            String? uid = e.Value.ToString();
+            instrumentDetails.UniqueId = uid;
+            SaveButtonTitle = "Modify";
+            var selected = InstrumentDetailsList
+                .FirstOrDefault(x => x.UniqueId == uid);
+
+            if (selected != null)
+            {
+                // Update only the required fields → Do NOT replace object
+                instrumentDetails.Id = selected.Id;
+                instrumentDetails.Range = selected.Range;
+                instrumentDetails.LeastCount = selected.LeastCount;
+                instrumentDetails.OtherDetails = selected.OtherDetails;
+                instrumentDetails.Frequency = selected.Frequency;
+                instrumentDetails.NextCalibrate = selected.NextCalibrate;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnTextOrSelectChange() event for CalibrationMaintenanceUpsert");
+            await _js.ToastrError("An error occurred while selecting the Unique ID.");
+        }
+    }
+    #endregion
+
+    #region On Entering New UID Remaining all fields will become Empty
+    private void OnTextBoxTyping(ChangeEventArgs e)
+    {
+        instrumentDetails.Id = 0;
+        instrumentDetails.UniqueId = e.Value?.ToString();
+
+        instrumentDetails.Frequency = string.Empty;
+        instrumentDetails.Range = string.Empty;
+        instrumentDetails.LeastCount = string.Empty;
+        instrumentDetails.OtherDetails = string.Empty;
+        instrumentDetails.NextCalibrate = DateTime.Now;
+
+        SaveButtonTitle = "Save";
+
+        StateHasChanged();
+    }
+    #endregion
+
+    #region Creating New Calibration History
+    private async Task CreateNew()
+    {
+        try
+        {
+            isProcessing = true;
+            if (instrumentDetails.ItemId == 0)
+            {
+                await _js.ToastrError("Please save Instrument Details first before creating Calibration Report.");
+                isProcessing = false;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(calibrationHistory.CalibrateNo) ||
+               string.IsNullOrWhiteSpace(calibrationHistory.CalibrateStatus) ||
+               string.IsNullOrWhiteSpace(calibrationHistory.Authorised))
+            {
+                await _js.ToastrError("Please fill all Calibration Report details before saving.");
+                isProcessing = false;
+                return;
+            }
+            if (await calibrationservice.IsReportNoExists(calibrationHistory.CalibrateNo))
+            {
+                await _js.ToastrError("Calibration History With ReportNo. Already Exists");
+                isProcessing = false;
+                return;
+            }
+
+            if (instrumentDetails.Id == 0)
+            {
+                await _js.ToastrError(
+                    "Please save Instrument Details before creating Calibration Report."
+                );
+                return;
+            }
+
+            calibrationHistory.InstrumentId = instrumentDetails.Id;
+            calibrationHistory.ExpectedCalibrate = instrumentDetails.NextCalibrate;
+            calibrationHistory.CreatedBy = await _userService.GetUsernameAsync();
+            calibrationHistory.CreatedDate = DateTime.Now;
+            await calibrationservice.CreateCalibrationAsync(calibrationHistory);
+
+            await _js.ToastrSuccess("Calibration created successfully.");
+
+            await LoggingService.LogUserAction(
+                UserName: instrumentDetails.CreatedBy,
+                Machine: instrumentDetails?.ItemCode ?? "",
+                IP_Address: _userService.IpAddress,
+                screen: "Calibration History & Maintenance",
+                action: $"User created new Calibration. {instrumentDetails.UniqueId}",
+                additionalInfo: $"ItemId: {instrumentDetails.ItemId}, CreatedDate: {instrumentDetails.CreatedDate}");
+
+            await Task.Delay(200);
+            _navigationManager.NavigateTo("/CalibrationMaintenance");
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while Saving the New Instrument in CalibrationMaintenanceUpsert");
+            await _js.ToastrError("An error occurred while creating new calibration.");
+        }
+        //Sathish
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    #endregion
+
+    #region Assign UID
+    private async Task SelectValue(string value)
+    {
+        try
+        {
+            instrumentDetails.UniqueId = value;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred in SelectValue");
+
+            await _js.ToastrError("An error occurred in SelectValue");
+        }
+    }
+    #endregion
+
+    #region Converting Selecting option to input text box for Instrument No
+    void ToggleAddNewInstrument()
+    {
+        IsAddNewInstrument = !IsAddNewInstrument;
+        instrumentDetails.UniqueId = string.Empty;
+        // Clear dependent fields
+        instrumentDetails.Frequency = string.Empty;
+        instrumentDetails.Range = string.Empty;
+        instrumentDetails.LeastCount = string.Empty;
+        instrumentDetails.OtherDetails = string.Empty;
+        instrumentDetails.NextCalibrate = DateTime.Now;
+        SaveButtonTitle = "Save";
+        StateHasChanged();
+    }
+    #endregion
+
+    #region Cancel Calibration History
+    private async Task Cancel()
+    {
+        try
+        {
+            if (!calibrationHistory.CalibrateCancl)
+            {
+                ModalTitle = "Are you sure you want to Cancel this Calibration History?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this Calibration History?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Calibration History.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Calibration History Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task CancelCalibrationHistory()
+    {
+        try
+        {
+            isProcessing = true;
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!(calibrationHistory.CalibrateCancl))
+            {
+                calibrationHistory.CalibrateCancl = true;
+                calibrationHistory.CancelDate = DateTime.Now;
+                calibrationHistory.CancelReason = cancelReason;
+                calibrationHistory.CalibrateStatus = "cancel";
+                await calibrationservice.UpdatedCancelStatus(calibrationHistory);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "CalibrationHistoryAndMaintenance",
+                    action: $"Cancelled Report No: {calibrationHistory.CalibrateNo}",
+                    additionalInfo: $"Instrument Id: {calibrationHistory.InstrumentId}"
+                );
+
+                await _js.ToastrSuccess("Calibration cancelled successfully.");
+            }
+            else
+            {
+                calibrationHistory.CalibrateCancl = false;
+                calibrationHistory.CancelDate = null;
+                calibrationHistory.CancelReason = string.Empty;
+                await calibrationservice.UpdatedCancelStatus(calibrationHistory);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                   screen: "CalibrationHistoryAndMaintenance",
+                    action: $"Cancelled Report No: {calibrationHistory.CalibrateNo}",
+                    additionalInfo: $"Instrument Id: {calibrationHistory.InstrumentId}"
+                );
+
+                await _js.ToastrSuccess("Calibration History has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrSuccess(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while cancelling/reverting the Calibration History");
+            await LoggingService.LogDeveloperError(ex, $"Cancel Calibration failed for Calibration No.: {calibrationHistory.CalibrateNo}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+}

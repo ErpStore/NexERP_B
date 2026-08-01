@@ -1,0 +1,330 @@
+﻿@using V.SMART.Shared.ViewModels.ProductionViewModel.ProductionLogViewModel
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _nav
+@inject ILoggingService _logs
+
+@inject IProcessLogService processLogService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+
+        <!-- =========================
+             CARD 1 : DAILY PRODUCTION
+             ========================= -->
+        <div class="card shadow-sm border-0 mb-4">
+
+            <!-- Card Header -->
+            <div class="card-header"
+                 style="background:#3cb371; color:white; font-weight:600;">
+                Daily Production Process Logs
+            </div>
+
+            <!-- Card Body -->
+            <div class="card-body bg-light">
+
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0"
+                           style="table-layout:fixed; min-width:1100px;">
+
+                        <thead class="custom-blue">
+                            <tr>
+                                <th class="d-none">Log Id</th>
+
+                                <th style="width:90px;">Log No</th>
+                                <th style="width:110px;">Log Date</th>
+
+                                <th style="width:85px;">Issue Qty</th>
+                                <th style="width:85px;">Acc. Qty</th>
+                                <th style="width:85px;">Rej. Qty</th>
+                                <th style="width:160px;">Rej. Reason</th>
+
+                                <th style="width:85px;">Rew. Qty</th>
+                                <th style="width:160px;">Rew. Reason</th>
+
+                                <th style="width:85px;">Return Qty</th>
+                                <th style="width:160px;">Return Reason</th>
+
+                                <th style="width:120px;">Machine</th>
+                                <th style="width:130px;">Operator</th>
+                                <th style="width:130px;">Process</th>
+
+                                <th style="width:110px;">Start Date</th>
+                                <th style="width:110px;">End Date</th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="custom-size">
+                            @foreach (var row in DailyLogs)
+                            {
+                                <tr>
+                                    <td class="d-none">@row.LogId</td>
+
+                                    <td>@row.LogNo</td>
+                                    <td>@row.LogDate.ToString("dd/MM/yyyy")</td>
+
+                                    <td style="font-weight:600; color:@(row.InputQty > 0 ? "#1565c0" : "#9e9e9e")">
+                                        @row.InputQty
+                                    </td>
+
+                                    <td style="font-weight:600; color:@(row.AccQty > 0 ? "#2e7d32" : "#9e9e9e")">
+                                        @row.AccQty
+                                    </td>
+
+                                    <td style="font-weight:600; color:@(row.RejQty > 0 ? "#c62828" : "#9e9e9e")">
+                                        @row.RejQty
+                                    </td>
+
+                                    <td>@row.RejReason</td>
+
+                                    <td style="font-weight:600; color:@(row.RewQty > 0 ? "#ef6c00" : "#9e9e9e")">
+                                        @row.RewQty
+                                    </td>
+
+                                    <td>@row.RewReason</td>
+
+                                    <td style="font-weight:600; color:@(row.ReturnQty > 0 ? "#6a1b9a" : "#9e9e9e")">
+                                        @row.ReturnQty
+                                    </td>
+
+                                    <td>@row.ReturnReason</td>
+
+                                    <td>@row.MachineName</td>
+                                    <td>@row.Operator</td>
+                                    <td>@row.ProcessName</td>
+
+                                    <td>@row.StartTime</td>
+                                    <td>@row.EndTime</td>
+                                </tr>
+                            }
+                        </tbody>
+
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- =========================
+         CARD 2 : COMPONENT PROCESS
+         ========================= -->
+        <div class="card shadow-sm border-0">
+
+            <!-- Card Header -->
+            <div class="card-header"
+                 style="background:#3cb371; color:white; font-weight:600;">
+                Production Component Process Logs
+            </div>
+
+            <!-- Card Body -->
+            <div class="card-body bg-light">
+
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0"
+                           style="table-layout:fixed; min-width:800px;">
+                            
+                        <thead class="custom-blue">
+                            <tr>
+                                <th class="d-none">Issue Id</th>
+                                <th>Issue No</th>
+                                <th>Issue Date</th>
+                                <th>Issued Qty</th>
+                                <th>Issue To</th>
+                                <th>Machine</th>
+                                <th>Process</th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="custom-size">
+                            @foreach (var issue in ComponentIssueLogs)
+                            {
+                                @foreach (var sub in issue.ProductionIssueCompSubVMs)
+                                {
+                                    <tr>
+                                        <td class="d-none">@issue.IssueId</td>
+                                        <td>@issue.IssueNo</td>
+                                        <td>@issue.IssueDate.ToString("dd/MM/yyyy")</td>
+                                        <td class="fw-bold">@sub.Qty</td>
+                                        <td>@issue.IssueToWhom</td>
+                                        <td>@sub.MachineName</td>
+                                        <td>@sub.ProcessName</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <hr />
+
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0"
+                           style="table-layout:fixed; min-width:800px;">
+                            
+                        <thead class="custom-blue">
+                            <tr>
+                                <th class="d-none">Return Id</th>
+                                <th>GRN No</th>
+                                <th>GRN Date</th>
+                                <th>Qty</th>
+                                <th>Return To</th>
+                                <th>Machine</th>
+                                <th>Process</th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="custom-size">
+
+                            @foreach (var returnvVM in ComponentReturnLogs)
+                            {
+                                @foreach (var sub in returnvVM.ProductionReturnCompSubVMs)
+                                {
+                                    <tr>
+                                        <td class="d-none">@returnvVM.ReturnId</td>
+                                        <td>@returnvVM.ReturnNo</td>
+                                        <td>@returnvVM.ReturnDate.ToString("dd/MM/yyyy")</td>
+                                        <td class="fw-bold">@sub.Qty</td>
+                                        <td>@returnvVM.ReturnBy</td>
+                                        <td>@sub.MachineName</td>
+                                        <td>@sub.ProcessName</td>
+                                    </tr>
+                                }
+                            }
+
+                        </tbody>
+                    </table>
+                </div>
+
+                <hr />
+
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0"
+                           style="table-layout:fixed; min-width:800px;">
+                            
+                        <thead class="custom-blue">
+                            <tr>
+                                <th class="d-none">SCN Id</th>
+                                <th>SCN No</th>
+                                <th>SCN Date</th>
+                                <th>Acc. Qty</th>
+                                <th>Rej. Qty</th>
+                                <th>Rej. Reason</th>
+                                <th>Rew. Qty</th>
+                                <th>Rew. Reason</th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="custom-size">
+                            @foreach (var scnVM in ComponentSCNLogs)
+                            {
+                                @foreach (var sub in scnVM.ProductionSCNCompSubVMs)
+                                {
+                                    <tr>
+                                        <td class="d-none">@scnVM.SCNId</td>
+                                        <td>@scnVM.SCNNo</td>
+                                        <td>@scnVM.SCNDate.ToString("dd/MM/yyyy")</td>
+                                        <td class="fw-bold">@sub.AccQty</td>
+                                        <td class="fw-bold">@sub.RejQty</td>
+                                        <td class="fw-bold">@sub.RejReason</td>
+                                        <td class="fw-bold">@sub.RewQty</td>
+                                        <td class="fw-bold">@sub.RewReason</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+
+            </div>
+        </div>
+
+    </div>
+}
+
+
+@code {
+
+    [Parameter]
+    public bool isModelVisible { get; set; } = false;
+
+    [Parameter]
+    public int RcSubId { get; set; }
+
+    protected override string ScreenName => "Job Order";
+    private bool isProcessing = true;
+
+    private List<ProductionLogVM> DailyLogs = new();
+
+    private List<ProductionIssueCompVM> ComponentIssueLogs = new();
+    private List<ProductionReturnCompVM> ComponentReturnLogs = new();
+    private List<ProductionSCNCompVM> ComponentSCNLogs = new();
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        isProcessing = true;
+
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _nav.NavigateTo("/access-denied", true);
+                return;
+            }
+
+            await LoadProcessLogsAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadProcessLogsAsync()
+    {
+        isProcessing = true;
+
+        try
+        {
+
+            DailyLogs = await processLogService.GetDailyProductionLogsAsync(RcSubId);
+            ComponentIssueLogs = await processLogService.GetProductionIssueLogsAsync(RcSubId);
+            ComponentReturnLogs = await processLogService.GetProductionReturnLogsAsync(RcSubId);
+            ComponentSCNLogs = await processLogService.GetProductionSCNLogsAsync(RcSubId);
+
+            //SubcontractLogs = await ProcessLogService.GetSubcontractLogsAsync(RcSubId);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "LoadProcessLogsAsync failed");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+
+}

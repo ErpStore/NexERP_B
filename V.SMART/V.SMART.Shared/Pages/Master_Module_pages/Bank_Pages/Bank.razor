@@ -1,0 +1,656 @@
+﻿@page "/bank"
+@page "/bank/update/{BankId:int?}"
+
+@inherits BaseUserRightsComponent
+
+@inject IBankService bankService
+
+@inject IUnitOfWork _unitOfWork
+@inject IJSRuntime _js
+@inject CurrentUserService _userService
+@inject NavigationManager _navigationManager
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject ILoggingService loggingService
+@inject CurrentUserService CurrentUserService
+
+
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else if (showForm)
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- Card Header -->
+               <PageHeader 
+                    TitleText="@(showForm ? "Create Bank" : "Banks List")"
+                    TitleIcon="bi bi-bank2"
+                    Breadcrumbs="@currentBreadcrumbs" />
+   
+                <div class="card-body bg-white">
+                    <EditForm Model="Banks" OnValidSubmit="HandleUpsert">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                            <div class="row g-1">
+
+                                @if (Banks != null && Banks.BankId > 0 && !string.IsNullOrWhiteSpace(Banks.BankName))
+                                {
+                                    <CorrespondenceStatus ReferenceType="Banks"
+                                                            ReferenceId="@Banks.BankId"
+                                                            ReferenceTypeName="@Banks.BankName" />
+                                }
+                        
+                                <div class="col-md-6">
+                                    <label for="AccountNo" class="form-label fw-semibold">
+                                
+                                        <i class="bi bi-credit-card-2-front me-1"></i> Account Number
+                                    </label>
+                                    <InputText @bind-Value="Banks.AccountNo"
+                                                class="form-control shadow-sm"
+                                                id="AccountNo"
+                                                placeholder="e.g. 0530108039585" />
+                                    <ValidationMessage For="@(() => Banks.AccountNo)" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="IFSCCode" class="form-label fw-semibold">
+                                        <i class="bi bi-upc-scan me-1"></i> IFSC Code
+                                    </label>
+                                    <InputText @bind-Value="Banks.IFSCCode"
+                                                @oninput="async e => await OnIfscInput(e.Value?.ToString())"
+                                                class="form-control shadow-sm"
+                                                id="IFSCCode"
+                                                placeholder="e.g. CNRB0000530" />
+                                    <ValidationMessage For="@(() => Banks.IFSCCode)" />
+                                </div>
+
+                                    <div class="col-md-6">
+                                    <label for="BankName" class="form-label fw-semibold">
+                                        <i class="bi bi-bank  me-1"></i> Bank Name
+                                    </label>
+                                    <InputText @bind-Value="Banks.BankName"
+                                                class="form-control shadow-sm"
+                                                id="BankName"
+                                                placeholder="Enter bank name" />
+                                    <ValidationMessage For="@(() => Banks.BankName)" />
+                                </div>
+
+                                    <div class="col-md-6">
+                                    <label for="BranchName" class="form-label fw-semibold">
+                                        <i class="bi bi-geo-alt  me-1"></i> Branch Name
+                                    </label>
+                                    <InputText @bind-Value="Banks.BranchName"
+                                                class="form-control shadow-sm"
+                                                id="BranchName"
+                                                placeholder="Enter branch name" />
+                                    <ValidationMessage For="@(() => Banks.BranchName)" />
+                                </div>
+                   
+                                <div class="col-md-6">
+                                    <label for="BankAddress" class="form-label fw-semibold">
+                                        <i class="bi bi-signpost-2 me-1"></i> Bank Address
+                                    </label>
+                                    <InputTextArea @bind-Value="Banks.BankAddress" class="form-control shadow-sm" id="BankAddress" placeholder="Enter full address" />
+                                    <ValidationMessage For="@(() => Banks.BankAddress)" />
+                                </div>
+
+
+                                 <div class="col-md-6">
+                                    <label for="State" class="form-label fw-semibold">
+                                
+                                        <i class="bi bi-flag  me-1"></i> State
+                                    </label>
+                                    <InputText @bind-Value="Banks.BankState"
+                                                class="form-control shadow-sm"
+                                                id="BankState"
+                                                placeholder="e.g. Bank State" />
+                                    <ValidationMessage For="@(() => Banks.BankState)" />
+                                </div>
+
+                          
+                                <div class="col-md-6">
+                                    <label for="BankOPBal" class="form-label fw-semibold">
+                                        <i class="bi bi-wallet2 me-1"></i> Opening Balance
+                                    </label>
+                                    <input type="text"
+                                       class="form-control shadow-sm"
+                                       id="BankOPBal"
+                                       @bind="Banks.BankOPBal"
+                                       @oninput="ValidateOpeningBalance"
+                                       onkeypress="return isNumericWithDot(event)" />
+                                        
+                                    <ValidationMessage For="@(() => Banks.BankOPBal)" />
+                                </div>
+
+
+
+
+                                <div class="col-md-6">
+                                    <label for="CreditLimit" class="form-label fw-semibold">
+                                        <i class="bi bi-cash-coin me-1"></i> Credit Limit
+                                    </label>
+                                    <input type="text"
+                                                    class="form-control shadow-sm" id="CreditLimit"
+                                                    @bind="Banks.CreditLimit"
+                                                    onkeypress="return isNumericWithDot(event)" />
+
+                                    <ValidationMessage For="@(() => Banks.CreditLimit)" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="UpiId" class="form-label fw-semibold">
+                                        <i class="bi bi-phone me-1"></i> UPI ID
+                                    </label>
+                                    <InputText @bind-Value="Banks.UpiId"
+                                               class="form-control shadow-sm"
+                                               id="UpiId"
+                                               placeholder="example@upi" />
+                                    <ValidationMessage For="@(() => Banks.UpiId)" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="UpiName" class="form-label fw-semibold">
+                                        <i class="bi bi-person me-1"></i> UPI Name
+                                    </label>
+                                    <InputText @bind-Value="Banks.UpiName"
+                                               class="form-control shadow-sm"
+                                               id="UpiName"
+                                               placeholder="UPI holder name" />
+                                    <ValidationMessage For="@(() => Banks.UpiName)" />
+                                </div>
+
+
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold d-block">
+                                        <i class="bi bi-arrow-left-right me-1"></i> Bank Type
+                                    </label>
+                                    <InputRadioGroup @bind-Value="Banks.IsDebit">
+                                        <div class="d-flex gap-4">
+                                            <div class="form-check">
+                                                <InputRadio id="Credit" class="form-check-input" Value="false" />
+                                                <label for="Credit" class="form-check-label">Credit</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <InputRadio id="Debit" class="form-check-input" Value="true" />
+                                                <label for="Debit" class="form-check-label">Debit</label>
+                                            </div>
+                                        </div>
+                                    </InputRadioGroup>
+                                    <ValidationMessage For="@(() => Banks.IsDebit)" />
+                                </div>
+
+                           
+                                <div class="col-12 d-flex justify-content-end gap-3 pt-4">
+                                    @if (CanCreate || CanEdit)
+                                    {
+                                        <button type="submit" class="btn btn-success px-4" disabled="@isProcessing">
+                                            <i class="bi bi-check-circle-fill me-1"></i> @(BankId == 0 || BankId == null ? "Create" : "Update")
+                                        </button>
+                                    }
+
+                                    <SmartBackButton OnNavigate="BackToList" />
+                                    
+                                </div>
+
+                            </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+    }
+
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+
+    <BsModal OnModalConfirmation="confirmDelete_Click"
+             ButtonBootstrapStyle="btn-danger"
+             ButtonText="Delete"
+             Title="Are you sure you want to delete this Bank?">
+    </BsModal>
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Card Header -->
+           <PageHeader 
+            TitleText="@(showForm ? "Bank Detail" : "Banks List")"
+            TitleIcon="bi bi-bank2"
+            Breadcrumbs="@currentBreadcrumbs" />
+
+
+            <div class="card-body">
+
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-12 col-md-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <InputText
+                                    class="form-control border-start-0"
+                                    placeholder="Search By... Bank Name,Account Number,Address"
+                                    @bind-Value="searchText"
+                                    @oninput="e => searchText = e.Value?.ToString()" />
+                        </div>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-md-2 ms-md-auto text-end">
+                            <button
+                                class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                title="Add a new Bank" @onclick="ShowCreateForm"> 
+                                <i class="bi bi-plus-square me-1"></i> Add New Banks
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                @if (FilteredBanks.Any())
+                {
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                            @foreach (var bank in FilteredBanks)
+                            {
+                               <div class="col">
+                             
+                                <div class="card bank-card @GetCardTheme(bank) h-100 shadow-sm position-relative text-dark rounded-4 border-0">
+
+                                    <div class="position-absolute top-0 end-0 m-3">
+                                        <span class="badge bg-dark text-white shadow-sm small">ID: @bank.BankId</span>
+                                    </div>
+
+                                    <div class="card-body d-flex flex-column p-4">
+
+                  
+                                        <div class="d-flex align-items-center mb-4">
+                      
+                                            <div>
+                                                <h5 class="mb-0 fw-bold">@bank.BankName</h5>
+                                                <small class="text-muted">@bank.IFSCCode</small>
+                                            </div>
+                                        </div>
+
+                  
+                                        <div class="row g-3 small">
+                                            <div class="col-6"><strong>Account No:</strong><br />@bank.AccountNo</div>
+                                            <div class="col-6"><strong>Branch:</strong><br />@bank.BranchName</div>
+                                            <div class="col-6"><strong>Address:</strong><br />@bank.BankAddress</div>
+                                            <div class="col-6"><strong>State:</strong><br />@bank.BankState</div>
+                                            <div class="col-6"><strong>Opening Balance:</strong><br /><span class="text-success fw-semibold">₹@bank.BankOPBal</span></div>
+                                            <div class="col-6"><strong>Credit Limit:</strong><br /><span class="text-danger fw-semibold">₹@bank.CreditLimit</span></div>
+                                            <div class="col-6"><strong>Type:</strong><br />
+                                                <span class="badge bg-@(bank.IsDebit ? "danger" : "success")">@bank.BankType</span>
+                                            </div>
+                                            <div class="col-6"><strong>Created:</strong><br />@bank.CreatedBy</div>
+                                        </div>
+
+                 
+                                        <div class="mt-auto pt-4 d-flex justify-content-end gap-2">
+                                            @if (CanEdit)
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditBank(bank.BankId)">
+                                                    <i class="bi bi-pencil-square me-1"></i>Edit
+                                                </button>
+                                            }
+                                            @if (CanDelete)
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDelete(bank.BankId)">
+                                                    <i class="bi bi-trash3 me-1"></i>Delete
+                                                </button>
+                                            }
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                           }
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Banks available.</p>
+                }
+
+
+            </div>
+        </div>
+    </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Bank";
+    [Parameter]
+    public int? BankId { get; set; }
+    private bool isProcessing = true;
+    private bool showForm => BankId.HasValue;
+    private Banks Banks { get; set; } = new();
+    private IEnumerable<Banks> bankList = new List<Banks>();
+    private int deleteBankId = 0;
+    private string searchText = string.Empty;
+
+    private BankDetailsResponse bankDetails;
+
+    private List<PageHeader.BreadcrumbItem> currentBreadcrumbs;
+
+    private string GetCardTheme(Banks bank) => bank.IsDebit ? "bg-danger bg-opacity-10" : "bg-success bg-opacity-10";
+
+    private IEnumerable<Banks> FilteredBanks => string.IsNullOrWhiteSpace(searchText)
+        ? bankList
+        : bankList.Where(e =>
+            (!string.IsNullOrEmpty(e.BankName) && e.BankName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(e.BankAddress) && e.BankAddress.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(e.AccountNo) && e.AccountNo.Contains(searchText, StringComparison.OrdinalIgnoreCase)));
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            if (showForm)
+            {
+                await LoadBankForForm();
+            }
+            else
+            {
+                await LoadBanks();
+            }
+
+            currentBreadcrumbs = new List<PageHeader.BreadcrumbItem>
+            {
+                new PageHeader.BreadcrumbItem { Text = "Master" },
+                new PageHeader.BreadcrumbItem { Text = "Account" },
+                new PageHeader.BreadcrumbItem { Text = "Bank Details", IsLast = true }
+            };
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "Error in Bank OnInitializedAsync.");
+            await _js.ToastrError("An error occurred while loading the page.");
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadBanks()
+    {
+        try
+        {
+            bankList = await bankService.GetAllBanksAsync();
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "Error loading bank list.");
+            await _js.ToastrError("Error loading bank list.");
+        }
+    }
+
+    private async Task LoadBankForForm()
+    {
+        if (BankId.HasValue && BankId.Value > 0)
+        {
+            Banks = await bankService.GetBankAsync(BankId.Value);
+            previousOpeningBalance = Banks.BankOPBal;
+            if (Banks == null)
+            {
+                await _js.ToastrWarning("Bank not found.");
+                _navigationManager.NavigateTo("/bank");
+            }
+        }
+        else
+        {
+            Banks = new Banks();
+        }
+    }
+
+    private void ShowCreateForm() => _navigationManager.NavigateTo("/bank/update/0");
+
+    private void BackToList() => _navigationManager.NavigateTo("/bank");
+
+    private void EditBank(int id) 
+    {
+
+        _navigationManager.NavigateTo($"/bank/update/{id}");
+    }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (showForm)
+            await LoadBankForForm();
+        else
+            await LoadBanks();
+
+        await InvokeAsync(StateHasChanged);
+    }
+    private decimal previousOpeningBalance = 0;
+
+    private async Task ValidateOpeningBalance(ChangeEventArgs e)
+    {
+        if (!decimal.TryParse(e.Value?.ToString(), out var entered))
+            return;
+
+        if (Banks.BankId > 0)
+        {
+            decimal currentBankBalance = Banks.CurrentBalance; 
+
+
+            if (entered < previousOpeningBalance)
+            {
+                Banks.BankOPBal = previousOpeningBalance;
+                await _js.ToastrError("Bank opening balance can only be increased. Reducing it is not allowed.");
+                return;
+            }
+
+            if (currentBankBalance + (entered - previousOpeningBalance) < 0)
+            {
+                Banks.BankOPBal = previousOpeningBalance;
+                await _js.ToastrError("Adjustment denied. Bank balance cannot go below 0.");
+                return;
+            }
+        }
+
+        Banks.BankOPBal = entered;
+    }
+
+    public async Task<bool> ValidBank(Banks banks)
+    {
+        try
+        {
+
+            var previousOpBalance = await _unitOfWork.Banks
+                    .GetQueryable()
+                    .Where(x => x.BankId == banks.BankId)
+                    .Select(x => x.BankOPBal)
+                    .FirstOrDefaultAsync();
+
+
+            var bank = await _unitOfWork.Banks
+                    .GetQueryable()
+                    .FirstOrDefaultAsync(x => x.BankId == banks.BankId);
+
+            if (bank == null)
+            {
+                await _js.ToastrError("Bank record not found.");
+                return false;
+            }
+
+
+            if (banks.BankOPBal < previousOpBalance)
+            {
+                await _js.ToastrError("Opening balance cannot be less than the previously saved opening balance. Only increase is allowed.");
+                return false;
+            }
+
+            return true; 
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, $"Error during ValidBank for AccountNo: {banks.AccountNo}");
+            throw;
+        }
+    }
+
+    private async Task<bool> ValidateUpiBeforeSave()
+    {
+        // Only check if user typed something
+        if (!string.IsNullOrWhiteSpace(Banks.UpiId) && !Banks.IsValidUpiId())
+        {
+            await _js.ToastrError("Invalid UPI ID format. Please enter a correct UPI ID or leave it empty.");
+            return false;
+        }
+
+        // Name should be mandatory only when UPI ID is entered
+        if (!string.IsNullOrWhiteSpace(Banks.UpiId) && string.IsNullOrWhiteSpace(Banks.UpiName))
+        {
+            await _js.ToastrError("UPI name is required when UPI ID is entered.");
+            return false;
+        }
+
+
+
+
+
+        return true;
+    }
+
+
+    private async Task HandleUpsert()
+    {
+        try
+        {
+            isProcessing = true;
+            bool success = true;
+             if (!await ValidateUpiBeforeSave())
+                 return;
+
+            if(Banks.BankId>0)
+            {
+                success=await ValidBank(Banks);
+            }
+            if(success)
+            {
+
+                await bankService.UpsertBankAsync(Banks);
+                await _js.ToastrSuccess($"Bank {(Banks.BankId == 0 ? "created" : "updated")} successfully.");
+
+                // Discard popup Clear
+                await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+                BackToList();
+                await LoadBanks();
+
+            }
+            else
+            {
+
+                await _js.ToastrError("Opening balance can only be added to increase bank balance. You cannot reduce it.");
+                return;
+            }
+
+
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "Error saving bank.");
+            await _js.ToastrError("An error occurred while saving the bank.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task HandleDelete(int id)
+    {
+
+        if(Banks.BankOPBal != Banks.CurrentBalance)
+        {
+            await _js.ToastrError("Bank cannot be deleted because transactions have already been recorded and the balance has changed.");
+           return;
+        }
+
+
+        deleteBankId = id;
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+        if (isConfirmed && deleteBankId != 0)
+        {
+            isProcessing = true;
+            if (await bankService.DeleteBankAsync(deleteBankId))
+            {
+                await _js.ToastrSuccess("Bank deleted successfully.");
+                await LoadBanks();
+            }
+            else
+            {
+                await _js.ToastrError("Error deleting bank.");
+            }
+            isProcessing = false;
+        }
+        deleteBankId = 0;
+
+    }
+
+    private async Task OnIfscInput(string ifsc)
+    {
+        if (string.IsNullOrWhiteSpace(ifsc) || ifsc.Length < 11)
+        {
+            bankDetails = null;
+            return;
+        }
+
+        var details = await bankService.GetIfscDetailsAsync(ifsc.ToUpper());
+        if (details != null && details.BANK != null)
+        {
+            Banks.IFSCCode = details.IFSC;
+            Banks.BankName = details.BANK;
+            Banks.BranchName = details.BRANCH;
+            Banks.BankAddress = details.ADDRESS;
+            Banks.BankState = details.STATE;
+        }
+    }
+    
+}

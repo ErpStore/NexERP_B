@@ -1,0 +1,743 @@
+﻿@page "/SalesPoPending"
+@rendermode InteractiveServer
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel
+
+
+@inherits BaseUserRightsComponent
+
+@inject IPoPendingServices PoPendingServices
+@inject IJSRuntime _JS
+@inject IExcelTemplateService excelTemplateService
+
+@inject NavigationManager _navigation
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-4 mt-4">
+
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="PO Pending List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@PoBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-3 mb-4">
+
+                    <!-- TYPE -->
+                    <div class="col-12 col-md-6 col-xl-2">
+                        <div class="section-box h-100">
+
+                            <label class="fw-bold mb-3 d-block">
+                                Choose Type
+                            </label>
+
+                            <div class="d-flex align-items-center justify-content-between">
+
+                                <span class="fw-semibold text-primary">
+                                    Sales
+                                </span>
+
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           @bind="IsPurchase"
+                                           style="width:1.7rem; height:1.7rem;" />
+                                </div>
+
+                                <span class="fw-semibold text-success">
+                                    Purchase
+                                </span>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- FROM DATE -->
+                    <div class="col-6 col-md-6 col-xl-2">
+                        <div class="section-box h-100">
+
+                            <label class="fw-bold mb-2">
+                                From Date
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="FromDate"
+                                       @bind-Value:after="OnDateChanged" />
+
+                        </div>
+                    </div>
+
+                    <!-- TO DATE -->
+                    <div class="col-6 col-md-6 col-xl-2">
+                        <div class="section-box h-100">
+
+                            <label class="fw-bold mb-2">
+                                To Date
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="ToDate"
+                                       @bind-Value:after="OnDateChanged" />
+
+                        </div>
+                    </div>
+
+                    <!-- CUSTOMER -->
+                    <div class="col-12 col-lg-6 col-xl-3">
+                        <div class="section-box h-100">
+
+                            <label class="fw-bold mb-2">
+                                @ComboLabel
+                            </label>
+
+                            <select class="form-select"
+                                    @onchange="OnCustomerChanged"
+                                    value="@SelectedId">
+
+                                <option value="0">@AllText</option>
+
+                                @foreach (var item in ComboList)
+                                {
+                                    <option value="@item.Id">
+                                        @item.Name
+                                    </option>
+                                }
+
+                            </select>
+
+                        </div>
+                    </div>
+
+                    <!-- DAYS -->
+                    <div class="col-6 col-md-3 col-xl-1">
+                        <div class="section-box h-100">
+
+                            <label class="fw-bold mb-2">
+                                Due Days
+                            </label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="NoOfDays" />
+
+                        </div>
+                    </div>
+
+                    <!-- SEARCH -->
+                    <div class="col-12 col-lg-6 col-xl-2">
+                        <div class="section-box h-100">
+
+                            <label class="fw-bold mb-2">
+                                Search
+                            </label>
+
+                            <div class="input-group">
+
+                                <span class="input-group-text">
+                                    <i class="bi bi-search"></i>
+                                </span>
+
+                                <InputText class="form-control"
+                                           placeholder="Search here..."
+                                           @bind-Value="searchText"
+                                           @oninput="e => searchText = e.Value?.ToString()" />
+
+                            </div>
+
+                        </div>
+                    </div>
+
+
+
+                </div>
+
+                <!-- TABLE -->
+                @if (FilteredPoPendingDetails.Any())
+                {
+                    <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                        <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                            <thead class="custom-blue text-center align-middle sticky-top">
+
+                                <tr>
+                                    <th style="width:60px;">Sl No.</th>
+                                    <th style="width:220px;">Customer/Vendor</th>
+                                    <th style="width:140px;">PO No.</th>
+                                    <th style="width:120px;">PO Date</th>
+                                    <th style="width:140px;">Item Code</th>
+                                    <th style="width:250px;">Item Name</th>
+                                    <th style="width:200px;">Specification</th>
+                                    <th style="width:100px;">UOM</th>
+                                    <th style="width:100px;">HSN Code</th>
+                                    <th class="text-end" style="width:100px;">Qty</th>
+                                    <th class="text-end" style="width:130px;">Unit Price</th>
+                                    <th class="text-end" style="width:150px;">Balance Amount</th>
+                                    <th class="text-end" style="width:110px;">Bal Qty</th>
+                                    <th class="text-end" style="width:110px;">Stock Qty</th>
+                                    <th style="width:130px;">Due Date</th>
+
+                                    <th style="width:90px;">ROL</th>
+                                    <th style="width:90px;">MOL</th>
+                                    <th style="width:90px;">Type</th>
+                                </tr>
+
+                            </thead>
+
+                            <tbody>
+
+                                @{
+                                    i = 1;
+                                }
+
+                                @foreach (var item in FilteredPoPendingDetails)
+                                {
+                                    <tr>
+                                        <td>@i</td>
+
+                                        <td>@item.Name</td>
+
+                                        <td>@item.PoNo</td>
+
+                                        <td>
+                                            @item.PoDate.ToString("dd-MM-yyyy")
+                                        </td>
+
+                                        <td>@item.ItemCode</td>
+
+                                        <td>@item.ItemName</td>
+
+                                        <td>@item.Specification</td>
+
+                                        <td>@item.UOM</td>
+
+                                        <td>@item.HSNCode</td>
+
+                                        <td class="text-end">
+                                            @item.Qty
+                                        </td>
+
+                                        <td class="text-end">
+                                            @item.UnitPrice.ToString("0.00")
+                                        </td>
+
+                                        <td class="text-end fw-bold text-primary">
+                                            @item.BalanceAmount.ToString("0.00")
+                                        </td>
+
+                                        <td class="text-end">
+                                            @item.BalQty
+                                        </td>
+
+                                        <td class="text-end">
+                                            @item.StockQty
+                                        </td>
+
+                                        <td class="@GetDueDateClass(item.DueDate)">
+
+                                            @item.DueDate.ToString("dd-MM-yyyy")
+
+                                        </td>
+
+                                        <td>@item.ROL</td>
+
+                                        <td>@item.MOL</td>
+
+                                        <td class="@GetTypeClass(item.Type)">
+                                            @item.Type
+                                        </td>
+
+
+
+                                    </tr>
+                                    i++;
+                                }
+
+                        </tbody>
+
+                        <tfoot class="table-warning fw-bold  fixed-footer">
+
+                            <tr>
+
+                                <td colspan="11" class="text-end">
+                                    Total Balance Amount :
+                                </td>
+
+                                <td class="text-end text-danger fw-bold">
+
+                                    @(FilteredPoPendingDetails
+                                                                    .Sum(x => x.BalanceAmount)
+                                                                    .ToString("0.00"))
+
+                                </td>
+
+                                <td class="text-end text-danger fw-bold">
+
+                                    @(FilteredPoPendingDetails
+                                                                    .Sum(x => x.BalQty)
+                                                                    .ToString("0.00"))
+
+                                </td>
+
+                                <td class="text-end text-danger fw-bold">
+
+                                    @(FilteredPoPendingDetails
+                                                                    .Sum(x => x.StockQty)
+                                                                    .ToString("0.00"))
+
+                                </td>
+
+                                <td></td>
+
+                                <td class="text-end text-danger fw-bold">
+
+                                    @(FilteredPoPendingDetails
+                                                                    .Sum(x => x.ROL)
+                                                                    .ToString("0.00"))
+
+                                </td>
+
+
+                                <td class="text-end text-danger fw-bold">
+
+                                    @(FilteredPoPendingDetails
+                                                                    .Sum(x => x.MOL)
+                                                                    .ToString("0.00"))
+
+                            </td>
+
+                                    <td colspan="6"></td>
+
+                                </tr>
+
+                            </tfoot>
+
+                        </table>
+
+                    </div>
+                    <!-- EXPORT -->
+                    <div class=" col-12 d-flex justify-content-md-end mt-3">
+
+                        <button class="btn btn-primary  text-center "
+                                @onclick="OnPrintPendingTrack"
+                                disabled="@isProcessing">
+
+                    @if (isProcessing)
+                            {
+                                <span>
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                    Exporting...
+                                </span>
+                            }
+                            else
+                            {
+                                <span>
+                                    <i class="bi bi-printer-fill me-1"></i>
+                                    Export
+                                </span>
+                            }
+
+                        </button>
+
+
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning mt-4 rounded-4 shadow-sm">
+
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        No records found.
+
+                    </div>
+                }
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+
+
+@code
+{
+    protected override string ScreenName => "Po Pendings";
+
+    private bool isProcessing = true;
+    int i = 0;
+
+    private DateTime? FromDate = DateTime.Today.AddMonths(-1);
+
+    private DateTime? ToDate = DateTime.Today;
+
+    private const string Sales = "Sales";
+    private const string Purchase = "Purchase";
+
+    private string selectedType = Sales;
+
+    private int SelectedId = 0;
+
+    private bool isPurchase = false;
+
+    private string searchText = string.Empty;
+
+    private List<ComboModelVM> ComboList = new();
+
+    private List<PoPendingDetailsVM> PoPendingDetailsVMs = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadCombo();
+        }
+        catch (Exception)
+        {
+
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    bool IsPurchase
+    {
+        get => isPurchase;
+        set
+        {
+            if (isPurchase != value)
+            {
+                isPurchase = value;
+
+                SelectedType = isPurchase
+                    ? Purchase
+                    : Sales;
+
+                _ = OnTypeChanged();
+            }
+        }
+    }
+
+    string SelectedType
+    {
+        get => selectedType;
+        set => selectedType = value;
+    }
+
+    private string ComboLabel =>
+        SelectedType == Sales
+        ? "Select Customer"
+        : "Select Vendor";
+
+    private string AllText =>
+        SelectedType == Sales
+        ? "All Customers"
+        : "All Vendors";
+
+    // SEARCH FILTER
+    private IEnumerable<PoPendingDetailsVM> FilteredPoPendingDetails
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+                return PoPendingDetailsVMs;
+
+            return PoPendingDetailsVMs.Where(x =>
+
+                (!string.IsNullOrEmpty(x.Name) &&
+                 x.Name.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase))
+
+                ||
+
+                (!string.IsNullOrEmpty(x.ItemCode) &&
+                 x.ItemCode.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase))
+
+                ||
+
+                (!string.IsNullOrEmpty(x.ItemName) &&
+                 x.ItemName.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase))
+
+                ||
+
+                (!string.IsNullOrEmpty(x.PoNo) &&
+                 x.PoNo.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase)) ||
+
+                 (!string.IsNullOrEmpty(x.Type) &&
+                 x.Type.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase))
+
+        );
+        }
+    }
+
+    private string GetTypeClass(string type)
+    {
+        if (selectedType == "Sales")
+        {
+            return type == "Sales" ? "bg-primary text-white fw-bold" : "bg-success text-white fw-bold";
+        }
+        else
+        {
+            return type == "Purchase" ? "bg-primary text-white fw-bold" : "bg-success text-white fw-bold";
+        }
+    }
+
+    private List<PageHeader.BreadcrumbItem> PoBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem
+        {
+            Text = "Report"
+        },
+
+        new PageHeader.BreadcrumbItem
+        {
+            Text = "Sales / Purchase PO Pending",
+            IsLast = true
+        }
+    };
+
+
+
+    // TYPE CHANGE
+    private async Task OnTypeChanged()
+    {
+        try
+        {
+            isProcessing = true;
+            SelectedId = 0;
+
+            PoPendingDetailsVMs.Clear();
+
+            await LoadCombo();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnDateChanged()
+    {
+        if (isProcessing)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            SelectedId = 0;
+
+            await LoadCombo();
+
+            await ReloadData();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task ReloadData()
+    {
+        PoPendingDetailsVMs =
+            await PoPendingServices.GetPoPendingDetails
+            (
+                SelectedType,
+                SelectedId,
+                FromDate,
+                ToDate
+            );
+
+        StateHasChanged();
+    }
+
+    // LOAD DROPDOWN
+    private async Task LoadCombo()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (SelectedType == Sales)
+            {
+                ComboList =
+                    await PoPendingServices.GetCustomerList(0, FromDate, ToDate);
+            }
+            else
+            {
+                ComboList =
+                    await PoPendingServices.GetVendorList(0, FromDate, ToDate);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnCustomerChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            SelectedId = Convert.ToInt32(e.Value);
+
+            // Auto display 7 days
+            NoOfDays = 7;
+
+            if (isProcessing)
+                return;
+
+            try
+            {
+                isProcessing = true;
+
+                SelectedId = Convert.ToInt32(e.Value);
+
+                await ReloadData();
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+    }
+
+    private double NoOfDays = 7;
+
+    private string GetDueDateClass(DateTime dueDate)
+    {
+        try
+        {
+            // Number of days overdue
+            int overdueDays = (DateTime.Today - dueDate.Date).Days;
+
+            // Highlight if overdue by NoOfDays or more
+            if (overdueDays >= NoOfDays && NoOfDays > 0)
+            {
+                return "bg-danger text-white fw-bold";
+            }
+
+            return string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+
+    // EXPORT
+    private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (!FilteredPoPendingDetails.Any())
+            {
+                await _JS.ToastrWarning("No records available to export.");
+                return;
+            }
+
+            string[] headers =
+            {
+                 "Sl No.",
+                 "Customer/Vendor",
+                 "PO No.",
+                 "PO Date",
+                 "Item Code",
+                 "Item Name",
+                 "Specification",
+                 "UOM",
+                 "HSN Code",
+                 "Qty",
+                 "Bal Qty",
+                 "Stock Qty",
+                 "Due Date",
+                 "ROL",
+                 "MOL",
+                 "Type"
+             };
+
+            var exportData = FilteredPoPendingDetails
+            .Select((x, index) => new
+            {
+                SlNo = index + 1,
+                x.Name,
+                x.PoNo,
+                PODate = x.PoDate.ToString("dd-MM-yyyy"),
+                x.ItemCode,
+                x.ItemName,
+                x.Specification,
+                x.UOM,
+                x.HSNCode,
+                x.Qty,
+                x.BalQty,
+                x.StockQty,
+                DueDate = x.DueDate.ToString("dd-MM-yyyy"),
+                x.ROL,
+                x.MOL,
+                x.Type
+            }).ToList<object>();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(sheetName: "PO Pending Track",headers: headers, sampleData: exportData);
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync("downloadExcelFile", base64, "PoPendingTrack.xlsx");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

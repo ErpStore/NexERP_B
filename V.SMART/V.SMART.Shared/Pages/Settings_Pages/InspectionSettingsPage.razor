@@ -1,0 +1,170 @@
+﻿@page "/InspectionSettings"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ISettingsService
+@using V.SMART.Shared.BusinessLayer.BusinessService.SettingsService
+@using V.SMART.Shared.Data.GeneralSettingsMaster
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IInspectionSettingsService _inspectionService
+@inject ILoggingService _logs
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/V.SMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Page Header -->
+            <PageHeader TitleText="Inspection Settings"
+                        TitleIcon="bi bi-clipboard2-check-fill"
+                        Breadcrumbs="@storeMapBreadcrumbs" />
+
+            <div class="card-body">
+
+                <!-- Search -->
+                <div class="row mb-3">
+                    <div class="col-12 col-md-6">
+                        <input type="text" class="form-control" placeholder="Search by Screen Name or Store"
+                               @bind="searchText" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <EditForm Model="InspectionSettings" OnValidSubmit="SaveInspectionSettings">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped align-middle">
+                            <thead class="custom-blue">
+                                <tr>
+                                    <th style="width:5%">Sl No.</th>
+                                    <th style="width:40%">Setting Name</th>
+                                    <th style="width:55%">Settings</th>
+                                </tr>
+                            </thead>
+                            <tbody class="custom-size">
+                                @foreach (var map in InspectionSettings)
+                                {
+                                    <tr>
+                                        <td>@map.Id</td>
+                                        <td>@map.SettingName</td>
+                                        <td>
+                                            <select class="form-select form-select-sm"
+                                                    @bind="map.SamplesPerSheet">
+                                                <option value="0">- Select -</option>
+                                                <option value="10">10 Samples</option>
+                                                <option value="15">15 Samples</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                    </div>
+                </EditForm>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    #region Declaration And Properties
+        protected override string ScreenName => "InspectionSettings";
+
+        private bool isProcessing = true;
+        private string searchText = string.Empty;
+
+        private List<PageHeader.BreadcrumbItem> storeMapBreadcrumbs = new()
+        {
+            new() { Text = "Master" },
+            new() { Text = "General settings" },
+            new() { Text = "Inspection Settings", IsLast = true }
+        };
+
+        private List<InspectionSettings> InspectionSettings { get; set; } = new();
+        private List<Store> Stores { get; set; } = new();
+
+    #endregion
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadInspectionSettings();
+
+            isProcessing = false;
+        }
+        catch(Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while Loading in OnInitializedAsync()");
+            await _js.ToastrError("Error while Loading in OnInitializedAsync()");
+        }
+    }
+    #endregion
+
+    #region Loading InspectionSettings
+    private async Task LoadInspectionSettings()
+    {
+        try
+        {
+            var existing = await _inspectionService.GetAllInspectionSettings();
+            InspectionSettings = existing.ToList();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while Loading LoadInspectionSettings()");
+            await _js.ToastrError("Error while Loading LoadInspectionSettings()");
+        }
+    }
+    #endregion
+
+    #region Saving InspectionSettings
+    private async Task SaveInspectionSettings()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await _inspectionService.SaveInspectionSettingsAsync(InspectionSettings);
+            await _js.ToastrSuccess("Inspection settings updated successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while saving inspection settings");
+            await _js.ToastrError("Failed to save inspection settings.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+}

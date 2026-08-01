@@ -1,0 +1,311 @@
+﻿@page "/MaintenanceProcess"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMaintenanceService
+@using V.SMART.Shared.BusinessLayer.BusinessService.MaintenanceService
+@using V.SMART.Shared.Data.Maintenance.MaintenanceSchedule
+@using V.SMART.Shared.Data.Maintenance.Maintenance_Process
+@using V.SMART.Shared.ViewModels.MaintenanceViewModel.MaintenanceScheduleVM
+@using Microsoft.EntityFrameworkCore.Metadata.Internal
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IUnitOfWork _unitOfWork
+@inject IMaintenanceProcessService _maintenanceProcessService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<MasterModal IsVisible="isModalVisible"
+             Title="Maintenance Process Details"
+             MaxWidth="600px"
+             OnClose="CloseModal">
+
+    <MaintenanceProcessDetails IsModelVisible="true" list=@MaintenanceSchedule
+                               SelectedDate=@(SelectedDate.HasValue?SelectedDate.Value:DateTime.Now)
+                               OnClose="CloseModal" />
+
+</MasterModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <PageHeader TitleText="@MaintenanceProcTitle"
+                            TitleIcon="@MaintenanceProcIcon"
+                            Breadcrumbs="@MaintenanceProcessBreadcrumbs" />
+                <hr />
+                <EditForm Model="@MaintenanceScheduleList">
+                    <DataAnnotationsValidator />
+
+                    <div class="row mb-3 ms-3">
+                        <label class="form-label fw-bold">Select Maintenance Date</label>
+                        <div class="col-12 col-lg-3 mb-2">
+
+                            <InputDate @bind-Value="SelectedDate" class="form-control date-blue" />
+                        </div>
+                        <div class="col-12 col-lg-2 mb-2">
+                            <button type="button"
+                                    class="btn text-white w-100" style="background-color: blueviolet;"
+                                    @onclick="() => LoadMaintenanceProcessList(SelectedDate ?? DateTime.Now)">
+                                🔍 View
+                            </button>
+                        </div>
+                    </div>
+                    <hr />
+
+                    @if (MaintenanceScheduleList?.Any() == true)
+                    {
+                        <div class="mt-2 my-3 mx-3">
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle text-center">
+                                    <thead class="custom-blue">
+                                        <tr class="text-center">
+                                            <th class="text-center" style="min-width:150px;">Machine Name</th>
+                                            <th class="text-center" style="min-width:150px;">Description</th>
+                                            <th class="text-center" style="min-width:130px;">Maintenance Type</th>
+                                            <th class="text-center" style="min-width:100px;">Status</th>
+                                            <th class="text-center">Details</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody class="custom-size">
+                                        @if (MaintenanceScheduleList != null)
+                                        {
+                                            foreach (var row in MaintenanceScheduleList)
+                                            {
+                                                <tr>
+                                                    <!-- Prevent wrapping for Machine Name -->
+                                                    <td>
+                                                        @row.MachineName
+                                                    </td>
+
+                                                    <!-- Description -->
+                                                    <td>
+                                                        @row.Description
+                                                    </td>
+
+                                                    <!-- Maintenance Type -->
+                                                    <td>
+                                                        @row.MaintenanceName
+                                                    </td>
+
+                                                    <!-- Status -->
+                                                    <td>
+                                                        @if (maintenanceProcessStatus.TryGetValue((row.MachineId, row.ScheduleId, SelectedDate.Value), out var list) && list.Any())
+                                                        {
+                                                            var process = list.First();
+                                                            if (process.MaintenanceStatus == true &&
+                                                            process.MachineId == row.MachineId &&
+                                                            process.MaintenanceId == row.MaintenanceId &&
+                                                            (process.MaintenanceId == 1 ? process.ModifiedDate?.Date == SelectedDate?.Date : true))
+                                                            {
+                                                                <span class="badge bg-success small"><i class="bi bi-check-square"></i> Completed</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="badge bg-danger small"><i class="bi bi-x-square"></i> Pending</span>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-danger small"><i class="bi bi-x-square"></i> Pending</span>
+                                                        }
+                                                    </td>
+
+                                                    <!-- Details Button -->
+                                                    <td class="text-center">
+                                                        <button class="btn btn-sm btn-outline-info"
+                                                                @onclick="() => OpenModal(row)">
+                                                            <i class="bi bi-eye"></i>
+                                                        </button>
+                                                    </td>
+
+
+                                                </tr>
+                                            }
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-center text-secondary mt-4">
+                            No records found. Please select a date and Maintenance type, then click "View".
+                        </p>
+                    }
+                </EditForm>
+                <hr />
+                <div class="d-flex justify-content-end me-5 mb-4">
+                    <button type="button"
+                            class="btn text-white"
+                            style="background-color: blueviolet;"
+                            @onclick="GotoMaintenanceReport">
+                        📊 Report
+                    </button>
+
+                </div>
+            </div>
+
+        </div>
+    }
+}
+
+@code {
+
+    #region Declaration And Properties
+    protected override string ScreenName => "MaintenanceProcess";
+    private bool isProcessing = true;
+    private bool IsChecked { get; set; } = false;
+    private string MaintenanceProcIcon = "bi bi-calendar-event";
+    private string MaintenanceProcTitle = "Maintenance Process";
+
+    // Add a dictionary to cache process status for each schedule
+    private Dictionary<(int MachineId, int ScheduleId, DateTime SelectedDate), List<MaintenanceProcess>> maintenanceProcessStatus =
+        new Dictionary<(int MachineId, int ScheduleId, DateTime SelectedDate), List<MaintenanceProcess>>();
+    private List<MaintenanceScheduleVM> MaintenanceScheduleList = new();
+    private MaintenanceScheduleVM MaintenanceSchedule = new();
+    private List<PageHeader.BreadcrumbItem> MaintenanceProcessBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Maintenance" },
+        new PageHeader.BreadcrumbItem { Text = "Maintenance Process",IsLast=true }
+
+    };
+    public DateTime? SelectedDate { get; set; } = DateTime.Now;
+    private List<ScheduleNameVM> MaintenancetypeList = MaintenanceTypeHelper.GetMaintenanceTypes().ToList();
+
+    //Model State
+    private bool isModalVisible = false;
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+            await LoadRightsAsync();
+            await LoadMaintenanceProcessList(SelectedDate);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+            await _js.ToastrError("An error occurred during initialization.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region LoadMaintenanceProcessList
+    private async Task LoadMaintenanceProcessList(DateTime? selectedDate)
+    {
+        if (selectedDate == null)
+        {
+            await _js.ToastrError("Please select both Date and Type");
+            return;
+        }
+        try
+        {
+            MaintenanceScheduleList = new List<MaintenanceScheduleVM>();
+            StateHasChanged();
+            MaintenanceScheduleList = await _maintenanceProcessService.ShowMaintenanceProcessList(selectedDate.Value);
+
+            // Clear and repopulate the status dictionary
+            maintenanceProcessStatus =
+              new Dictionary<(int MachineId, int ScheduleId, DateTime SelectedDate), List<MaintenanceProcess>>();
+            if (MaintenanceScheduleList?.Any() == true)
+            {
+                foreach (var schedule in MaintenanceScheduleList)
+                {
+                    var key = (schedule.MachineId, schedule.ScheduleId, selectedDate.Value);
+                    // Get the list of processes for the schedule
+                    var processList = await _maintenanceProcessService.GetMaintenanceProcessesById(schedule.MachineId, schedule.MaintenanceId, schedule.ScheduleId, selectedDate.Value);
+                    // Store the first process (or null if none) in the dictionary
+                    if (!maintenanceProcessStatus.ContainsKey(key))
+                        maintenanceProcessStatus[key] = new List<MaintenanceProcess>();
+
+                    if (processList != null)
+                        maintenanceProcessStatus[key].AddRange(processList);
+                }
+            }
+            else
+            {
+                await _js.ToastrSuccess("No Schedules is found");
+                MaintenanceScheduleList.Clear();
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadMaintenanceProcessList");
+            await _js.ToastrError("An error occurred while loading the MaintenanceProcess list.");
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    #endregion
+
+    #region Go To MaintenanceReport
+    private void GotoMaintenanceReport()
+    {
+        try
+        {
+            _navigationManager.NavigateTo("maintenanceprocess/maintenancereport");
+        }
+        catch (Exception ex)
+        {
+            LoggingService.LogDeveloperError(ex, "Error in GotoMaintenanceReport");
+            _js.ToastrError("An error occurred while loading the GotoMaintenanceReport");
+        }
+    }
+    #endregion
+
+    #region Closing Model
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            await LoadMaintenanceProcessList(SelectedDate);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+    #endregion
+
+    #region OpenModel
+    private async Task OpenModal(MaintenanceScheduleVM list)
+    {
+        try
+        {
+            isModalVisible = true;
+            MaintenanceSchedule = list;
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed ");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+    #endregion
+}

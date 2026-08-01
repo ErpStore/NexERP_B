@@ -1,0 +1,251 @@
+﻿@page "/expense/create"
+@page "/expense/update/{ExpenseCode:int}"
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService CurrentUserService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ILoggingService loggingService
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@expenseTitle"
+                            TitleIcon="@expenseIcon"
+                            Breadcrumbs="@expenseBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="Expense" OnValidSubmit="UpsertExpense">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+
+                            @if (Expense != null && Expense.ExpenseCode > 0 && !string.IsNullOrWhiteSpace(Expense.ExpenseName))
+                            {
+                                <CorrespondenceStatus ReferenceType="Expenses"
+                                                      ReferenceId="@Expense.ExpenseCode"
+                                                      ReferenceTypeName="@Expense.ExpenseName" />
+                            }
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Expense.ExpenseName" class="form-control" id="ExpenseName" placeholder="Expense Name" CssClass="form-control" />
+                                    <label for="ExpenseName">Expense Name</label>
+                                    <ValidationMessage For="@(() => Expense.ExpenseName)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="Expense.ExpenseDesc" class="form-control" id="ExpenseDesc" placeholder="Expense Description" CssClass="form-control" />
+                                    <label for="ExpenseDesc">Expense Description</label>
+                                    <ValidationMessage For="@(() => Expense.ExpenseDesc)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Expense Type</label>
+                                <InputRadioGroup @bind-Value="Expense.IsDirect">
+                                    <div class="d-flex gap-4">
+                                        <div class="form-check">
+                                            <InputRadio id="direct" class="form-check-input" Value="true" />
+                                            <label for="direct" class="form-check-label">Direct</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <InputRadio id="indirect" class="form-check-input" Value="false" />
+                                            <label for="indirect" class="form-check-label">Indirect</label>
+                                        </div>
+                                    </div>
+                                </InputRadioGroup>
+                                <ValidationMessage For="@(() => Expense.IsDirect)" />
+                            </div>
+
+                            @if (Expense.ExpenseCode > 0)
+                            {
+                                <div class="row g-3 mt-2">
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="Expense.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                            <label for="CreatedBy">Created By</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <input class="form-control" id="CreatedDate" value="@Expense.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                            <label for="CreatedDate">Created Date</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="Expense.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                            <label for="ModifiedBy">Modified By</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <input class="form-control" id="ModifiedDate" value="@Expense.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                            <label for="ModifiedDate">Modified Date</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(ExpenseCode == 0 || ExpenseCode == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/expense" />
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    // User Rights
+    protected override string ScreenName => "Expense";
+
+    [Parameter]
+    public int? ExpenseCode { get; set; }
+
+    private bool isProcessing = true;
+    // private Expense Expense { get; set; } = new();
+    private Expense Expense { get; set; } = new Expense();
+    private string? UserName = string.Empty;
+
+
+    private string expenseTitle => (ExpenseCode == 0 || ExpenseCode == null ? "Create" : "Update") + " Expense";
+    private string expenseIcon => "bi-graph-down-arrow";
+
+    private List<PageHeader.BreadcrumbItem> expenseBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Account" },
+        new PageHeader.BreadcrumbItem { Text = "Expense", IsLast = true }
+    };
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+            await LoadExpense();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An Error Occured while handling the Expense  OnInitializedAsync() Method");
+        }
+    }
+
+    private async Task LoadExpense()
+    {
+        try
+        {
+            if (ExpenseCode > 0)
+            {
+                var existing = await _unitOfWork.Expenses.GetAsync(ExpenseCode.Value);
+                if (existing != null)
+                {
+                    Expense = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An error Occured while handling the Expense LoadExpense() Method");
+
+        }
+    }
+
+    private async Task UpsertExpense()
+    {
+        try
+        {
+            isProcessing = true;
+            bool isDuplicate = await _unitOfWork.Expenses.ExistsByNameAsync("ExpenseName", Expense.ExpenseName?.Trim(), "ExpenseCode", Expense.ExpenseCode == 0 ? null : Expense.ExpenseCode);
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Expense name already exists.");
+                isProcessing = false;
+                return;
+            }
+
+            if (Expense.ExpenseCode == 0)
+            {
+                Expense.CreatedBy = UserName;
+                Expense.CreatedDate = DateTime.Now;
+                await _unitOfWork.Expenses.CreateAsync(Expense);
+                await _unitOfWork.SaveAsync();
+                await loggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress, screen: "Expense", action: $"Expense Created Successfully {Expense.ExpenseName}",
+                additionalInfo: $"ExpenseName: {Expense.ExpenseName}");
+                await _js.ToastrSuccess("Expense created successfully.");
+            }
+            else
+            {
+                Expense.ModifiedBy = UserName;
+                Expense.ModifiedDate = DateTime.Now;
+                await _unitOfWork.Expenses.UpdateAsync(Expense);
+                await _unitOfWork.SaveAsync();
+                await loggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress, screen: "Expense", action: $"Expense Updated Successfully {Expense.ExpenseName}",
+                additionalInfo: $"ExpenseName: {Expense.ExpenseName}");
+                await _js.ToastrSuccess("Expense updated successfully.");
+            }
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            isProcessing = false;
+            _navigationManager.NavigateTo("/expense");
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An Error occured while handling the Expense UpsertExpense() Method");
+
+        }
+    }
+}
+
+
+
+
+
+

@@ -1,0 +1,175 @@
+﻿@page "/reviewMaster/create"
+@page "/reviewMaster/update/{SlNo:int}"
+
+@using V.SMART.Shared.Data.SalesAndLabour.ContractReview
+
+@inherits BaseUserRightsComponent
+
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@inject IContractReviewService _contractReview
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@ProcessTitle"
+                            TitleIcon="bi bi-arrow-repeat"
+                            Breadcrumbs="@ContractReviewMasterBreadcrumbs" />
+
+
+                <div class="card-body">
+                    <EditForm Model="ReviewMaster" OnValidSubmit="UpsertContractReviewMaster">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="ReviewMaster.Description"
+                                                      Id="Description"
+                                                      Placeholder="Process Name"
+                                                      CssClass="form-control" />
+                                    <label for="ProcessName">Description</label>
+                                    <ValidationMessage For="@(() => ReviewMaster.Description)" />
+                                </div>
+                            </div>
+                            
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(SlNo == 0 || SlNo == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/contractReviewMasterList" />
+                            </div>
+                        </div>
+
+                        @if (SlNo > 0)
+                        {
+                            <div class="mt-4 small text-muted">
+                                <p><strong>Created By:</strong> @ReviewMaster.CreatedBy</p>
+                                <p><strong>Created Date:</strong> @ReviewMaster.CreatedDate?.ToString("g")</p>
+                                <p><strong>Modified By:</strong> @ReviewMaster.ModifiedBy</p>
+                                <p><strong>Modified Date:</strong> @ReviewMaster.ModifiedDate?.ToString("g")</p>
+                            </div>
+                        }
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+@code
+{
+    protected override string ScreenName => "Contract Review";
+
+    [Parameter] public int? SlNo { get; set; }
+
+    private bool isProcessing = true;
+
+    private ContractReviewMaster ReviewMaster { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> ContractReviewMasterBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory Master" },
+        new PageHeader.BreadcrumbItem { Text = "Contract Review Master", IsLast = true }
+    };
+    private string ProcessTitle => (SlNo == 0 || SlNo == null ? "Create" : "Update") + "Contract Review";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            if (SlNo.Value > 0)
+            {
+                ReviewMaster = await _contractReview.GetMasterBySlNoAsync(SlNo.Value);
+            }
+            isProcessing = false;
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, " OnInitializedAsync in ContractReviewMaster failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task UpsertContractReviewMaster()
+    {
+        try
+        {
+            isProcessing = true;
+            bool isDuplicate = await _contractReview.ExistsByDescriptionAsync(ReviewMaster.Description.Trim());
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Description name already exists.");
+                isProcessing = false;
+                return;
+            }
+            bool isNewMaster = ReviewMaster.SlNo == 0;
+            try
+            {
+                await _contractReview.UpsertContractMasterAsync(ReviewMaster);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+           
+            if (isNewMaster)
+                await _js.ToastrSuccess("MasterDescription saved successfully.");
+            else
+                await _js.ToastrSuccess("MasterDescription updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/contractReviewMasterList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertContractReviewMaster() event for ContractReviewMaaster");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

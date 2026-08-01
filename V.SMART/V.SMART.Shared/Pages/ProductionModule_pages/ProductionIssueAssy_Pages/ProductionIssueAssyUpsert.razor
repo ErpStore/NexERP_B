@@ -1,0 +1,1773 @@
+﻿@page "/productionIssueAssy/create"
+@page "/productionIssueAssy/update/{IssueId:int}"
+
+
+@using MudBlazor
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.HumanResourceViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject IProductionIssueAssyService prodIssueAssyService
+@inject ILoggingService logs
+@inject ReportService reportService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+
+<DetailsModal Title="Job Order Details"
+              Columns="@JobOrderColumns"
+              ColumnFields="@JobOrderFields"
+              HiddenColumns="@JobOrderHiddenColumns"
+              Data="@JobOrderData"
+              IsVisible="@IsJobOrderModalVisible"
+              IsVisibleChanged="@((val) => IsJobOrderModalVisible = val)"
+              OnSelectedItems="OnJobOrderSelectedAsync">
+
+
+    <HeaderContent>
+        <div class="d-flex justify-content-end gap-2 mb-2">
+
+            <label class="d-flex align-items-center cursor-pointer px-2 py-1
+                          rounded-pill
+                          @(SelectedOption == "Stock" ? "bg-primary text-white" : "bg-light text-dark")"
+                   style="font-size: 0.75rem;">
+                <input type="radio" class="d-none" name="itemType" id="onlyStock" value="Stock"
+                       checked="@(SelectedOption == "Stock")"
+                       @onchange="OnStockFilterChanged" />
+                <i class="bi bi-box-seam fs-6 me-1"></i>
+                Load only Stock exists Items
+            </label>
+
+            <label class="d-flex align-items-center cursor-pointer px-2 py-1
+                          rounded-pill
+                          @(SelectedOption == "All" ? "bg-success text-white" : "bg-light text-dark")"
+                   style="font-size: 0.75rem;">
+                <input type="radio" class="d-none" name="itemType" id="allItems" value="All"
+                       checked="@(SelectedOption == "All")"
+                       @onchange="OnStockFilterChanged" />
+                <i class="bi bi-list-ul fs-6 me-1"></i>
+                Load All Items related Assembly
+            </label>
+
+        </div>
+    </HeaderContent>
+
+</DetailsModal>
+
+<!-- Shared Modal -->
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+  position: sticky;
+  right: 0;
+  background-color: #f8f9fa;
+  z-index: 10;
+}
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@(ProductionIssueAssyVMs.IssueId > 0 ? "Update Production Issue Assembly" : "Create Production Issue Assembly")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@materialIssueBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="ProductionIssueAssyVMs" OnValidSubmit="UpsertProdIssueAssy">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+
+                    <!-- Correspondence Status -->
+                    <div class="row g-3 mb-2 align-items-center">
+
+                        @if (ProductionIssueAssyVMs.IssueId > 0 && !string.IsNullOrWhiteSpace(ProductionIssueAssyVMs.IssueNo))
+                        {
+                            <CorrespondenceStatus ReferenceType="Production Issue Assembly"
+                                                  ReferenceId="@ProductionIssueAssyVMs.IssueId"
+                                                  ReferenceTypeName="@ProductionIssueAssyVMs.IssueNo" />
+                        }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <!-- =================== Production Issue Details Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Document Details</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- Material issue No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Material Issue No.</small>
+                                        </label>
+                                        @if (IsMonthwiseNumber)
+                                        {
+                                            <div class="col-12 col-sm-9">
+
+                                                <div class="row g-2 align-items-center">
+
+                                                    <div class="col-2">
+                                                        <InputText class="form-control form-control-sm text-center"
+                                                                   @bind-Value="ProductionIssueAssyVMs.DepartmentCode"
+                                                                   placeholder="Dept"
+                                                                   readonly />
+                                                    </div>
+
+
+                                                    <div class="col-2">
+                                                        <InputText class="form-control form-control-sm text-center"
+                                                                   @bind-Value="ProductionIssueAssyVMs.MonthCode"
+                                                                   placeholder="MM"
+                                                                   readonly />
+                                                    </div>
+
+
+                                                    <div class="col-4">
+                                                        <InputText class="form-control form-control-sm text-center fw-bold"
+                                                                   @bind-Value="ProductionIssueAssyVMs.IssueNo"
+                                                                   readonly />
+                                                    </div>
+
+
+                                                    <div class="col-4">
+                                                        <InputText class="form-control form-control-sm text-center"
+                                                                   @bind-Value="ProductionIssueAssyVMs.Suffix"
+                                                                   placeholder="FY"
+                                                                   readonly />
+                                                    </div>
+
+                                                </div>
+
+                                                <ValidationMessage For="@(() => ProductionIssueAssyVMs.IssueNo)" />
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                               placeholder="Material Issue No."
+                                                               maxlength="30"
+                                                               @bind-Value="@ProductionIssueAssyVMs.IssueNo"
+                                                               readonly />
+
+                                                    <span class="input-group-text rounded-3">@ProductionIssueAssyVMs.Suffix</span>
+                                                </div>
+                                                <ValidationMessage For="@(() => ProductionIssueAssyVMs.IssueNo)" />
+                                                <ValidationMessage For="@(() => ProductionIssueAssyVMs.Suffix)" />
+                                            </div>
+
+                                        }
+
+                                    </div>
+
+                                    <!-- Material issue Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Material Issue Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@ProductionIssueAssyVMs.IssueDate" />
+                                            <ValidationMessage For="@(() => ProductionIssueAssyVMs.IssueDate)" />
+                                        </div>
+                                    </div>
+
+                                    @if (jobOrderPendingCount > 0)
+                                    {
+                                        <!-- Job No -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Job Orders</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                        @onclick="ShowJobOrderDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> Job Order Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- =================== Production Material Issue Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Production Issue Details</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- Stores -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Issue From Store</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    id="storeId"
+                                                    value="@ProductionIssueAssyVMs.StoreIssId"
+                                                    @onchange="OnStoreChanged">
+                                                <option value="0">--Select Store--</option>
+                                                @foreach (var storeid in Stores)
+                                                {
+                                                    <option value="@storeid.StoreId">@storeid.StoreName</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Issue To Whom -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Issued To Whom </small>
+                                        </label>
+                                         <div class="col-12 col-sm-9">
+
+                                         @if (staffVMs.Any())
+                                         {
+                                             if (staffVMs.Count == 1)
+                                             {
+                                                 <input type="text"
+                                                        class="form-control form-control-sm rounded-3 w-100"
+                                                        @bind="ProductionIssueAssyVMs.IssueToWhom"
+                                                         />
+                                             }
+                                             else
+                                             {
+                                                 <select class="form-select form-select-sm"
+                                                         @bind="ProductionIssueAssyVMs.IssueToWhom">
+                                                     <option value="">-- Select Staff --</option>
+                                                     @foreach (var s in staffVMs)
+                                                     {
+                                                         <option value="@s.StaffName">@s.StaffName</option>
+                                                     }
+                                                 </select>
+                                             }
+                                         }
+                                         else
+                                         {
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind="ProductionIssueAssyVMs.IssueToWhom" />
+                                                <ValidationMessage For="@(() => ProductionIssueAssyVMs.IssueToWhom)" />
+                                            </div>
+                                         }
+                                    </div>
+                                   </div>
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      @bind="ProductionIssueAssyVMs.MainRemark"></textarea>
+                                            <ValidationMessage For="@(() => ProductionIssueAssyVMs.MainRemark)" />
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1"
+                                 style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Item Details</span>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0"
+                                               style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:120px;">Job No.</th>
+                                                    <th style="width:110px;">Job Date</th>
+                                                    <th style="width:140px;">Assy/SubAssy</th>
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:120px;">Issue Qty</th>
+                                                    <th style="width:120px;">Unit Price</th>
+                                                    <th style="width:120px;">Bal Qty</th>
+                                                    <th style="width:130px;">Stock Qty</th>
+                                                    <th style="width:130px;">Batch No</th>
+                                                    <th style="width:200px;">Remarks</th>
+                                                    <th style="width:120px;">Cost Center</th>
+                                                    <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @if (ProductionIssueAssyVMs.ProductionIssueAssySubVMs?.Any() == true)
+                                                {
+                                                    @foreach (var subitem in ProductionIssueAssyVMs.ProductionIssueAssySubVMs)
+                                                    {
+                                                        <tr @key="subitem">
+                                                            <td>@subitem.SlNo</td>
+                                                            <td>@subitem.JobOrderNo</td>
+                                                            <td>@subitem.JobOrderDate</td>
+                                                            <td>@subitem.AssyItemCode</td>
+                                                            <td>
+                                                                <div class="row g-1 align-items-center">
+                                                                    <div class="col-10">@subitem.ItemCode</div>
+                                                                    <div class="col-2 text-center">
+                                                                        @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                        {
+                                                                            <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                           Size="Size.Small"
+                                                                                           Color="Color.Primary"
+                                                                                           OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                           Edge="Edge.End"
+                                                                                           Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                        }
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+
+                                                            <td>@subitem.ItemName</td>
+                                                            <td>@subitem.MeasureUnit</td>
+
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Issue Qty"
+                                                                           title="Enter Issue Quantity"
+                                                                           step="any"
+                                                                           @bind="subitem.IssueQty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnIssueQtyChanged(e, subitem))" />
+                                                                    <ValidationMessage For="@(() => subitem.IssueQty)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @subitem.IssueQty
+                                                                }
+                                                            </td>
+
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Unit Price"
+                                                                           title="Enter Unit Price"
+                                                                           step="any"
+                                                                           @bind="subitem.UnitPrice" />
+                                                                    <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @subitem.UnitPrice
+                                                                }
+                                                            </td>
+
+                                                            <td>@subitem.BalQty</td>
+
+                                                            <td class="text-danger fw-bold">@subitem.StockQty</td>
+
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <InputText @bind-Value="subitem.BatchNo"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="BatchNo" />
+                                                                    <ValidationMessage For="@(() => subitem.BatchNo)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @subitem.BatchNo
+                                                                }
+                                                            </td>
+
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <InputText @bind-Value="subitem.Remark"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Remarks" />
+                                                                    <ValidationMessage For="@(() => subitem.Remark)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @subitem.Remark
+                                                                }
+                                                            </td>
+
+                                                            <td>@subitem.ProjectNo</td>
+
+                                                            <td class="freeze-last-col text-end">
+                                                                <div class="d-flex justify-content-end gap-1">
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                                @onclick="async () => await SaveRow(subitem)">
+                                                                            <i class="bi bi-check-lg"></i>
+                                                                        </button>
+                                                                        <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel"
+                                                                                @onclick="async () => await CancelEdit(subitem, ProductionIssueAssyVMs)">
+                                                                            <i class="bi bi-x-lg"></i>
+                                                                        </button>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                                @onclick="async () => await EditRowAsync(subitem)">
+                                                                            <i class="bi bi-pencil"></i>
+                                                                        </button>
+                                                                        <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                                @onclick="async () => await RemoveRow(subitem)">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    }
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <tr>
+                                                        <td colspan="11" style="height:150px;" class="text-center align-middle text-muted fs-6 fw-semibold">
+                                                            <div class="d-flex justify-content-center align-items-center" style="min-height:100px;">
+                                                                <i class="bi bi-info-circle me-2 text-secondary"></i>
+                                                                No items to display
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+
+                                                }
+                                            </tbody>
+
+                                            @if (ProductionIssueAssyVMs.ProductionIssueAssySubVMs?.Any() == true)
+                                            {
+                                                <tfoot class="table-warning text-dark fw-bold">
+                                                    <tr>
+                                                        <td colspan="7" class="text-end">Totals:</td>
+                                                        <td>@ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Sum(x => x.IssueQty)</td>
+                                                        <td> Avg:@ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Average(x => x.UnitPrice)</td>
+                                                        <td>@ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Sum(x => x.BalQty)</td>
+                                                        <td>@ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Sum(x => x.StockQty)</td>
+                                                        <td colspan="4"></td>
+                                                    </tr>
+                                                </tfoot>
+                                            }
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--Action Buttons -->
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(ProductionIssueAssyVMs.IssueId > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                        }
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <SmartBackButton Url="@($"/productionIssueList?currentPage={currentPage}")" />
+                        </div>
+
+                        @if (CanCreate || CanEdit && IssueId > 0)
+                        {
+                            <div class="col-12 col-md-3">
+                                <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                    <i class="bi bi-printer me-1"></i>Print
+                                </button>
+                            </div>
+                        }
+
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Production Issue WO Assembly";
+
+    [Parameter] public int? IssueId { get; set; }
+
+    private bool isProcessing = true;
+    private ProductionIssueAssyVM ProductionIssueAssyVMs { get; set; } = new();
+    private List<Store> Stores = new();
+
+    private ProductionIssueAssySubVM? rowToDelete;
+
+    private int jobOrderPendingCount = 0;
+    private int screenCode { get; set; }
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private string SelectedOption = "Stock";
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private string? pdfBase64;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+    private List<StaffVM> staffVMs = new();
+
+    private List<PageHeader.BreadcrumbItem> materialIssueBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Production" },
+        new PageHeader.BreadcrumbItem { Text = "Assembly" },
+        new PageHeader.BreadcrumbItem { Text = "Material Issue", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    //Detail Modal
+    private bool IsJobOrderModalVisible = false;
+    private List<Dictionary<string, object>> JobOrderData = new();
+    private List<Dictionary<string, object>> AllJobOrderData = new();
+
+    private List<string> JobOrderColumns = new() { "RefJobId","RefJobSubId", "Ref Job No", "Ref Job Date", "Assy/SubAssyId", "Assy/SubAssy Code",
+    "Assy/SubAssy Name", "Assy/SubAssyUom", "JobOrderQty" ,"Item Code", "Item Name", "MeasureUnit","Req. Qty","Stock Qty", "CostCenterId", "Cost Center"};
+
+    private List<string> JobOrderFields = new() { "RefJobId","RefJobSubId", "RefJobNo", "RefJobDate", "Assy/SubAssyId", "Assy/SubAssyCode",
+    "Assy/SubAssyName", "Assy/SubAssyUom", "JobOrderQty","ItemCode", "ItemName", "MeasureUnit", "ReqQty", "StockQty","CostCenterId","CostCenter" };
+
+    private List<string> JobOrderHiddenColumns = new() { "RefJobId", "RefJobSubId", "Assy/SubAssyId", "Assy/SubAssy Name", 
+    "Assy/SubAssyUom", "Item Name", "MeasureUnit","CostCenterId" };
+
+    #endregion
+    private bool IsMonthwiseNumber { get; set; } = false;
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            screenCode = await prodIssueAssyService.GetScreenCodeByScreenNameAsync(ScreenName);
+            Stores = await prodIssueAssyService.GetAllActiveStoresAsync();
+
+            jobOrderPendingCount = await prodIssueAssyService.GetPendingJobOrdersCountAsync();
+            IsMonthwiseNumber = await prodIssueAssyService.IsMonthwiseNumberGenerationEnabledAsync();
+
+            if (IssueId.HasValue)
+            {
+                await LoadExistingProductionIssue(IssueId.Value);
+            }
+            else
+            {
+                await InitializeNewProductionIssueAssy();
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingProductionIssue(int issueId)
+    {
+        try
+        {
+            ProductionIssueAssyVMs = await prodIssueAssyService.GetProductionByIssueIdAsync(issueId);
+            if (ProductionIssueAssyVMs == null)
+            {
+                await _js.ToastrWarning("Production Issue Assembly not found.");
+                return;
+            }
+
+            foreach (var prodSub in ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[prodSub.ItemId.Value] = await prodIssueAssyService.GetCorrespondenceAttachmentsCountAsync(prodSub.ItemId.Value, "Item");
+            }
+
+            IsSomeItemsTransMade = CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing production Issue Assembly.");
+            await logs.LogDeveloperError(ex, $"LoadExistingProductionIssue failed for IssueId: {issueId}");
+        }
+    }
+
+    private bool CheckIsTransMade()
+    {
+        var list = ProductionIssueAssyVMs?.ProductionIssueAssySubVMs;
+        if (list == null || list.Count == 0)
+            return false;
+
+        decimal totalQty = 0, totalBalQty = 0;
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            totalQty += list[i].IssueQty.GetValueOrDefault();
+            totalBalQty += list[i].BalQty.GetValueOrDefault();
+        }
+
+        return totalQty != totalBalQty;
+    }
+
+    private async Task InitializeNewProductionIssueAssy()
+    {
+        try
+        {
+            if (ProductionIssueAssyVMs == null)
+                ProductionIssueAssyVMs = new ProductionIssueAssyVM();
+
+            ProductionIssueAssyVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+          
+            //ProductionIssueAssyVMs.IssueNo = await prodIssueAssyService.GetProductionIssueNumberAsync(ProductionIssueAssyVMs.Suffix);
+            if (IsMonthwiseNumber)
+            {
+                ProductionIssueAssyVMs.DepartmentCode = await prodIssueAssyService.GetDerpartmentCodeByCurrentuserAsync();
+                ProductionIssueAssyVMs.MonthCode = DateTime.Now.Month.ToString("D2");
+                ProductionIssueAssyVMs.IssueNo = await prodIssueAssyService.GetMonthWiseProductionIssueNumberAsync(ProductionIssueAssyVMs.Suffix);
+
+            }
+            else
+            {
+                ProductionIssueAssyVMs.IssueNo = await prodIssueAssyService.GetProductionIssueNumberAsync(ProductionIssueAssyVMs.Suffix);
+            }
+
+            var MapStoreForProdIssue = await prodIssueAssyService.GetMappedStoreForFormAsync("PMIssueAssyForm");
+
+            if (MapStoreForProdIssue.StoreId > 0)
+            {
+                ProductionIssueAssyVMs.StoreIssId = MapStoreForProdIssue.StoreId;
+                ProductionIssueAssyVMs.StoreIssName = MapStoreForProdIssue.StoreName;
+            }
+            else
+            {
+                ProductionIssueAssyVMs.StoreIssId = null;
+                ProductionIssueAssyVMs.StoreIssName = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new Production Issue Number.");
+            await logs.LogDeveloperError(ex, "InitializeNewProductionIssueAssy failed");
+        }
+    }
+
+    private async Task OnStockFilterChanged(ChangeEventArgs e)
+    {
+        SelectedOption = e.Value?.ToString();
+        await ApplyJobOrderFilter();
+    }
+
+
+    #endregion
+
+    #region Store Handlers
+
+    private async Task OnStoreChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var newStoreId))
+                return;
+
+            ProductionIssueAssyVMs.StoreIssId = newStoreId;
+
+            if (newStoreId == 0)
+            {
+                await _js.ToastrWarning("Please select a valid Store. Store is required.");
+
+                if (ProductionIssueAssyVMs.ProductionIssueAssySubVMs != null)
+                {
+                    foreach (var sub in ProductionIssueAssyVMs.ProductionIssueAssySubVMs)
+                        sub.StockQty = 0;
+                }
+                StateHasChanged();
+                return;
+            }
+
+            if (ProductionIssueAssyVMs.ProductionIssueAssySubVMs != null && ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Any())
+            {
+                var itemIds = ProductionIssueAssyVMs.ProductionIssueAssySubVMs
+                    .Where(s => s.ItemId.HasValue)
+                    .Select(s => s.ItemId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (itemIds.Count == 0)
+                {
+                    await _js.ToastrInfo("No items found to update stock for this store.");
+                    return;
+                }
+
+                var stockDict = await prodIssueAssyService.GetStockForItemsAsync(itemIds, newStoreId);
+
+                foreach (var sub in ProductionIssueAssyVMs.ProductionIssueAssySubVMs)
+                {
+                    if (sub.ItemId.HasValue && stockDict.TryGetValue(sub.ItemId.Value, out var qty))
+                        sub.StockQty = qty;
+                    else
+                        sub.StockQty = 0;
+                }
+
+                await _js.ToastrSuccess("Stock quantities updated based on selected store.");
+            }
+            else
+            {
+                await _js.ToastrInfo("No sub-items available to update stock.");
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Error occurred in OnStoreChanged while updating stock quantities.");
+            await _js.ToastrError("An unexpected error occurred while updating stock. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Quantity Change Handler
+
+    private async Task OnIssueQtyChanged(ChangeEventArgs e, ProductionIssueAssySubVM SubVM)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.IssueQty = 0;
+                SubVM.BalQty = 0;
+                await _js.ToastrWarning("IssueQty must be a positive number.");
+                return;
+            }
+
+            var stockQty = SubVM.StockQty;
+
+            if (stockQty <= 0 && SubVM.IssueSubId == 0)
+            {
+                SubVM.IssueQty = 0;
+                SubVM.BalQty = 0;
+                await _js.ToastrError("No stock available for this item.");
+                return;
+            }
+
+            if (SubVM.IssueSubId == 0)
+            {
+                if (SubVM.RefJobOrderSubId > 0)
+                {
+                    var JobItemBalQty = await prodIssueAssyService
+                        .GetJobOrderItemBalQtyFromJobSubId(SubVM.RefJobOrderSubId);
+
+                    var allowedQty = Math.Min(JobItemBalQty, stockQty.GetValueOrDefault());
+
+                    if (newQty <= allowedQty)
+                    {
+                        SubVM.IssueQty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.IssueQty = allowedQty;
+                        SubVM.BalQty = allowedQty;
+
+                        await _js.ToastrWarning(
+                            $"Issue Qty cannot exceed JobOrder Qty ({JobItemBalQty}) OR Stock Qty ({stockQty})."
+                        );
+                    }
+                }
+                else
+                {
+                    if (newQty > stockQty)
+                    {
+                        SubVM.IssueQty = stockQty;
+                        SubVM.BalQty = stockQty;
+                        await _js.ToastrWarning($"Issue Qty cannot exceed Stock Qty ({stockQty}).");
+                    }
+                    else
+                    {
+                        SubVM.IssueQty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                }
+            }
+            else
+            {
+                var original = await prodIssueAssyService
+                    .GetProductionIssueSubItemDetailByIssueSubIdAsync(SubVM.IssueSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.IssueQty - original.BalQty;
+
+                var effectiveStock = (stockQty.GetValueOrDefault() + original.IssueQty);
+
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.IssueQty = alreadyTransacted;
+                    SubVM.BalQty = 0;
+                    await _js.ToastrWarning(
+                        $"Qty cannot be less than {alreadyTransacted} (already transacted)."
+                    );
+                    return;
+                }
+
+                if (SubVM.RefJobOrderSubId > 0)
+                {
+                    var JobItemBalQty = await prodIssueAssyService
+                        .GetJobOrderItemBalQtyFromJobSubId(SubVM.RefJobOrderSubId);
+
+                    var maxAllowedQty = original.IssueQty + JobItemBalQty;
+
+                    var allowedQty = Math.Min(maxAllowedQty.GetValueOrDefault(), effectiveStock.GetValueOrDefault());
+
+                    if (newQty > allowedQty)
+                    {
+                        SubVM.IssueQty = allowedQty;
+                        SubVM.BalQty = allowedQty - alreadyTransacted;
+
+                        await _js.ToastrWarning(
+                            $"Issue Qty cannot exceed JobOrder Allowed Qty ({maxAllowedQty}) OR Available Stock ({effectiveStock})."
+                        );
+                    }
+                    else
+                    {
+                        SubVM.IssueQty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted;
+                    }
+                }
+                else
+                {
+                    var allowedQty = effectiveStock;
+
+                    if (newQty > allowedQty)
+                    {
+                        SubVM.IssueQty = allowedQty;
+                        SubVM.BalQty = allowedQty - alreadyTransacted;
+
+                        await _js.ToastrWarning(
+                            $"Issue Qty cannot exceed Stock Qty ({effectiveStock})."
+                        );
+                    }
+                    else
+                    {
+                        SubVM.IssueQty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OnQtyChange failed for IssueSubId: {SubVM?.IssueSubId}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Job Order Details
+
+    private async Task ShowJobOrderDetails()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (!ProductionIssueAssyVMs.StoreIssId.HasValue || ProductionIssueAssyVMs.StoreIssId == 0)
+            {
+                await _js.ToastrInfo("Select the Issue From Store first");
+                return;
+            }
+
+            AllJobOrderData = await prodIssueAssyService
+                .GetAllOpenJobOrdersAsync(ProductionIssueAssyVMs.StoreIssId.Value);
+
+            await ApplyJobOrderFilter();
+            IsJobOrderModalVisible = true;
+
+            if (JobOrderData.Count > 0)
+                await _js.ToastrSuccess("Job Order data loaded successfully.");
+            else
+                await _js.ToastrWarning("No open Job Orders found.");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "ShowJobOrderDetails failed.");
+            await _js.ToastrError("Error fetching JobOrder Details list.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task ApplyJobOrderFilter()
+    {
+        if (SelectedOption == "Stock")
+        {
+            JobOrderData = AllJobOrderData
+                .Where(x => Convert.ToDecimal(x["StockQty"]) > 0).ToList();
+        }
+        else
+        {
+            JobOrderData = AllJobOrderData.ToList();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+
+
+    private async Task OnJobOrderSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (ProductionIssueAssyVMs.ProductionIssueAssySubVMs == null)
+            ProductionIssueAssyVMs.ProductionIssueAssySubVMs = new List<ProductionIssueAssySubVM>();
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .ToList();
+
+            var JobOrderNos = selectedItems.Where(i => i.ContainsKey("RefJobId"))
+              .Select(i => Convert.ToInt32(i["RefJobId"])).Distinct().ToList();
+
+            var priceDict = await prodIssueAssyService.GetBulkLastUnitPricesAsync(itemIds);
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? RefJobSubId = item.ContainsKey("RefJobSubId") && item["RefJobSubId"] != null
+                    ? Convert.ToInt32(item["RefJobSubId"])
+                    : (int?)null;
+
+                // Skip if already exists
+                if (ProductionIssueAssyVMs.ProductionIssueAssySubVMs
+                    .Any(x => x.ItemId == itemId && x.RefJobOrderSubId == RefJobSubId))
+                    continue;
+
+                var subVm = new ProductionIssueAssySubVM
+                {
+                    RefJobId = item.ContainsKey("RefJobId") && item["RefJobId"] != null
+                        ? Convert.ToInt32(item["RefJobId"])
+                        : 0,
+
+                    RefJobOrderSubId = RefJobSubId.Value,
+
+                    JobOrderNo = item.ContainsKey("RefJobNo") ? item["RefJobNo"]?.ToString() : "",
+                    JobOrderDate = item.ContainsKey("RefJobDate") && item["RefJobDate"] != null
+                        ? Convert.ToDateTime(item["RefJobDate"])
+                        : null,
+
+                    AssyId = item.ContainsKey("Assy/SubAssyId") && item["Assy/SubAssyId"] != null
+                        ? Convert.ToInt32(item["Assy/SubAssyId"])
+                        : 0,
+
+                    AssyItemCode = item.ContainsKey("Assy/SubAssyCode")
+                        ? item["Assy/SubAssyCode"]?.ToString()
+                        : "",
+
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    MeasureUnit = item.ContainsKey("MeasureUnit") ? item["MeasureUnit"]?.ToString() : "",
+
+                    IssueQty = item.ContainsKey("ReqQty") && item["ReqQty"] != null
+                        ? Convert.ToDecimal(item["ReqQty"])
+                        : 0,
+
+                    BalQty = item.ContainsKey("ReqQty") && item["ReqQty"] != null
+                        ? Convert.ToDecimal(item["ReqQty"])
+                        : 0,
+
+                    UnitPrice = priceDict.TryGetValue(itemId, out var price) ? price : 0,
+
+                    StockQty = item.ContainsKey("StockQty") && item["StockQty"] != null
+                        ? Convert.ToDecimal(item["StockQty"])
+                        : 0,
+
+                    CostId = item.ContainsKey("CostCenterId") && item["CostCenterId"] != null
+                            ? (Convert.ToInt32(item["CostCenterId"]) == 0
+                                 ? (int?)null
+                                 : Convert.ToInt32(item["CostCenterId"]))
+                            : (int?)null,
+
+                    ProjectNo = item.ContainsKey("CostCenter") ? item["CostCenter"]?.ToString() : "",
+
+                    IsEditable = true
+                };
+
+                ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Add(subVm);
+            }
+
+            // Assign serial numbers
+            int slNo = 1;
+            foreach (var row in ProductionIssueAssyVMs.ProductionIssueAssySubVMs)
+            {
+                row.SlNo = slNo++;
+            }
+
+            staffVMs = await prodIssueAssyService.GetStaffDetailsByJobOrderIdAsync(JobOrderNos);
+
+            ProductionIssueAssyVMs.IssueToWhom =
+                       staffVMs?
+                      .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.StaffName))
+                      ?.StaffName;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "OnJobOrderSelectedAsync failed in Production Issue Assembly.");
+            await _js.ToastrError("Error processing selected items in Production Issue.");
+        }
+
+    }
+
+    #endregion
+
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(ProductionIssueAssySubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.IssueQty == null || row.IssueQty <= 0)
+                errors.Add("Issue Quantity must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = ProductionIssueAssyVMs.ProductionIssueAssySubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await logs.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await logs.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(ProductionIssueAssySubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"SaveRow failed for IssueSubId: {item?.IssueSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(ProductionIssueAssySubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"EditRowAsync failed for IssueSubId: {item?.IssueSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(ProductionIssueAssySubVM? item, ProductionIssueAssyVM? parentProdIssueAssy)
+    {
+        try
+        {
+            if (item == null || parentProdIssueAssy == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.IssueQty.HasValue || item.IssueQty.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentProdIssueAssy.ProductionIssueAssySubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"CancelEdit failed for IssueSubId: {item?.IssueSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(ProductionIssueAssySubVM item)
+    {
+        try
+        {
+            if (ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Count == 1 && item.IssueSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if(IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction history.");
+                return;
+            }
+
+            if (item.IssueQty.GetValueOrDefault() != item.BalQty)
+            {
+                await _js.ToastrWarning("This row cannot be deleted because some transactions are done.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Remove(item);
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"RemoveRow failed for IssueSubId: {item?.IssueSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in ProductionIssueAssyVMs.ProductionIssueAssySubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+
+    #region Multiple Job Order selection
+
+    private async Task OnJobSelectionChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var selectedValues = new List<int>();
+
+            if (e.Value is string singleValue)
+            {
+                selectedValues.Add(int.Parse(singleValue));
+            }
+            else if (e.Value is IEnumerable<string> multipleValues)
+            {
+                selectedValues = multipleValues.Select(int.Parse).ToList();
+            }
+
+            ProductionIssueAssyVMs.SelectedJobOrderIds = selectedValues;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error selecting job orders: {ex.Message}");
+            await _js.ToastrError("Error while selecting job orders.");
+        }
+    }
+
+    private async Task LoadSelectedJobOrders()
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            if (ProductionIssueAssyVMs.StoreIssId.GetValueOrDefault() == 0)
+            {
+                await _js.ToastrWarning("Please select 'Issue From Store' before loading Job Orders.");
+                return;
+            }
+
+            ProductionIssueAssyVMs.ProductionIssueAssySubVMs = new();
+
+            foreach (var jobId in ProductionIssueAssyVMs.SelectedJobOrderIds)
+            {
+                var jobDetails = await prodIssueAssyService.GetJobOrderDetailsByIdAsync(
+                    jobId,
+                    ProductionIssueAssyVMs.StoreIssId.GetValueOrDefault()
+                );
+
+                if (jobDetails?.ProductionIssueAssySubVMs?.Any() == true)
+                {
+                    ProductionIssueAssyVMs.ProductionIssueAssySubVMs.AddRange(jobDetails.ProductionIssueAssySubVMs);
+                }
+            }
+
+            if (SelectedOption == "Stock")
+            {
+                ProductionIssueAssyVMs.ProductionIssueAssySubVMs =
+                    ProductionIssueAssyVMs.ProductionIssueAssySubVMs
+                    .Where(x => x.StockQty > 0)
+                    .ToList();
+            }
+
+            await ResetSlno();
+
+            await _js.ToastrSuccess("Selected Job Orders loaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading selected job orders: {ex.Message}");
+            await _js.ToastrError("Error while loading selected job orders.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion 
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.IssueSubId > 0)
+            {
+                await prodIssueAssyService.DeleteAndResequenceAsync(rowToDelete, ProductionIssueAssyVMs,screenCode);
+
+                ProductionIssueAssyVMs.ProductionIssueAssySubVMs = await prodIssueAssyService.GetProductionIssueSubByIssueIdAsync(ProductionIssueAssyVMs.IssueId);
+            }
+            else
+            {
+                ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Remove(rowToDelete);
+
+                if (!ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Any())
+                {
+                    ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Add(new ProductionIssueAssySubVM
+                    {
+                        IssueId = ProductionIssueAssyVMs.IssueId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+            }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Count; i++)
+                        ProductionIssueAssyVMs.ProductionIssueAssySubVMs[i].SlNo = i + 1;
+                }
+            }
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"Error confirming deletion for IssueId: {ProductionIssueAssyVMs.IssueId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+
+    #region Production Issue Assembly Operations
+
+    private async Task UpsertProdIssueAssy()
+    {
+        try
+        {
+
+            isProcessing = true;
+
+            ProductionIssueAssyVMs.ProductionIssueAssySubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (x.IssueQty.GetValueOrDefault() == 0));
+
+            if (!ProductionIssueAssyVMs.ProductionIssueAssySubVMs.Any())
+            {
+                await _js.ToastrError("Cannot save a Production Issue Assembly without valid items.");
+                return;
+            }
+
+            if (ProductionIssueAssyVMs.StoreIssId == null)
+            {
+                await _js.ToastrError("Store selection is required.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(ProductionIssueAssyVMs.IssueToWhom))
+            {
+                await _js.ToastrError("Issue To Whom is required.");
+                return;
+            }
+
+            foreach (var line in ProductionIssueAssyVMs.ProductionIssueAssySubVMs)
+            {
+                bool isValid = await ValidateProdIssueSubAsync(line);
+                if (!isValid)
+                    return;
+            }
+
+            // Set processing only after all validations pass
+            isProcessing = true;
+
+            var isNewTCIssue = ProductionIssueAssyVMs.IssueId == 0;
+
+            await prodIssueAssyService.UpsertProdIssueAssy(ProductionIssueAssyVMs, screenCode,IsMonthwiseNumber);
+
+            await _js.ToastrSuccess(isNewTCIssue
+                ? "Production Issue Assembly saved successfully."
+                : "Production Issue Assembly updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/productionIssueList");
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Upsert Production Issue Assembly failed.");
+            await _js.ToastrError("Error saving Production Issue Assembly.");
+        }
+        finally
+        {
+            // Always reset processing
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateProdIssueSubAsync(ProductionIssueAssySubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.IssueQty.HasValue || line.IssueQty <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemCode}: Issue Quantity must be greater than 0.");
+                return false;
+            }
+
+            decimal issueQty = line.IssueQty.GetValueOrDefault();
+            decimal stockQty = await prodIssueAssyService
+                        .GetStockForItemAsync(line.ItemId.Value , ProductionIssueAssyVMs.StoreIssId.GetValueOrDefault());
+
+            if (line.IssueSubId == 0)
+            {
+                if (issueQty > stockQty)
+                {
+                    await _js.ToastrError($" SLNO. {line.SlNo}, of Item-Code {line.ItemCode}: Issue Qty ({issueQty}) cannot exceed Stock Qty ({stockQty})."
+                    );
+                    return false;
+                }
+
+                if (line.RefJobOrderSubId > 0)
+                {
+                    var jobBalQty = await prodIssueAssyService
+                        .GetJobOrderItemBalQtyFromJobSubId(line.RefJobOrderSubId);
+
+                    if (issueQty > jobBalQty)
+                    {
+                        await _js.ToastrError(
+                            $"Item {line.ItemCode}: Issue Qty ({issueQty}) cannot exceed Job Order Balance Qty ({jobBalQty})."
+                        );
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            var original = await prodIssueAssyService
+                .GetProductionIssueSubItemDetailByIssueSubIdAsync(line.IssueSubId);
+
+            if (original == null)
+                return true; 
+
+            decimal origQty = original.IssueQty ?? 0;
+            decimal origBal = original.BalQty ?? 0;
+            decimal alreadyTransacted = origQty - origBal;
+
+            // CANNOT BE LESS THAN ALREADY TRANSACTED
+            if (issueQty < alreadyTransacted)
+            {
+                await _js.ToastrError(
+                    $"Item {line.ItemCode}: Issue Qty cannot be less than already transacted ({alreadyTransacted})."
+                );
+                return false;
+            }
+
+            // EFFECTIVE STOCK = STOCK + ORIGINAL_QTY
+            decimal effectiveStock = stockQty + origQty;
+
+            if (issueQty > effectiveStock)
+            {
+                await _js.ToastrError(
+                    $"Item {line.ItemCode}: Issue Qty ({issueQty}) cannot exceed Available Stock ({effectiveStock})."
+                );
+                return false;
+            }
+
+            // JOB ORDER VALIDATION FOR EXISTING LINE
+            if (line.RefJobOrderSubId > 0)
+            {
+                var jobBalQty = await prodIssueAssyService
+                    .GetJobOrderItemBalQtyFromJobSubId(line.RefJobOrderSubId);
+
+                decimal maxJobOrderAllowed = origQty + jobBalQty;
+
+                if (issueQty > maxJobOrderAllowed)
+                {
+                    await _js.ToastrError(
+                        $"Item {line.ItemCode}: Issue Qty ({issueQty}) cannot exceed Job Order Allowed Qty ({maxJobOrderAllowed})."
+                    );
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "ValidateProdIssueSubAsync failed.");
+            await _js.ToastrError("Error validating Production Issue line.");
+            return false;
+        }
+    }
+
+    #endregion
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(IssueId.GetValueOrDefault(), "ProdMtlIssNoteAssy.frx", "IssueId", false, ScreenName, "Sp_Print_ProductionIssueAss");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Production Issue Assy");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Production Issue Assy.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

@@ -1,0 +1,991 @@
+﻿@page "/summarygraphs"
+
+@using Microsoft.EntityFrameworkCore.Metadata.Internal
+@using MudBlazor
+@using ApexCharts
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IAccountsService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.IAccountReportService
+@using V.SMART.Shared.ViewModels.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.ReportViewModel.AccountsVM
+
+@inherits BaseUserRightsComponent
+@inject ISummaryAndGraphsService summaryAndGraphsService
+@inject NavigationManager _navigation
+@inject ILoggingService _loggingService
+@inject IJSRuntime _js
+@inject IExcelTemplateService excelTemplateService
+
+<style>
+.page-section {
+    background: #f8fafc;
+    min-height: 100vh;
+}
+
+.report-card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 2px 15px rgba(0,0,0,.08);
+    transition: all .25s ease;
+}
+
+.report-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,.12);
+}
+
+.section-title {
+    color: #0d6efd;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.icon-box {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg,#0d6efd,#5b9cff);
+    color: white;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:18px;
+}
+
+.option-box {
+    border:1px solid #dbe4f0;
+    border-radius:12px;
+    padding:12px;
+    transition:.2s;
+}
+
+.option-box:hover {
+    background:#f8fbff;
+    border-color:#0d6efd;
+}
+
+.kpi-card {
+    border:none;
+    border-radius:16px;
+    box-shadow:0 2px 12px rgba(0,0,0,.08);
+}
+
+.table-modern thead th {
+    background:#0d6efd;
+    color:white;
+    border:none;
+    position:sticky;
+    top:0;
+    z-index:10;
+}
+
+.table-modern tbody tr:hover {
+    background:#f5f9ff;
+}
+
+.toolbar {
+    position:sticky;
+    top:0;
+    z-index:100;
+    background:white;
+    padding:10px;
+}
+
+    .icon-box {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg,#0d6efd,#4f8cff);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+<div class="container-fluid px-2 px-md-5 mt-4">
+    <div class="card shadow-sm border-1">
+
+        <PageHeader TitleText="Summary And Graphs"
+                    TitleIcon="bi bi-list-check"
+                    Breadcrumbs="@Summary" />
+
+        <div class="container-fluid p-4">
+
+            <!-- Date Range + Topic -->
+
+            <div class="row">
+
+                <div class="col-lg-4">
+                    <div class="card report-card">
+                        <div class="card-body">
+
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="icon-box">
+                                    <i class="bi bi-calendar-event"></i>
+                                </div>
+                                <h5 class="section-title ms-3 mb-0">
+                                    Date Range
+                                </h5>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-12 col-lg-5">
+                                    <label>From Date</label>
+                                    <InputDate @bind-Value="FromDate"
+                                               class="form-control" />
+                                </div>
+
+                                <div class="col-12 col-lg-2 text-center mt-4">
+                                    →
+                                </div>
+
+                                <div class="col-12 col-lg-5">
+                                    <label>To Date</label>
+                                    <InputDate @bind-Value="ToDate"
+                                               class="form-control" />
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-3">
+                    <div class="card report-card">
+                        <div class="card-body">
+
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="icon-box">
+                                    <i class="bi bi-layers"></i>
+                                </div>
+                                <h5 class="section-title ms-3 mb-0">
+                                    Select Topic
+                                </h5>
+                            </div>
+
+                            <select class="form-select" @onchange="LoadData">
+                                <option value="SalesMfg">Sales - Mfg</option>
+                                <option value="SalesLabour">Sales - Labour</option>
+                                <option value="Purchase">Purchase</option>
+                                <option value="Subcontract">Subcontract</option>
+                            </select>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-5">
+                    <div class="card report-card">
+                        <div class="card-body">
+
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="icon-box">
+                                    <i class="bi bi-pie-chart"></i>
+                                </div>
+                                <h5 class="section-title ms-3 mb-0">Summary Options</h5>
+                            </div>
+
+                            <div class="row g-3">
+
+                                <div class="col-md-6">
+                                    <div class="option-box">
+                                        <InputCheckbox Value="TransposeMatrix"
+                                                       ValueChanged="OnTransposeChanged"
+                                                       ValueExpression="() => TransposeMatrix" />
+                                        <label class="ms-2">Transpose</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="option-box">
+                                        <InputCheckbox Value="SummaryOnly"
+                                                       ValueChanged="OnSummaryChanged"
+                                                       ValueExpression="() => TransposeMatrix" />
+                                        <label class="ms-2">Summary</label>
+                                    </div>
+                                </div>
+
+                             @*    <div class="col-md-6">
+                                    <div class="option-box">
+                                        <InputRadioGroup @bind-Value="SummaryType">
+                                            <InputRadio Value="1" />
+                                            <label class="ms-2">Row Wise</label>
+                                        </InputRadioGroup>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="option-box">
+                                        <InputRadioGroup @bind-Value="SummaryType">
+                                            <InputRadio Value="0" />
+                                            <label class="ms-2">Column Wise</label>
+                                        </InputRadioGroup>
+                                    </div>
+                                </div> *@
+
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary -->
+
+            <!-- Chart Configuration -->
+           @*  <div class="card card report-card mt-2">
+                <div class="card-body">
+
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="icon-box">
+                            <i class="bi bi-clipboard-data"></i>
+                        </div>
+                        <h5 class="section-title ms-3 mb-0">Chart Configuration</h5>
+                    </div>
+
+                    <div class="row">
+
+                        <div class="col-md-3">
+
+                            <label>
+                                Chart Title
+                            </label>
+
+                            <InputText @bind-Value="ChartTitle"
+                                       class="form-control" />
+
+                        </div>
+
+                        <div class="col-md-3">
+
+                            <label>
+                                X Axis Title
+                            </label>
+
+                            <InputText @bind-Value="XAxisTitle"
+                                       class="form-control" />
+
+                        </div>
+
+                        <div class="col-md-3">
+
+                            <label>
+                                Y Axis Title
+                            </label>
+
+                            <InputText @bind-Value="YAxisTitle"
+                                       class="form-control" />
+
+                        </div>
+
+                        <div class="col-md-3">
+
+                            <label>
+                                Chart Type
+                            </label>
+
+                            <select  class="form-select" @onchange="ChartTypeChanged">
+
+                                <option value="LineMarks">Line Marks</option>
+                                <option value="BarChart">Bar Chart</option>
+                                <option value="PieChart">Pie Chart</option>
+                                <option value="AreaChart">Area Chart</option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            </div> *@
+
+            <div class="card report-card h-100 mt-2">
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+
+                        <div class="d-flex align-items-center">
+                            <div class="icon-box me-2">
+                                <i class="bi bi-graph-up"></i>
+                            </div>
+
+                            <h5 class="text-primary fw-bold mb-0">
+                                Chart Preview
+                            </h5>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-3">
+
+                            <div>
+                                <label class="form-label mb-1 small text-muted">
+                                    Chart Type
+                                </label>
+
+                                <select class="form-select form-select-sm"
+                                        style="width:180px;"
+                                        @onchange="ChartTypeChanged">
+                                    <option value="LineMarks">Line Marks</option>
+                                    <option value="BarChart">Bar Chart</option>
+                                    <option value="PieChart">Pie Chart</option>
+                                    <option value="AreaChart">Area Chart</option>
+                                </select>
+                            </div>
+
+                            <span class="badge rounded-pill bg-success px-3 py-2">
+                                Live Preview
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    @if (ChartType == "BarChart")
+                    {
+                        if (SummaryOnly)
+                        {
+                            <ApexChart TItem="ChartPoint"
+                            Title="@ChartTitle">
+
+                                <ApexPointSeries TItem="ChartPoint"
+                                Name="Sales"
+                                Items="ChartItems"
+                                SeriesType="SeriesType.Bar"
+                                XValue="@(e => e.CustomerName)"
+                                YValue="@(e => e.Value)" />
+
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="ChartPoint"
+                            Title="@ChartTitle">
+
+                                @foreach (var series in ChartSeries)
+                                {
+                                    <ApexPointSeries TItem="ChartPoint"
+                                    Name="@series.Name"
+                                    Items="@series.Items"
+                                    SeriesType="SeriesType.Bar"
+                                    XValue="@(e => e.CustomerName)"
+                                    YValue="@(e => e.Value)" />
+                                }
+
+                            </ApexChart>
+                        }
+                    }
+                    else if (ChartType == "PieChart")
+                    {
+                        @if (TransposeMatrix)
+                        {
+                            <ApexChart TItem="ChartPoint"
+                            Title="Monthly Wise Summary">
+
+                                <ApexPointSeries TItem="ChartPoint"
+                                SeriesType="SeriesType.Pie"
+                                Name="Sales"
+                                Items="ChartItems"
+                                XValue="@(e => e.CustomerName)"
+                                YValue="@(e => e.Value)" />
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="PieData"
+                            Title="Customer Wise Summary">
+
+                                <ApexPointSeries TItem="PieData"
+                                SeriesType="SeriesType.Pie"
+                                Name="Sales"
+                                Items="PieItems"
+                                XValue="@(x => x.CustomerName)"
+                                YValue="@(x => x.Total)">
+                                </ApexPointSeries>
+
+                            </ApexChart>
+                        }
+                    }
+                    else if (ChartType == "LineMarks")
+                    {
+                        if (SummaryOnly)
+                        {
+                            <ApexChart TItem="ChartPoint"
+                                       Title="@ChartTitle">
+
+                                <ApexPointSeries TItem="ChartPoint"
+                                                 Name="Sales"
+                                                 Items="ChartItems"
+                                                 SeriesType="SeriesType.Line"
+                                                 XValue="@(e => e.CustomerName)"
+                                                 YValue="@(e => e.Value)" />
+
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="ChartPoint"
+                                       Options="LineOptions">
+
+                                @foreach (var series in ChartSeries)
+                                {
+                                    <ApexPointSeries TItem="ChartPoint"
+                                                     Name="@series.Name"
+                                                     Items="@series.Items"
+                                                     SeriesType="SeriesType.Line"
+                                                     XValue="@(e => e.CustomerName)"
+                                                     YValue="@(e => e.Value)" />
+                                }
+
+                            </ApexChart>
+                        }
+                    }
+                    else
+                    {
+                        if (SummaryOnly)
+                        {
+                            <ApexChart TItem="ChartPoint"
+                            Title="Summary">
+
+                                <ApexPointSeries TItem="ChartPoint"
+                                Name="Sales"
+                                Items="ChartItems"
+                                XValue="@(e => e.CustomerName)"
+                                YValue="@(e => e.Value)" />
+
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="ChartPoint">
+
+                                @foreach (var series in ChartSeries)
+                                {
+                                    <ApexPointSeries TItem="ChartPoint"
+                                    Name="@series.Name"
+                                    Items="@series.Items"
+                                    XValue="@(e => e.CustomerName)"
+                                    YValue="@(e => e.Value)" />
+                                }
+
+                            </ApexChart>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="card report-card mt-3">
+                <div class="card-body p-0">
+
+                    <div class="table-responsive"
+                         style="max-height:550px;overflow:auto;">
+
+                        <table class="table table-modern table-bordered mb-0">
+
+                            <thead>
+                                <tr>
+                                    @foreach (DataColumn col in Bills.Columns)
+                                    {
+                                        <th>@col.ColumnName</th>
+                                    }
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (DataRow row in Bills.Rows)
+                                {
+                                    <tr>
+                                        @foreach (DataColumn col in Bills.Columns)
+                                        {
+                                            <td>@row[col]</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Footer Buttons -->
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <button class="btn btn-outline-primary px-4"
+                        @onclick="ExportExcel">
+                    Print
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code
+{
+    protected override string ScreenName => "Bill Pending Report";
+
+    private bool isProcessing = false;
+
+    DataTable Bills = new();
+
+    private DataTable OriginalBills = new();
+
+    private DateTime? FromDate = DateTime.Today.Month >= 4? new DateTime(DateTime.Today.Year, 4, 1): new DateTime(DateTime.Today.Year - 1, 4, 1);
+    private DateTime? ToDate = DateTime.Today;
+
+    private string BillType = "Sales";
+
+    private string SelectedTopic = "Sales - Mfg";
+
+    private bool TransposeMatrix;
+
+    private bool SummaryOnly;
+
+    private string SummaryType = "RowWise";
+
+    private string ChartTitle = "Sales Analysis - Manufacturing";
+
+    private string XAxisTitle = "Customers";
+
+    private string YAxisTitle = "Sales Value";
+
+    private string ChartType = "LineMarks";
+
+    private decimal TotalInvoiceAmount { get; set; }
+    private decimal TotalPaidAmount { get; set; }
+    private decimal TotalCreditAmount { get; set; }
+    private decimal TotalTDSAmount { get; set; }
+    private decimal PendingAmount { get; set; }
+
+    private int AverageDueDays { get; set; }
+
+    public class ChartData
+    {
+        public string CustomerName { get; set; } = "";
+        public Dictionary<string, decimal> Values { get; set; } = new();
+    }
+
+    public class SeriesData
+    {
+        public string Name { get; set; } = "";
+        public List<ChartPoint> Items { get; set; } = new();
+    }
+
+    public class ChartPoint
+    {
+        public string CustomerName { get; set; } = "";
+        public decimal Value { get; set; }
+    }
+
+    public List<ChartPoint> ChartItems { get; set; } = new();
+
+    private List<SeriesData> ChartSeries = new();
+    public class PieData
+    {
+        public string CustomerName { get; set; } = "";
+        public decimal Total { get; set; }
+    }
+    private List<PieData> PieItems = new();
+
+    private List<PageHeader.BreadcrumbItem> Summary = new()
+    {
+        new() { Text = "Reports" },
+        new() { Text = "Accounts" },
+        new() { Text = "Summary And Graphs", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        //await LoadData();
+    }
+
+    private async Task LoadData(ChangeEventArgs e)
+    {
+        try
+        {
+            SelectedTopic = e.Value?.ToString() ?? "";
+
+            isProcessing = true;
+
+            OriginalBills = await summaryAndGraphsService.GetPendingBills(SelectedTopic,FromDate, ToDate);
+            Bills = OriginalBills.Copy();
+            RefreshData();
+            CalculateSummary();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex,"Error loading bill pending report");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void CalculateSummary()
+    {
+        // TotalInvoiceAmount = Bills.Sum(x => x.GrandTotal);
+
+        // TotalPaidAmount = Bills.Sum(x => x.PaidAmount);
+
+        // TotalCreditAmount = Bills.Sum(x => x.Credit);
+
+        // TotalTDSAmount = Bills.Sum(x => x.TDSAmount);
+
+        // PendingAmount = Bills.Sum(x => x.Balance);
+
+        // AverageDueDays = Bills.Any()
+        //     ? Convert.ToInt32(Bills.Average(x => x.OverDueDays))
+        //     : 0;
+    }
+
+    private async Task ExportExcel()
+    {
+        try
+        {
+            if (Bills.Rows.Count == 0)
+            {
+                await _js.ToastrWarning("No records found");
+                return;
+            }
+
+            using var workbook = new XLWorkbook();
+
+            workbook.Worksheets.Add(Bills, "Summary");
+
+            using var stream = new MemoryStream();
+
+            workbook.SaveAs(stream);
+
+            var bytes = stream.ToArray();
+
+            var base64 = Convert.ToBase64String(bytes);
+
+            await _js.InvokeVoidAsync("downloadExcelFile",base64,"SummaryAndGraphs.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, "Excel Export Error");
+        }
+    }
+
+    private void Reset()
+    {
+    }
+
+    private void Close()
+    {
+    }
+
+    private async Task ChartTypeChanged(ChangeEventArgs e)
+    {
+        ChartType = e.Value?.ToString() ?? "";
+
+        if (ChartType == "PieChart")
+        {
+            if (TransposeMatrix)
+            {
+                RefreshData();
+            }
+            else
+            {
+                BuildCustomerPieChart();
+            }
+        }
+        else
+        {
+            //BuildChart();
+            RefreshData();
+        }
+
+    }
+
+    private void BuildChart()
+    {
+        ChartSeries.Clear();
+
+        var monthColumns = Bills.Columns.Cast<DataColumn>()
+            .Where(c => c.ColumnName != "CustomerName"
+                     && c.ColumnName != "Total")
+            .ToList();
+
+        foreach (var month in monthColumns)
+        {
+            var series = new SeriesData
+            {
+                Name = month.ColumnName
+            };
+
+            foreach (DataRow row in Bills.Rows)
+            {
+                decimal value = 0;
+
+                if (row[month] != DBNull.Value)
+                    decimal.TryParse(row[month].ToString(), out value);
+
+                series.Items.Add(new ChartPoint
+                {
+                    CustomerName = row["CustomerName"].ToString() ?? "",
+                    Value = value
+                });
+            }
+
+            ChartSeries.Add(series);
+        }
+
+        StateHasChanged();
+    }
+
+    private void BuildCustomerPieChart()
+    {
+
+        PieItems.Clear();
+
+        var topCustomers = Bills.AsEnumerable()
+            .OrderByDescending(r =>
+                r["Total"] == DBNull.Value
+                    ? 0
+                    : Convert.ToDecimal(r["Total"]))
+            .Take(10);
+
+        foreach (var row in topCustomers)
+        {
+            PieItems.Add(new PieData
+            {
+                CustomerName = row["CustomerName"]?.ToString() ?? "",
+                Total = row["Total"] == DBNull.Value
+                    ? 0
+                    : Convert.ToDecimal(row["Total"])
+            });
+        }
+
+        StateHasChanged();
+    }
+
+
+    private ApexChartOptions<ChartPoint> LineOptions = new()
+    {
+        Markers = new Markers
+        {
+            Size = 5
+        },
+        Stroke = new Stroke
+        {
+            Width = new List<double> { 3 }
+        }
+    };
+
+    private DataTable TransposeDataTable(DataTable dt)
+    {
+        DataTable result = new DataTable();
+
+        // First column
+        result.Columns.Add("Field");
+
+        // Customer names become columns
+        foreach (DataRow row in dt.Rows)
+        {
+            result.Columns.Add(row["CustomerName"].ToString());
+        }
+
+        // Month columns become rows
+        for (int i = 1; i < dt.Columns.Count; i++)
+        {
+            DataRow newRow = result.NewRow();
+
+            newRow["Field"] = dt.Columns[i].ColumnName;
+
+            for (int j = 0; j < dt.Rows.Count; j++)
+            {
+                newRow[j + 1] = dt.Rows[j][i];
+            }
+
+            result.Rows.Add(newRow);
+        }
+
+        return result;
+    }
+
+    private void OnTransposeChanged(bool value)
+    {
+        TransposeMatrix = value;
+        RefreshData();
+    }
+
+    private void BuildTransposeChart()
+    {
+        ChartSeries.Clear();
+
+        var customerColumns = Bills.Columns.Cast<DataColumn>()
+            .Skip(1) // Skip Field column
+            .ToList();
+
+        foreach (var customer in customerColumns)
+        {
+            var series = new SeriesData
+            {
+                Name = customer.ColumnName
+            };
+
+            foreach (DataRow row in Bills.Rows)
+            {
+                decimal value = 0;
+
+                if (row[customer] != DBNull.Value)
+                    decimal.TryParse(row[customer].ToString(), out value);
+
+                series.Items.Add(new ChartPoint
+                {
+                    CustomerName = row["Field"].ToString() ?? "",
+                    Value = value
+                });
+            }
+            ChartSeries.Add(series);
+        }
+    }
+
+    private void OnSummaryChanged(bool value)
+    {
+        SummaryOnly = value;
+        RefreshData();
+    }
+
+    private DataTable GetRowWiseSummary(DataTable dt)
+    {
+        DataTable result = new();
+
+        result.Columns.Add("CustomerName");
+        result.Columns.Add("Total", typeof(decimal));
+
+        foreach (DataRow row in dt.Rows)
+        {
+            DataRow newRow = result.NewRow();
+
+            newRow["CustomerName"] = row["CustomerName"];
+            newRow["Total"] = row["Total"] == DBNull.Value
+                ? 0
+                : Convert.ToDecimal(row["Total"]);
+
+            result.Rows.Add(newRow);
+        }
+
+        return result;
+    }
+
+    private DataTable GetColumnWiseSummary(DataTable dt)
+    {
+        DataTable result = new();
+
+        result.Columns.Add("Month");
+        result.Columns.Add("Total", typeof(decimal));
+
+        foreach (DataRow row in dt.Rows)
+        {
+            decimal total = 0;
+
+            for (int i = 1; i < dt.Columns.Count; i++)
+            {
+                if (row[i] != DBNull.Value)
+                    total += Convert.ToDecimal(row[i]);
+            }
+
+            result.Rows.Add(
+                row[0].ToString(),
+                total);
+        }
+
+        return result;
+    }
+
+    private void BuildSummaryChart()
+    {
+        ChartItems.Clear();
+
+        if (TransposeMatrix)
+        {
+            for (int i = 0; i < Bills.Rows.Count - 1; i++)
+            {
+                DataRow row = Bills.Rows[i]; 
+                decimal value = 0;
+
+                if (row[1] != DBNull.Value)
+                    decimal.TryParse(row[1].ToString(), out value);
+
+                ChartItems.Add(new ChartPoint
+                {
+                    CustomerName = row[0]?.ToString() ?? "",
+                    Value = value
+                });
+            }
+        }
+        else
+        {
+            foreach (DataRow row in Bills.Rows)
+            {
+                decimal value = 0;
+
+                if (row[1] != DBNull.Value)
+                    decimal.TryParse(row[1].ToString(), out value);
+
+                ChartItems.Add(new ChartPoint
+                    {
+                        CustomerName = row[0]?.ToString() ?? "",
+                        Value = value
+                    });
+            }
+        }
+    }
+
+    private void RefreshData()
+    {
+        Bills = OriginalBills.Copy();
+
+        if (TransposeMatrix)
+            Bills = TransposeDataTable(Bills);
+
+        // Pie Chart
+        if (ChartType == "PieChart")
+        {
+            if (TransposeMatrix)
+            {
+                Bills = GetColumnWiseSummary(Bills);
+                BuildSummaryChart();
+            }
+            else
+            {
+                Bills = GetRowWiseSummary(Bills);
+                BuildCustomerPieChart();
+            }
+        }
+        // Summary Mode
+        else if (SummaryOnly)
+        {
+            if (TransposeMatrix)
+                Bills = GetColumnWiseSummary(Bills);
+            else
+                Bills = GetRowWiseSummary(Bills);
+
+            BuildSummaryChart();
+        }
+        // Normal Charts
+        else
+        {
+            if (TransposeMatrix)
+                BuildTransposeChart();
+            else
+                BuildChart();
+        }
+
+        StateHasChanged();
+    }
+
+
+
+
+ 
+
+}

@@ -1,0 +1,691 @@
+﻿@page "/appointment_Letter"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.AppointmentLetterVM
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ExcelExportService ExcelExportService
+
+@inject IAppointmentLetterService appointmentLetterService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true"
+                       Screen="@ScreenName"
+                       Filters="SearchFilters"
+                       OnClose="CloseModal"
+                       OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Appointment Letter List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@AppointmentBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-6 col-md-2 ms-md-auto text-end">
+                            <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewPo">
+                                <i class="bi bi-plus-square me-1"></i> Add New
+                            </button>
+                        </div>
+                    }
+
+                </div>
+                @if (appointmentLetterVM.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="appointmentLetterVM.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            case "AppointmentId":
+                                                <PropertyColumn Title="Appointment ID" Property="@(x => x.AppointmentId)" />
+                                                break;
+
+                                            case "AppointmentNo":
+                                                <PropertyColumn Title="Appointment No." Property="@(x => x.AppointmentNo)" />
+                                                break;
+                                            case "AppointmentDate":
+                                                <PropertyColumn Title="AppointmentDate"
+                                                                Property="@(x => x.AppointmentDate)"
+                                                                Format="dd/MM/yyyy"
+                                                                Sortable="true" />
+                                                break;
+                                            case "Candidatename":
+                                                <PropertyColumn Title="Candidate" Property="@(x => x.Candidatename)" />
+                                                break;
+                                            case "Address":
+                                                <PropertyColumn Title="Address" Property="@(x => x.Address)" />
+                                                break;
+
+                                            case "Position":
+                                                <PropertyColumn Title="Position" Property="@(x => x.Position)" />
+                                                break;
+
+                                            case "Introduction":
+                                                <PropertyColumn Title="Introduction" Property="@(x => x.Introduction)" />
+                                                break;
+
+                                            case "ClosingNotes":
+                                                <PropertyColumn Title="ClosingNotes" Property="@(x => x.ClosingNotes)" />
+                                                break;
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="CreatedBy" Property="@(x => x.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="CreatedDate"
+                                                                Property="@(x => x.CreatedDate)"
+                                                                Format="dd/MM/yyyy"
+                                                                Sortable="true" />
+                                                break;
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="ModifiedBy" Property="@(x => x.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="ModifiedDate"
+                                                                Property="@(x => x.ModifiedDate)"
+                                                                Format="dd/MM/yyyy"
+                                                                Sortable="true" />
+                                                break;
+
+
+
+                                        }
+
+                                    </div>
+                                }
+                            }
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"/appointment_Letter/update/{c.AppointmentId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Sales Order">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"appointment_Letter/details/{c.AppointmentId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View Sales Orer">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Sales Order"
+                                                @onclick="() => HandleDelete(c.AppointmentId)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </QuickGrid>
+                    </div>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+@code {
+    #region screen
+    protected override string ScreenName => "Appointment Letter";
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private int DeleteAppointmentId = 0;
+    private string searchText = string.Empty;
+    private string selectedStatus = "";
+
+    private List<AppointmentLetterVM> appointmentLetterVM = new();
+
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    [Parameter, SupplyParameterFromQuery] public string? Filter { get; set; }
+
+
+    // === Paging & Search ===
+    private int totalItems;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+
+    private List<PageHeader.BreadcrumbItem> AppointmentBreadcrumbs = new()
+    {
+        new() { Text = "Human Resource" },
+        new() { Text = "Appointment Letter", IsLast = true }
+    };
+#endregion
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+            //Sathish
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+            await LoadAllAppointment();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Appointment Latter  OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+    #region === Data Loading ===
+
+    private async Task LoadAllAppointment()
+    {
+        try
+        {
+            var result = await appointmentLetterService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            appointmentLetterVM = result.appointmentLetterVMs;
+            totalItems = result.TotalCount;
+            foreach (var item in appointmentLetterVM)
+            {
+                //UploadStatus[item.OfferId] = await offerLetterservice.IsDocumentUploaded(item.OfferId);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading data in Appointment Latter  List");
+            await _JS.ToastrError("Failed to load Appointment Latter  List.");
+        }
+    }
+
+    #endregion
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for  Appointment Latter List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllAppointment();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in Appointment Latter  List");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllAppointment();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in Appointment Latter  List");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllAppointment();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Appointment Latter  List");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllAppointment();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in Appointment Latter  List");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllAppointment();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Sales Order List");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllAppointment();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Salies Order List page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    private async Task HandleDelete(int appointId)
+    {
+        try
+        {
+            var (canDelete, message) = await appointmentLetterService.CanDeleteAppointmentletterAsync(appointId);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteAppointmentId = appointId;
+
+            ModalTitle = "Are you sure you want to delete this Applointment Letter";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for AppointmentId: {appointId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else if (confirmation == "Export")
+            {
+                isProcessing = true;
+                //await ExportToExcel(isConfirmed);
+            }
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+    #region SEARCH FILTERS
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllAppointment();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Offer Latter List");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+    #endregion
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+
+            var deleted = await appointmentLetterService.DeleteAppointmentIdByAppointmentIdAsync(DeleteAppointmentId);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Offer Latter deleted successfully.");
+                await LoadAllAppointment();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Offer Latter could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting PoId: {DeleteAppointmentId}");
+            await _JS.ToastrError("Failed to delete Sales Order.");
+        }
+        finally
+        {
+            DeleteAppointmentId = 0;
+            isProcessing = false;
+        }
+    }
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+
+                new() { Title = "Appointment ID", Field = "AppointmentId", IsVisible = false },
+                new() { Title = "AppointmentNo", Field = "AppointmentNo", IsVisible = false },
+                new() { Title = "AppointmentDate", Field = "AppointmentDate", IsVisible = false },
+
+                new() { Title = "Candidate", Field = "Candidatename", IsVisible = true },
+                new() { Title = "Address", Field = "Address", IsVisible = true },
+                new() { Title = "Position", Field = "Position", IsVisible = true },
+
+                new() { Title = "Introduction", Field = "Introduction", IsVisible = false },
+               
+                new() { Title = "Customer Address", Field = "CustAddress", IsVisible = false },
+                new() { Title = "CreatedBy", Field = "CreatedBy", IsVisible = false },
+                new() { Title = "CreatedDate", Field = "CreatedDate", IsVisible = false },
+                new() { Title = "ModifiedBy", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "ModifiedDate", Field = "ModifiedDate", IsVisible = false },
+
+               
+            };
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Offer Latter HandleColumnChange() Method");
+        }
+    }
+
+    private void AddNewPo()
+    {
+       
+        _navigation.NavigateTo($"/appointment_Letter/create");
+    }
+
+
+}

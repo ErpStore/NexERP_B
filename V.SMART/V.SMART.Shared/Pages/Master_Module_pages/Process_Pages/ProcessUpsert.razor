@@ -1,0 +1,378 @@
+﻿@page "/process/create"
+@page "/process/update/{ProcessId:int}"
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@ProcessTitle"
+                            TitleIcon="bi bi-arrow-repeat"
+                            Breadcrumbs="@processBreadcrumbs" />
+
+
+                <div class="card-body">
+                    <EditForm Model="Process" OnValidSubmit="UpsertProcess">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+
+                            @if (ProcessTypeOption)
+                            {
+                                <div class="row justify-content-center">
+                                    <div class="col-12">
+                                        <div class="d-flex flex-wrap gap-4 justify-content-start">
+
+                                            <div class="switch-card p-4 shadow-sm rounded flex-fill" style="min-width:220px;">
+                                                <div class="form-check form-switch m-0">
+                                                    <input type="checkbox"
+                                                    checked="@IsSingle"
+                                                    @onchange="ToggleSingleOutSingle"
+                                                    class="form-check-input border-dark"
+                                                    id="BO1" />
+
+                                                    <label class="form-check-label fw-semibold ms-2" for="BO1">
+                                                        Single Process
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <div class="switch-card p-4 shadow-sm rounded flex-fill" style="min-width:220px;">
+                                                <div class="form-check form-switch m-0">
+                                                    <input type="checkbox"
+                                                    checked="@IsMultiple"
+                                                    @onchange="ToggleSingleOutMultiple"
+                                                    class="form-check-input border-dark"
+                                                    id="BO2" />
+
+                                                    <label class="form-check-label fw-semibold ms-2" for="BO2">
+                                                        Multiple Process
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            @*Sathish*@
+                                            <div class="switch-card p-4 shadow-sm rounded flex-fill" style="min-width:220px;">
+                                                <div class="form-check form-switch m-0">
+                                                    <input type="checkbox"
+                                                    checked="@IsSpecial"
+                                                    @onchange="ToggleSpecial"
+                                                    class="form-check-input border-dark"
+                                                    id="BO3" />
+
+                                                    <label class="form-check-label fw-semibold ms-2" for="BO3">
+                                                        Special Process
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Process.ProcessName"
+                                                      Id="ProcessName"
+                                                      Placeholder="Process Name"
+                                                      CssClass="form-control" />
+                                    <label for="ProcessName">Process Name</label>
+                                    <ValidationMessage For="@(() => Process.ProcessName)" />
+                                </div>
+                            </div>
+
+                            @if (ProcessTypeOption)
+                            {
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="Process.ProcessFormula"
+                                            class="form-control"
+                                            placeholder="Enter Formula (Ex: Ag)" />
+                                            <label>Process Formula</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-lg-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="Process.Standard"
+                                            class="form-control"
+                                            placeholder="Enter Standard" />
+                                            <label>Standard</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="Process.HrlyRate"
+                                                 class="form-control"
+                                                 id="HrlyRate"
+                                                 placeholder="Hourly Rate" />
+                                    <label for="HrlyRate">Hourly Rate</label>
+                                    <ValidationMessage For="@(() => Process.HrlyRate)" />
+                                </div>
+                            </div>
+
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(ProcessId == 0 || ProcessId == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/processList" />
+                            </div>
+                        </div>
+
+                        @if (ProcessId > 0)
+                        {
+                            <div class="mt-4 small text-muted">
+                                <p><strong>Created By:</strong> @Process.CreatedBy</p>
+                                <p><strong>Created Date:</strong> @Process.CreatedDate?.ToString("g")</p>
+                                <p><strong>Modified By:</strong> @Process.ModifiedBy</p>
+                                <p><strong>Modified Date:</strong> @Process.ModifiedDate?.ToString("g")</p>
+                            </div>
+                        }
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+@code {
+    protected override string ScreenName => "Process";
+
+    [Parameter]
+    public int? ProcessId { get; set; }
+
+    private bool isProcessing = true;
+    private Process Process { get; set; } = new();
+    private string currentUser = "";
+
+    private bool IsSingle => Process.ProcessType == "Single";
+    private bool IsMultiple => Process.ProcessType == "Multiple";
+    private bool IsSpecial => Process.ProcessType == "Special";
+    private bool ProcessTypeOption = false;
+
+    private List<PageHeader.BreadcrumbItem> processBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory Master" },
+        new PageHeader.BreadcrumbItem { Text = "Process Master", IsLast = true }
+    };
+
+    private string ProcessTitle => (ProcessId == 0 || ProcessId == null ? "Create" : "Update") + " Process";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        ProcessTypeOption = await ProcessTypeSelectOption();
+
+        await GetCurrentUser();
+        await loadProcesses();
+
+        isProcessing = false;
+    }
+
+    private async Task GetCurrentUser()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                currentUser = user.Identity.Name;
+            }
+        }
+        catch
+        {
+            currentUser = "";
+        }
+    }
+
+    private async Task loadProcesses()
+    {
+        try
+        {
+            if (ProcessId > 0)
+            {
+                var existing = await _unitOfWork.Processes.GetAsync(ProcessId.Value);
+                if (existing != null)
+                {
+                    Process = existing;
+                }
+            }
+        }
+        catch
+        {
+            
+        }
+    }
+
+    private async Task UpsertProcess()
+    {
+        isProcessing = true;
+
+        try
+        {
+            bool isDuplicate = await _unitOfWork.Processes.ExistsByNameAsync("ProcessName", Process.ProcessName?.Trim(), "ProcessId", Process.ProcessId == 0 ? null : Process.ProcessId);
+            if (isDuplicate)
+            {
+                await _js.ToastrWarning("Process name already exists.");
+                isProcessing = false;
+                return;
+            }
+
+            var now = DateTime.Now;
+
+            Process.ProcessName = Process.ProcessName?.Trim();
+
+            if (Process.ProcessId == 0)
+            {
+                Process.CreatedBy = currentUser;
+                Process.CreatedDate = now;
+
+                await _unitOfWork.Processes.CreateAsync(Process);
+                await _unitOfWork.SaveAsync();
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Process", action: $"User tried to create duplicate Process. {Process.ProcessName}",
+                additionalInfo: $"ProcessName: {Process.ProcessName}");
+                await _js.ToastrSuccess("Process Created Successfully");
+            }
+            else
+            {
+                Process.ModifiedBy = currentUser;
+                Process.ModifiedDate = now;
+
+                await _unitOfWork.Processes.UpdateAsync(Process);
+                await _unitOfWork.SaveAsync();
+                await _js.ToastrSuccess("Process Updated Successfully");
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Process", action: $"User created new Process. {Process.ProcessName}",
+                additionalInfo: $"ProcessName: {Process.ProcessName}");
+            }
+
+            isProcessing = false;
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/processList");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertProcess() event for ProcessUpsert");
+        }
+
+    }
+
+    private async Task ToggleSingleOutSingle(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e?.Value is bool isChecked)
+            {
+                if (isChecked)
+                {
+                    Process.ProcessType = isChecked ? "Single" : null;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ToggleBroughtOutAsync in Item Upsert");
+        }
+    }
+
+
+    private async Task ToggleSingleOutMultiple(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e?.Value is bool isChecked)
+            {
+                if (isChecked)
+                {
+                    Process.ProcessType = isChecked ? "Multiple" : null;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ToggleBroughtOutAsync in Item Upsert");
+        }
+    }
+
+    private async Task ToggleSpecial(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e?.Value is bool isChecked)
+            {
+                if (isChecked)
+                {
+                    Process.ProcessType = isChecked ? "Special" : null;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ToggleSpecial in Item Upsert");
+        }
+    }
+
+    public async Task<bool> ProcessTypeSelectOption()
+    {
+        try
+        {
+            return await _unitOfWork.ScreenManagements.GetQueryable()
+                .Where(x => x.Display == "process Type Selection" && x.ScreenName == "Process")
+                .Select(x => x.Required)
+                .FirstOrDefaultAsync();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ProcessTypeSelectOption()");
+            return false;
+        }
+    }
+}

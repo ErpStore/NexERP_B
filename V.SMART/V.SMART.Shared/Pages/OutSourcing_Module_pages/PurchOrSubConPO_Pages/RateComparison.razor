@@ -1,0 +1,335 @@
+﻿@page "/rate-comparison"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchOrSubConPoService
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchPoVM
+@inject IJSRuntime JS
+@inject IPurchPoService purchPoSevice
+@inject NavigationManager Nav
+@inject PoSelectionService PoSelection
+
+<div class="container-fluid py-3 px-2 px-md-4">
+    <div class="bg-white shadow-sm border rounded-4 p-3 p-md-4 mb-4">
+        <div class="row g-3 align-items-center justify-content-between">
+            <div class="col-12 col-md-6 d-flex align-items-center">
+                <div class="p-3 bg-primary bg-gradient text-white rounded-4 me-3 shadow-sm d-flex align-items-center justify-content-center"
+                     style="width: 56px; height: 56px;">
+                    <i class="bi bi-bar-chart-line fs-3"></i>
+                </div>
+                <div>
+                    <h4 class="fw-bold text-dark mb-1">Vendor Rate Comparison</h4>
+                    <small class="text-muted">Analyze and compare vendor quotations effortlessly</small>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-auto d-flex align-items-center gap-2 justify-content-start justify-content-md-end">
+                <div class="input-group rounded-pill shadow-sm flex-grow-1 flex-md-grow-0" style="overflow:hidden; max-width:320px; height:40px;">
+                    <span class="input-group-text bg-white border-0">
+                        <i class="bi bi-search text-primary"></i>
+                    </span>
+                    <input type="text"
+                           class="form-control border-0"
+                           placeholder="Search Enquiry, Item, or Vendor..."
+                           @bind="SearchTerm"
+                           @bind:event="oninput"
+                           style="box-shadow:none; height:38px;" />
+                </div>
+
+                <button class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center"
+                        @onclick="ClearSearch"
+                        style="height:38px;">
+                    <i class="bi bi-x-circle me-1 small"></i>
+                    <span class="d-none d-sm-inline">Clear</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-3 text-muted">Loading quotations, please wait...</p>
+        </div>
+    }
+    else if (filteredComparison == null || !filteredComparison.Any())
+    {
+        <div class="alert alert-warning text-center shadow-sm rounded-4">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            No quotations found.
+        </div>
+    }
+    else
+    {
+        @foreach (var group in filteredComparison.GroupBy(x => new { x.EnquiryNo, x.ItemId, x.ItemCode }))
+        {
+            var minRate = group.Min(x => x.Rate);
+
+            <div class="card mb-4 border-0 shadow-sm rounded-4 overflow-hidden">
+                @* <div class="card-header bg-light fw-semibold text-dark d-flex flex-wrap justify-content-between align-items-center py-3 px-3 px-md-4" style="background: #f0f4ff;"> *@
+                <div class="card-header fw-semibold d-flex flex-wrap justify-content-between align-items-center py-3 px-3 px-md-4"
+                     style="background: #eaf4ff;">
+                    <div class="mb-2 mb-md-0">
+                        <span class="text-secondary">Enquiry:</span>
+                        <span class="fw-bold text-primary">@group.Key.EnquiryNo</span>
+                        <span class="mx-2 text-muted">|</span>
+                        <span class="text-secondary">Item:</span>
+                        <span class="fw-bold text-success">@group.Key.ItemCode</span>
+                    </div>
+                    <small class="text-muted">
+                        <i class="bi bi-box-seam me-1"></i>@group.Count() quotations
+                    </small>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered align-middle mb-0">
+                            <thead class="table-light text-nowrap">
+                                <tr>
+                                    <th>Quote Sub ID</th>
+                                    <th>Quotation No</th>
+                                    <th>Vendor</th>
+                                    <th class="text-end">Rate</th>
+                                    <th>Delivery</th>
+                                    <th class="text-center">Select</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in group)
+                                {
+                                    var highlightClass = item.Rate == minRate ? "table-success fw-bold" : "";
+                                     <tr class="@highlightClass">
+                                        <td>@item.QuoteSubId</td>
+                                        <td>@item.QuoteNo</td>
+                                        <td class="fw-semibold">@item.VendorName</td>
+                                        <td class="text-end">
+                                            @item.Rate.ToString("0.00")
+                                            @if (item.Rate == minRate)
+                                            {
+                                                <span class="text-success ms-1">
+                                                    <i class="bi bi-currency-rupee"></i>
+                                                </span>
+                                            }
+                                        </td>
+                                        <td>@item.DeliveryDays days</td>
+                                        <td class="text-center">
+                                          
+                                            <input type="checkbox"
+                                                   checked="@item.IsSelected"
+                                                   disabled="@item.IsDisabled"
+                                                   @onchange="(e) => OnVendorChange(item, e)" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Selected summary -->
+        @if (PoSelectionSummary.Any())
+        {
+            <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center shadow-sm rounded-4 mt-4 px-3 px-md-4 py-3">
+                <div class="mb-2 mb-md-0">
+                    <i class="bi bi-person-check-fill me-2"></i>
+                    Selected Items: <strong>@PoSelectionSummary.Count()</strong>
+                </div>
+                <div>
+                    <span class="badge bg-primary rounded-pill px-3 py-2 me-2">Vendors: @PoSelectionSummary.Select(x => x.VendorCode).Distinct().Count()</span>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ResetVendorSelection">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+                    </button>
+                </div>
+            </div>
+        }
+
+        <div class="text-end mt-4 d-flex flex-wrap justify-content-end gap-2">
+            <button class="btn btn-success rounded-pill px-4 shadow-sm" @onclick="OnCreatePO">
+                <i class="bi bi-file-earmark-check-fill me-1"></i> Create PO
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<RateComparisonVM> comparison = new();
+    private List<RateComparisonVM> filteredComparison = new();
+    private string searchTerm = string.Empty;
+    private bool isLoading = true;
+
+    // Helper to show quick summary
+    private List<RateComparisonVM> PoSelectionSummary => comparison.Where(x => x.IsSelected).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            await LoadComparison();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("console.error", ex.Message);
+            await JS.InvokeVoidAsync("alert", "Error initializing the quotation page.");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadComparison()
+    {
+        isLoading = true;
+        try
+        {
+            var data = await purchPoSevice.GetRateComparisonAsync();
+            comparison = data ?? new List<RateComparisonVM>();
+        }
+        catch
+        {
+            
+            comparison = new List<RateComparisonVM>();
+        }
+
+        filteredComparison = comparison.ToList();
+        isLoading = false;
+    }
+
+    private void OnVendorChange(RateComparisonVM selectedItem, ChangeEventArgs e)
+    {
+        bool isChecked = e.Value is bool b && b;
+
+        if (isChecked)
+        {
+            OnVendorSelect(selectedItem);
+        }
+        else
+        {
+            OnVendorUnselect(selectedItem);
+        }
+    }
+    private void OnVendorSelect(RateComparisonVM selectedItem)
+    {
+       
+        var sameGroupRows = comparison
+            .Where(x => x.EnquiryNo == selectedItem.EnquiryNo
+                     && x.ItemId == selectedItem.ItemId)
+            .ToList();
+
+        
+        selectedItem.IsSelected = true;
+
+        
+        foreach (var row in sameGroupRows)
+        {
+            row.IsDisabled = row.VendorCode != selectedItem.VendorCode;
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnVendorUnselect(RateComparisonVM selectedItem)
+    {
+        selectedItem.IsSelected = false;
+
+       
+        var sameGroupRows = comparison
+            .Where(x => x.EnquiryNo == selectedItem.EnquiryNo
+                     && x.ItemId == selectedItem.ItemId)
+            .ToList();
+
+      
+        var selectedVendor = sameGroupRows.FirstOrDefault(x => x.IsSelected);
+
+        if (selectedVendor != null)
+        {
+            
+            foreach (var row in sameGroupRows)
+            {
+                row.IsDisabled = row.VendorCode != selectedVendor.VendorCode;
+            }
+        }
+        else
+        {
+            foreach (var row in sameGroupRows)
+            {
+                row.IsDisabled = false;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+ 
+    private void ResetVendorSelection()
+    {
+        foreach (var item in comparison)
+        {
+            item.IsSelected = false;
+            item.IsDisabled = false;  // Enable all rows again
+        }
+
+        // Clear the service selection
+        PoSelection.Clear();
+
+        StateHasChanged();
+    }
+
+    private async Task OnCreatePO()
+    {
+        var selectedItems = comparison.Where(x => x.IsSelected).ToList();
+        if (!selectedItems.Any())
+        {
+            await JS.InvokeVoidAsync("alert", "Please select items before creating PO.");
+            return;
+        }
+
+        
+        PoSelection.SelectedItems = selectedItems;
+
+    
+        var vendorGroups = selectedItems.GroupBy(x => x.VendorCode).ToList();
+
+        if (vendorGroups.Count > 1)
+        {
+       
+            Nav.NavigateTo("/PurchPO/multi-vendor-create");
+        }
+        else
+        {
+            
+            var vendorCode = vendorGroups.First().Key;
+            Nav.NavigateTo($"/PurchPO/create/{vendorCode}");
+        }
+    }
+
+    private void ClearSearch() => SearchTerm = string.Empty;
+
+    private string SearchTerm
+    {
+        get => searchTerm;
+        set
+        {
+            searchTerm = value;
+            ApplyFilter();
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            filteredComparison = comparison.ToList();
+        else
+        {
+            var term = searchTerm.Trim().ToLower();
+            filteredComparison = comparison
+                .Where(x =>
+                    (!string.IsNullOrEmpty(x.EnquiryNo) && x.EnquiryNo.ToLower().Contains(term)) ||
+                    (!string.IsNullOrEmpty(x.ItemName) && x.ItemName.ToLower().Contains(term)) ||
+                    (!string.IsNullOrEmpty(x.VendorName) && x.VendorName.ToLower().Contains(term)) ||
+                    (!string.IsNullOrEmpty(x.QuoteNo) && x.QuoteNo.ToLower().Contains(term)))
+                .ToList();
+        }
+    }
+}

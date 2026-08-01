@@ -1,0 +1,125 @@
+﻿@page "/state"
+@using V.SMART.Shared.Data.Master.General
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitofworkRepository
+@inject IJSRuntime _js
+@inject NavigationManager _nav
+
+@if (IsProcessing)
+{
+    <div class="position-absolute w-75 h-75 d-flex flex-column align-items-center bg-white justify-content-center">
+        <img src="/images/loading.gif" alt="loading" />
+    </div>
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- Card Header -->
+                <PageHeader TitleText="State List"
+                            TitleIcon="bi bi-map-fill"
+                            Breadcrumbs="@stateBreadcrumbs" />
+
+                <div class="card-body p-4">
+
+                    <div class="row g-3 align-items-center mb-3">
+                        <div class="col-12 col-md-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="text"
+                                       class="form-control border-start-0"
+                                       placeholder="Search By State Name..."
+                                       @bind="SearchTerm" @bind:event="oninput" />
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (FilteredStates.Any())
+                    {
+
+                        <div class="table-responsive justify-content-start">
+
+                            <QuickGrid Items="FilteredStates.AsQueryable()" Class="table table-secondary table-bordered">
+                                <PropertyColumn Title="State Code" Property="@(s => s.StateCode)" Sortable="true" />
+                                <PropertyColumn Title="State Name" Property="@(s => s.StateName)" Sortable="true" />
+
+                            </QuickGrid>
+                        </div>
+                    }
+                    else
+                    {
+                        <p>No States found.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    // User Rights
+    protected override string ScreenName => "State";
+
+    private bool IsProcessing { get; set; } = true;
+    private IEnumerable<State> AllStates { get; set; } = new List<State>();
+
+    private IEnumerable<State> FilteredStates => AllStates
+        .Where(u => string.IsNullOrWhiteSpace(SearchTerm)
+            || u.StateName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private string SearchTerm { get; set; } = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> stateBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "General" },
+        new PageHeader.BreadcrumbItem { Text = "State", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _nav.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadStates();
+            IsProcessing = false;
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the State OnInitializedAsync() method");
+        }
+    }
+
+    private async Task LoadStates()
+    {
+        try
+        {
+            AllStates = await _unitofworkRepository.States.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the State LoadStates() method");
+        }
+    }
+}

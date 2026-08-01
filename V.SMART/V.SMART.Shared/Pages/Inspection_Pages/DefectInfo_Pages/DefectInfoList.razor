@@ -1,0 +1,300 @@
+﻿@page "/DefectInfo"
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+
+@inject IDefectInfoService defectInfoService
+@inject ILoggingService LoggingService
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Factor?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <div class="position-absolute w-75 h-75 d-flex flex-column align-items-center bg-white justify-content-center">
+        <img src="/_content/V.SMART.Shared/images/loading.gif" alt="loading.." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Card Header -->
+
+            <PageHeader TitleText="@DefectTitle"
+                        TitleIcon="@factorIcon"
+                        Breadcrumbs="@factorBreadcrumbs" />
+
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-12 col-md-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <input type="text"
+                                   class="form-control border-start-0"
+                                   placeholder="Search by Factor Name..."
+                                   value="@factorNameFilter"
+                                   @oninput="OnSearchChanged" />
+                        </div>
+                    </div>
+
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-md-2 ms-md-auto text-end">
+                            <a href="/DefectInfo/create"
+                               class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                               title="Create a new Defect">
+                                <i class="bi bi-plus-square me-1"></i> Add New Defect
+                            </a>
+                        </div>
+                    }
+                </div>
+
+
+
+                @if (DefectInfos.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid class="table table-striped table-bordered align-middle text-wrap"
+                                   Items="DefectInfos.AsQueryable()"
+                                   ItemKey="@(f => f.DefectCode)"
+                                   Pagination="paginationState">
+
+                            <PropertyColumn Title="Defect Number" Property="@(f => f.DefectNo)" Sortable="true" />
+                            <PropertyColumn Title="Defect Name" Property="@(f => f.DefectName)" Sortable="true" />
+                            <PropertyColumn Title="Defect Description" Property="@(f => f.DefectDesc)" Sortable="false" />
+
+
+                            <TemplateColumn Title="Actions" Context="f">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"DefectInfo/update/{f.DefectCode}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Factor">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => HandleDelete(f.DefectCode)"
+                                                title="Delete Factor Permanently">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+
+                        </QuickGrid>
+                    </div>
+
+                    <div class="card-footer bg-white border-0 mt-3">
+                        <Paginator State="paginationState" />
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center mt-4 text-muted">No Factors available.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+
+
+
+@code {
+    // User Rights
+    protected override string ScreenName => "DefectInfo";
+
+    private bool isProcessing = true;
+    private int DeleteFactorID = 0;
+    private IEnumerable<DefectInfo> DefectInfos = new List<DefectInfo>();
+    private string? factorNameFilter;
+    private PaginationState paginationState = new() { ItemsPerPage = 10 };
+
+    private Timer? debounceTimer;
+
+    private List<PageHeader.BreadcrumbItem> factorBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "Defect Info", IsLast = true }
+    };
+
+    private string DefectTitle = "Defect List";
+    private string factorIcon = "bi bi-gear";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await loadDefect();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() method for FactorList");
+        }
+    }
+
+    private async Task loadDefect()
+    {
+        try
+        {
+            var allDefects = await defectInfoService.GetAllActiveDefectsAsync();
+
+            IEnumerable<DefectInfo> filteredDefects;
+
+            if (string.IsNullOrWhiteSpace(factorNameFilter))
+            {
+                filteredDefects = allDefects;
+            }
+            else
+            {
+                string keyword = factorNameFilter.Trim().ToLower();
+                filteredDefects = allDefects.Where(f =>
+                    !string.IsNullOrEmpty(f.DefectName) && f.DefectName.ToLower().Contains(keyword)
+                );
+            }
+
+            DefectInfos = filteredDefects
+                .OrderByDescending(f => f.CreatedDate)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the loadFactors() method for FactorList");
+        }
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            factorNameFilter = e.Value?.ToString();
+
+            debounceTimer?.Dispose();
+            debounceTimer = new Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await loadDefect();
+                    StateHasChanged();
+                });
+            }, null, 300, Timeout.Infinite); // 300ms debounce
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnSearchChanged() event for FactorList");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value is not null)
+            {
+                paginationState.ItemsPerPage = int.Parse((string)e.Value);
+                await loadDefect();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnPageSizeChanged() event for FactorList");
+        }
+    }
+
+    #region Delete Defect
+    private async Task HandleDelete(int id)
+    {
+        try
+        {
+            DeleteFactorID = id;
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the HandleDelete() Method for FactorList");
+            await _js.ToastrError("An error occurred while attempting to delete the Factor.");
+        }
+    
+    }
+   
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && DeleteFactorID != 0)
+            {
+                isProcessing = true;
+                var deleted = await defectInfoService.DeleteDefect(DeleteFactorID);
+                
+                if (deleted)
+                {
+                    await _js.ToastrSuccess("Defect deleted successfully.");
+                }
+                else
+                {
+                    await _js.ToastrError("Error encountered while deleting Defect.");
+                }
+
+                await loadDefect();
+                isProcessing = false;
+            }
+
+            DeleteFactorID = 0;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the confirmDelete_Click() Method for DefectListInfo");
+        }
+    }
+    #endregion
+
+    public void Dispose()
+    {
+        debounceTimer?.Dispose();
+    }
+}
+

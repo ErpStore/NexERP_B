@@ -1,0 +1,1027 @@
+﻿@page "/salaryList"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService.IPayrollService
+@using V.SMART.Shared.Data.HumanResource.Salary
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject ISalaryService salaryService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+
+@inject IMfgPoService mfgPoService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true"
+                       Screen="@ScreenName"
+                       Filters="SearchFilters"
+                       OnClose="CloseModal"
+                       OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <div class="position-absolute w-75 h-75 d-flex flex-column align-items-center bg-white justify-content-center">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="loading.." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Salary List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@SalBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+
+                            <option value="">All</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Short Closed">Short Closed</option>
+                        </select>
+                    </div>
+
+                    
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-md-2 ms-md-auto text-end">
+                            <a href="salary/create"
+                               class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                               title="Create New Salary">
+                                <i class="bi-box-seam"></i> Add New
+                            </a>
+                        </div>
+                    }
+
+                </div>
+
+                @if (SalaryEmp.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="SalaryEmp.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            case "RowId":
+                                                <PropertyColumn Title="PO ID" Property="@(x => x.RowId)" />
+                                                break;
+
+                                            case "SalYear":
+                                                <PropertyColumn Title="Salary Year" Property="@(x => x.SalYear)" Sortable="true" />
+                                                break;
+
+                                            case "SalMonth":
+                                                <PropertyColumn Title="Salary Month" Property="@(x => x.SalMonth)" Sortable="true" />
+                                                break;
+
+                                            case "SalDate":
+                                                <PropertyColumn Title="Salary Date" Property="@(x => x.SalDate)" Format="dd/MM/yyyy" Sortable="true" />
+                                                break;
+
+
+                                            case "StaffId":
+                                                <PropertyColumn Title="Staff Id" Property="@(x => x.StaffId)" />
+                                                break;
+
+                                            case "Dept":
+                                                <PropertyColumn Title="Department" Property="@(x => x.Dept)" Sortable="true" />
+                                                break;
+
+                                            case "WorkingDays":
+                                                <PropertyColumn Title="Working Days" Property="@(x => x.WorkingDays)" Format="N2" />
+                                                break;
+
+                                            case "PayableDays":
+                                                <PropertyColumn Title="Payable Days" Property="@(x => x.PayableDays)" Format="N2" />
+                                                break;
+
+                                            case "PresentDays":
+                                                <PropertyColumn Title="Present Days" Property="@(x => x.PresentDays)" Format="N2" />
+                                                break;
+
+                                            case "LeaveDays":
+                                                <PropertyColumn Title="Leave Days" Property="@(x => x.LeaveDays)" Format="N2" />
+                                                break;
+
+                                            case "AbsentDays":
+                                                <PropertyColumn Title="Absent Days" Property="@(x => x.AbsentDays)" Format="N2" />
+                                                break;
+
+                                            case "Holidays":
+                                                <PropertyColumn Title="Holidays" Property="@(x => x.Holidays)" Format="N2" />
+                                                break;
+
+                                            case "OT":
+                                                <PropertyColumn Title="Over Time" Property="@(x => x.OT)" Format="N2" />
+                                                break;
+
+                                            case "Basic":
+                                                <PropertyColumn Title="Basic Salary" Property="@(x => x.Basic)" Format="N2" />
+                                                break;
+
+                                            case "EarnedBasic":
+                                                <PropertyColumn Title="Earned Basic" Property="@(x => x.EarnedBasic)" Format="N2" />
+                                                break;
+
+                                            case "DA":
+                                                <PropertyColumn Title="Daily Allowance" Property="@(x => x.DA)" Format="N2" />
+                                                break;
+
+                                            case "EarnedDA":
+                                                <PropertyColumn Title="Earned DA" Property="@(x => x.EarnedDA)" Format="N2" />
+                                                break;
+
+                                            case "OT_times_now":
+                                                <PropertyColumn Title="OT Times Now" Property="@(x => x.OT_times_now)" Format="N2" />
+                                                break;
+
+
+                                            case "EarnedOT":
+                                                <PropertyColumn Title="Earned OT" Property="@(x => x.EarnedOT)" Format="N2" />
+                                                break;
+
+                                            case "EarnedAttBonus":
+                                                <PropertyColumn Title="Earned AttBonus" Property="@(x => x.EarnedAttBonus)" Format="N2" />
+                                                break;
+
+                                            case "HRA":
+                                                <PropertyColumn Title="House Rent Allowance" Property="@(x => x.HRA)" Format="N2" />
+                                                break;
+
+                                            case "EarnedHRA":
+                                                <PropertyColumn Title="Earned HRA" Property="@(x => x.EarnedHRA)" Format="N2" />
+                                                break;
+
+                                            case "TA":
+                                                <PropertyColumn Title="Total Allowance" Property="@(x => x.TA)" Format="N2" />
+                                                break;
+
+                                            case "EarnedTA":
+                                                <PropertyColumn Title="Earned TA" Property="@(x => x.EarnedTA)" Format="N2" />
+                                                break;
+
+                                            case "EA":
+                                                <PropertyColumn Title="Earned Allowance" Property="@(x => x.EA)" Format="N2" />
+                                                break;
+
+                                            case "SplAllow":
+                                                <PropertyColumn Title="Special Allowance" Property="@(x => x.SplAllow)" Format="N2" />
+                                                break;
+
+                                            case "EarnedSplAllow":
+                                                <PropertyColumn Title="Earned Special Allowance" Property="@(x => x.EarnedSplAllow)" Format="N2" />
+                                                break;
+
+                                            case "LTA":
+                                                <PropertyColumn Title="Leave Travel Allowance" Property="@(x => x.LTA)" Format="N2" />
+                                                break;
+
+                                            case "MR":
+                                                <PropertyColumn Title="Medical Reimbursement" Property="@(x => x.MR)" Format="N2" />
+                                                break;
+
+                                            case "TotalEarnings":
+                                                <PropertyColumn Title="Total Earnings" Property="@(x => x.TotalEarnings)"  Format="N2"/>
+                                                break;
+
+                                            case "EarnedPF":
+                                                <PropertyColumn Title="Earned PF" Property="@(x => x.EarnedPF)" Format="N2" />
+                                                break;
+
+                                            case "EarnedESI":
+                                                <PropertyColumn Title="Earned ESI" Property="@(x => x.EarnedESI)" Format="N2" />
+                                                break;
+
+                                            case "PT":
+                                                <PropertyColumn Title="Professional Tax" Property="@(x => x.PT)" Format="N2" />
+                                                break;
+
+                                            case "TDS":
+                                                <PropertyColumn Title="Tax Deducted at Source" Property="@(x => x.TDS)" Format="N2" />
+                                                break;
+
+                                            case "Society":
+                                                <PropertyColumn Title="Society" Property="@(x => x.Society)" Format="N2" />
+                                                break;
+
+                                            case "Insurance":
+                                                <PropertyColumn Title="Insurance" Property="@(x => x.Insurance)" Format="N2" />
+                                                break;
+
+                                            case "SalAdvance":
+                                                <PropertyColumn Title="Salary Advance" Property="@(x => x.SalAdvance)" Format="N2" />
+                                                break;
+
+                                            case "Fines":
+                                                <PropertyColumn Title="Fines" Property="@(x => x.Fines)" Format="N2" />
+                                                break;
+
+                                            case "DamageLoss":
+                                                <PropertyColumn Title="Damage Loss" Property="@(x => x.DamageLoss)" Format="N2" />
+                                                break;
+
+                                            case "OtherDed":
+                                                <PropertyColumn Title="Other Dedails" Property="@(x => x.OtherDed)" Format="N2" />
+                                                break;
+
+                                            case "LoanAmtDed":
+                                                <PropertyColumn Title="Loan Amount Deduction" Property="@(x => x.LoanAmtDed)" Format="N2" />
+                                                break;
+
+                                            case "LoanBalB4":
+                                                <PropertyColumn Title="Loan Balance Before" Property="@(x => x.LoanBalB4)" Format="N2" />
+                                                break;
+
+                                            case "TotalDed":
+                                                <PropertyColumn Title="Total Deduction" Property="@(x => x.TotalDed)" Format="N2" />
+                                                break;
+
+                                            case "NetPay":
+                                                <PropertyColumn Title="Net Payable" Property="@(x => x.NetPay)" Format="N2" />
+                                                break;
+
+                                            case "OldBal":
+                                                <PropertyColumn Title="Old Balance" Property="@(x => x.OldBal)" />
+                                                break;
+
+                                            case "paidAmt":
+                                                <PropertyColumn Title="Paid Amount" Property="@(x => x.paidAmt)" />
+                                                break;
+
+                                            case "AttBonus":
+                                                <PropertyColumn Title="Att Bonus" Property="@(x => x.AttBonus)" Format="N2"/>
+                                                break;
+
+                                            case "ESIBankCode":
+                                                <PropertyColumn Title="ESI Bank Code" Property="@(x => x.ESIBankCode)" />
+                                                break;
+
+                                            case "ESIBankName":
+                                                <PropertyColumn Title="ESI Bank Name" Property="@(x => x.ESIBankName)" />
+                                                break;
+
+                                            case "ESICQDate":
+                                                <PropertyColumn Title="ESI CQDate" Property="@(x => x.ESICQDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ESICQNo":
+                                                <PropertyColumn Title="ESI CQNo" Property="@(x => x.ESICQNo)" />
+                                                break;
+
+                                            case "ESIDate":
+                                                <PropertyColumn Title="ESI Date" Property="@(x => x.ESIDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ESIPytMode":
+                                                <PropertyColumn Title="ESI Payment Mode" Property="@(x => x.ESIPytMode)" />
+                                                break;
+
+                                            case "PFBankName":
+                                                <PropertyColumn Title="PF Bank Name" Property="@(x => x.PFBankName)" />
+                                                break;
+
+                                            case "PFCQDate":
+                                                <PropertyColumn Title="PF CQ Date" Property="@(x => x.PFCQDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "PFCQNo":
+                                                <PropertyColumn Title="PF CQNo" Property="@(x => x.PFCQNo)" />
+                                                break;
+
+                                            case "PFDate":
+                                                <PropertyColumn Title="PF Date" Property="@(x => x.PFDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "PFPytMode":
+                                                <PropertyColumn Title="PF Payment Mode" Property="@(x => x.PFPytMode)" />
+                                                break;
+
+                                            case "PFDepositor":
+                                                <PropertyColumn Title="PF Depositor" Property="@(x => x.PFDepositor)" />
+                                                break;
+
+                                            case "PH":
+                                                <PropertyColumn Title="PH" Property="@(x => x.PH)" />
+                                                break;
+
+                                            case "W":
+                                                <PropertyColumn Title="W" Property="@(x => x.W)" />
+                                                break;
+
+                                            case "LOP":
+                                                <PropertyColumn Title="Loss Of Pay" Property="@(x => x.LOP)" Format="N2"/>
+                                                break;
+
+                                            case "P":
+                                                <PropertyColumn Title="P" Property="@(x => x.P)" Format="N2"/>
+                                                break;
+
+                                            case "O":
+                                                <PropertyColumn Title="O" Property="@(x => x.O)" Format="N2"/>
+                                                break;
+
+                                            case "Miscellaneous":
+                                                <PropertyColumn Title="Miscellaneous" Property="@(x => x.Miscellaneous)" Format="N2"/>
+                                                break;
+
+                                            case "Others":
+                                                <PropertyColumn Title="Others" Property="@(x => x.Others)" Format="N2"/>
+                                                break;
+
+                                            case "EarnedLTA":
+                                                <PropertyColumn Title="Earned LTA" Property="@(x => x.EarnedLTA)" />
+                                                break;
+
+                                            case "EarnedMR":
+                                                <PropertyColumn Title="Earned MR" Property="@(x => x.EarnedMR)" Format="N2" />
+                                                break;
+
+                                            case "EarnedEA":
+                                                <PropertyColumn Title="Earned EA" Property="@(x => x.EarnedEA)" Format="N2" />
+                                                break;
+
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(x => x.Createdby)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(x => x.Createddate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(x => x.Modifiedby)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(x => x.Modifieddate)" Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+
+                            }
+
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"salary/update/{c.RowId}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Salary">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"salary/details/{c.RowId}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View Salary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Salary"
+                                                @onclick="() => HandleDelete(c.RowId)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </QuickGrid>
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+                        <div class="d-flex align-items-center gap-2 justify-content-center">
+
+                            <button class="btn btn-outline-primary" title="First Page" @onclick="FirstPage" disabled="@(currentPage == 1)">
+                                <i class="bi bi-skip-backward-fill"></i>
+                            </button>
+
+                            <button class="btn btn-outline-primary" title="Previous Page" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                                <i class="bi bi-arrow-left-circle"></i>
+                            </button>
+
+                            <span class="px-3 fw-semibold">
+                                Page @currentPage of @totalPages
+                            </span>
+
+                            <button class="btn btn-outline-primary" title="Next Page" @onclick="NextPage" disabled="@(currentPage >= totalPages)">
+                                <i class="bi bi-arrow-right-circle"></i>
+                            </button>
+
+                            <button class="btn btn-outline-primary" title="Last Page" @onclick="LastPage" disabled="@(currentPage >= totalPages)">
+                                <i class="bi bi-skip-forward-fill"></i>
+                            </button>
+
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center">No Item available.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "Salary";
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private int DeleteRowId = 0;
+    private string searchText = string.Empty;
+    private string selectedStatus = "";
+
+    private List<Salary> SalaryEmp = new();
+
+    // === Paging & Search ===
+    private int totalItems;
+    private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+    // === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    // Instant Search filter parameter
+    [Parameter, SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> SalBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "HumanResource" },
+        new PageHeader.BreadcrumbItem { Text = "Salary", IsLast = true }
+    };
+
+    #endregion
+
+    #region === initilization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+
+            await LoadAllSalaries();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Sales Order OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+    #endregion
+
+
+    #region ===  Columns ===
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+
+                new() { Title = "Row Id", Field = "RowId", IsVisible = false },
+
+                new() { Title = "Salary Year", Field = "SalYear", IsVisible = true },
+                new() { Title = "Salary Month", Field = "SalMonth", IsVisible = true },
+                new() { Title = "Salary Date", Field = "SalDate", IsVisible = true },
+
+                new() { Title = "Staff Id", Field = "StaffId", IsVisible = false },
+                new() { Title = "Department", Field = "Dept", IsVisible = true },
+                new() { Title = "Present Days", Field = "DaysPresent", IsVisible = false },
+                new() { Title = "Working Days", Field = "WorkingDays", IsVisible = false },
+                new() { Title = "Leave Days", Field = "LeaveDays", IsVisible = false },
+                new() { Title = "Over Time", Field = "OT", IsVisible = false },
+
+                new() { Title = "Basic Salary", Field = "Basic", IsVisible = false },
+                new() { Title = "Earned Basic", Field = "EarnedBasic", IsVisible = false },
+                new() { Title = "Daily Allowance", Field = "DA", IsVisible = false },
+                new() { Title = "Earned DA", Field = "EarnedDA", IsVisible = false },
+
+                new() { Title = "OT Times Now", Field = "OT_times_now", IsVisible = false },
+                new() { Title = "Earned OT", Field = "EarnedOT", IsVisible = false },
+                new() { Title = "Earned AttBonus", Field = "EarnedAttBonus", IsVisible = false },
+
+                new() { Title = "Earned HRA", Field = "EarnedHRA", IsVisible = false },
+                new() { Title = "Earned TA", Field = "EarnedTA", IsVisible = false },
+               
+            };
+
+
+            if (!Hidden)
+            {
+                
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for Sales Quoatation List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the SalesEnquiryList HandleColumnChange() Method");
+        }
+    }
+
+    #endregion
+
+
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+           
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in Salary List");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+             
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in Salary List");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+            
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Salary List");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+               
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in Salary List");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+ 
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Salary List");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+           
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Salies Order List page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(int rowId)
+    {
+        
+        try
+        {
+            var (canDelete, message) = await salaryService.CanDeleteSalaryAsync(DeleteRowId);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteRowId = rowId;
+
+            ModalTitle = "Are you sure you want to delete this Salary";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for RowId: {DeleteRowId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            bool deleted = await salaryService.DeleteSalaryByRowIdAsync(DeleteRowId);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Salary deleted successfully.");
+              
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Salary not found or already deleted.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting RowId: {DeleteRowId}");
+            await _JS.ToastrError("Failed to delete salary.");
+        }
+        finally
+        {
+            DeleteRowId = 0;
+        }
+    }
+
+    #endregion
+
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region SEARCH FILTERS
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+           
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Salary List");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    #endregion
+
+
+    #region Job order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SearchFilters = new();
+            selectedStatus = e.Value?.ToString() ?? "";
+
+            if (string.IsNullOrWhiteSpace(selectedStatus))
+                SearchFilters.Remove("Status");
+            else
+                SearchFilters["Status"] = selectedStatus;
+
+
+            currentPage = 1;
+            await LoadAllSalaries();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error OnStatusChanged in Salary List");
+            await _JS.ToastrError("Failed to Load Salary List filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadAllSalaries()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var result = await salaryService.GetAllSalariesAsync();
+
+            totalItems = result.Count;
+
+            SalaryEmp = result
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading Salary List");
+            await _JS.ToastrError("Failed to load salaries.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+}

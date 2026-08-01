@@ -1,0 +1,549 @@
+﻿@page "/attendanceList"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService.IAttendanceService
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.AttendanceeVM
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject IColumnPreferenceService _preferenceService
+@inject NavigationManager _navigation
+@inject IAttendanceService _attendanceService
+
+<BsModal OnModalConfirmation="ConfirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Attendance?">
+</BsModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <div class="position-absolute w-75 h-75 d-flex flex-column align-items-center bg-white justify-content-center">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="loading.." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="Attendance List"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@AttendanceBreadcrumbs" />
+
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-center mb-3">
+
+                    <div class="col-12 col-lg-3">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="AttendanceList"
+                                    UserId="@UserName"
+                                    MaxVisible="int.MaxValue"
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-12 col-lg-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <InputText @bind-Value="searchText"
+                                       @bind-Value:event="oninput"
+                                       class="form-control border-start-0"
+                                       placeholder="Search data here"
+                                       title="Filter data by EmployeeName, Designation, CreatedBy, etc." />
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-lg-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-lg-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                @bind="selectedStatus"
+                                title="Select EmployeeType of records">
+                            <option value="">-- Select EmployeeType --</option>
+                            <option value="Trainee">Trainee</option>
+                            <option value="OnRole">On Role</option>
+                            <option value="OutSourced">Out Sourced</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-2 ms-md-auto text-end">
+                            <button type="button" class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewAttendance">
+                                <i class="bi bi-plus-square me-1"></i> Add New Attendance
+                            </button>
+                        </div>
+                    }
+
+                </div>
+
+                @if (filteredAttendance.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid Items="filteredAttendance.AsQueryable()"
+                                   Pagination="@pagination"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            @* case "Id":
+                                                <PropertyColumn Title="ID" Property="@(c => c.Id)" Sortable="true" />
+                                                break; *@
+
+                                            case "Year":
+                                                <PropertyColumn Title="Year" Property="@(c => c.Year)" />
+                                                break;
+
+                                            case "MonthId":
+                                                <PropertyColumn Title="Month Id" Property="@(c => c.MonthId)" />
+                                                break;  
+
+                                            case "Reporting":
+                                                <TemplateColumn Title="Reporting" Context="c">
+                                                    @if (c.Reporting == "Trainee")
+                                                    {
+                                                        <span class="badge-bg-danger">Trainee</span>
+                                                    }
+                                                    @if (c.Reporting == "On Role")
+                                                    {
+                                                        <span class="badge-bg-danger">OnRole</span>
+                                                    }
+                                                    @if (c.Reporting == "Out Sourced")
+                                                    {
+                                                        <span class="badge-bg-danger">OutSourced</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            
+
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"attendance/update/{c.Id}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Attendance">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"attendance/details/{c.Id}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View Attendance">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Attendance"
+                                                @onclick="() => HandleDelete(c.Id)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+                    </div>
+                    <div class="col-12 card-footer bg-white border-0 mt-3">
+                        <Paginator State="pagination" />
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center">No Attendance found.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Attendance";
+
+    private bool isProcessing = true;
+    private string? searchText { get; set; } = string.Empty;
+    private string? UserName;
+    // private int ID = 0;
+    private int DeleteId = 0;
+    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    public List<GridColumn> Columns { get; set; } = new();
+    private IEnumerable<AttendanceVM> AttendaceVMs = new List<AttendanceVM>();
+    private string selectedStatus = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> AttendanceBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Human-Resource" },
+        new PageHeader.BreadcrumbItem { Text = "Attendance", IsLast = true }
+    };
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private static string Normalize(string? value)
+    => value?.Replace(" ", "") ?? "";
+
+
+    private IEnumerable<AttendanceVM> filteredAttendance =>
+        AttendaceVMs
+         .Where(c =>
+            string.IsNullOrWhiteSpace(selectedStatus) ||
+            Normalize(c.Reporting)
+                .Equals(Normalize(selectedStatus), StringComparison.OrdinalIgnoreCase)
+        )
+        .Where(c =>
+            string.IsNullOrWhiteSpace(searchText)
+
+            // Numeric fields
+            // || c.Id.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            || c.Year.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            // || c.StaffId.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            || c.MonthId.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+            // String fields
+            // || (!string.IsNullOrEmpty(c.Ldetail) &&
+            //     c.Ldetail.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            // || (!string.IsNullOrEmpty(c.OtDetail) &&
+            //     c.OtDetail.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            // || (!string.IsNullOrEmpty(c.InTime) &&
+            //     c.InTime.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            // || (!string.IsNullOrEmpty(c.OutTime) &&
+            //     c.OutTime.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            // || (!string.IsNullOrEmpty(c.BioMetricId) &&
+            //     c.BioMetricId.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            || (!string.IsNullOrEmpty(c.Reporting) &&
+                c.Reporting.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            // || (!string.IsNullOrEmpty(c.AttendanceSource) &&
+            //     c.AttendanceSource.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            || (!string.IsNullOrEmpty(c.CreatedBy) &&
+                c.CreatedBy.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            || (!string.IsNullOrEmpty(c.ModifiedBy) &&
+                c.ModifiedBy.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            // Date fields (formatted search)
+            || (c.CreatedDate.HasValue &&
+                c.CreatedDate.Value.ToString("dd/MM/yyyy")
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            || (c.ModifiedDate.HasValue &&
+                c.ModifiedDate.Value.ToString("dd/MM/yyyy")
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+                    &&
+                    (string.IsNullOrWhiteSpace(selectedStatus) ||
+                        (selectedStatus == "Trianee" && c.Reporting == "Trainee") ||
+                         (selectedStatus == "OnRole" && c.Reporting == "On Role") ||
+                          (selectedStatus == "OutSourced" && c.Reporting == "Out Sourced")
+                    )
+        );
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            UserName = await _userService.GetUsernameAsync();   // ✔️ REQUIRED
+
+            await LoadAllStaffAsync();
+
+            var savedPreferences = await _preferenceService.LoadPreferencesAsync("attendanceList", UserName);
+            if (savedPreferences?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = savedPreferences.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null) col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch
+        {
+            await _js.ToastrError("Error initializing the attendance page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadAllStaffAsync()
+    {
+        try
+        {
+            AttendaceVMs = await _attendanceService.GetAllAttendanceAsync();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "LoadAllStaffAsync");
+            await _js.ToastrError("Failed to load attendance data.");
+        }
+    }
+
+    public async Task InitializeColumns(bool hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // new() { Title = "Id", Field = "Id", IsVisible = false },
+                new() { Title = "Year", Field = "Year", IsVisible = true },
+                // new() { Title = "Staff Id", Field = "StaffId", IsVisible = true },
+                new() { Title = "Month Id", Field = "MonthId", IsVisible = true },
+                // new() { Title = "Ldetail", Field = "Ldetail", IsVisible = true },
+                // new() { Title = "Ot Detail", Field = "OtDetail", IsVisible = true },
+                // new() { Title = "In Time", Field = "InTime", IsVisible = true },
+                // new() { Title = "Out Time", Field = "OutTime", IsVisible = true },
+                // new() { Title = "BioMetric Id", Field = "BioMetricId", IsVisible = true },
+                new() { Title = "Reporting", Field = "Reporting", IsVisible = true },
+                // new() { Title = "Attendance Source", Field = "AttendanceSource", IsVisible = true },
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = true },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = true },
+            };
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "InitializeColumns");
+            await _js.ToastrError("Failed to initialize grid columns.");
+        }
+    }
+
+    private void AddNewAttendance()
+    {
+        _navigation.NavigateTo($"/attendance/create");
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "HandleColumnChange");
+            await _js.ToastrError("Failed to update column preferences.");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value is not null && int.TryParse(e.Value.ToString(), out int pageSize))
+            {
+                pagination.ItemsPerPage = pageSize;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPageSizeChanged");
+            await _js.ToastrError("Failed to update page size.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else
+                await _js.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task HandleDelete(int Id)
+    {
+        try
+        {
+            var (canDelete, message) = await _attendanceService.CanDeleteIdAsync(Id);
+
+            if (!canDelete)
+            {
+                await _js.ToastrWarning(message);
+                return;
+            }
+
+            DeleteId = Id;
+
+            ModalTitle = "Are you sure you want to delete this Attendance";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error initiating delete for Id: {Id}");
+            await _js.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            bool deleted = await _attendanceService.DeleteAttendanceByIdAsync(DeleteId);
+
+            if (deleted)
+            {
+                await _js.ToastrSuccess("Attendance deleted successfully.");
+                await LoadAllStaffAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _js.ToastrWarning("Attendance not found or already deleted.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error deleting AttendanceId: {DeleteId}");
+            await _js.ToastrError("Failed to delete attendance.");
+        }
+        finally
+        {
+            DeleteId = 0;
+        }
+    }
+
+
+}
+

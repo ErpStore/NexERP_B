@@ -1,0 +1,2008 @@
+﻿@page "/taxDetailsList"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITaxDetailsReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TaxDetailsReportViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+@inject ICustomerService customerService
+@inject IVendorService vendorService
+@inject ITaxDetailsService taxDetailsService
+@inject ExcelExportService ExcelExportService
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService CurrentUserService
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    <CorrespondenceListByReference refType="Labour-Invoice" refId="@(AttachItemSelected.InvId ?? 0)"
+                                   refName="@invoiceNo" docType="Correspondence" isModelVisible="true" />
+</MasterModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="TaxDetails Report"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@TaxDetailsBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <div class="card shadow-sm border-0 h-100">
+
+                    <div class="card border-0 shadow-sm rounded-3 mb-1">
+
+
+                        <!-- BODY -->
+                        <div class="card-body p-3 bg-light">
+
+                            <div class="row g-3">
+
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <label class="mb-0">From Date</label>
+                                    <InputDate @bind-Value="FromDate"
+                                               @bind-Value:after="DateChanged"
+                                               class="form-control form-control-sm w-auto" />
+
+                                    <label class="mb-0 ms-3">To Date</label>
+                                    <InputDate @bind-Value="ToDate"
+                                               @bind-Value:after="DateChanged"
+                                               class="form-control form-control-sm w-auto" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="row g-3 mt-1">
+
+                        <!-- TOPIC CARD -->
+                        <div class="col-12 col-md-4">
+
+                            <div class="card border-0 shadow rounded-3 h-100 overflow-hidden">
+
+                                <!-- HEADER -->
+                                <div class="card-header border-0 text-white py-2 px-2"
+                                     style="background: linear-gradient(135deg, #0a535d, #117a8b);">
+
+                                    <div class="d-flex align-items-center">
+                                        
+                                        <div>
+                                            <div class="fw-bold">
+                                                <i class="bi bi-book-half text-white"></i> Topic
+                                            </div>
+
+                                           
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- BODY -->
+                                <div class="card-body p-2 bg-light" style="height:280px;">
+                                    
+                                    <div class="d-grid gap-2">
+
+                                        <!-- SALES -->
+                                        <button type="button"
+                                                class="btn text-start rounded-4 border fw-semibold py-2 px-2 shadow-sm
+                                                    @(SelectedTopic == "Sales" ? "btn-primary text-white" : "btn-light")"
+                                            @onclick='() => OnTopicClick("Sales")'>
+
+                                            <div class="d-flex justify-content-between align-items-center">
+
+                                                <div>
+                                                    <div class="fw-bold">
+                                                        Sales
+                                                    </div>
+
+                                                    <small class="opacity-75">
+                                                        Domestic sales transactions
+                                                    </small>
+                                                </div>
+
+                                                <span class="badge bg-white text-primary rounded-pill px-2">
+                                                    01
+                                                </span>
+                                            </div>
+                                        </button>
+
+                                        <!-- EXPORTS -->
+                                        <button type="button"
+                                                class="btn text-start rounded-4 border fw-semibold py-2 px-2 shadow-sm
+                                                         @(SelectedTopic == "Exports" ? "btn-primary text-white" : "btn-light")"
+                                                @onclick='() => OnTopicClick("Exports")'>
+
+                                            <div class="d-flex justify-content-between align-items-center">
+
+                                                <div>
+                                                    <div class="fw-bold">
+                                                        Exports
+                                                    </div>
+
+                                                    <small class="opacity-75">
+                                                        International export reports
+                                                    </small>
+                                                </div>
+
+                                                <span class="badge bg-white text-primary rounded-pill px-2">
+                                                    02
+                                                </span>
+                                            </div>
+                                        </button>
+
+                                        <!-- OUTSOURCING -->
+                                        <button type="button"
+                                                class="btn text-start rounded-4 border fw-semibold py-2 px-2 shadow-sm
+                                                    @(SelectedTopic == "Purchase" ? "btn-primary text-white" : "btn-light")"
+                                                @onclick='() => OnTopicClick("Purchase")'>
+
+                                            <div class="d-flex justify-content-between align-items-center">
+
+                                                <div>
+                                                    <div class="fw-bold">
+                                                        OutSourcing
+                                                    </div>
+
+                                                    <small class="opacity-75">
+                                                        Purchase & outsourcing details
+                                                    </small>
+                                                </div>
+
+                                                <span class="badge bg-white text-primary rounded-pill px-2">
+                                                    03
+                                                </span>
+                                            </div>
+                                        </button>
+
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PARTY NAME -->
+                        <div class="col-12 col-md-4">
+
+                          
+                            <div class="card border-0 shadow rounded-3 h-100 overflow-hidden">
+                                <div class="card shadow border-0 rounded-3">
+                                    <!-- HEADER -->
+                                   
+                                    <div class="card-header border-0 text-white py-2 px-2"
+                                         style="background-color:#b57281;">
+
+                                        <i class="bi bi-grid-fill me-2 text-light fs-6"></i>
+
+                                        Select Party Name
+
+                                    </div>
+
+
+                                    <div class="card-body p-2 d-flex flex-column" style="height:280px;">
+
+                                        <!-- SEARCH -->
+                                        <input class="form-control form-control-sm"
+                                               placeholder="Search Party..."
+                                               value="@partySearch"
+                                               @oninput="OnPartySearchChange" />
+
+                                        <!-- PARTY LIST -->
+                                        @* <div class="border rounded shadow-sm bg-white mt-1  overflow-auto"> *@
+                                        <div class="border rounded shadow-sm bg-white mt-3 p-2 flex-grow-1 overflow-auto">
+
+                                            <!-- DROPDOWN LIST -->
+                                            
+                                                <!-- ALL OPTION -->
+                                                <div class="dropdown-item cursor-pointer
+                                                         @(IsAllSelected ? "text-white fw-bold" : "")"
+                                                 style="@(IsAllSelected ? "background-color:#815355;" : "")"
+                                                     @onclick='() => SelectParty("ALL")'>
+
+                                                    All
+                                                </div>
+
+                                                @if (SelectedTopic == "Sales")
+                                                {
+                                                    @foreach (var item in FilteredCustomers)
+                                                    {
+                                                        <div class="dropdown-item cursor-pointer
+                                                             @(SelectedPartyId == item.CustId ? "text-white fw-bold" : "")"
+                                                             style="@(SelectedPartyId == item.CustId ? "background-color:#815355;" : "")"
+                                                             @onclick='() => SelectParty(item.CustName)'>
+
+                                                            @item.CustName
+                                                        </div>
+                                                    }
+                                                }
+                                                else if (SelectedTopic == "Exports")
+                                                {
+                                                    @foreach (var item in FilteredCustomers)
+                                                    {
+                                                    <div class="dropdown-item cursor-pointer 
+                                                             @(SelectedPartyId == item.CustId ? "text-white fw-bold" : "")"
+                                                             style="@(SelectedPartyId == item.CustId ? "background-color:#815355;" : "")"
+                                                             @onclick='() => SelectParty(item.CustName)'>
+
+                                                            @item.CustName
+                                                        </div>
+                                                    }
+                                                }
+
+                                                else if (SelectedTopic == "Purchase")
+                                                {
+                                                    @foreach (var item in FilteredVendors)
+                                                    {
+                                                    <div class="dropdown-item cursor-pointer 
+                                                         @(SelectedVendorCode == item.VendorCode ? "text-white fw-bold" : "")"
+                                                         style="@(SelectedPartyId == item.VendorCode ? "background-color:#815355;" : "")"
+                                                             @onclick='() => SelectParty(item.VendorName)'>
+
+                                                            @item.VendorName
+                                                        </div>
+                                                    }
+                                                }
+                                           @*  </div> *@
+
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- ITEMS -->
+                        <div class="col-12 col-md-4">
+
+                            <div class="card shadow-sm border-0 h-100">
+
+                                <!-- CARD -->
+                                <div class="card shadow border-0 rounded-3">
+
+                                    <!-- HEADER -->
+                                    <div class="card-header text-white py-2" style="background-color:#4d4d4d;">
+                                        <div class="fw-bold">
+                                            <i class="bi bi-card-list text-white"></i> Tax Summary
+                                        </div>
+                                    </div>
+
+                                    <!-- CARD BODY -->
+                                    <div class="card-body p-2"style="height:280px;">
+
+                                        <!-- DETAIL VIEW -->
+                                        <div class="d-flex justify-content-between align-items-center
+                                                       border rounded-3 p-3 mb-4 bg-light">
+                                            <div>
+                                                <div class="fw-semibold">
+                                                    Detail View
+                                                </div>
+
+                                                <small class="text-muted">
+                                                    Show detailed records
+                                                </small>
+                                            </div>
+
+                                            <div class="form-check form-switch m-0 ">
+                                                <InputCheckbox class="form-check-input"
+                                                               @bind-Value="IsDetailView" style="border: 1px solid #000;"
+                                                               @bind-Value:after="OnDetailViewChanged" />
+                                            </div>
+                                        </div>
+
+                                        <!-- TOTAL BASIC -->
+                                        <div class="border rounded-3 p-3 mb-3 bg-light shadow-sm">
+
+                                            <div class="d-flex justify-content-between align-items-center">
+
+                                                <label class="text-muted fw-semibold mb-0">
+                                                    @(IsDetailView ? "Line Basic Amount" : "Total Basic Amount")
+                                                </label>
+
+                                                <div class="fs-4 fw-bold text-primary">
+                                                    ₹ @BasicAmount.ToString("N2")
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- GRAND TOTAL -->
+                                        <div class="border rounded-3 p-3 mb-3 bg-success bg-opacity-10 shadow-sm">
+
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <label class="text-muted fw-semibold mb-0">
+                                                    Grand Total
+                                                </label>
+
+                                                <div class="fs-3 fw-bold text-success">
+                                                    ₹ @GrandTotal.ToString("N2")
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (IsLoading)
+                {
+                    <div class="d-flex justify-content-center align-items-center py-5">
+                        <div class="spinner-grow text-primary"></div>
+
+                        <span class="ms-3 fw-semibold">
+                            Fetching invoice records...
+                        </span>
+                    </div>
+                }
+                else if (FilteredTaxDetailsData != null && FilteredTaxDetailsData.Any())
+                {
+                    <div class="col-12 mt-3 mb-2">
+
+                        <div class="card shadow-sm border-0 rounded-4 overflow-hidden"
+                             style="background: linear-gradient(180deg,#ffffff,#f8fbff); border:1px solid #e9eef5;">
+
+                            <!-- HEADER -->
+                            <div class="card-header border-0 py-3 px-4"
+                                 style="background: linear-gradient(135deg, #eefcff, #d9f7ff);
+                                          border-bottom:1px solid #c6eff7;">
+
+                                <div class="row g-3 align-items-center">
+
+                                    <!-- TITLE -->
+                                    <div class="col-12 col-xl-3">
+
+                                        <div class="d-flex align-items-center">
+
+                                            @* <div class="rounded-circle bg-primary bg-opacity-10 p-2 me-3">
+                                                <i class="bi bi-receipt-cutoff text-primary fs-5"></i>
+                                            </div>
+ *@
+                                            <div>
+
+                                                <div class="fw-bold text-dark fs-6">
+                                                    Invoice Item Details
+                                                </div>
+
+                                                <small class="text-muted">
+                                                    Invoice tax & item summary records
+                                                </small>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    <!-- SEARCH -->
+                                    <div class="col-12 col-xl-3">
+
+                                        <div class="input-group shadow-sm rounded-3 overflow-hidden border">
+
+                                            <span class="input-group-text bg-white border-0">
+                                                <i class="bi bi-search text-muted"></i>
+                                            </span>
+
+                                            <input type="text"
+                                                   class="form-control border-start-0"
+                                                   placeholder="Search InvoiceNo.,Customer,Vendor,ItemCode,HSNCode..."
+                                                   @bind="searchText"
+                                                   @bind:event="oninput" />
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- COLUMN MENU -->
+                                    <div class="col-12 col-xl-3">
+                                        <div class="dropdown w-100">
+                                            <button class="btn btn-outline-primary rounded-3 w-100 fw-semibold shadow-sm dropdown-toggle"
+                                                    type="button"
+                                                    data-bs-toggle="dropdown">
+                                                <i class="bi bi-layout-three-columns me-2"></i>
+                                                Manage Columns
+                                            </button>
+
+                                            <ul class="dropdown-menu p-3 shadow border-0 rounded-4" style="max-height:400px; overflow:auto; min-width:260px;">
+
+                                                @foreach (var col in Columns.Where(c => !c.IsDetailColumn || IsDetailView))
+                                                {
+                                                    <li class="mb-2">
+
+                                                        <div class="form-check">
+
+                                                            <input class="form-check-input"
+                                                                   type="checkbox"
+                                                                   checked="@col.IsVisible"
+                                                                   @onchange="async e =>
+                                                                   {
+                                                                       await OnColumnChanged(col, e.Value);
+                                                                   }" />
+
+                                                            <label class="form-check-label small fw-semibold">
+                                                                @col.Title
+                                                            </label>
+                                                        </div>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <!-- PRINT -->
+                                    <div class="col-12 col-xl-3">
+
+                                        <button class="btn btn-success rounded-3 shadow-sm fw-semibold w-100"
+                                                id="btnPrint"
+                                                @onclick="Print">
+
+                                            <i class="bi bi-file-earmark-excel-fill me-2"></i>
+                                            Print
+
+                                        </button>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                            <!-- TABLE -->
+                            <div class="card-body p-2">
+
+                                <div class="table-responsive border  overflow-auto" style="max-height:650px;">
+
+                                    <table class="table table-hover table-bordered align-middle text-center mb-0" style="min-width:1900px; white-space:nowrap;">
+
+                                        <thead class="custom-blue position-sticky top-0 z-3">
+                                            <tr>
+
+                                                @if (IsColumnVisible("SlNo"))
+                                                {
+                                                    <th>SlNo</th>
+                                                }
+
+                                                @if (IsColumnVisible("CustName"))
+                                                {
+                                                    <th>Customer</th>
+                                                }
+
+                                                @if (IsColumnVisible("GSTNo"))
+                                                {
+                                                    <th>GST No</th>
+                                                }
+
+                                                @if (IsColumnVisible("InvType"))
+                                                {
+                                                    <th>Type</th>
+                                                }
+
+                                                @if (IsColumnVisible("InvNo"))
+                                                {
+                                                    <th>Invoice No</th>
+                                                }
+
+                                                @if (IsColumnVisible("InvDate"))
+                                                {
+                                                    <th>Invoice Date</th>
+                                                }
+
+                                                @if (IsColumnVisible("Process"))
+                                                {
+                                                    <th>Process</th>
+                                                }
+
+                                                @if (IsColumnVisible("CGstRate"))
+                                                {
+                                                    <th>CGST %</th>
+                                                }
+
+                                                @if (IsColumnVisible("SGstRate"))
+                                                {
+                                                    <th>SGST %</th>
+                                                }
+
+                                                @if (IsColumnVisible("TotalCGSTAmount"))
+                                                {
+                                                    <th>CGST Amount</th>
+                                                }
+
+                                                @if (IsColumnVisible("TotalSGSTAmount"))
+                                                {
+                                                    <th>SGST Amount</th>
+                                                }
+
+                                                @if (IsColumnVisible("IGstRate"))
+                                                {
+                                                    <th>IGST %</th>
+                                                }
+
+                                                @if (IsColumnVisible("TotalIGSTAmount"))
+                                                {
+                                                    <th>IGST Amount</th>
+                                                }
+
+                                                @if (IsColumnVisible("DiscountPercent"))
+                                                {
+                                                    <th>Discount %</th>
+                                                }
+
+                                                @if (IsColumnVisible("DiscountAmount"))
+                                                {
+                                                    <th>Discount Amount</th>
+                                                }
+
+                                                @if (IsColumnVisible("TotalBasicAmount"))
+                                                {
+                                                    <th>@(IsDetailView ? "Line BasicAmount" : "Basic Amount")</th>
+                                                }
+
+                                                @if (IsColumnVisible("GrandTotal"))
+                                                {
+                                                    <th>Grand Total</th>
+                                                }
+
+                                                @if (IsColumnVisible("ACKNO"))
+                                                {
+                                                    <th>ACK No</th>
+                                                }
+
+                                                @if (IsColumnVisible("IRNNo"))
+                                                {
+                                                    <th>IRN No</th>
+                                                }
+                                                
+                                                
+                                                @if (IsDetailView && IsColumnVisible("RefDCNo"))
+                                                {
+                                                    <th>DC No</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("RefDcDate"))
+                                                {
+                                                    <th>DC Date</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("PONo"))
+                                                {
+                                                    <th>PO No</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("PODate"))
+                                                {
+                                                    <th>PO Date</th>
+                                                }
+                                                @if (IsDetailView && IsColumnVisible("LineNo"))
+                                                {
+                                                    <th>Line No.</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("ItemCode"))
+                                                {
+                                                    <th>Item Code</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("ItemName"))
+                                                {
+                                                    <th>Item Name</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("Specification"))
+                                                {
+                                                    <th>Specification</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("MeasureUnit"))
+                                                {
+                                                    <th>UOM</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("HSNCode"))
+                                                {
+                                                    <th>HSN</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("Qty"))
+                                                {
+                                                    <th>Qty</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("UnitPrice"))
+                                                {
+                                                    <th>Unit Price</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("LineDiscountPercent"))
+                                                {
+                                                    <th>Discount %</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("LineDiscountAmount"))
+                                                {
+                                                    <th>Discount Amount</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("LineCGSTRate"))
+                                                {
+                                                    <th>CGST Rate</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("LineSGSTRate"))
+                                                {
+                                                    <th>SGST Rate</th>
+                                                }
+
+                                                @if (IsDetailView && IsColumnVisible("LineIGSTRate"))
+                                                {
+                                                    <th>IGST Rate</th>
+                                                }
+                                                
+                                            </tr>
+
+                                        </thead>
+
+                                        <tbody>
+                                            @foreach (var item in FilteredTaxDetailsData)
+                                            {
+                                                <tr>
+                                                    @if (IsColumnVisible("SlNo"))
+                                                    {
+                                                        <td>@item.SlNo</td>
+                                                    }
+                                                    @if (IsColumnVisible("CustName"))
+                                                    {
+                                                        <td>@item.CustName</td>
+                                                    }
+                                                    @if (IsColumnVisible("GSTNo"))
+                                                    {
+                                                        <td>@item.GSTNo</td>
+                                                    }
+                                                    @if (IsColumnVisible("InvType"))
+                                                    {
+
+                                                        <td>
+                                                            <span class="badge px-3 py-2 text-white"
+                                                                  style="@(item.InvType == "Sales"
+                                                                ? "background:linear-gradient(135deg,#4F46E5,#5e435d);"
+                                                                : item.InvType == "LABOUR"
+                                                                ? "background:linear-gradient(135deg,#F59E0B,#FBBF24); color:#9491e2;"
+                                                                : item.InvType == "EXPORT"
+                                                                ? "background:linear-gradient(135deg,#10B981,#6d90b9);"
+                                                                : item.InvType == "PURCHASE"
+                                                                ? "background:linear-gradient(135deg,#06B6D4,#22D3EE); color:#87a3a3;"
+                                                                : item.InvType == "SUBCONTRACT"
+                                                                ? "background:linear-gradient(135deg,#EF4444,#5c73b9);"
+                                                                : "background:linear-gradient(135deg,#6B7280,#9CA3AF);")">
+
+                                                @item.InvType
+
+                                                            </span>
+                                                        </td>
+                                                                                }
+                                                    @if (IsColumnVisible("InvNo"))
+                                                    {
+                                                        <td>
+                                                            @item.InvNo
+                                                            <!-- Attachment Icon -->
+                                                            @if (attachmentCounts.TryGetValue(item.InvId ?? 0, out var count) && count > 0 && item.InvType=="LABOUR")
+                                                            {
+                                                                <button class="btn btn-link p-0 ms-1"
+                                                                        title="@($"This Invoice has {count} attachment(s). Click to view.")"
+                                                                        @onclick="() => OpenAttachmentButton(item.InvNo, count)">
+                                                                    <i class="bi bi-paperclip" style="font-size:15px;"></i>
+                                                                </button>
+                                                            }
+                                                            </td>
+                                                    }
+                                                    @if (IsColumnVisible("InvDate"))
+                                                    {
+                                                        <td>@item.InvDate?.ToString("dd/MM/yyyy")</td>
+                                                    }
+                                                    @if (IsColumnVisible("Process"))
+                                                    {
+                                                        <td>@item.Process</td>
+                                                    }
+                                                    @if (IsColumnVisible("CGstRate"))
+                                                    {
+                                                        <td>@item.CGstRate</td>
+                                                    }
+                                                    @if (IsColumnVisible("SGstRate"))
+                                                    {
+                                                        <td>@item.SGstRate</td>
+                                                    }
+                                                    @if (IsColumnVisible("TotalCGSTAmount"))
+                                                    {
+                                                        <td>@item.TotalCGSTAmount</td>
+                                                    }
+                                                    @if (IsColumnVisible("TotalSGSTAmount"))
+                                                    {
+                                                        <td>@item.TotalSGSTAmount</td>
+                                                    }
+                                                    @if (IsColumnVisible("IGstRate"))
+                                                    {
+                                                        <td>@item.IGstRate</td>
+                                                    }
+                                                    @if (IsColumnVisible("TotalIGSTAmount"))
+                                                    {
+                                                        <td>@item.TotalIGSTAmount</td>
+                                                    }
+                                                    @if (IsColumnVisible("DiscountPercent"))
+                                                    {
+                                                        <td>@item.DiscountPercent</td>
+                                                    }
+                                                    @if (IsColumnVisible("DiscountAmount"))
+                                                    {
+                                                        <td>@item.DiscountAmount</td>
+                                                    }
+                                                    @if (IsColumnVisible("TotalBasicAmount"))
+                                                    {
+                                                        <td>@(IsDetailView ? item.LineBasicAmount : @item.TotalBasicAmount)</td>
+                                                    }
+                                                    @if (IsColumnVisible("GrandTotal"))
+                                                    {
+                                                        <td>@(IsDetailView ? (TaxDetailsList
+                                                                .Where(x => x.InvNo == item.InvNo && x.InvType==item.InvType)
+                                                                .FirstOrDefault() == item ? item.GrandTotal ?? 0 : 0) : item.GrandTotal ?? 0)
+                                                        </td>
+                                                    }
+                                                    @if (IsColumnVisible("ACKNO"))
+                                                    {
+                                                        <td>@item.ACKNO</td>
+                                                    }
+                                                    @if (IsColumnVisible("IRNNo"))
+                                                    {
+                                                        <td>@item.IRNNo</td>
+                                                    }
+                                                    
+                                                    @if (IsDetailView && IsColumnVisible("RefDCNo"))
+                                                    {
+                                                        <td>@item.RefDCNo</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("RefDcDate"))
+                                                    {
+                                                        <td>@item.RefDcDate?.ToString("dd/MM/yyyy")</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("PONo"))
+                                                    {
+                                                        <td>@item.PONo</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("PODate"))
+                                                    {
+                                                        <td>@item.PODate?.ToString("dd/MM/yyyy")</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineNo"))
+                                                    {
+                                                        <td>@item.LineNo</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("ItemCode"))
+                                                    {
+                                                        <td>@item.ItemCode</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("ItemName"))
+                                                    {
+                                                        <td>@item.ItemName</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("Specification"))
+                                                    {
+                                                        <td>@item.Specification</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("MeasureUnit"))
+                                                    {
+                                                        <td>@item.MeasureUnit</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("HSNCode"))
+                                                    {
+                                                        <td>@item.HSNCode</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("Qty"))
+                                                    {
+                                                        <td>@item.Qty</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("UnitPrice"))
+                                                    {
+                                                        <td>@item.UnitPrice</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineDiscountPercent"))
+                                                    {
+                                                        <td>@item.LineDiscountPercent</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineDiscountAmount"))
+                                                    {
+                                                        <td>@item.LineDiscountAmount</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineCGSTRate"))
+                                                    {
+                                                        <td>@item.LineCGSTRate</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineSGSTRate"))
+                                                    {
+                                                        <td>@item.LineSGSTRate</td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineIGSTRate"))
+                                                    {
+                                                        <td>@item.LineIGSTRate</td>
+                                                    }
+                                                    
+                                                </tr>
+                                            }
+                                        </tbody>
+
+                                        <!-- Totals -->
+                                        @if (FilteredTaxDetailsData?.Any() == true)
+                                        {
+                                            <tfoot class="table-warning fw-bold text-dark">
+                                                <tr>
+                                                    @{
+                                                        int totalColspan = 0;
+                                                        if (IsColumnVisible("SlNo")) totalColspan++;
+                                                        if (IsColumnVisible("CustName")) totalColspan++;
+                                                        if (IsColumnVisible("GSTNo")) totalColspan++;
+                                                        if (IsColumnVisible("InvType")) totalColspan++;
+                                                        if (IsColumnVisible("InvNo")) totalColspan++;
+                                                        if (IsColumnVisible("InvDate")) totalColspan++;
+
+
+                                                    }
+
+                                                    <td colspan="@totalColspan" class="text-end">
+                                                        Totals:
+                                                    </td>
+
+                                                    @if (IsColumnVisible("Process"))
+                                                    {
+                                                        <td></td>
+
+                                                    }                                                    
+                                                    @if (IsColumnVisible("CGstRate"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsColumnVisible("SGstRate"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsColumnVisible("TotalCGSTAmount"))
+                                                    {
+                                                        <td>
+                                                            @(FilteredTaxDetailsData.Sum(x => x.TotalCGSTAmount ?? 0))
+                                                        </td>
+                                                    }
+                                                    @if (IsColumnVisible("TotalSGSTAmount"))
+                                                    {
+                                                        <td>
+                                                            @(FilteredTaxDetailsData.Sum(x => x.TotalSGSTAmount ?? 0))
+                                                        </td>
+                                                    }
+                                                    @if (IsColumnVisible("IGstRate"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsColumnVisible("TotalIGSTAmount"))
+                                                    {
+                                                        <td>
+                                                            @(FilteredTaxDetailsData.Sum(x => x.TotalIGSTAmount ?? 0))
+                                                        </td>
+                                                    }
+                                                    @if (IsColumnVisible("DiscountPercent"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsColumnVisible("DiscountAmount"))
+                                                    {
+                                                        <td>
+                                                            @(FilteredTaxDetailsData.Sum(x => x.DiscountAmount ?? 0))
+                                                        </td>
+                                                    }
+                                                    @if (IsColumnVisible("TotalBasicAmount"))
+                                                    {
+                                                        <td>
+                                                            @(IsDetailView? FilteredTaxDetailsData.Sum(x => x.LineBasicAmount ?? 0)
+                                                            : FilteredTaxDetailsData.Sum(x => x.TotalBasicAmount ?? 0))
+  
+                                                        </td>
+                                                    }
+                                                    @if (IsColumnVisible("GrandTotal"))
+                                                    {
+                                                        <td>
+                                                            @(IsDetailView
+                                                                ? FilteredTaxDetailsData
+                                                                .GroupBy(x => new { InvNo = x.InvNo?.Trim(), x.InvType })
+                                                                .Sum(g => g.First().GrandTotal ?? 0)
+                                                                : FilteredTaxDetailsData
+                                                                .Sum(x => x.GrandTotal ?? 0))
+                                                        </td>
+                                                    }
+                                                    @if (IsColumnVisible("ACKNO"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsColumnVisible("IRNNo"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    
+                                                    @if (IsDetailView && IsColumnVisible("RefDCNo"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("RefDcDate"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("PONo"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("PODate"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineNo"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("ItemCode"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("ItemName"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("Specification"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("MeasureUnit"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("HSNCode"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("Qty"))
+                                                    {
+                                                        <td>
+                                                            @(FilteredTaxDetailsData.Sum(x => x.Qty ?? 0))
+                                                        </td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("UnitPrice"))
+                                                    {
+                                                        <td>
+                                                            @(FilteredTaxDetailsData.Sum(x => x.UnitPrice ?? 0))
+                                                        </td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineDiscountPercent"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineDiscountAmount"))
+                                                    {
+                                                        <td>
+                                                            @(FilteredTaxDetailsData.Sum(x => x.LineDiscountAmount ?? 0))
+                                                        </td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineCGSTRate"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineSGSTRate"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                    @if (IsDetailView && IsColumnVisible("LineIGSTRate"))
+                                                    {
+                                                        <td></td>
+                                                    }
+                                                </tr>
+                                            </tfoot>
+                                        }
+
+                                    </table>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+                else
+                {
+                    <div class="col-12 mt-4">
+
+                        <div class="card border-0 shadow-sm rounded-4">
+
+                            <div class="card-body text-center py-5">
+
+                                <div class="mb-3">
+
+                                    <i class="bi bi-inbox text-secondary"
+                                       style="font-size:55px;"></i>
+
+                                </div>
+
+                                <h5 class="fw-bold text-dark">
+                                    No Data Available
+                                </h5>
+
+                                <p class="text-muted mb-0">
+                                    Select topic, party and date range to load invoice records.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "TaxDetails Report";
+    private bool isProcessing = true;
+    private string searchText = string.Empty;
+    // private bool IsDetailView { get; set; }
+    private bool _isDetailView;
+
+    private bool IsDetailView
+    {
+        get => _isDetailView;
+        set
+        {
+            if (_isDetailView != value)
+            {
+                _isDetailView = value;
+                ApplyDetailView();
+            }
+        }
+    }
+    private List<PageHeader.BreadcrumbItem> TaxDetailsBreadcrumbs { get; set; } = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Accounts" },
+        new PageHeader.BreadcrumbItem { Text = "Tax Details", IsLast = true }
+    };
+    private List<Customer> Customers = new();
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string partySearch = "";
+    private List<Customer> FilteredParties = new();
+    private List<TaxDetailsVM> TaxDetailsList = new();
+    private List<CustomerVM> FilteredCustomers = new();
+    private List<VendorVM> FilteredVendors = new();
+    private bool IsLoading = false;
+
+    public List<TaxDetailsVM> TaxDetailsVMs { get; set; } = new();
+
+    private int SelectedPartyId;
+    private int SelectedVendorCode;
+    private string SelectedTopic = "";
+    public DateTime? FromDate = DateTime.Today.AddMonths(-1);
+    public DateTime? ToDate = DateTime.Today;
+    private List<CustomerVM> CustomerList = new();
+    private List<VendorVM> VendorList = new();
+    private string customerSearch { get; set; } = string.Empty;
+    private string vendorSearch { get; set; } = string.Empty;
+
+    private decimal BasicAmount => IsDetailView ? 
+        FilteredTaxDetailsData?.Sum(x => x.LineBasicAmount ?? 0) ?? 0 
+        : FilteredTaxDetailsData?.Sum(x => x.TotalBasicAmount ?? 0) ?? 0;
+
+    private decimal GrandTotal => IsDetailView
+     ? FilteredTaxDetailsData?
+         .GroupBy(x => new { InvNo = x.InvNo?.Trim(), x.InvType })
+         .Sum(g => g.First().GrandTotal ?? 0) ?? 0
+     : FilteredTaxDetailsData?
+         .Sum(x => x.GrandTotal ?? 0) ?? 0;
+
+    private List<TaxDetailsVM> FilteredData = new();
+    private string? UserName;
+    private int screenCode { get; set; }
+    private List<GridColumn> Columns = new();
+    private string UserId = "";
+    private bool IsAllSelected = false;
+
+    string invoiceNo = string.Empty;
+
+    private TaxDetailsVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await InitializeColumns(IsHidden);
+            screenCode = await taxDetailsService.GetScreenCodeByScreenNameAsync(ScreenName);
+            UserName = await CurrentUserService.GetUsernameAsync();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync in Stock Positions");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+        {
+            // ================= MAIN COLUMNS =================
+            new() { Title = "SlNo", Field = "SlNo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "CustName", Field = "CustName", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "GSTNo", Field = "GSTNo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "InvType", Field = "InvType", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "InvNo", Field = "InvNo", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "InvDate", Field = "InvDate", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "Process", Field = "Process", IsVisible = true, IsDetailColumn = false },
+
+            new() { Title = "CGstRate", Field = "CGstRate", IsVisible = false, IsDetailColumn = false },
+            new() { Title = "SGstRate", Field = "SGstRate", IsVisible = false, IsDetailColumn = false },
+            new() { Title = "TotalCGSTAmount", Field = "TotalCGSTAmount", IsVisible = false, IsDetailColumn = false },
+            new() { Title = "TotalSGSTAmount", Field = "TotalSGSTAmount", IsVisible = false, IsDetailColumn = false },
+            new() { Title = "IGstRate", Field = "IGstRate", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "TotalIGSTAmount", Field = "TotalIGSTAmount", IsVisible = false, IsDetailColumn = false },
+
+            new() { Title = "DiscountPercent", Field = "DiscountPercent", IsVisible = false, IsDetailColumn = false },
+            new() { Title = "DiscountAmount", Field = "DiscountAmount", IsVisible = false, IsDetailColumn = false },
+            new() { Title = "TotalBasicAmount", Field = "TotalBasicAmount", IsVisible = true, IsDetailColumn = false },
+            new() { Title = "GrandTotal", Field = "GrandTotal", IsVisible = false, IsDetailColumn = false },
+            new() { Title = "ACKNO", Field = "ACKNO", IsVisible = false, IsDetailColumn = false },
+            new() { Title = "IRNNo", Field = "IRNNo", IsVisible = false, IsDetailColumn = false },
+
+            // ================= DETAIL COLUMNS =================
+            new() { Title = "RefDCNo", Field = "RefDCNo", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "RefDcDate", Field = "RefDcDate", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "PONo", Field = "PONo", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "PODate", Field = "PODate", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "LineNo", Field = "LineNo", IsVisible = true, IsDetailColumn = true },
+
+            new() { Title = "ItemCode", Field = "ItemCode", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "ItemName", Field = "ItemName", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "Specification", Field = "Specification", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "MeasureUnit", Field = "MeasureUnit", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "HSNCode", Field = "HSNCode", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "Qty", Field = "Qty", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "UnitPrice", Field = "UnitPrice", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "LineDiscountPercent", Field = "LineDiscountPercent", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "LineDiscountAmount", Field = "LineDiscountAmount", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "LineCGSTRate", Field = "LineCGSTRate", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "LineSGSTRate", Field = "LineSGSTRate", IsVisible = true, IsDetailColumn = true },
+            new() { Title = "LineIGSTRate", Field = "LineIGSTRate", IsVisible = true, IsDetailColumn = true },
+
+        };
+
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error loading column preferences for JobOrderList");
+            await _js.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            await PreferenceService.SavePreferencesAsync(ScreenName, UserName, Columns);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in HandleColumnChange()");
+        }
+    }
+
+    private async Task OnColumnChanged(GridColumn column, object value)
+    {
+        try
+        {
+            column.IsVisible = Convert.ToBoolean(value);
+            await PreferenceService.SavePreferencesAsync(ScreenName, UserName, Columns);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error changing column");
+        }
+    }
+
+    private bool IsColumnVisible(string field)
+    {
+        return Columns.Any(x => x.Field == field && x.IsVisible);
+    }
+
+    IEnumerable<TaxDetailsVM> FilteredTaxDetailsData =>
+    FilteredData?.Where(s =>
+
+    string.IsNullOrWhiteSpace(searchText)
+
+    ||
+
+    (s.InvNo != null &&
+     s.InvNo.ToString()!.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.CustName) &&
+     s.CustName.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.ItemCode) &&
+     s.ItemCode.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.ItemName) &&
+     s.ItemName.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.HSNCode) &&
+     s.HSNCode.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.MeasureUnit) &&
+     s.MeasureUnit.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.GSTNo) &&
+     s.GSTNo.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.InvType) &&
+     s.InvType.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+     ||
+     (!string.IsNullOrEmpty(s.Process) &&
+     s.Process.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+     ||
+(!string.IsNullOrWhiteSpace(searchText) &&
+ s.LineNo.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase))
+)
+
+?? Enumerable.Empty<TaxDetailsVM>();
+
+
+    private async Task OnTopicClick(string topic)
+    {
+        SelectedTopic = topic;
+
+        TaxDetailsList = new();
+
+        CustomerList = new();
+        VendorList = new();
+
+        FilteredData = new();
+
+        FilteredCustomers = new();
+        FilteredVendors = new();
+
+        SelectedPartyId = 0;
+
+        if (FromDate == null || ToDate == null)
+        {
+            await _js.ToastrWarning("Please select From Date and To Date");
+            return;
+        }
+
+        if (FromDate > ToDate)
+        {
+            await _js.ToastrWarning("From Date cannot be greater than To Date");
+            return;
+        }
+
+        if (SelectedTopic == "Sales")
+        {
+            CustomerList = await customerService.GetCustomerListAsync(
+                SelectedTopic,
+                FromDate.Value,
+                ToDate.Value);
+
+            FilteredCustomers = CustomerList.ToList();
+        }
+        else if (SelectedTopic == "Exports")
+        {
+            CustomerList = await customerService.GetCustomerListAsync(
+                SelectedTopic,
+                FromDate.Value,
+                ToDate.Value);
+
+            FilteredCustomers = CustomerList.ToList();
+        }
+        else if (SelectedTopic == "Purchase")
+        {
+            VendorList = await vendorService.GetVendorListAsync(
+                SelectedTopic,
+                FromDate.Value,
+                ToDate.Value);
+
+            FilteredVendors = VendorList.ToList();
+        }
+
+        StateHasChanged();
+    }
+
+
+
+    private async Task OnPartyChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value == null)
+                return;
+
+            // START LOADING
+            IsLoading = true;
+            StateHasChanged();
+            // DATE VALIDATION
+            if (FromDate == null || ToDate == null)
+            {
+                await _js.ToastrError("Please select From Date and To Date");
+                return;
+            }
+
+            if (FromDate > ToDate)
+            {
+                await _js.ToastrError("From Date cannot be greater than To Date");
+                return;
+            }
+
+            TaxDetailsList = new();
+            var selectedValue = e.Value.ToString();
+            // ================= ALL =================
+            if (selectedValue == "ALL")
+            {
+                TaxDetailsList = await taxDetailsService.GetTaxDetailsReportAsync(null, null, SelectedTopic, FromDate, ToDate);
+                int allIndex = 1;
+                foreach (var item in TaxDetailsList)
+                {
+                    item.SlNo = allIndex++;
+                }
+                // STOP LOADING
+                IsLoading = false;
+                StateHasChanged();
+                return;
+            }
+            // ================= PURCHASE =================
+            if (SelectedTopic == "Purchase")
+            {
+                SelectedVendorCode = Convert.ToInt32(selectedValue);
+
+                TaxDetailsList = await taxDetailsService.GetTaxDetailsReportAsync(null, SelectedVendorCode, SelectedTopic, FromDate, ToDate);
+            }
+            // ================= SALES / EXPORT =================
+            else
+            {
+                SelectedPartyId =
+                    Convert.ToInt32(selectedValue);
+
+                TaxDetailsList = await taxDetailsService.GetTaxDetailsReportAsync(SelectedPartyId, null, SelectedTopic, FromDate, ToDate);
+            }
+            int i = 1;
+            foreach (var item in TaxDetailsList)
+            {
+                item.SlNo = i++;
+            }
+            // IMPORTANT
+            FilteredData = TaxDetailsList;
+
+            // STOP LOADING
+            IsLoading = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnPartyChanged");
+        }
+    }
+
+
+    #region For Item Attachments
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Export")
+            {
+                await ExportTaxDetailDataToExcel(isConfirmed);
+            }
+            else
+            {
+                await _js.ToastrWarning("Unknown confirmation action.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task Print()
+    {
+        if (TaxDetailsList == null || !TaxDetailsList.Any())
+        {
+            await _js.ToastrWarning("Sorry, no data available to print");
+            return;
+        }
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task confirmation_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && confirmation == "Export")
+            {
+                await ExportTaxDetailDataToExcel(isConfirmed);
+                confirmation = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while handling confirmation_Click");
+
+            await _js.ToastrError("Error while exporting Tax Details");
+        }
+    }
+
+    private async Task ExportTaxDetailDataToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirm)
+                return;
+
+            if (FilteredTaxDetailsData == null || !FilteredTaxDetailsData.Any())
+            {
+                await _js.ToastrWarning("No data available");
+                return;
+            }
+
+            int i = 1;
+
+            foreach (var item in FilteredTaxDetailsData)
+            {
+                item.SlNo = i++;
+            }
+
+            List<Dictionary<string, object>> exportData = new();
+
+            foreach (var item in FilteredTaxDetailsData)
+            {
+                Dictionary<string, object> row = new();
+
+                // =========================
+                // MAIN COLUMNS
+                // =========================
+
+                if (IsColumnVisible("SlNo"))
+                    row.Add("Sl No", item.SlNo);
+
+                if (IsColumnVisible("CustName"))
+                    row.Add("Customer", item.CustName);
+
+                if (IsColumnVisible("GSTNo"))
+                    row.Add("GST No", item.GSTNo);
+
+                if (IsColumnVisible("InvType"))
+                    row.Add("Type", item.InvType);
+
+                if (IsColumnVisible("InvNo"))
+                    row.Add("Invoice No", item.InvNo);
+
+                if (IsColumnVisible("InvDate"))
+                    row.Add("Invoice Date", item.InvDate?.ToString("dd/MM/yyyy"));
+
+                if (IsColumnVisible("CGstRate"))
+                    row.Add("CGST %", item.CGstRate);
+
+                if (IsColumnVisible("SGstRate"))
+                    row.Add("SGST %", item.SGstRate);
+
+                if (IsColumnVisible("TotalCGSTAmount"))
+                    row.Add("CGST Amount", item.TotalCGSTAmount);
+
+                if (IsColumnVisible("TotalSGSTAmount"))
+                    row.Add("SGST Amount", item.TotalSGSTAmount);
+
+                if (IsColumnVisible("IGstRate"))
+                    row.Add("IGST %", item.IGstRate);
+
+                if (IsColumnVisible("TotalIGSTAmount"))
+                    row.Add("IGST Amount", item.TotalIGSTAmount);
+
+                if (IsColumnVisible("DiscountPercent"))
+                    row.Add("Discount %", item.DiscountPercent);
+
+                if (IsColumnVisible("DiscountAmount"))
+                    row.Add("Discount Amount", item.DiscountAmount);
+
+                // if (IsColumnVisible("TotalBasicAmount"))
+                //     row.Add("Basic Amount", item.TotalBasicAmount);
+                if (IsColumnVisible("TotalBasicAmount"))
+                    row.Add(
+                        IsDetailView ? "Line Basic Amount" : "Basic Amount",
+                        IsDetailView ? item.LineBasicAmount : item.TotalBasicAmount
+                    );
+
+                if (IsColumnVisible("GrandTotal"))
+                    row.Add("Grand Total", item.GrandTotal);
+
+                if (IsColumnVisible("ACKNO"))
+                    row.Add("ACK No", item.ACKNO);
+
+                if (IsColumnVisible("IRNNo"))
+                    row.Add("IRN No", item.IRNNo);
+
+                if (IsColumnVisible("Process"))
+                    row.Add("Process", item.Process);
+
+                // DETAIL VIEW COLUMNS
+                if (IsDetailView && IsColumnVisible("RefDCNo"))
+                    row.Add("DC No", item.RefDCNo);
+
+                if (IsDetailView && IsColumnVisible("RefDcDate"))
+                    row.Add("DC Date", item.RefDcDate?.ToString("dd/MM/yyyy"));
+
+                if (IsDetailView && IsColumnVisible("PONo"))
+                    row.Add("PO No", item.PONo);
+
+                if (IsDetailView && IsColumnVisible("PODate"))
+                    row.Add("PO Date", item.PODate?.ToString("dd/MM/yyyy"));
+
+                if (IsDetailView && IsColumnVisible("LineNo"))
+                    row.Add("Line No.", item.LineNo);
+
+                if (IsDetailView && IsColumnVisible("ItemCode"))
+                    row.Add("Item Code", item.ItemCode);
+
+                if (IsDetailView && IsColumnVisible("ItemName"))
+                    row.Add("Item Name", item.ItemName);
+
+                if (IsDetailView && IsColumnVisible("Specification"))
+                    row.Add("Specification", item.Specification);
+
+                if (IsDetailView && IsColumnVisible("MeasureUnit"))
+                    row.Add("UOM", item.MeasureUnit);
+
+                if (IsDetailView && IsColumnVisible("HSNCode"))
+                    row.Add("HSN", item.HSNCode);
+
+                if (IsDetailView && IsColumnVisible("Qty"))
+                    row.Add("Qty", item.Qty);
+
+                if (IsDetailView && IsColumnVisible("UnitPrice"))
+                    row.Add("Unit Price", item.UnitPrice);
+
+                if (IsDetailView && IsColumnVisible("LineDiscountPercent"))
+                    row.Add("Line Discount %",
+                        item.LineDiscountPercent);
+
+                if (IsDetailView && IsColumnVisible("LineDiscountAmount"))
+                    row.Add("Line Discount Amount", item.LineDiscountAmount);
+
+                if (IsDetailView && IsColumnVisible("LineCGSTRate"))
+                    row.Add("Line CGST Rate", item.LineCGSTRate);
+
+                if (IsDetailView && IsColumnVisible("LineSGSTRate"))
+                    row.Add("Line SGST Rate", item.LineSGSTRate);
+
+                if (IsDetailView && IsColumnVisible("LineIGSTRate"))
+                    row.Add("Line IGST Rate", item.LineIGSTRate);
+
+
+
+                exportData.Add(row);
+            }
+
+            if (!exportData.Any())
+            {
+                await _js.ToastrWarning("No data found for export");
+
+                return;
+            }
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "TaxDetails", "Tax Details List");
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.DownloadExcelAsync(base64, "TaxDetails.xlsx");
+            await _js.ToastrSuccess("Excel exported successfully");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ExportTaxDetailDataToExcel");
+            await _js.ToastrError("Error while exporting Tax Details!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task<byte[]> CreateTemplateAsync(string sheetName, string[] headers, IEnumerable<object> data)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook();
+
+            var worksheet = workbook.Worksheets.Add(sheetName);
+
+            // HEADER
+            for (int col = 0; col < headers.Length; col++)
+            {
+                var cell = worksheet.Cell(1, col + 1);
+
+                cell.Value = headers[col];
+
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = XLColor.Yellow;
+            }
+
+            int rowIndex = 2;
+
+            foreach (var obj in data)
+            {
+                for (int col = 0; col < headers.Length; col++)
+                {
+                    var header = headers[col];
+
+                    object? value = null;
+
+                    // PROPERTY MATCH
+                    var prop = obj.GetType().GetProperty(header);
+
+                    if (prop != null)
+                    {
+                        value = prop.GetValue(obj);
+                    }
+
+                    worksheet.Cell(rowIndex, col + 1).Value =
+                        value?.ToString() ?? "";
+                }
+
+                rowIndex++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+
+            workbook.SaveAs(stream);
+
+            return stream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "CreateTemplateAsync");
+
+            await _js.ToastrError("Excel creation failed");
+
+            return Array.Empty<byte>();
+        }
+    }
+
+    #endregion
+
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            searchText = e.Value?.ToString() ?? "";
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while searching");
+        }
+    }
+
+    private void OnPartySearchChange(ChangeEventArgs e)
+    {
+        partySearch = e.Value?.ToString() ?? "";
+
+        // ================= PURCHASE =================
+
+        if (SelectedTopic == "Purchase")
+        {
+            FilteredVendors = VendorList
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x.VendorName) &&
+                    x.VendorName.Contains(
+                        partySearch,
+                        StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        // ================= SALES / EXPORT =================
+
+        else
+        {
+            FilteredCustomers = CustomerList
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x.CustName) &&
+                    x.CustName.Contains(
+                        partySearch,
+                        StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private async Task SelectParty(string selectedText)
+    {
+        try
+        {
+            partySearch = selectedText;
+
+            IsLoading = true;
+
+            TaxDetailsList = new();
+
+            // ================= ALL =================
+
+            if (selectedText == "ALL")
+            {
+                IsAllSelected = true;
+                SelectedPartyId = 0;
+                SelectedVendorCode = 0;
+                TaxDetailsList = await taxDetailsService.GetTaxDetailsReportAsync(null,null,SelectedTopic,FromDate,ToDate);
+            }
+
+            // ================= PURCHASE =================
+
+            else if (SelectedTopic == "Purchase")
+            {
+                IsAllSelected = false;
+                var vendor = VendorList
+                    .FirstOrDefault(x =>
+                        x.VendorName == selectedText);
+
+                if (vendor != null)
+                {
+                    SelectedVendorCode = vendor.VendorCode;
+
+                    TaxDetailsList = await taxDetailsService.GetTaxDetailsReportAsync(null,SelectedVendorCode,SelectedTopic,FromDate,ToDate);
+                }
+            }
+
+            // ================= SALES / EXPORT =================
+
+            else
+            {
+                IsAllSelected = false;
+                var customer = CustomerList
+                    .FirstOrDefault(x =>
+                        x.CustName == selectedText);
+
+                if (customer != null)
+                {
+                    SelectedPartyId = customer.CustId;
+
+                    TaxDetailsList = await taxDetailsService.GetTaxDetailsReportAsync(SelectedPartyId,null,SelectedTopic,FromDate,ToDate);
+                }
+            }
+            if (TaxDetailsList != null)
+            {
+                foreach (var item in TaxDetailsList)
+                {
+                    if (item.InvId != null)
+                    {
+                        attachmentCounts[item.InvId??0] = await taxDetailsService.GetCorrespondenceAttachmentsCountAsync(item.InvId??0, "Labour-Invoice");
+                    }
+                }
+            }
+
+            ApplyDetailView();
+
+
+            IsLoading = false;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            IsLoading = false;
+
+            await _logs.LogDeveloperError(ex, "Error in SelectParty");
+        }
+    }
+
+
+
+    private async Task DateChanged()
+    {
+        if (!string.IsNullOrEmpty(SelectedTopic))
+        {
+            await OnTopicClick(SelectedTopic);
+        }
+    }
+
+    
+    private void ApplyDetailView()
+    {
+        if (TaxDetailsList == null)
+            return;
+
+        FilteredData = IsDetailView
+            ? TaxDetailsList.ToList()
+            : TaxDetailsList
+                .GroupBy(x => new
+                {
+                    InvNo = x.InvNo?.Trim(),
+                    Topic = x.InvType?.Trim()
+                })
+                .Select(g => g.First())
+                .ToList();
+
+        int slNo = 1;
+
+        foreach (var item in FilteredData)
+        {
+            item.SlNo = slNo++;
+        }
+    }
+
+    private async Task OnDetailViewChanged()
+    {
+        ApplyDetailView();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OpenAttachmentButton(string InvNo, int count)
+    {
+        try
+        {
+            if (String.IsNullOrEmpty(InvNo))
+            {
+                await _js.ToastrWarning("Please select Invoice");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("No attachments found.");
+                return;
+            }
+
+            AttachItemSelected = TaxDetailsList.FirstOrDefault(i => i.InvNo == InvNo);
+
+            if (AttachItemSelected == null)
+            {
+                await _js.ToastrError("Invoice not found.");
+                return;
+            }
+
+            MasterModalTitle = $"Attachments - {AttachItemSelected.InvNo}";
+
+            invoiceNo = AttachItemSelected.InvNo;
+
+            invoiceNo = invoiceNo.Split('/')[0];
+
+            isModalVisible = true;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OpenAttachmentButton");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+    }
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+}

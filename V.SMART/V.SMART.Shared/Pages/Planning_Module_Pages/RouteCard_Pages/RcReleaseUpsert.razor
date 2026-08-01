@@ -1,0 +1,1146 @@
+﻿@page "/rcRelease/create"
+@page "/rcRelease/update/{RcReleaseId:int}"
+
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject IRcReleaseService rcReleaseService
+@inject ILoggingService LoggingService
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _JS
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Cancelled Watermark -->
+            @if (RcReleaseVMs.IsCancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+            else if (RcReleaseVMs.ShortClose)
+            {
+                <div class="cancelWatermark">SHORT CLOSED</div>
+            }
+
+            <PageHeader TitleText="@(RcReleaseVMs.RouteCardReleaseId > 0 ? "Update Route Card Release" : "Create Route Card Release")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@RcReleaseFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+
+                <EditForm Model="RcReleaseVMs" OnValidSubmit="@UpsertRcRelease">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <!-- Correspondence Status -->
+                        <div class="col-12  d-flex justify-content-end align-items-center">
+                            @if (RcReleaseVMs.RouteCardReleaseId > 0 && !string.IsNullOrWhiteSpace(RcReleaseVMs.RcReleaseNo))
+                            {
+                                <CorrespondenceStatus ReferenceType="@ScreenName"
+                                                      ReferenceId="@RcReleaseVMs.RouteCardReleaseId"
+                                                      ReferenceTypeName="@RcReleaseVMs.RcReleaseNo" />
+                            }
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <!-- =================== Customer Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Customer Information</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- Customer Autocomplete -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="CustomerVM"
+                                                             Value="RcReleaseVMs.SelectedCustomer"
+                                                             ValueChanged="@(async c => await OnCustomerChanged(c))"
+                                                             ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                             SearchFunc="SearchCustomers"
+                                                             Dense="true"
+                                                             Variant="Variant.Outlined"
+                                                             Placeholder="Search Customer"
+                                                             Title="Search atleast 3 letters in Customer"
+                                                             Class="w-100 autocomplete-sm"
+                                                             MaxItems="50"
+                                                             Clearable="true"
+                                                             ResetValueOnEmptyText="true"
+                                                             Required="true"
+                                                             AvoidSubmit="true"
+                                                             Disabled="@(IsEditMode || IsSomeItemsTransMade)" />
+                                        </div>
+                                    </div>
+
+                                    @if (RcReleaseVMs.CustId.HasValue && RcReleaseVMs.CustId > 0)
+                                    {
+                                        <!-- PO Selection -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>PO No.</small>
+                                            </label>
+
+                                            @if (!RcReleaseId.HasValue || RcReleaseId == 0)
+                                            {
+                                                <div class="col-12 col-sm-9">
+                                                    <select class="form-select form-select-sm rounded-3"
+                                                            value="@RcReleaseVMs.PoId"
+                                                            @onchange="OnPoChanged"
+                                                            disabled="@IsEditMode">
+                                                        <option value="">--- Select PO ---</option>
+
+                                                        @foreach (var po in CustomerPendingPOs)
+                                                        {
+                                                            <option value="@po.PoId">@po.PONo</option>
+                                                        }
+                                                    </select>
+
+                                                    <ValidationMessage For="@(() => RcReleaseVMs.PoId)" />
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text"
+                                                           class="form-control form-control-sm rounded-3"
+                                                           @bind="RcReleaseVMs.PoNumber"
+                                                           readonly />
+
+                                                    <ValidationMessage For="@(() => RcReleaseVMs.PoNumber)" />
+                                                </div>
+                                            }
+                                        </div>
+
+                                        <!-- Assembly Item -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Assembly Item</small>
+                                            </label>
+
+                                            @if (!RcReleaseId.HasValue || RcReleaseId == 0)
+                                            {
+                                                <div class="col-12 col-sm-9">
+                                                    <select class="form-select form-select-sm rounded-3"
+                                                            value="@RcReleaseVMs.AssemblyItemId"
+                                                            @onchange="OnAssyChanged"
+                                                            disabled="@IsEditMode">
+                                                        <option value="">--- Select Assembly ---</option>
+
+                                                        @foreach (var assy in AssyItems)
+                                                        {
+                                                            <option value="@assy.ItemId">@assy.ItemCode</option>
+                                                        }
+                                                    </select>
+
+                                                    <ValidationMessage For="@(() => RcReleaseVMs.AssemblyItemId)" />
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text"
+                                                           class="form-control form-control-sm rounded-3"
+                                                           @bind="RcReleaseVMs.AssemblyItemCode"
+                                                           readonly />
+                                                </div>
+                                            }
+                                        </div>
+
+                                        <!-- PO Quantity -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>PO Qty.</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9">
+                                                <input type="number"
+                                                       class="form-control form-control-sm rounded-3"
+                                                       placeholder="PO Qty"
+                                                       step="any"
+                                                       @bind="RcReleaseVMs.PoQty"
+                                                       readonly />
+
+                                                <ValidationMessage For="@(() => RcReleaseVMs.PoQty)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 row">
+                                            <label class="col-sm-3 col-form-label"><small>Release Qty.</small></label>
+
+                                            <div class="col-sm-9">
+                                                <input type="number"
+                                                       class="form-control form-control-sm"
+                                                       placeholder="Release Qty"
+                                                       step="any"
+                                                       title="Enter release Quantity"
+                                                       @bind="RcReleaseVMs.ReleaseQty"
+                                                       @bind:event="oninput"
+                                                       @onchange="@(e => OnRcQtyChanged(e, RcReleaseVMs))" />
+                                                <ValidationMessage For="@(() => RcReleaseVMs.ReleaseQty)" />
+                                            </div>
+                                        </div>
+
+                                    }
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!-- =================== Quotation Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Route Card Release Details</span>
+
+                                    @if (RcReleaseVMs.RouteCardReleaseId > 0)
+                                    {
+                                        <div class="d-flex gap-2">
+
+                                            <!-- Cancel / Revert -->
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(RcReleaseVMs.IsCancel ? "btn-success" : "btn-danger")"
+                                                    @onclick="Cancel"
+                                                    disabled="@RcReleaseVMs.ShortClose">
+
+                                                @if (!RcReleaseVMs.IsCancel)
+                                                {
+                                                    <i class="bi bi-x-circle me-1"></i>
+                                                    <span>Cancel</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Revert</span>
+                                                }
+                                            </button>
+
+                                            <!-- Short Closed / Re-Open -->
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(RcReleaseVMs.ShortClose ? "btn-success" : "btn-warning")"
+                                                    @onclick="() => AskToShortCloseAsync(RcReleaseVMs)"
+                                                    disabled="@RcReleaseVMs.IsCancel">
+
+                                                @if (!RcReleaseVMs.ShortClose)
+                                                {
+                                                    <i class="bi bi-box-seam me-1"></i>
+                                                    <span>Short Closed</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Re-Open</span>
+                                                }
+                                            </button>
+
+                                        </div>
+                                    }
+
+                                </div>
+
+
+                                <div class="card-body">
+
+                                    <!-- Rc Release No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>RC Release No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                           placeholder="RC Release No."
+                                                           maxlength="30"
+                                                           @bind-Value="@RcReleaseVMs.RcReleaseNo"
+                                                           readonly />
+                                                <span class="input-group-text rounded-3">@RcReleaseVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => RcReleaseVMs.RcReleaseNo)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Rc Release Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Rc Release Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@RcReleaseVMs.RcReleaseDate" />
+                                            <ValidationMessage For="@(() => RcReleaseVMs.RcReleaseDate)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                                <div class="card-header bg-primary-subtle text-dark">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                        <span class="fw-bold fs-6">Item Details</span>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:120px;">Util Qty</th>
+                                                    <th style="width:200px;">Required Qty</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in RcReleaseVMs.RouteCardReleaseSubs)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+                                                        <td>@subitem.ComponentItemCode</td>
+                                                        <td>@subitem.ComponentItemName</td>
+                                                        <td>@subitem.ComponentItemUOM</td>
+                                                        <td>@subitem.CumulativeUtilQty</td>
+                                                        <td>@subitem.RequiredQty</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Action Buttons -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(RcReleaseVMs.RouteCardReleaseId > 0 ? "Update" : "Create")
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/rcReleaseList" />
+                            </div>
+                        </div>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Route Card Release";
+
+    [Parameter] public int? RcReleaseId { get; set; }
+
+    private bool isProcessing = true;
+    private RouteCardReleaseVM RcReleaseVMs { get; set; } = new();
+    private RouteCardReleaseSubVM? rowToDelete;
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private List<CustomerVM> CustomerList = new();
+
+    private List<string> UserList = new();
+
+    private List<MfgPoVM> CustomerPendingPOs = new();
+    private List<MfgPoSubVM> AssyItems = new();
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<PageHeader.BreadcrumbItem> RcReleaseFormBreadcrumbs = new()
+    {
+        new() { Text = "Planning" },
+        new() { Text = "Route card Release", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    #endregion
+
+    private bool IsEditMode => RcReleaseId.HasValue && RcReleaseId.Value > 0;
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            if (RcReleaseId.HasValue)
+            {
+                await LoadExistingRcRelease(RcReleaseId.Value);
+            }
+            else
+            {
+                await InitializeNewRcRelease();
+            }
+            CustomerList = await rcReleaseService.GetAllActiveCustomersAsync();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+            await _JS.ToastrError("Failed to load Route Card Release screen.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingRcRelease(int rcReleaseId)
+    {
+        try
+        {
+            RcReleaseVMs = await rcReleaseService.GetRcReleaseByRcIdAsync(rcReleaseId);
+
+            if (RcReleaseVMs == null)
+            {
+                await _JS.ToastrWarning("Route Card Release not found.");
+                return;
+            }
+
+            RcReleaseVMs.SelectedCustomer = await rcReleaseService.GetCustomerByIdAsync(RcReleaseVMs.CustId.GetValueOrDefault());
+
+            // Load Customer Pending POs
+            if (RcReleaseVMs.CustId.HasValue)
+            {
+                CustomerPendingPOs = await rcReleaseService.GetPendingPOsByCustomerAsync(RcReleaseVMs.CustId.Value);
+            }
+
+            // Load Assembly Items for Selected PO
+            if (RcReleaseVMs.PoId.HasValue)
+            {
+                AssyItems = await rcReleaseService.GetPendingPoItemsAsync(RcReleaseVMs.PoId.Value);
+            }
+
+            IsSomeItemsTransMade = await CheckIsTransMade();
+
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to load existing Route Card Release.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingRcRelease failed for RcReleaseId: {RcReleaseId}");
+        }
+    }
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        try
+        {
+            if (!RcReleaseId.HasValue)
+                return false;
+
+            return await rcReleaseService.IsRcReleaseTransactionsMatchedAsync(RcReleaseId.Value, RcReleaseVMs);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to check transaction exists.");
+            await LoggingService.LogDeveloperError(ex, "[CheckIsTransMade] failed");
+            return false;
+        }
+    }
+
+
+    private async Task InitializeNewRcRelease()
+    {
+        try
+        {
+            RcReleaseVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            RcReleaseVMs.RcReleaseNo = await rcReleaseService.GetRcReleaseNoAsync(RcReleaseVMs.Suffix);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to initialize new Route Card Release.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewRcRelease failed");
+        }
+    }
+
+    #endregion
+
+
+    #region PO Change
+
+    private async Task OnPoChanged(ChangeEventArgs e)
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int poId))
+            {
+                RcReleaseVMs.PoId = poId;
+                AssyItems = await rcReleaseService.GetPendingPoItemsAsync(RcReleaseVMs.PoId.Value);
+            }
+            else
+            {
+                RcReleaseVMs.PoId = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while processing PO change event");
+            await _JS.ToastrError("Failed to load PO-related details.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Assembly Change
+
+    private async Task OnAssyChanged(ChangeEventArgs e)
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int assyId))
+            {
+                RcReleaseVMs.AssemblyItemId = assyId;
+
+                var selectedItem = AssyItems
+                    .FirstOrDefault(x => x.ItemId == assyId);
+
+                if (selectedItem != null)
+                {
+                    RcReleaseVMs.PoSubId = selectedItem.PoSubId;
+                    RcReleaseVMs.PoQty = selectedItem.Qty.GetValueOrDefault();
+                    RcReleaseVMs.ReleaseQty = selectedItem.RouteCardBalQty;
+
+                    // 🔥 Load Components
+                    RcReleaseVMs.RouteCardReleaseSubs = await rcReleaseService.GetAssemblyComponentsForReleaseAsync(assyId, RcReleaseVMs.ReleaseQty);
+                }
+            }
+            else
+            {
+                RcReleaseVMs.AssemblyItemId = 0;
+                RcReleaseVMs.PoQty = 0;
+                RcReleaseVMs.ReleaseQty = 0;
+
+                RcReleaseVMs.RouteCardReleaseSubs.Clear();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error while processing Assembly change event");
+
+            await _JS.ToastrError("Failed to load Assembly related details.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Tool-Crib Issue Operations
+
+    private async Task UpsertRcRelease()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (!RcReleaseVMs.RouteCardReleaseSubs.Any())
+            {
+                await _JS.ToastrError("Cannot save a Route Card Release without valid items.");
+                return;
+            }
+
+            if (!RcReleaseVMs.CustId.HasValue || RcReleaseVMs.CustId.GetValueOrDefault() == 0)
+            {
+                await _JS.ToastrError("Customer selection is Required");
+                return;
+            }
+
+            if (!RcReleaseVMs.AssemblyItemId.HasValue || RcReleaseVMs.AssemblyItemId.GetValueOrDefault() == 0)
+            {
+                await _JS.ToastrError("Assembly selection is Required");
+                return;
+            }
+
+            if (RcReleaseVMs.ReleaseQty == 0)
+            {
+                await _JS.ToastrError("Route Card Release Qty must be greater than 0");
+                return;
+            }
+
+            var isNewRcRelease = RcReleaseVMs.RouteCardReleaseId == 0;
+
+            try
+            {
+                await rcReleaseService.UpsertRouteCardReleaseAsync(RcReleaseVMs);
+            }
+            catch (Exception ex)
+            {
+                await _JS.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewRcRelease)
+                await _JS.ToastrSuccess("Route Card Release saved successfully.");
+            else
+                await _JS.ToastrSuccess("Route Card Release updated successfully.");
+
+            // Discard popup Clear
+            await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/rcReleaseList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Upsert Route Card Release failed.");
+            await _JS.ToastrError("Error saving UpsertRCRelease.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region Customer data, Currency And Tax  Handlers
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return CustomerList;
+
+        try
+        {
+            var result = CustomerList.Where(c =>
+                c.CustName.Contains(value, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(c.GSTNo) &&
+                 c.GSTNo.Contains(value, StringComparison.OrdinalIgnoreCase)));
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchCustomers failed for: {value}");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    //23062026
+    // private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    // {
+    //     if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+    //         return Enumerable.Empty<CustomerVM>();
+
+    //     try
+    //     {
+    //         var results = await rcReleaseService.SearchCustomersAsync(value);
+    //         return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+    //     }
+    //     catch (OperationCanceledException)
+    //     {
+    //         return Enumerable.Empty<CustomerVM>();
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         await LoggingService.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+    //         await _JS.ToastrError("Failed to search customers. Please try again.");
+    //         return Enumerable.Empty<CustomerVM>();
+    //     }
+    // }
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+            await ApplyCustomerSelectionAsync(customer);
+
+            if (customer.CustId > 0)
+            {
+                CustomerPendingPOs = await rcReleaseService.GetPendingPOsByCustomerAsync(customer.CustId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnCustomerChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _JS.ToastrError("Error while selecting");
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+
+            if (customer != null)
+            {
+                RcReleaseVMs.SelectedCustomer = customer;
+                RcReleaseVMs.CustId = customer?.CustId ?? 0;
+                RcReleaseVMs.CustomerName = customer?.CustName;
+
+            }
+            else
+            {
+                RcReleaseVMs.SelectedCustomer = null;
+                RcReleaseVMs.CustId = null;
+                RcReleaseVMs.CustomerName = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {customer?.CustId}");
+            await _JS.ToastrError("Failed to apply customer selection. Please try again.");
+        }
+    }
+
+
+    #endregion
+
+
+
+    #region Rc Qty Changed
+
+    private async Task OnRcQtyChanged(ChangeEventArgs e, RouteCardReleaseVM model)
+    {
+        if (!decimal.TryParse(e.Value?.ToString(), out var newQty))
+        {
+            await _JS.ToastrWarning("Invalid quantity entered.");
+            return;
+        }
+
+        if (newQty < 0)
+        {
+            newQty = 0;
+            await _JS.ToastrWarning("Rc Release Qty cannot be negative.");
+        }
+
+        // Minimum Restriction
+        decimal minReleaseQty = CalculateMinReleaseQty(model.RouteCardReleaseSubs);
+
+        if (newQty < minReleaseQty)
+        {
+            await _JS.ToastrWarning($"Release Qty cannot be less than already transacted qty ({minReleaseQty}).");
+            newQty = minReleaseQty;
+        }
+
+        // Get PO RC Balance
+        var poRcBalQty = await rcReleaseService.GetPendingRcBalQtyByPoSubIdAsync(model.PoSubId.Value);
+
+        //  KEY: Calculate Existing Qty dynamically
+        decimal existingQty = await rcReleaseService.GetExactRcReleaseQtyByRcReleaseIdAsync(model.RouteCardReleaseId);
+
+        // FINAL MAX LOGIC
+        decimal maxAllowedQty = existingQty + poRcBalQty;
+
+        if (newQty > maxAllowedQty)
+        {
+            await _JS.ToastrWarning($"Max allowed Qty is {maxAllowedQty} (Existing {existingQty} + Balance {poRcBalQty}).");
+            newQty = maxAllowedQty;
+        }
+
+        model.ReleaseQty = newQty;
+
+        // Recalculate
+        model.RouteCardReleaseSubs =
+            await rcReleaseService.GetAssemblyComponentsForReleaseAsync(
+                model.AssemblyItemId.Value,
+                model.ReleaseQty);
+
+        StateHasChanged();
+    }
+
+    private decimal CalculateMinReleaseQty(List<RouteCardReleaseSubVM> subs)
+    {
+        if (subs == null || !subs.Any())
+            return 0;
+
+        decimal minReleaseQty = 0;
+
+        foreach (var s in subs)
+        {
+            if (s.IssuedQty > 0 && s.CumulativeUtilQty > 0)
+            {
+                decimal qty = s.IssuedQty / s.CumulativeUtilQty;
+
+                if (qty > minReleaseQty)
+                    minReleaseQty = qty;
+            }
+        }
+
+        return Math.Ceiling(minReleaseQty);
+    }
+
+
+    #endregion
+
+    #region Formatting
+
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+    #endregion
+
+
+    #region RouteCar Release Cancel
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if (!RcReleaseId.HasValue || RcReleaseId == 0)
+            {
+                await _JS.ToastrError("RouteCard Release cancel is not allowed before saving the RouteCard Release.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _JS.ToastrError("Some Items Transaction Are Made!.. You Can't Cancel the Complete Route Card Release");
+                return;
+            }
+
+            if (RcReleaseVMs.ShortClose)
+            {
+                await _JS.ToastrError("Route Card Release is already short closed. You can't cancel it.");
+                return;
+            }
+
+            if (RcReleaseVMs.IsCancel && RcReleaseVMs.PoSubId.HasValue)
+            {
+                var poSubId = RcReleaseVMs.PoSubId.Value;
+
+                var poRcBalQty = await rcReleaseService.GetPendingRcBalQtyByPoSubIdAsync(poSubId);
+
+                if (RcReleaseVMs.ReleaseQty > poRcBalQty)
+                {
+                    await _JS.ToastrError(
+                        $"Released Qty ({RcReleaseVMs.ReleaseQty}) cannot be greater than PO RouteCard Balance Qty ({poRcBalQty}). Revert not allowed."
+                    );
+                    return;
+                }
+            }
+
+            if (!RcReleaseVMs.IsCancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this Route Card Release?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this Route Card Release?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+            RcReleaseVMs = await rcReleaseService.GetRcReleaseByRcIdAsync(RcReleaseVMs.RouteCardReleaseId);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Route card Release.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Route card Release Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task AskToShortCloseAsync(RouteCardReleaseVM RcreleaseVM)
+    {
+        try
+        {
+            if (RcreleaseVM == null)
+            {
+                await _JS.ToastrError("Invalid Route Card Release selected.");
+                return;
+            }
+
+            if (!RcReleaseId.HasValue || RcReleaseId == 0)
+            {
+                await _JS.ToastrError("Route Card Release Short Closed is not allowed before saving the Route Card Release.");
+                return;
+            }
+
+            if (RcreleaseVM.RcReleaseTally)
+            {
+                await _JS.ToastrWarning("This Route Card Relase is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (RcreleaseVM.IsCancel)
+            {
+                await _JS.ToastrWarning("This Route Card Release is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!RcreleaseVM.ShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Route Card Release?";
+                btnText = "Short Closed";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Route Card Release?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while AskToShortCloseAsync Route Card Release.");
+            await LoggingService.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    #region Model Handlers
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "Cancel":
+                case "Revert":
+                    await CancelRcRelease();
+                    break;
+
+                case "ShortClose":
+                    await ShortCloseRcRelease();
+                    break;
+
+                default:
+                    await _JS.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+
+    #endregion
+
+
+    private async Task CancelRcRelease()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!RcReleaseVMs.IsCancel)
+            {
+                RcReleaseVMs.IsCancel = true;
+                RcReleaseVMs.CancelDate = DateTime.Now;
+                RcReleaseVMs.CancelReason = cancelReason;
+                RcReleaseVMs.CancelBy = username;
+
+                await rcReleaseService.UpdatedCancelStatusAndAddOrRevertQty(RcReleaseVMs);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Route Card Release",
+                    action: $"Cancelled RouteCard Release: {RcReleaseVMs.RcReleaseNo}",
+                    additionalInfo: $"RouteCardreleaseId: {RcReleaseVMs.RouteCardReleaseId}"
+                );
+
+                await _JS.ToastrSuccess("RouteCard Release cancelled successfully.");
+            }
+            else
+            {
+                RcReleaseVMs.IsCancel = false;
+                RcReleaseVMs.CancelDate = null;
+                RcReleaseVMs.CancelReason = string.Empty;
+                RcReleaseVMs.CancelBy = string.Empty;
+
+                await rcReleaseService.UpdatedCancelStatusAndAddOrRevertQty(RcReleaseVMs);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Route Card Release",
+                    action: $"Reverted Route card Release: {RcReleaseVMs.RcReleaseNo}",
+                    additionalInfo: $"RouteCardRelease Id: {RcReleaseVMs.RouteCardReleaseId}"
+                );
+
+                await _JS.ToastrSuccess("RouteCard Release has been reverted successfully.");
+            }
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            RcReleaseVMs = await rcReleaseService.GetRcReleaseByRcIdAsync(RcReleaseVMs.RouteCardReleaseId);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"CancelRcRelease failed for RouteCardReleaseId: {RcReleaseVMs.RouteCardReleaseId}");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the Route Card Relase.");
+            await LoggingService.LogDeveloperError(ex, $"CancelRcRelease failed for RouteCard relase Id: {RcReleaseVMs.RouteCardReleaseId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task ShortCloseRcRelease()
+    {
+        if (RcReleaseVMs == null)
+        {
+            await _JS.ToastrError("No Route Card Release selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            RcReleaseVMs.ShortClose = !RcReleaseVMs.ShortClose;
+            await rcReleaseService.UpsertRcReleaseShortCloseAsync(RcReleaseVMs);
+            StateHasChanged();
+
+            string msg = RcReleaseVMs.ShortClose
+                 ? "Route Card Release ShortClose Successfully!"
+                 : "Route card release ReOpen Successfully!";
+            await _JS.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while updating ShortClose.Route Card Release");
+            await LoggingService.LogDeveloperError(ex, "Error in ShortClose() Route Card Release");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    #endregion
+}

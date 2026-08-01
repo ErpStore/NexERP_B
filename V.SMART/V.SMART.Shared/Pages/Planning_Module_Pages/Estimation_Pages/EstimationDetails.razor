@@ -1,0 +1,461 @@
+﻿@page "/estimationDetails/details/{EstiamateId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IPlanningService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.PlanningViewModel.EstimationViewModel
+
+@inherits BaseUserRightsComponent
+@inject IEstimateService _EstimateServiecs
+@inject IJSRuntime _js
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject ReportService reportService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+            <!-- Header -->
+            <MyCompanyDetails />
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">Estimation Details</h4>
+            </div>
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Customer Details
+                        </div>
+                        <div class="card-body small">
+
+                            <p><strong>Customer Name:</strong> @(!string.IsNullOrEmpty(EstimateVM?.Custname) ? EstimateVM.Custname : "N/A")</p>
+                            <p><strong>Enquiry No:</strong> @(!string.IsNullOrEmpty(EstimateVM?.EnquiryNo) ? EstimateVM?.EnquiryNo : "N/A")</p>
+                            <p><strong>Item Code/Part No.:</strong> @(!string.IsNullOrEmpty(EstimateVM?.ItemCode) ? EstimateVM.ItemCode : "N/A")</p>
+                            <p><strong>Part Name:</strong> @(!string.IsNullOrEmpty(EstimateVM?.ItemName) ? EstimateVM.ItemName : "N/A")</p>
+
+                        </div>
+                    </div>
+                </div>
+                <!-- Document Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Document Details
+                        </div>
+                        <div class="card-body small">
+                            <p><strong>Estimate No:</strong> @(EstimateVM?.EstiamateNo)</p>
+                            <p><strong>Date:</strong> @(EstimateVM?.EstimateDate)</p>
+                            <p><strong>Type:</strong> @(EstimateVM?.TypeofWork)</p>
+                            <p><strong>Quantity:</strong>  @(EstimateVM?.Qty)</p>
+                            <p><strong>Kind Attention:</strong> @(!string.IsNullOrEmpty(EstimateVM?.ContactPerson) ? EstimateVM.ContactPerson : "N/A")</p>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header fw-bold">
+                            Indirect Heads (Cost)
+                        </div>
+                        <div class="card-body p-0">
+                            <table class="table table-bordered table-sm mb-0 align-middle text-center">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="text-start">Other Heads Cost (O)</th>
+                                        <th>Percentage</th>
+                                        <th>Amount</th>
+                                        <th>Rs.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+
+
+                                        <td class="text-start">Over Head Cost:</td>
+                                        <td>@(EstimateVM?.Overp ?? 0)%</td>
+                                        <td>@(EstimateVM?.Over ?? 0)</td>
+                                        <td>Rs.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-start">Margin/Profit:</td>
+                                        <td>@(EstimateVM?.Marp ?? 0)%</td>
+                                        <td>@(EstimateVM?.Mar ?? 0)</td>
+                                        <td>Rs.</td>
+
+
+                                    </tr>
+                                    <tr>
+                                        <td class="text-start">Risk Factor:</td>
+                                        <td>@(EstimateVM?.Riskp ?? 0)%</td>
+                                        <td>@(EstimateVM?.Risk ?? 0)</td>
+                                        <td>Rs.</td>
+
+
+                                    </tr>
+                                    <tr>
+                                        <td class="text-start">Packaging Cost:</td>
+                                        <td>@(EstimateVM?.Packingper ?? 0)%</td>
+                                        <td>@(EstimateVM?.Packing ?? 0)</td>
+                                        <td>Rs.</td>
+
+
+                                    </tr>
+                                    <tr>
+                                        <td class="text-start">Logistic Cost:</td>
+                                        <td>@(EstimateVM?.Logesticper ?? 0)%</td>
+                                        <td>@(EstimateVM?.Logestic ?? 0)</td>
+                                        <td>Rs.</td>
+
+                                    </tr>
+                                </tbody>
+                                <tfoot class="table-warning fw-bold">
+                                    <tr>
+                                        @* <td colspan="3" class="text-end">Total Cost (O)</td>
+                                         <td>@EstimateVM.Totalcost</td> *@
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        <br />
+                        @* //New *@
+
+                        <div class="row mb-4">
+                            <div class="col-12">
+
+                                <div class="card border shadow-sm rounded-3 w-100 h-100">
+                                    <div class="card-header fw-bold">
+                                        Physical Properties
+                                    </div>
+
+                                    <div class="card-body p-0">
+                                        <table class="table table-bordered table-sm mb-0 align-middle text-center">
+
+                                            @if (!string.IsNullOrWhiteSpace(EstimateVM.Shape))
+                                            {
+                                                <tbody>
+                                                    @if (CommonShapes.Contains(EstimateVM.Shape))
+                                                    {
+                                                        <tr>
+                                                            <td class="text-start">Shape</td>
+                                                            <td>@EstimateVM.Shape</td>
+                                                        </tr>
+
+                                                        <tr>
+                                                            <td class="text-start">Density</td>
+                                                            <td>@EstimateVM.Density</td>
+                                                        </tr>
+
+                                                        <tr>
+                                                            <td class="text-start">Length</td>
+                                                            <td>@EstimateVM.Length</td>
+                                                        </tr>
+                                                    }
+
+                                                    @if (new[] { "Rectangle Plate", "Square Plate", "Square Tube", "Rectangle Tube", "U or C Channel", "I or H Channel", "L Angle", "Sheet" }.Contains(EstimateVM.Shape))
+                                                    {
+                                                        <tr>
+                                                            <td class="text-start">Width</td>
+                                                            <td>@EstimateVM.Width</td>
+                                                        </tr>
+                                                    }
+
+                                                    @if (new[] { "Rectangle Plate", "U or C Channel", "I or H Channel", "L Angle", "Sheet" }.Contains(EstimateVM.Shape))
+                                                    {
+                                                        <tr>
+                                                            <td class="text-start">Thickness</td>
+                                                            <td>@EstimateVM.Thickness</td>
+                                                        </tr>
+                                                    }
+
+                                                    @if (new[] { "Round Tube", "Square Tube", "U or C Channel", "I or H Channel", "L Angle", "Rectangle Tube" }.Contains(EstimateVM.Shape))
+                                                    {
+                                                        <tr>
+                                                            <td class="text-start">Wall Thickness</td>
+                                                            <td>@EstimateVM.WallThickness</td>
+                                                        </tr>
+                                                    }
+
+                                                    @if (new[] { "Round Tube", "Hexagonal Plate", "Round", "Octagonal", "Ring" }.Contains(EstimateVM.Shape))
+                                                    {
+                                                        <tr>
+                                                            <td class="text-start">Outer Dia</td>
+                                                            <td>@EstimateVM.OuterDia</td>
+                                                        </tr>
+                                                    }
+
+                                                    @if (EstimateVM.Shape == "Ring")
+                                                    {
+                                                        <tr>
+                                                            <td class="text-start">Inner Dia</td>
+                                                            <td>@EstimateVM.InnerDia</td>
+                                                        </tr>
+                                                    }
+
+                                                    @if (EstimateVM.Shape == "Rectangle Tube")
+                                                    {
+                                                        <tr>
+                                                            <td class="text-start">Height</td>
+                                                            <td>@EstimateVM.Height</td>
+                                                        </tr>
+                                                    }
+
+                                                    @if (CommonShapes.Contains(EstimateVM.Shape))
+                                                    {
+                                                        <tr>
+                                                            <td class="text-start">Weight</td>
+                                                            <td>@EstimateVM.Weight</td>
+                                                        </tr>
+                                                    }
+
+                                                    <tr>
+                                                        <td class="text-start">RM Price</td>
+                                                        <td>@EstimateVM.RmPrice</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td class="text-start">RM Total Amount</td>
+                                                        <td>@EstimateVM.RmTotAmount</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td class="text-start">Casting Weight</td>
+                                                        <td>@EstimateVM.Castwt</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td class="text-start">Casting Amount</td>
+                                                        <td>@EstimateVM.CastAmt</td>
+                                                    </tr>
+
+                                                </tbody>
+                                            }
+
+                                        </table>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+
+                        <!-- Old Design -->
+
+                        
+					</div>
+
+                   
+					
+
+				</div>
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header fw-bold">
+                            Component Proces (Cost)
+                        </div>
+                        <div class="card-body p-0">
+                             <table class="table table-bordered table-sm mb-0 align-middle text-center">
+								<tbody>
+                                    @if (EstimateVM?.EstimateSubVM != null && EstimateVM.EstimateSubVM.Any())
+                                    {
+                                        @foreach (var process in EstimateVM.EstimateSubVM)
+                                        {
+                                            <tr>
+                                                <td style="display:none;">
+                                                    @process.ProcessId
+                                                </td>
+
+                                                <td>
+                                                    @process.ProcessName
+                                                </td>
+
+                                                <td class="text-end">
+                                                    @((process.HrlyRate ?? 0).ToString("0.00"))
+                                                </td>
+
+                                                <td class="text-center">
+                                                    <input type="text"
+                                                           class="form-control form-control-sm text-end"
+                                                           value="@process.Hrs?.ToString("0.00")"
+                                                           readonly />
+                                                </td>
+
+                                                <td class="text-end">
+                                                    @((process.Amount ?? 0).ToString("0.00"))
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                No Process Found
+                                            </td>
+                                        </tr>
+                                    }
+								</tbody>
+							</table>
+						</div>
+                    </div>
+
+                    <div>
+                        <tr>
+                            <td class="text-start fw-bold">Total Process Cost : </td>
+                            <td class="fw-bold">@(EstimateVM.Conv)</td>
+                        </tr>
+                    </div>
+
+                </div>
+			</div>
+
+            <div class="row mt-2">
+                <div class="col-12">
+                    <div class="border border-dark bg-warning-subtle text-center fw-bold py-1"
+                         style="font-size:16px;">
+                        Total Estimation Cost (O+R+P) = @((EstimateVM.Grand ?? 0).ToString("0.00"))
+                    </div>
+                </div>
+            </div>
+            <br />
+            <div>
+                <!-- Actions -->
+				@if (isOtherScreen == false)
+				{
+					<div class="d-flex gap-2 justify-content-end">
+						<a href="/estimationList" class="btn btn-outline-secondary">
+							<i class="bi bi-arrow-left-circle"></i> Back To List
+						</a>
+						<a href="@($"/estimation/update/{EstiamateId}")" class="btn btn-outline-primary">
+							<i class="bi bi-pencil-square"></i> Modify
+						</a>
+
+                        @* <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+							<i class="bi bi-printer"></i> Print
+						</button> *@
+
+					</div>
+				}
+
+            </div>
+        </div>
+       
+
+        @* Old Design *@
+      
+    }
+}
+
+@code {
+    protected override string ScreenName => "Estimation";
+    
+    [Parameter]
+    public int EstiamateId { get; set; }
+
+    [Parameter]
+    public bool isOtherScreen { get; set; }
+
+
+    private bool isProcessing { get; set; } = true;
+
+    private EstimateVM EstimateVM { get; set; } = new();
+    
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadExistingEstimate();
+        }
+        catch (Exception ex)
+        {
+            isProcessing = true;
+            await LoggingService.LogDeveloperError(ex, "Error while Loading OnInitializedAsync() in Estimate Details");
+            await _js.ToastrError("Error while Loading OnInitializedAsync() in Estimate Details");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadExistingEstimate()
+    {
+        EstimateVM = await _EstimateServiecs.GetEstimationByEstimateIdAsync(EstiamateId);
+        if (EstimateVM == null)
+		{
+			await _js.ToastrWarning("Estimation not found.");
+			return;
+		}
+
+        foreach (var sub in EstimateVM.EstimateSubVM)
+		{
+				sub.Amount = (sub.Hrs/60) * sub.HrlyRate;
+		}
+    }
+    //15-07-2026
+    private static readonly string[] CommonShapes = new[]
+    {
+                "Rectangle Plate", "Square Plate", "Round Tube", "Square Tube", "U or C Channel",
+                "L Angle", "Hexagonal Plate", "Round", "Sheet", "Octagonal", "Rectangle Tube",
+                "Ring", "I or H Channel"
+    };
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(EstiamateId, "Estimation.frx", "EstiamateId", false, ScreenName, "Sp_Print_Estimation");//EstimateVM.IsCancel,
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Estimate");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Estimate.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

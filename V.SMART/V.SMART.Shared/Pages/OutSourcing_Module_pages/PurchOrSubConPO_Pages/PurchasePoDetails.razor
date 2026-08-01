@@ -1,0 +1,332 @@
+﻿@page "/PurchasePODetails/{PoId:int}"
+@using DocumentFormat.OpenXml.ExtendedProperties
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchOrSubConEnquiryService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchOrSubConPoService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ISalesService
+@using V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.PurchOrSubConPoService
+@using V.SMART.Shared.Data.SalesAndLabour.SalesEnquiry
+@using V.SMART.Shared.Repository.IRepository.IMasterRepository.IAdmins
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesEnquiryVM
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchOrSubConEnquiryVM
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchPoVM
+
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigationManager
+@inject IPurchPoService purchPoSevice
+@inject ILoggingService LoggingService
+@inject IUserAuthorityRepository userAuthority
+@inject IJSRuntime _js
+@inject ReportService reportService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <MyCompanyDetails />
+
+            <!-- Cancelled Watermark -->
+            @if (PurchPoVMs.PoCancl && !PurchPoVMs.IsRevision)
+            {
+                <div class="cancelWatermark ms-20 mt-10">CANCELLED</div>
+            }
+            else if (PurchPoVMs.PoCancl && PurchPoVMs.IsRevision)
+            {
+                <div class="cancelWatermark ms-20 mt-10">Revised</div>
+            }
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <div class="text-center">
+                <h4 class="fw-semibold mt-1">Purchase Order Details</h4>
+            </div>
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+
+            <div class="row g-3 mb-4">
+
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Vendor Details
+                        </div>
+                        <div class="card-body small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(PurchPoVMs?.VendorName) ? PurchPoVMs.VendorName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(PurchPoVMs?.VendorAddress) ? PurchPoVMs.VendorAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(PurchPoVMs?.VendorGSTNO) ? PurchPoVMs.VendorGSTNO : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(PurchPoVMs?.CustContactNo) ? PurchPoVMs.CustContactNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(PurchPoVMs?.KindOfAttention) ? PurchPoVMs.KindOfAttention : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Document Details
+                        </div>
+                        <div class="card-body small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Document Type:</strong></td>
+                                        <td>@((PurchPoVMs.PurchORSubCon ? "Purchase" : "Subcontract") ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>PO No:</strong></td>
+                                        <td>@(PurchPoVMs != null ? $"{PurchPoVMs.Prefix}{PurchPoVMs.PONo}{PurchPoVMs.Suffix}" : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>PO Date:</strong></td>
+                                        <td>@(PurchPoVMs?.PODate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>POC Name:</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(PurchPoVMs?.CancelReason) ? PurchPoVMs.CancelReason : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>POC Contact:</strong></td>
+                                        @* <td>@(!string.IsNullOrEmpty(EnquiryPurchaseVMs?.POCContactNo) ? EnquiryPurchaseVMs.POCContactNo : "N/A")</td> *@
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Expected Reply:</strong></td>
+                                        <td>@(PurchPoVMs?.CancelDate.HasValue == true ? PurchPoVMs.CancelDate.Value.ToString("dd/MM/yyyy") : "N/A")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enquiry Items -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info fw-semibold">
+                    Purchase Order Items
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>UOM</th>
+                                <th>HSN</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Bal. Qty</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (PurchPoVMs?.PurchPoSubVMs != null && PurchPoVMs.PurchPoSubVMs.Any())
+                            {
+                                @foreach (var item in PurchPoVMs.PurchPoSubVMs)
+                                {
+                                    <tr>
+                                        <td class="text-center">@item.SlNo</td>
+                                        <td>@(item.ItemCode ?? "—")</td>
+                                        <td>@(item.ItemName ?? "—")</td>
+                                        <td class="text-center">@(!string.IsNullOrEmpty(item.MeasureUnit) ? item.MeasureUnit : "—")</td>
+                                        <td class="text-center">@(!string.IsNullOrEmpty(item.HSNCode) ? item.HSNCode : "—")</td>
+                                        <td class="text-end">@item.Qty</td>
+                                        <td class="text-end">@item.BalQty</td>
+                                        <td>@(item.Remark ?? "—")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+
+            <!-- Notes -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-warning-subtle text-primary fw-semibold">
+                    Notes / Remarks
+                </div>
+                <div class="card-body small">
+                    <p class="mb-0">@(string.IsNullOrWhiteSpace(PurchPoVMs?.MainRemark) ? "No remarks provided." : PurchPoVMs.MainRemark)</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            @if (isOtherScreen == false)
+            {
+                <div class="d-flex gap-2 justify-content-end">
+                    <a href="@($"/PurchPOList?currentPage={currentPage}")" class="btn btn-outline-secondary  rounded-3" disabled="@isProcessing">
+                        <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                    </a>
+                    <a href="@($"/PurchPO/update/{PoId}")" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil-square"></i> Modify
+                    </a>
+
+                    @if ((!Autharization) || (Autharization && PurchPoVMs.Authorized))
+                    {
+                        <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                            <i class="bi bi-printer"></i> Print
+                        </button>
+
+                    }
+                    else if (Autharization && !PurchPoVMs.Authorized)
+                    {
+
+                        <button class="btn btn-danger" disabled title="Authorization required to generate PDF">
+                            <i class="bi bi-file-earmark-pdf"></i> Authorization Required
+                        </button>
+
+                    }
+
+                </div>
+            }
+
+            @if (PurchPoVMs.IsRejected)
+            {
+                <div class="alert alert-danger rounded-3 shadow-sm small mt-2">
+                    <h6 class="fw-bold mb-2">
+                        <i class="bi bi-exclamation-octagon-fill me-2"></i> Rejection Reason
+                    </h6>
+
+                    @(string.IsNullOrWhiteSpace(PurchPoVMs?.RejectReason)
+                            ? "No rejection reason provided."
+                            : PurchPoVMs.RejectReason)
+                </div>
+             }
+        </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Purchase Order";
+
+    [Parameter] public int PoId { get; set; }
+    [Parameter] public bool isOtherScreen { get; set; }
+    public bool isProcessing { get; set; } = true;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private string? pdfBase64;
+
+    private PurchPoVM PurchPoVMs { get; set; } = new PurchPoVM();
+    public bool Autharization = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await GetDetails();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task GetDetails()
+    {
+        try
+        {
+            if (PoId > 0)
+            {
+                var existEnquirySales = await purchPoSevice.GetPurchPoByIdAsync(PoId);
+                Autharization = (await userAuthority.GetAllWithUserAsync()).Any(x => x.IsPO == true);
+
+                if (existEnquirySales != null)
+                {
+                    PurchPoVMs = existEnquirySales;
+                    var contactPersons = await purchPoSevice.GetContactPersonsVendorAsync(existEnquirySales.VendorCode);
+                    var cp = contactPersons.FirstOrDefault(x => x.ContactPerson == PurchPoVMs.KindOfAttention);
+
+                    if (cp != null)
+                    {
+                        PurchPoVMs.CustContactNo = cp.ContactNo;
+                    }
+                    else
+                    {
+                        PurchPoVMs.CustContactNo = "";
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while loading GetDetails()");
+            await LoggingService.LogDeveloperError(ex, "Error in GetDetails()");
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(PoId, "PurchaseOrder.frx", "PoId", PurchPoVMs.PoCancl, ScreenName, "Sp_Print_PurchasePo");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Manufacturing Invoice");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Manufacturing Invoice.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

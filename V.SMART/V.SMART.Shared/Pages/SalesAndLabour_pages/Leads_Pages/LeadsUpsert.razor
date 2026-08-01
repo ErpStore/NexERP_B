@@ -1,0 +1,1482 @@
+﻿@page "/Leads-details/create"
+@page "/Leads-details/update/{LeadId:int}"
+
+@inject HttpClient Http
+@inherits BaseUserRightsComponent
+@inject CurrentUserService _userService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@using System.Collections.Generic;
+@using System.Linq;
+@using V.SMART.Shared.Data.SalesAndLabour.Leads
+@using V.SMART.Shared.Pages.Master_Module_pages.Currency_Pages
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.MfgLeadsVM
+@inject ILeadService LeadService;
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         Title="@ModalTitle"
+         ButtonText="@ModalButtonText"
+         ButtonBootstrapStyle="@ModalButtonStyle">
+</BsModal>
+
+    <!-- Styles -->
+    <style>
+        .row.align-items-stretch > [class*='col-']
+        {
+            display: flex;
+        }
+        .row.align-items-stretch .card {
+            flex: 1 1 auto;
+        }
+        .contact-table thead {
+            background-color: #004c91;
+            color: white;
+            font-size: 11px;
+        }
+
+        .contact-table tbody {
+            background-color: #f4f9ff;
+        }
+
+        .contact-table tbody tr:hover {
+            background-color: #dceeff;
+            }
+
+        .contact-table th,
+        .contact-table td {
+            vertical-align: middle;
+            font-size: 11px;
+        }
+        .label-formal {
+                                                        
+            font-size: 0.750rem; 
+            font-weight: 500;
+            color:black; 
+           /*  color:#495057;  */
+            letter-spacing: 0.3px; 
+                                                       
+        }
+        .input-formal {
+            font-size: 0.750rem;
+            letter-spacing: 0.3px;
+             font-weight: 500;
+        width: 100% !important;
+    }
+                                                    
+                                                           
+        .status-hot {
+            background-color: #ffe6e6; 
+            color: #b30000;
+            font-weight: 600;
+        }
+        .status-warm {
+            background-color: #fff4e6; 
+            color: #cc7a00;
+            font-weight: 600;
+        }
+        .status-cold {
+            background-color: #e6f3ff;
+            color: #004c99;
+            font-weight: 600;
+        }
+                                             
+    </style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@(Leads.LeadId > 0 ? "Update Leads" : "Create Leads")"
+                            TitleIcon="bi bi-tag"
+                            Breadcrumbs="@LeadsFormBreadcrumbs" />
+                <div class="card-body">
+
+                    <EditForm Model="Leads" OnValidSubmit="UpsertLeads">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="container-fluid">
+                            <div class="row">
+                                <div class="col-lg-12">
+                                     <div class="row mb-3">
+                                        <!-- Company Details -->
+                                        <div class="col-xxl-6 col-12 mb-2">
+
+                                            <div class="card h-100">
+                                                <div class="card-header fw-bold" 
+                                                     style="background-color:aquamarine; color:black; border-radius:0px; padding:10px 15px;">
+                                                    <i class="bi bi-building me-2"></i> Business Info
+                                                </div>
+
+                                                <div class="card-body">
+                                                    <!-- Company Name -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-12 col-md-3 col-form-label label-formal" style="width: 120px;">Company Name</label>
+                                                        <div class="col-12 col-md-9">
+                                                            <TrimmedInputText @bind-Value="Leads.LeadName" class="form-control input-formal"  CssClass="form-control input-formal"/>
+                                                        </div>
+                                                        <ValidationMessage For="@(() => Leads.LeadName)" />
+                                                    </div>
+
+                                                    <!-- Contact Person Name -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">Name</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <TrimmedInputText @bind-Value="Leads.ContactPerson" class="form-control input-formal"  CssClass="form-control input-formal" />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Title / Designation -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">Title</label>
+                                                         <div class="col-12 col-xxl-9">
+                                                            <input list="designationList"
+                                                                   class="form-control input-formal"  CssClass="form-control input-formal"
+                                                                   id="designationList"
+                                                                   @bind="Leads.Designation"
+                                                                   @onkeydown="HandleEnter" />
+                                                            <datalist id="designationList">
+                                                                @foreach (var item in DesignationList)
+                                                                {
+                                                                    <option value="@item" />
+                                                                }
+                                                            </datalist>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Mobile Number -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">Mobile Number</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <TrimmedInputText id="Phone" @bind-Value="Leads.PhoneNo" 
+                                                                              class="form-control input-formal"   CssClass="form-control input-formal"
+                                                                              maxlength="13" inputmode="tel"
+                                                                              onkeypress="return (event.charCode >= 48 && event.charCode <= 57) || (event.charCode == 43 && this.selectionStart == 0)" />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Email -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">Email</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <TrimmedInputText id="Email" @bind-Value="Leads.Email" class="form-control input-formal"  CssClass="form-control input-formal" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Lead Info -->
+                                        <div class="col-xxl-6 col-12 mb-2">
+                                            <div class="card h-100">
+                                                <div class="card-header fw-bold rounded-top" style="background-color:khaki; color:black; border-radius:0px; padding:10px 15px;">
+                                                    <i class="bi bi-person me-2"></i> Lead Info
+                                                </div>
+
+                                                <div class="card-body">
+                                                    <!-- State -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 100px;">State</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            @if (PostOffices?.Any() == true)
+                                                            {
+                                                                <select class="form-select input-formal" @bind="Leads.StateName" disabled>
+                                                                    <option value="">--Select a State--</option>
+                                                                    @foreach (var sta in state)
+                                                                    {
+                                                                        <option value="@sta.StateName">@sta.StateName</option>
+                                                                    }
+                                                                </select>
+                                                            }
+                                                            else
+                                                            {
+                                                                <select class="form-select input-formal" @onchange="OnStateChanged" value="@Leads.StateId">
+                                                                    <option value="">--Select a State--</option>
+                                                                    @foreach (var sta in state)
+                                                                    {
+                                                                        <option value="@sta.StateCode">@sta.StateName</option>
+                                                                    }
+                                                                </select>
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Lead Owner -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 100px;">Lead Owner</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <InputSelect class="form-control input-formal"
+                                                                         @bind-Value="Leads.LeadOwner"
+                                                                         disabled="@string.IsNullOrWhiteSpace(Leads.StateName)"
+                                                                         title="Please select the State first">
+                                                                <option value="">--Please select the State first--</option>
+                                                                @foreach (var Owner in Users)
+                                                                {
+                                                                    <option value="@Owner.UserName">@Owner.UserName</option>
+                                                                }
+                                                            </InputSelect>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Source -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 100px;">Source</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <input list="LeadSource"
+                                                                   @bind="Leads.LeadSource"
+                                                                   class="form-control input-formal"
+                                                                   @onkeydown="HandleEnterSource" />
+                                                            <datalist id="LeadSource">
+                                                                @foreach (var source in LeadSourceList)
+                                                                {
+                                                                    <option value="@source" />
+                                                                }
+                                                            </datalist>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Status -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 100px;">Status</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <InputSelect @bind-Value="Leads.LeadStatus" class=@($"form-select input-formal {GetStatusClass()}")>
+                                                                <option value="">--Select Lead Status--</option>
+                                                                <option value="Hot">Hot</option>
+                                                                <option value="Warm">Warm</option>
+                                                                <option value="Cold">Cold</option>
+                                                            </InputSelect>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Website -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 100px;">Website</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <InputText @bind-Value="Leads.WebSite" class="form-control input-formal" />
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                  
+                                    <!-- Address Info -->
+                                    <div class="row mb-3">
+                                        <div class="col-12">
+                                            <div class="card h-100 shadow-sm">
+                                                <div class="card-header fw-bold rounded-top"
+                                                     style="background-color:cornflowerblue; color:black; border-radius:0px; padding:10px 15px;">
+                                                    <i class="bi bi-geo-alt me-2"></i> Address Information
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="row g-2">
+
+                                                        <!-- Address -->
+                                                        <div class="col-12 mb-2">
+                                                            <div class="d-flex flex-column flex-sm-row align-items-start align-sm-center gap-2">
+                                                                <label class="label-formal mb-1 mb-sm-0" style="min-width: 100px;">Address</label>
+                                                                <InputTextArea @bind-Value="Leads.Address" class="form-control input-formal flex-grow-1" style="height: 35px;" />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Zip Code -->
+                                                        <div class="col-lg-6 col-md-12 mb-2">
+                                                            <div class="d-flex flex-column flex-sm-row align-items-start align-sm-center gap-2">
+                                                                <label class="label-formal mb-1 mb-sm-0" style="min-width: 100px;">Zip Code</label>
+                                                                <InputText @bind-Value="Leads.PinCode" class="form-control input-formal flex-grow-1"
+                                                                           @onblur="FetchAddressFromPincode" />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Location -->
+                                                        <div class="col-lg-6 col-md-12 mb-2">
+                                                            <div class="d-flex flex-column flex-sm-row align-items-start align-sm-center gap-2">
+                                                                <label class="label-formal mb-1 mb-sm-0" style="min-width: 100px;">Location</label>
+                                                                @if (PostOffices?.Any() == true)
+                                                                {
+                                                                    <InputSelect class="form-control input-formal flex-grow-1" @bind-Value="Leads.City">
+                                                                        <option value="">-- Select Location --</option>
+                                                                        @foreach (var po in PostOffices)
+                                                                        {
+                                                                            <option value="@po.Name">@po.Name</option>
+                                                                        }
+                                                                    </InputSelect>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <InputText @bind-Value="Leads.City" class="form-control input-formal flex-grow-1" />
+                                                                }
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Country -->
+                                                        <div class="col-lg-6 col-md-12 mb-2">
+                                                            <div class="d-flex flex-column flex-sm-row align-items-start align-sm-center gap-2">
+                                                                <label class="label-formal mb-1 mb-sm-0" style="min-width: 100px;">Country</label>
+                                                                <InputText @bind-Value="Leads.Country" class="form-control input-formal flex-grow-1" />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- State -->
+                                                        <div class="col-lg-6 col-md-12 mb-2">
+                                                            <div class="d-flex flex-column flex-sm-row align-items-start align-sm-center gap-2">
+                                                                <label class="label-formal mb-1 mb-sm-0" style="min-width: 100px;">State</label>
+                                                                @if (PostOffices?.Any() == true)
+                                                                {
+                                                                    <select class="form-select input-formal flex-grow-1" @bind="Leads.StateName" disabled>
+                                                                        <option value="">-- Select a State --</option>
+                                                                        @foreach (var sta in state)
+                                                                        {
+                                                                            <option value="@sta.StateName">@sta.StateName</option>
+                                                                        }
+                                                                    </select>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <select class="form-select input-formal flex-grow-1" @onchange="OnStateChanged" value="@Leads.StateId">
+                                                                        <option value="">-- Select a State --</option>
+                                                                        @foreach (var sta in state)
+                                                                        {
+                                                                            <option value="@sta.StateCode">@sta.StateName</option>
+                                                                        }
+                                                                    </select>
+                                                                }
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- State Code -->
+                                                        <div class="col-lg-6 col-md-12 mb-2">
+                                                            <div class="d-flex flex-column flex-sm-row align-items-start align-sm-center gap-2">
+                                                                <label class="label-formal mb-1 mb-sm-0" style="min-width: 100px;">State Code</label>
+                                                                <input class="form-control input-formal flex-grow-1" value="@Leads.StateId" readonly />
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+
+                                    <div class=" row mb-3 align-items-stretch">
+                                        <div class="col-xxl-6 col-12 mb-2">
+                                            <div class="card h-100 shadow-sm">
+                                                <div class="card-header fw-bold d-flex align-items-center rounded-top"
+                                                        style="background-color:paleturquoise; color:black; border-radius:0px; padding:15px 15px;">
+                                                            <i class="bi bi-person-vcard me-2"></i> Business Information
+                                                </div>
+
+                                                <div class="card-body">
+
+                                                    <!-- Business Type -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">Business Type</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <select class="form-select input-formal" @onchange="OnBusinessTypeChanged" value="@Leads.BusiType">
+                                                                <option value="">--Select Business Type--</option>
+                                                                @foreach (var item in BusinessTypes)
+                                                                {
+                                                                    <option>@item.Name</option>
+                                                                }
+                                                            </select>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Customer Type -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">Customer Type</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <InputSelect class="form-select input-formal" @bind-Value="Leads.SupType">
+                                                                <option value="">--Select Customer Type--</option>
+                                                                @foreach (var type in CustomerTypes)
+                                                                {
+                                                                    <option>@type</option>
+                                                                }
+                                                            </InputSelect>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- GST No -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">GST No</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <InputText class="form-control input-formal" @bind-Value="Leads.GSTNo" maxlength="15" @oninput="OnVATChanged" />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- PAN No -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">PAN No</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <InputText class="form-control input-formal" @bind-Value="Leads.PANNo" readonly maxlength="10" />
+                                                        </div>
+                                                    </div>
+                                                    <!-- Currency Dropdown -->
+                                                    <div class="row align-items-center mb-3">
+                                                    <label class="col-md-3 col-form-label label-formal" style="width: 120px;">Currency</label>
+                                                    <div class="col-12 col-xxl-9">
+                                                        <select class="form-select input-formal" @onchange="OnCurrencyChange" value="@Leads.CurrId">
+                                                            <option value="">--Select Currency--</option>
+                                                                @foreach (var curr in Currency)
+                                                            {
+                                                                <option value="@curr.CurrId">@curr.CurrName</option>
+                                                            }
+                                                            <option value="-1">+ Add New Currency</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                    @if (ShowModal)
+                                                    {
+                                                        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                                                            <div class="modal-dialog modal-lg modal-dialog-centered">
+                                                                <div class="modal-content">
+                                                                    <div class="modal-header bg-primary text-white">
+                                                                        <h5 class="modal-title">Add New Currency</h5>
+                                                                        <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                                                                    </div>
+                                                                    <div class="modal-body">
+                                                                        <CurrencyUpsert IsModal="true" OnSaved="HandleSaved" />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    }
+
+                                                   
+                                                    <!-- Remarks -->
+                                                    <div class="row align-items-center mb-3">
+                                                        <label class="col-md-3 col-form-label label-formal" style="width: 120px;">Remarks</label>
+                                                        <div class="col-12 col-xxl-9">
+                                                            <InputTextArea class="form-control input-formal" @bind-Value="Leads.Remarks" />
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+
+
+                                        <!-- Contact Notes -->
+                                        <div class="col-xxl-6 col-12 mb-2">
+                                            <div class="card h-100 shadow-sm">
+                                                <!-- Card Header -->
+                                                <div class="card-header fw-bold d-flex justify-content-between align-items-center rounded-top" style="background-color:lightpink; color:black; border-radius:0px; padding:10px 15px;">
+                                                    <span><i class="bi bi-chat-text me-2"></i>Contact Notes</span>
+                                                    <button type="button" class="btn btn-sm btn-outline-dark"  @onclick="AddContact">
+                                                        <i class="bi bi-plus-lg me-1"></i> Add
+                                                    </button>
+                                                </div>
+
+                                                <!-- Table -->
+                                                <div class="table-responsive">
+                                                    <table class="table table-bordered table-sm align-middle text-center table-hover contact-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th style="width: 160px;">Contact Name</th>
+                                                                <th style="width: 160px;">Phone Number</th>
+                                                                <th style="width: 160px;">Email</th>
+                                                                <th style="width: 80px;">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @if (Contacts != null && Contacts.Any())
+                                                            {
+                                                                @foreach (var contact in Contacts)
+                                                                {
+                                                                    <tr>
+                                                                        <td>
+                                                                            <InputText class="form-control input-formal" @bind-Value="contact.ContactPersonName" />
+                                                                        </td>
+                                                                        <td>
+                                                                            <InputText class="form-control input-formal" @bind-Value="contact.PhoneNo" maxlength="13" inputmode="tel" onkeypress="return (event.charCode >= 48 && event.charCode <= 57) || (event.charCode == 43 && this.selectionStart == 0)" />
+                                                                        </td>
+                                                                        <td>
+                                                                            <InputText class="form-control input-formal" @bind-Value="contact.Email" />
+                                                                        </td>
+                                                                        <td>
+                                                                            <button type="button" class="btn btn-danger btn-sm"
+                                                                                   @onclick="() => AskToRemoveAsync(contact, ContactType)" title="Remove">
+                                                                                <i class="bi bi-trash"></i>
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                }
+                                                            }
+                                                            else
+                                                            {
+                                                                <tr>
+                                                                    <td colspan="6" class="text-muted">
+                                                                           <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-light border" 
+                                                                                style="width: 60px; height: 60px;">
+                                                                               <i class="bi bi-person fs-1 text-secondary"></i>
+                                                                           </span>
+                                                                    <div class="mt-2">No contacts added yet</div>
+                                                                </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                  
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Section: Save -->
+                                   
+                                        <div class="row mt-4 mb-2">
+                                            @if (CanCreate || CanEdit)
+                                            {
+                                                <div class="col-6 col-lg-3">
+                                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                                        <i class="bi bi-floppy2-fill me-1"></i> @(LeadId == 0 || LeadId == null ? "Create" : "Update")
+                                                    </button>
+                                                </div>
+                                            }
+
+                                            <div class="col-6 col-lg-3 mb-2">
+                                                <SmartBackButton Url="/Leads" />
+                                            </div>
+
+                                            @if (!IsCustomer)
+                                            {
+                                            <div class="col-6 col-lg-3 mb-2">
+                                                    <button type="button" class="btn btn-warning w-100" disabled="@isProcessing" @onclick="() => AskToMasterConvertAsync(Leads.LeadName, MasterConvert)">
+                                                        Master Convert
+                                                    </button>
+                                                </div>
+                                            }
+                                       </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+    }
+}
+
+@code {
+    protected override string ScreenName => "Leads";
+
+    [Parameter]
+    public int? LeadId { get; set; }
+    public string CustIndPanNo = "";
+    private bool isProcessing = true;
+    private Leads Leads { get; set; } = new Leads();
+    private Customer customer { get; set; } = new Customer();
+    private List<ContactPerson> Contacts { get; set; } = new();
+    private List<string> DesignationList = new();
+    private List<string> LeadSourceList = new();
+    private List<Currency> Currency = new();
+    private List<State> state = new();
+    private List<User> Users = new();
+    private int SelectedBusinessType;
+    private Currency NewCurrency { get; set; } = new();
+
+    public List<string> CustomerTypes { get; set; } = new();
+    private List<PostOffice> PostOffices = new();
+    private List<Country> countries = new();
+    private List<string> cities = new();
+
+    string selectedCountry = "";
+    string selectedState = "";
+
+    private string username;
+    private object? PendingDeleteItem;
+    private string? DeleteType;
+
+    private const string ContactType = "Contact";
+    private const string MasterConvert = "MasterConvert";
+
+    private string ModalTitle = "Are You Want To Sure";
+    private string ModalButtonText = "Confirm";
+    private string ModalButtonStyle = "btn-primary";
+
+    private bool ShowAddCurrencyCard { get; set; } = false;
+
+    private bool IsCustomer;
+
+    private bool ShowModal = false;
+
+    private List<PageHeader.BreadcrumbItem> LeadsFormBreadcrumbs = new()
+    {
+        new() { Text = "Sales" },
+        new() { Text = "Leads", IsLast = true }
+    };
+
+    private void HandleCurrencySaved(int newCurrencyId)
+    {
+        // Change modal title to Edit after saving
+        ModalTitle = "Edit Currency";
+    }
+    private async Task CloseModal()
+    {
+        ShowModal = false;
+    }
+
+    private string GetStatusClass()
+    {
+        return Leads.LeadStatus?.ToLower() switch
+        {
+            "hot"  => "status-hot",
+            "warm" => "status-warm",
+            "cold" => "status-cold",
+            _      => ""
+        };
+    }
+
+    private async Task FetchAddressFromPincode()
+    {
+
+        if (!string.IsNullOrWhiteSpace(Leads.PinCode))
+        {
+            try
+            {
+                var response = await Http.GetFromJsonAsync<List<PincodeResponse>>(
+                    $"https://api.postalpincode.in/pincode/{Leads.PinCode}");
+
+                if (response?.FirstOrDefault()?.Status == "Success")
+                {
+                    var postOffices = response.First().PostOffice;
+
+                    PostOffices = postOffices.Select(po => new PostOffice
+                    {
+                        Name = po.Name,
+                    }).ToList();
+
+                    var post = response?.FirstOrDefault()?.PostOffice?.FirstOrDefault();
+                    if (post != null)
+                    {
+                        Leads.Country = post.Country;
+
+                        if (!string.IsNullOrWhiteSpace(post.State))
+                        {
+
+                            var matchedState = state
+                                .FirstOrDefault(s => string.Equals(
+                                    s.StateName.Trim(),
+                                    post.State.Trim(),
+                                    StringComparison.OrdinalIgnoreCase));
+
+                            if (matchedState != null)
+                            {
+                                Leads.StateId = matchedState.StateCode; 
+                                Leads.StateName = matchedState.StateName;
+
+                                var leadStates = Leads.StateId.ToString();
+                                var allUsers = await LeadService.GetAllUsersAsync();
+
+                                if (allUsers?.Any() == true)
+                                {
+                                    Users = allUsers
+                                    .Where(u => !string.IsNullOrWhiteSpace(u.StateCodesCsv) && u.StateCodesCsv
+                                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(code => code.Trim())
+                                    .Any(code => leadStates.Contains(code))).ToList();
+                                }
+                            }
+                            else
+                            {
+                                Leads.State = null;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Leads.State = null;
+                        Leads.Country = string.Empty;
+                    }
+                }
+                else
+                {
+                    Leads.State = null;
+                    Leads.Country = string.Empty;
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                await LoggingService.LogDeveloperError(ex, "An error occurred while handling the FetchAddressFromPincode event");
+
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogDeveloperError(ex, "An error occurred while handling the FetchAddressFromPincode event");
+            }
+
+        }
+    }
+    private async Task LoadCountries()
+    {
+        try
+        {
+
+            var response = await Http.GetFromJsonAsync<CountriesResponse>("https://countriesnow.space/api/v0.1/countries/states");
+
+            if (response != null)
+            {
+                countries = response.Country ?? new();
+            }
+            else
+            {
+                countries = new();
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LoadCountries event");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LoadCountries event");
+        }
+
+    }
+    private async Task OnGstChanged(ChangeEventArgs e, CustomerIndirect CustInd)
+    {
+        try
+        {
+            var gst = e.Value?.ToString();
+            CustInd.GSTNo = gst.Trim();
+
+            if (!string.IsNullOrWhiteSpace(gst) && gst.Length == 15)
+            {
+                CustInd.PANNo = gst.Substring(2, 10);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the leads OnGstChanged Changed event");
+        }
+
+    }
+
+    private async Task OnVATChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value is string vatValue)
+            {
+                vatValue = vatValue.ToUpper();
+                Leads.GSTNo = vatValue;
+
+                if (!string.IsNullOrEmpty(vatValue) && vatValue.Length == 15)
+                {
+
+                    Leads.PANNo = vatValue.Substring(2, vatValue.Length - 5);
+                }
+                else
+                {
+                    Leads.PANNo = string.Empty;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnVATChanged(GST) event");
+        }
+    }
+
+
+    private async Task OnStateChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int stateId))
+            {
+
+                var stateItem = state.FirstOrDefault(s => s.StateCode == stateId);
+
+                if (stateItem != null)
+                {
+                    Leads.StateId = stateItem.StateCode;
+                    Leads.StateName = stateItem.StateName;
+
+                    var leadStates = Leads.StateId.ToString();
+                    var allUsers = await LeadService.GetAllUsersAsync();
+
+                    if (allUsers?.Any() == true)
+                    {
+                        Users = allUsers
+                            .Where(u =>
+                                !string.IsNullOrWhiteSpace(u.StateCodesCsv) &&
+                                u.StateCodesCsv
+                                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(code => code.Trim())
+                                    .Any(code =>  leadStates.Contains(code))
+                            )
+                            .ToList();
+                    }
+                }
+            }
+            else
+            {
+                Leads.StateId = 0;
+                Leads.StateName = "";
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads OnStateChanged event");
+        }
+    }
+
+    private async Task HandleSaved()
+    {
+        ShowModal = false;
+        await LoadCurrency(); // refresh list after save
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            username = await _userService.GetUsernameAsync();
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            //await LoadCountries();
+            await LoadCurrency();
+            await LoadState();
+            await LoadLeads();
+
+            DesignationList = await LoadDesignationsAsync();
+            LeadSourceList = await LoadSourceAsync();
+            await LoadCustomerTypesForBusinessType(Leads.BusiType);
+            await Task.CompletedTask;
+
+            isProcessing = false;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads OnInitializedAsync event");
+        }
+    }
+
+    private async Task LoadCustomerTypesForBusinessType(string? busiType)
+    {
+        try
+        {
+            Leads.BusiType = busiType;
+            CustomerTypes.Clear();
+
+            if (string.IsNullOrEmpty(busiType))
+
+                return;
+
+            switch (busiType)
+            {
+                case "Local":
+                case "InterState": // InterState
+                    CustomerTypes.AddRange(new[] { "B2B", "SEZWP", "SEZWOP" });
+
+                    if (string.IsNullOrEmpty(Leads.SupType) || !CustomerTypes.Contains(Leads.SupType))
+                        Leads.SupType = "B2B";
+                    break;
+
+                case "Imports": // Imports
+                case "Exports": // Exports
+                    CustomerTypes.AddRange(new[] { "SEZWP", "SEZWOP", "EXPWP", "EXPWOP" });
+
+                    if (string.IsNullOrEmpty(Leads.SupType) || !CustomerTypes.Contains(Leads.SupType))
+                        Leads.SupType = "SEZWP";
+                    break;
+
+                default:
+                    Leads.SupType = null;
+                    break;
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads LoadCustomerTypesForBusinessType Method");
+
+        }
+    }
+
+    private async Task LoadState()
+    {
+        try
+        {
+            var existing = await LeadService.GetAllStatesAsync();
+            if (existing != null)
+                state = existing.ToList();
+
+            
+
+
+            // var allUsers = await LeadService.GetAllUsersAsync();
+
+            // if (allUsers?.Any() == true)
+            // {
+            //     Users = allUsers.ToList();
+            // }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads LoadState Method");
+        }
+    }
+
+    private async Task LoadCurrency()
+    {
+        try
+        {
+            var existing = await LeadService.GetAllCurrencyAsync();
+            if (existing != null)
+                Currency = existing.ToList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer LoadCurrency() Method");
+        }
+    }
+
+    private async Task LoadLeads()
+    {
+        try
+        {
+            if (LeadId > 0)
+            {
+                var existing = await LeadService.GetLeadsAsync(LeadId.Value);
+                if (existing != null)
+                {
+                    Leads = existing;
+                    var contacts =   (await LeadService.GetContactPersonsByLeadAsync(Leads.LeadId)).ToList();
+
+                    Contacts = contacts;
+
+                    var customer = await LeadService.GetCustomerByNameAsync(Leads.LeadName);
+                    IsCustomer = customer != null;
+
+                    if (Leads.LeadId > 0 && Leads.StateId > 0)
+                    {
+                        Users = await LeadService.GetUsersBySelectedStateId(Leads.StateId);
+                    }
+                }
+            }
+            else
+            {
+                IsCustomer = true;
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads LoadLeads() Method");
+        }
+    }
+
+    private List<(int Id, string Name)> BusinessTypes = new()
+    {
+        (1, "Local"),
+        (2, "InterState"),
+        (3, "Imports"),
+        (4, "Exports")
+    };
+
+    private async Task UpsertLeads()
+    {
+        isProcessing = true;
+        try
+        {
+            Contacts = Contacts
+               .Where(c =>
+                   !string.IsNullOrWhiteSpace(c.ContactPersonName) ||
+                   !string.IsNullOrWhiteSpace(c.Email) ||
+                   !string.IsNullOrWhiteSpace(c.PhoneNo))
+               .ToList();
+            if (Leads.LeadId==0)
+            {
+                var isDuplicate = await LeadService.IsDuplicateLeadsNameAsync(Leads.LeadName, Leads.LeadId == 0 ? null : Leads.LeadId);
+                
+                if (isDuplicate)
+                {
+                    await _js.ToastrError("Leads name already exists.");
+
+                    isProcessing = false;
+                    return;
+                }
+                
+            }
+           
+
+            var errors = new List<string>();
+            string busiType = Leads.BusiType?.ToString()?.Trim(); // Make sure it's string
+
+            if (errors.Count > 0)
+            {
+                foreach (var err in errors)
+                {
+                    await _js.ToastrError(err);
+                }
+
+                isProcessing = false;
+                return;
+            }
+            await LeadService.CreateleadsAsync(Leads);
+            await LeadService.CreateOrUpdateContactsAsync(Leads.LeadId, Leads.LeadName, Contacts);
+            if (Leads.LeadId == 0)
+            {
+                await _js.ToastrSuccess("Leads Created Successfully");
+            }
+            else
+            {
+                await _js.ToastrSuccess("Leads Updated Successfully");
+            }
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/Leads");
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while saving the Leads.");
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads UpsertLeads() Method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task AskToRemoveAsync(object item, string type)
+    {
+        try
+        {
+            PendingDeleteItem = item;
+            DeleteType = type;
+            ModalTitle = "Are you sure you want to Remove?";
+            ModalButtonText = "Remove";
+            ModalButtonStyle = "btn-danger";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads OnBusinessTypeChanged event");
+        }
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && !string.IsNullOrWhiteSpace(DeleteType))
+            {
+                switch (DeleteType)
+                {
+                    case "Contact":
+                        if (PendingDeleteItem is ContactPerson edu)
+                        {
+                            bool result = await LeadService.DeleteContactByIdAsync(edu.Id);
+                            if (result)
+                            {
+                                Contacts.Remove(edu);
+                            }
+                        }
+                        break;
+
+                    case "MasterConvert":
+
+                        await MasterConvertAsyn();
+
+                        break;
+
+                }
+
+                if(DeleteType !="MasterConvert")
+                {
+                    await _js.ToastrSuccess("Row Removed successfully.");
+                }
+                else
+                {
+                    await _js.ToastrSuccess("Customer Master Created successfully.");
+
+                }
+                PendingDeleteItem = null;
+                DeleteType = null;
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the leads OnBusinessTypeChanged event");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CreateCurrency()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(NewCurrency.CurrName))
+                return;
+            bool result = await LeadService.CreateCurrencyAsync(NewCurrency);
+
+            if (result)
+            { 
+                Currency.Add(NewCurrency);
+                Leads.CurrId = NewCurrency.CurrId;
+                NewCurrency = new Currency();
+            }
+            else
+            {
+                await _js.ToastrError("Currency name already exists.");
+                return;
+
+            }
+
+            ShowAddCurrencyCard = false;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "on Error  occured while handling the leads in CreateCurrency");
+        }
+    }
+   
+    private async Task OnCurrencyChange(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e?.Value is null) return;
+
+            var value = e.Value.ToString();
+            if (value == "-1")
+            {
+                ShowModal = true;
+                Leads.CurrId = null; // reset selection
+            }
+
+            else
+            {
+                
+                Leads.CurrId = int.Parse(value); 
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "on Error Occured while handling the leads  OnCurrencyChange Event");
+        }
+    }
+
+    private async Task OpenCurrencyModal()
+    {
+        await _js.InvokeVoidAsync("openModal", "Currency");
+    }
+
+  
+
+    private async Task OnBusinessTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e?.Value is null) return;
+
+            var value = e.Value.ToString();
+
+            await LoadCustomerTypesForBusinessType(value);
+
+            if (value == "Imports" || value == "Exports")
+            {
+                Leads.GSTNo = "URP";
+
+                var urpState = state.FirstOrDefault(s => s.StateCode == 99);
+                if (urpState != null)
+                {
+                    Leads.StateId = 99;
+                    Leads.StateName = urpState.StateName;
+                    Leads.PANNo = string.Empty;
+                }
+            }
+            else
+            {
+                // Optional: Clear values for other types
+                Leads.GSTNo = string.Empty;
+                Leads.PANNo = string.Empty;
+                await FetchAddressFromPincode();
+            }
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer OnBusinessTypeChanged event");
+        }
+    }
+
+
+    private async Task AddContact()
+    {
+        try
+        {
+            var lastItem = Contacts.LastOrDefault();
+
+            if (lastItem != null && string.IsNullOrWhiteSpace(lastItem.ContactPersonName))
+            {
+                await _js.ToastrError("Please fill ContactPersonName details before adding a new one.");
+                return;
+            }
+            Contacts.Add(new ContactPerson());
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads AddContact event");
+        }
+
+    }
+
+    private async Task<List<string>> LoadDesignationsAsync()
+    {
+        var LeadList = await LeadService.GetAllLeadsAsync();
+        return LeadList
+            .Where(s => !string.IsNullOrWhiteSpace(s.Designation))
+            .Select(s => s.Designation!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+
+
+    }
+    private async Task<List<string>> LoadSourceAsync()
+    {
+        var loadSorce = await LeadService.GetAllLeadsAsync();
+        return loadSorce
+          .Where(s => !string.IsNullOrWhiteSpace(s.LeadSource))
+          .Select(s => s.LeadSource!.Trim())
+          .Distinct(StringComparer.OrdinalIgnoreCase)
+          .OrderBy(x => x)
+          .ToList();
+
+    }
+    private async Task HandleEnter(KeyboardEventArgs e)
+    {
+        try
+        {
+            if (e.Key == "Enter")
+            {
+                if (!string.IsNullOrWhiteSpace(Leads.Designation) &&
+                    !DesignationList.Contains(Leads.Designation, StringComparer.OrdinalIgnoreCase))
+                {
+                    DesignationList.Add(Leads.Designation); // Optional: Add new
+                }
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads HandleEnter event");
+
+        }
+
+    }
+    private async Task HandleEnterSource(KeyboardEventArgs e)
+    {
+        try
+        {
+            if (e.Key == "Enter")
+            {
+                if (!string.IsNullOrWhiteSpace(Leads.LeadSource) &&
+                    !LeadSourceList.Contains(Leads.LeadSource, StringComparer.OrdinalIgnoreCase))
+                {
+                    LeadSourceList.Add(Leads.LeadSource); // Optional: Add new
+                }
+
+                Console.WriteLine($"Entered: {Leads.LeadSource}");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads HandleEnterSource event"); 
+        }
+
+    }
+    private async Task AskToMasterConvertAsync(object item,string type)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if(string.IsNullOrWhiteSpace(Leads.LeadName) || string.IsNullOrWhiteSpace(Leads.Address))
+            {
+                errors.Add("Please Enter Company Name and Leads Address");
+            }
+
+            if(string.IsNullOrWhiteSpace(Leads.SupType))
+            {
+                errors.Add("Please Enter Select Supply Type");
+            }
+            if(string.IsNullOrWhiteSpace(Leads.PinCode))
+            {
+                errors.Add("Please Enter the Pincode");
+                
+            }
+            if (string.IsNullOrWhiteSpace(Leads.City))
+            {
+                errors.Add("Please Enter the Location");
+
+            }
+            var existingCustomer = await LeadService.GetCustomerByNameAsync(Leads.LeadName);
+            bool isDuplicate = existingCustomer != null;
+            if (isDuplicate)
+            {
+                errors.Add("Customer name already exists.");
+                isProcessing = false;
+            }
+
+            string busiType = Leads.BusiType?.ToString()?.Trim(); // Make sure it's string
+
+            //Case 1: IMPORTS or EXPORTS (assuming BusiType is numeric: 3 = Imports, 4 = Exports)
+            if (busiType == "Imports" || busiType == "Exports")
+            {
+                if (!string.Equals(Leads.GSTNo, "URP", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add("For Imports/Exports, GST No must be 'URP'.");
+                }
+            }
+            else
+            {
+                //Validate GST No
+                if (string.IsNullOrWhiteSpace(Leads.GSTNo))
+                {
+                    errors.Add("Please enter GST No.");
+                }
+                else if (Leads.GSTNo.Length != 15)
+                {
+                    errors.Add("GST No must be 15 characters.");
+                }
+                else if (!Regex.IsMatch(Leads.GSTNo, @"^(URP|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})$"))
+                {
+                    errors.Add("Invalid GST No format.");
+                }
+
+                // Validate PAN No
+                if (string.IsNullOrWhiteSpace(Leads.PANNo))
+                {
+                    errors.Add("Please enter PAN No.");
+                }
+                else if (!Regex.IsMatch(Leads.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
+                {
+                    errors.Add("Invalid PAN No format.");
+                }
+
+            }
+
+            // Validate State
+            var matchedState = state.FirstOrDefault(s => s.StateCode == Leads.StateId);
+            if (Leads.StateId == 0 || matchedState == null)
+            {
+                errors.Add("Please select a valid State.");
+                isProcessing = false;
+
+            }
+
+            if(matchedState != null)
+            {
+                Leads.StateName = matchedState.StateName;
+            }
+
+            if(Leads.CurrId == null)
+            {
+                errors.Add("Please select a valid Currency.");
+
+            }
+            // Show accumulated validation errors
+            if (errors.Count > 0)
+            {
+                foreach (var err in errors)
+                {
+                    await _js.ToastrError(err);
+                }
+
+                isProcessing = false;
+                return;
+            }
+
+            PendingDeleteItem = item;
+            DeleteType = type;
+            ModalTitle = "Are you sure you want to Master Customer Create?";
+            ModalButtonText = "Create";
+            ModalButtonStyle = "btn-danger";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer OnBusinessTypeChanged event");
+        }
+
+    }
+
+    private async Task MasterConvertAsyn()
+    {
+        try
+        {
+            await LeadService.CreateleadsAsync(Leads);
+            Contacts = Contacts
+               .Where(c =>
+                   !string.IsNullOrWhiteSpace(c.ContactPersonName) ||
+                   !string.IsNullOrWhiteSpace(c.Email) ||
+                   !string.IsNullOrWhiteSpace(c.PhoneNo))
+               .ToList();
+            await LeadService.CreateOrUpdateContactsAsync(Leads.LeadId, Leads.LeadName, Contacts);
+            
+            await LeadService.CreateCustomerAsync(Leads);
+
+
+        }
+        catch (Exception ex)
+        {
+         await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Leads MasterConvert event");    
+            
+        }
+        
+    }
+    
+}

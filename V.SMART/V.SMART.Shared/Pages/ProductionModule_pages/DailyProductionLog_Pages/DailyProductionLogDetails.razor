@@ -1,0 +1,438 @@
+﻿@page "/productionlog/details/{ProductionlogId:int}"
+
+@page "/productionlog/details/{ProductionlogId:int}/{IsProduction:bool}"
+
+@using V.SMART.Shared.ViewModels.PlanningViewModel.RouteCardViewModel
+@using V.SMART.Shared.ViewModels.ProductionViewModel.ProductionLogViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigationManager
+@inject IProductionLogService productionLogService
+@inject IJSRuntime _js
+@inject ILoggingService LoggingService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <!-- Company Details Section -->
+            <MyCompanyDetails />
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">Production Log Details</h4>
+            </div>
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Route Card Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Route Card No</strong></td>
+                                        <td>@(ProductionLogVMs != null ? $"{ProductionLogVMs.RCNo}{ProductionLogVMs.Suffix}" : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Route Card Qty</strong></td>
+                                        <td>@(ProductionLogVMs != null ? ProductionLogVMs.RCQty : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Process</strong></td>
+                                        <td>@(ProductionLogVMs != null ? ProductionLogVMs.ProcessName : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Customer</strong></td>
+                                        <td>@(ProductionLogVMs != null ? ProductionLogVMs.CustomerName : "N/A")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Machine</strong></td>
+                                        <td>@(ProductionLogVMs != null ? ProductionLogVMs.MachineName : "N/A")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Operator Name</strong></td>
+                                        <td>@(ProductionLogVMs != null ? ProductionLogVMs.Operator : "N/A")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Production Log Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <div class="card-body p-2 small">
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Log No.</strong></td><td>@(!string.IsNullOrEmpty(ProductionLogVMs?.LogNo) ? ProductionLogVMs.LogNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Log Date.</strong></td><td>@(ProductionLogVMs?.LogDate.ToString("dd-MM-yyyy") ?? "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Shift</strong></td><td>@(ProductionLogVMs != null ? ProductionLogVMs.ShiftName : "N/A")</td></tr>
+                                        <tr>
+                                            <td class="text-secondary" style="width: 40%;">
+                                                <strong>Start Time</strong>
+                                            </td>
+                                            <td>
+                                                @(ProductionLogVMs?.StartTime?.ToString("HH:mm:ss") ?? "N/A")
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td class="text-secondary" style="width: 40%;">
+                                                <strong>End Time</strong>
+                                            </td>
+                                            <td>
+                                                @(ProductionLogVMs?.EndTime?.ToString("HH:mm:ss") ?? "N/A")
+                                            </td>
+                                        </tr>
+
+                                        <!-- Total Time Display -->
+                                        <tr>
+                                            <td class="text-secondary" style="width: 40%;">
+                                                <strong>Total Time</strong>
+                                            </td>
+                                            <td>
+                                                <span class="text-primary ms-1">
+                                                    @(ProductionLogVMs?.TotalTime.ToString(@"hh\:mm") ?? "N/A")
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Production Details -->
+            <div class="col-12 mb-2">
+                <div class="card h-100 shadow-sm">
+                    <!-- Header -->
+                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                        <span class="fw-bold fs-6">Production Details</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Item Issued -->
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Item Code - Iss.</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.ItemOutCode" readonly />
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Qty Iss.</label>
+                                <input class="form-control form-control-sm"
+                                       value="@ProductionLogVMs.QtyOut.ToString("0.###")"
+                                       readonly />
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Issue Store</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.IssueStoreName" readonly />
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">RM Stock Qty</label>
+                                <input class="form-control form-control-sm fw-bold text-danger bg-light border-danger"
+                                       value="@ProductionLogVMs.RMStock"
+                                       readonly />
+                            </div>
+
+                            <!-- Item Produced -->
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Item Code - In</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.ItemInCode" readonly />
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Input Qty</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.InputQty" readonly />
+                            </div>
+
+                            <!-- Stores / Cost / Process -->
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Return Store</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.AddStoreName" readonly />
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">CostCentre No.</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.CostCenterName" readonly />
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Process</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.ProcessName" readonly />
+                            </div>
+
+                            <!-- Cycle / Setting / Idle -->
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Cycle Time</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.CycleTime?.ToString(@"hh\:mm\:ss")" readonly />
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Setting Time</label>
+                                <input class="form-control form-control-sm" value="@ProductionLogVMs.SettingTime?.ToString(@"hh\:mm\:ss")" readonly />
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">M/C Idle Time (Min)</label>
+                                <input class="form-control form-control-sm bg-light" value="@ProductionLogVMs.MachineIdleTime" readonly />
+                            </div>
+
+                            <div class="col-12"><hr class="my-2" /></div>
+
+
+                            <!-- Efficiency / Target -->
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Expected Qty</label>
+                                <input class="form-control form-control-sm text-danger fw-bold"
+                                       @bind="ProductionLogVMs.ExpectedQty"
+                                       readonly />
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Target Qty (Total)</label>
+                                <input class="form-control form-control-sm text-success fw-bold"
+                                       @bind="ProductionLogVMs.TargetQtyForTotalHours"
+                                       readonly />
+                            </div>
+
+
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Efficiency %</label>
+                                <input class="form-control form-control-sm fw-bold"
+                                       @bind="ProductionLogVMs.EfficiencyPercent" readonly />
+                            </div>
+
+                            <!-- Bonus -->
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Bonus Efficiency %</label>
+                                <input type="text" class="form-control form-control-sm bg-success-subtle" @bind="ProductionLogVMs.BonusEfficiencyPercent" readonly />
+                            </div>
+
+                            <div class="col-12">
+                                <hr class="my-2" />
+                            </div>
+
+                            <!-- Accepted / Rejected / Rework / Return -->
+                            <div class="row mb-2 align-items-center">
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Accepted Qty
+                                </label>
+                                <div class="col-md-2">
+                                    <input type="number"
+                                           class="form-control form-control-sm fw-bold text-success"
+                                           @bind="ProductionLogVMs.AccQty" readonly />
+                                </div>
+
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Ins No.
+                                </label>
+                                <div class="col-md-2">
+                                    <input type="text"
+                                           class="form-control form-control-sm"
+                                           @bind="ProductionLogVMs.InspectNo" readonly />
+                                </div>
+                            </div>
+
+                            <div class="row mb-2 align-items-center">
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Rejected Qty
+                                </label>
+
+                                <div class="col-md-2">
+                                    <input type="number"
+                                           class="form-control form-control-sm fw-bold text-danger"
+                                           @bind="ProductionLogVMs.RejQty" readonly />
+
+                                </div>
+
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Rejected Reason
+                                </label>
+
+                                <div class="col-md-2">
+                                    <InputTextArea class="form-control form-control-sm fw-bold"
+                                                   rows="1"
+                                                   @bind-Value="ProductionLogVMs.RejReason" readonly />
+                                </div>
+                            </div>
+
+                            <div class="row mb-2 align-items-center">
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Rework Qty
+                                </label>
+
+                                <div class="col-md-2">
+                                    <input type="number"
+                                           class="form-control form-control-sm fw-bold text-warning"
+                                           @bind="ProductionLogVMs.RewQty" readonly />
+
+                                </div>
+
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Rework Process
+                                </label>
+
+                                <div class="col-md-2">
+                                    <input type="text"
+                                           class="form-control form-control-sm fw-bold"
+                                           @bind="ProductionLogVMs.RewProcessName" readonly />
+                                </div>
+
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Rework Reason
+                                </label>
+
+                                <div class="col-md-2">
+                                    <InputTextArea class="form-control form-control-sm fw-bold"
+                                                   rows="1"
+                                                   @bind-Value="ProductionLogVMs.RewReason" readonly />
+                                </div>
+                            </div>
+
+                            <div class="row mb-2 align-items-center">
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Return Qty
+                                </label>
+
+                                <div class="col-md-2">
+                                    <input type="number"
+                                           class="form-control form-control-sm fw-bold text-success"
+                                           @bind="ProductionLogVMs.ReturnQty" readonly />
+                                </div>
+
+                                <label class="col-md-2 col-form-label small fw-semibold">
+                                    Return Reason
+                                </label>
+
+                                <div class="col-md-2">
+                                    <InputTextArea class="form-control form-control-sm fw-bold"
+                                                   rows="1"
+                                                   @bind-Value="ProductionLogVMs.ReturnReason" readonly />
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end">
+
+                @if (!IsProduction)
+                {
+
+                    <a href="/productionLogList" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left-circle"></i> Back To List
+                    </a>
+                    <a href="@($"/productionlog/update/{ProductionlogId}")" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil-square"></i> Modify
+                    </a>
+                }
+                else
+                {
+                    <a href="/productionLogList/true" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left-circle"></i> Back To List
+                    </a>
+                    <a href="@($"/productionlog/update/{ProductionlogId}/true")" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil-square"></i> Modify
+                    </a>
+                    
+                }
+
+                <button class="btn btn-outline-success" onclick="window.print()">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Daily Production Log";
+
+    [Parameter]
+    public int ProductionlogId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public bool IsProduction { get; set; }
+
+    private int screenCode { get; set; }
+    private bool isProcessing { get; set; } = true;
+    private ProductionLogVM ProductionLogVMs { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            else
+            {
+                await LoadProductionLogs();
+                isProcessing = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while Loading OnInitializedAsync() in MfgPODetails()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadProductionLogs()
+    {
+        try
+        {
+            if (ProductionlogId > 0)
+            {
+                screenCode = await productionLogService.GetScreenCodeByScreenNameAsync(ScreenName);
+                var po = await productionLogService.GetProductionLogByLogIdAsync(ProductionlogId, screenCode);
+                if (po != null)
+                {
+                    ProductionLogVMs = po;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error while Loading LoadManufacturingPo() in MfgPODetails()");
+            await LoggingService.LogDeveloperError(ex, "Error while Loading LoadManufacturingPo() in MfgPODetails()");
+        }
+    }
+}

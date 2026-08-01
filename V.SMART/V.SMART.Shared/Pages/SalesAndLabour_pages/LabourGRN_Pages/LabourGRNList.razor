@@ -1,0 +1,895 @@
+﻿@page "/labourGRNList"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ILabourServices
+@using V.SMART.Shared.Pages.InstantSearch_Pages
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.LabourGRN_VM
+@using System.Text.Json
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ILabourGRNService _grnService
+@inject ExcelExportService ExcelExportService
+
+<style>
+    .pagination-fixed {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1030; /* keeps above table */
+    }
+
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true" 
+            Screen="@ScreenName" 
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="LabourGRN List"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@LabourGRNBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="LabourGRNList"
+                                    UserId="@UserName"
+                                    MaxVisible="int.MaxValue"
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                     <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                     <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm" value="@pageSize"
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select status of records">
+                            <option value="">-- Select Status --</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Short Closed">Short Closed</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-2 ms-md-auto text-end">
+                            <button type="button" class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewGRN">
+                                <i class="bi bi-plus-square me-1"></i> Add New GRN
+                            </button>
+                        </div>
+                    }
+
+                </div>
+
+                @if (LabourGRNVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="@LabourGRNVMs.AsQueryable()"
+                                  
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            // 🔹 Keys & Main Info
+                                            case "GRNId":
+                                                <PropertyColumn Title="GRN ID" Property="@(c => c.GRNId)" />
+                                                break;
+
+                                            case "GRNNo":
+                                                <PropertyColumn Title="GRN No"
+                                                                Property="@(c => $"{c.GRNNo}{c.Suffix}")"
+                                                                Sortable="true" />
+                                                break;
+
+                                            case "GRNDate":
+                                                <PropertyColumn Title="GRN Date" Property="@(c => c.GRNDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "RefDcNo":
+                                                <PropertyColumn Title="Reference DC No" Property="@(c => c.RefDcNo)" />
+                                                break;
+
+                                            case "RefDcDate":
+                                                <PropertyColumn Title="Reference DC Date" Property="@(c => c.RefDcDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            // 🔹 Customer
+                                            case "CustId":
+                                                <PropertyColumn Title="Customer Id" Property="@(c => c.CustId)" />
+                                                break;
+
+                                            case "CustName":
+                                                <PropertyColumn Title="Customer Name" Property="@(c => c.CustName)" Sortable="true" />
+                                                break;
+
+                                            case "CustAddress":
+                                                <PropertyColumn Title="Customer Address" Property="@(c => c.CustAddress)" />
+                                                break;
+
+                                            case "CustGst":
+                                                <PropertyColumn Title="Customer GST No" Property="@(c => c.CustGst)" />
+                                                break;
+
+                                            case "CustContactNo":
+                                                <PropertyColumn Title="Customer Contact No" Property="@(c => c.CustContactNo)" />
+                                                break;
+
+                                            case "KindOfAttention":
+                                                <PropertyColumn Title="Kind Of Attention" Property="@(c => c.KindOfAttention)" />
+                                                break;
+
+                                            // 🔹 Store
+                                            case "AddStoreId":
+                                                <PropertyColumn Title="Store Id" Property="@(c => c.AddStoreId)" />
+                                                break;
+
+                                            case "StoreName":
+                                                <PropertyColumn Title="Store Name" Property="@(c => c.StoreName)" />
+                                                break;
+
+                                            @* Sathish *@
+                                            case "CorrespondenceStatus":
+                                                <TemplateColumn Title="Correspondence Status">
+                                                    @if (UploadStatus.ContainsKey(context.GRNId)
+                                                                                && UploadStatus[context.GRNId])
+                                                    {
+                                                        <span class="badge bg-success">Uploaded</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark">Not Uploaded</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+
+                                            // 🔹 Status
+                                            case "DcTally":
+                                                <TemplateColumn Title="GRN Status" Context="c">
+                                                    @if (c.DcCancel)
+                                                    {
+                                                        <span class="badge bg-danger rounded-pill px-3">
+                                                            <i class="bi bi-x-circle me-1"></i> Cancelled
+                                                        </span>
+                                                    }
+                                                    else if (c.ShortClose)
+                                                    {
+                                                        <span class="badge bg-secondary rounded-pill px-3">
+                                                            <i class="bi bi-slash-circle me-1"></i> Short Closed
+                                                        </span>
+                                                    }
+                                                    else if (c.DcTally)
+                                                    {
+                                                        <span class="badge bg-success rounded-pill px-3">
+                                                            <i class="bi bi-check-circle me-1"></i> Completed
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                            <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                        </span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            // 🔹 Other Info
+                                            case "NoOfItems":
+                                                <PropertyColumn Title="No Of Items" Property="@(c => c.NoOfItems)" />
+                                                break;
+
+                                            case "Remarks":
+                                                <PropertyColumn Title="Remarks" Property="@(c => c.Remarks)" />
+                                                break;
+
+                                            case "TransportMode":
+                                                <PropertyColumn Title="Transport Mode" Property="@(c => c.TransportMode)" />
+                                                break;
+
+                                            case "VehicleNo":
+                                                <PropertyColumn Title="Vehicle No" Property="@(c => c.VehicleNo)" />
+                                                break;
+
+                                            case "TransFrom":
+                                                <PropertyColumn Title="Transport From" Property="@(c => c.TransFrom)" />
+                                                break;
+
+                                            case "TransTo":
+                                                <PropertyColumn Title="Transport To" Property="@(c => c.TransTo)" />
+                                                break;
+
+                                            // 🔹 Audit
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            <!-- Actions -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"labourGRN/update/{c.GRNId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit GRN">
+                                           <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"labourGRN/details/{c.GRNId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View GRN">
+                                           <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete GRN"
+                                                @onclick="() => HandleDelete(c)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5" @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i>
+                                    Export GRN's
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Labour GRN found.</p>
+                }
+            
+            </div>
+        </div>
+    </div>
+}
+
+@code 
+{
+    protected override string ScreenName => "Labour GRN";
+    private bool isProcessing = false;
+    private string? UserName;
+    private int DeleteGRNID = 0;
+    private string selectedStatus = string.Empty;
+    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    public List<GridColumn> Columns { get; set; }
+
+    private int screenCode { get; set; }
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private int totalItems;
+   // private int currentPage = 1;
+    private int pageSize = 10;
+    private string searchTerm;
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    private List<LabourGRNVM> LabourGRNVMs = new();
+
+    [SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private Dictionary<int, bool> UploadStatus = new();
+
+    private void AddNewLabourGRN()
+    {
+        _navigation.NavigateTo("/Customer/Select?ReturnUrl=/labourGRNList/create/{id}");
+    }
+
+    private List<PageHeader.BreadcrumbItem> LabourGRNBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Labour" },
+        new PageHeader.BreadcrumbItem { Text = "Goods Received Note cum DC", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await InitializeColumns(IsHidden);
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+            //Sathish
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+
+            await LoadAllLabourGRNDetailsAsync();
+            screenCode = await _grnService.GetScreenCodeByScreenNameAsync(ScreenName);
+
+            var saved = await PreferenceService.LoadPreferencesAsync("LabourGRNList", UserName);
+            if (saved?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LabourGRNList OnInitializedAsync() method");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "GRN ID", Field = "GRNId", IsVisible = false },
+                new() { Title = "GRN No", Field = "GRNNo", IsVisible = true },
+                new() { Title = "GRN Date", Field = "GRNDate", IsVisible = true },
+
+                new() { Title = "Reference Dc No", Field = "RefDcNo", IsVisible = true },
+                new() { Title = "Reference Dc Date", Field = "RefDcDate", IsVisible = true },
+
+                new() { Title = "Customer Id", Field = "CustId", IsVisible = false },
+                new() { Title = "Customer Name", Field = "CustName", IsVisible = true },
+
+                new() { Title = "Customer Address", Field = "CustAddress", IsVisible = false },
+                new() { Title = "Customer GSTIN", Field = "CustGst", IsVisible = false },
+                new() { Title = "Customer Contact No", Field = "CustContactNo", IsVisible = false },
+
+                new() { Title = "Kind Of Attention", Field = "KindOfAttention", IsVisible = false },
+
+                new() { Title = "No Of Items", Field = "NoOfItems", IsVisible = true },
+
+                new() { Title = "Store Id", Field = "AddStoreId", IsVisible = false },
+                new() { Title = "Store Name", Field = "StoreName", IsVisible = true },
+
+                new() { Title = "Transport Mode", Field = "TransportMode", IsVisible = false },
+                new() { Title = "Vehicle No", Field = "VehicleNo", IsVisible = false },
+                new() { Title = "Transport From", Field = "TransFrom", IsVisible = false },
+                new() { Title = "Transport To", Field = "TransTo", IsVisible = false },
+
+                new() { Title = "Remarks", Field = "Remarks", IsVisible = false },
+                  //Sathish
+                new() { Title = "Correspondence Status", Field = "CorrespondenceStatus", IsVisible = false },
+
+                new() { Title = "GRN Status", Field = "DcTally", IsVisible = true },
+
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false },
+
+            };
+
+            if (!Hidden)
+            {
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LabourGRNList InitializeColumns() method");
+            await _JS.ToastrError("An error occurred while handling the LabourGRNList InitializeColumns() method");
+        }
+    }
+
+    private async Task LoadAllLabourGRNDetailsAsync()
+    {
+        isProcessing = true;
+        try
+        {
+            var result = await _grnService.SearchWithDynamicFilterAsync(pageNumber: currentPage, pageSize: pageSize, filters: SearchFilters);
+            LabourGRNVMs = result.Grns;
+            this.totalItems = result.TotalCount;
+
+            // Sathish
+            foreach (var item in LabourGRNVMs)
+            {
+                UploadStatus[item.GRNId] = await _grnService.IsDocumentUploaded(item.GRNId);
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadAllLabourGRNDetailsAsync in LabourGRNList");
+            await _JS.ToastrError("Failed to load LoadAllLabourGRNDetailsAsync data in LabourGRNList");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated ?? new List<GridColumn>();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "HandleColumnChange in labourGRNList");
+            await _JS.ToastrError("Failed to update column preferences in labourGRNList .");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllLabourGRNDetailsAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnPageSizeChanged in labourGRNList");
+            await _JS.ToastrError("Failed to update page size in labourGRNList.");
+        }
+    }
+
+    private void AddNewGRN()
+    {
+        var returnUrl = Uri.EscapeDataString("labourGRN/create/{id}");
+        _navigation.NavigateTo($"/Customer/Select?ReturnUrl={returnUrl}");
+    }
+
+    private async Task HandleDelete(LabourGRNVM grn)
+    {
+        try
+        {
+
+            var (canDelete, message) = await _grnService.CanDeleteLabourGRNAsync(grn.GRNId,screenCode);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteGRNID = grn.GRNId;
+
+            ModalTitle = "Are you sure you want to delete this Labour GRN";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error while HandleDelete in LabourGRN List");
+            await _JS.ToastrError("Failed to  HandleDelete data.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else if (confirmation=="Export")
+            {
+                await ExportToExcel(isConfirmed);
+            }
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+
+            bool success = await _grnService.DeleteLabourGRNByIdAsync(DeleteGRNID, screenCode);
+
+            if (success)
+            {
+                await _JS.ToastrSuccess("GRN Deleted successfully.");
+                await LoadAllLabourGRNDetailsAsync();
+            }
+            else
+            {
+                await _JS.ToastrWarning("GRN Delete failed.");
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LabourGRNList confirmDelete_Click() method");
+            await _JS.ToastrError("An error occurred while handling the LabourGRNList confirmDelete_Click() method");
+        }
+        finally
+        {
+            DeleteGRNID = 0;
+            isProcessing = false;
+        }
+    }
+
+    private async Task FirstPage()
+    {
+        if (currentPage != 1)
+        {
+            currentPage = 1;
+            await LoadAllLabourGRNDetailsAsync();
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadAllLabourGRNDetailsAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            await LoadAllLabourGRNDetailsAsync();
+        }
+    }
+
+    private async Task LastPage()
+    {
+        if (currentPage != totalPages)
+        {
+            currentPage = totalPages;
+            await LoadAllLabourGRNDetailsAsync();
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllLabourGRNDetailsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Labour GRN  page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+
+    #region SEARCH FILTERS
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllLabourGRNDetailsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in LabourGRNList");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+    #endregion
+
+    #region Search order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "";
+
+
+        if (string.IsNullOrWhiteSpace(selectedStatus))
+            SearchFilters.Remove("Status");
+        else
+            SearchFilters["Status"] = selectedStatus;
+
+
+        currentPage = 1;
+        await LoadAllLabourGRNDetailsAsync();
+    }
+
+    #endregion 
+
+    private async Task HandleExport()
+    {
+        selectedStatus = selectedStatus == "" ? "All" : selectedStatus;
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+
+            var exportData = await _grnService.GetLabourGRNStatusListAsync(selectedStatus);
+            
+            if (exportData == null || !exportData.Any())
+                return;
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "LabourGRN", "Labour GRN's Status List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.DownloadExcelAsync(base64, "LabourGRNExport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (GRN's)");
+            await _JS.ToastrError("Error while exporting Labour GRN!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

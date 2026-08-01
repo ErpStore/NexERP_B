@@ -1,0 +1,2693 @@
+﻿@page "/jobOrder/create"
+@page "/jobOrder/update/{jobId:int}"
+
+
+@using V.SMART.Shared.Data.Planning.AssyJobOrder
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+
+@using V.SMART.Shared.ViewModels.MasterViewModel.HumanResourceViewModel
+@using V.SMART.Shared.ViewModels.PlanningViewModel.JobOrderViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject IJobOrderService jobOrderService
+@inject ILoggingService LoggingService
+@inject ReportService reportService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<DetailsModal Title="BOM Comparison"
+              Data="@LatestChangedBOMData" 
+              Columns="@LatestBOMColumns"
+              ColumnFields="@LatestBOMFields"
+              HiddenColumns="@LatestBOMHiddenColumns"
+              IsVisible="@IsBOMModalVisible"
+              IsVisibleChanged="@((v) => IsBOMModalVisible = v)"
+              OnSelectedItems="OnLatestBOMSelectedAsync">
+
+    <HeaderContent>
+
+        <div class="alert alert-warning p-2 small mb-3">
+            <strong class="text-danger fw-bold">Note:</strong>
+            <span class="fw-bold badge bg-warning text-dark">Yellow highlighted items</span>
+            indicate <span class="text-dark">newly added BOM Items</span>.
+            <span class="fw-bold badge bg-danger text-white">Red highlighted quantities</span>
+            indicate <span class="text-dark">changed Utility Quantities</span>.
+        </div>
+
+        @if (ExistingBOMData != null && ExistingBOMData.Any())
+        {
+            <h5 class="fw-bold text-primary mb-2">Existing BOM (Job Order)</h5>
+
+            <div class="table-responsive" style="max-height:60vh;">
+                <table class="table table-bordered table-hover mb-0" style="min-width:800px;">
+                    <thead class="custom-blue">
+                        <tr>
+                            @foreach (var col in ExistingBOMColumns)
+                            {
+                                <th>@col</th>
+                            }
+                        </tr>
+                    </thead>
+
+                    <tbody class="custom-size">
+                        @foreach (var row in ExistingBOMData)
+                        {
+                            <tr>
+                                <td>@row["ItemCode"]</td>
+                                <td>@row["ItemName"]</td>
+                                <td>@row["UOM"]</td>
+                                <td>@row["UtilQty"]</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            
+
+            <h5 class="fw-bold text-success mb-2 mt-3">
+                Latest BOM (Assembly Definition)
+            </h5>
+
+        }
+
+
+    </HeaderContent>
+
+</DetailsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Cancelled Watermark -->
+            @if (JobOrderVMs.Cancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+
+            <PageHeader TitleText="@(JobOrderVMs.JobId > 0 ? "Update Job Order" : "Create Job Order")"
+                TitleIcon="bi bi-tag"
+                Breadcrumbs="@JobOrderFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="JobOrderVMs" OnValidSubmit="UpsertJobOrder">
+                    <ObjectGraphDataAnnotationsValidator  />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <!-- Manufacturing / Labour Toggle -->
+                        <div class="col-12 col-md-6">
+                            <div class="card shadow-sm border-0 h-100">
+                                <div class="card-body d-flex justify-content-around align-items-center">
+
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="ManufacturingSwitch"
+                                               checked="@JobOrderVMs.MfgORLab"
+                                               @onchange="(e) => OnManufacturingToggle(e)" />
+                                        <label class="form-check-label fw-semibold @(JobOrderVMs.MfgORLab ? "text-success" : "")"
+                                               for="ManufacturingSwitch">
+                                            <i class="bi bi-gear-fill me-1"></i> Manufacturing
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="LabourSwitch"
+                                               checked="@(!JobOrderVMs.MfgORLab)"
+                                               @onchange="(e) => OnLabourToggle(e)" />
+                                        <label class="form-check-label fw-semibold @(!JobOrderVMs.MfgORLab ? "text-danger" : "")"
+                                               for="LabourSwitch">
+                                            <i class="bi bi-people-fill me-1"></i> Labour
+                                        </label>
+                                    </div>
+
+                                </div>
+                                <ValidationMessage For="@(() => JobOrderVMs.MfgORLab)" />
+                            </div>
+                        </div>
+                         @if (!ManuallyJobButton)
+                        {
+                            <!-- Manual JobOrder Toggle -->
+                            <div class="col-12 col-md-3 d-flex justify-content-end align-items-center">
+
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="ManualJobSwitch"
+                                    checked="@JobOrderVMs.IsManual"
+                                    disabled="@JobOrderVMs.JobOrderSubVMs.Any(x => !string.IsNullOrEmpty(x.ItemCode))"
+                                    @onchange="(e) => OnManualJObToggle(e)" />
+                                    <label class="form-check-label fw-semibold @(JobOrderVMs.IsManual ? "text-primary" : "")"
+                                    for="ManualJobSwitch">
+                                        <i class="bi bi-folder2-open me-1"></i> Manual
+                                    </label>
+                                </div>
+                                <ValidationMessage For="@(() => JobOrderVMs.IsManual)" />
+
+                            </div>
+                        }
+                        <!-- Correspondence Status -->
+                        <div class="col-12 col-md-3 d-flex justify-content-end align-items-center">
+                            @if (JobOrderVMs.JobId > 0 && !string.IsNullOrWhiteSpace(JobOrderVMs.JobNo))
+                            {
+                                <CorrespondenceStatus ReferenceType=@ScreenName
+                                                      ReferenceId="@JobOrderVMs.JobId"
+                                                      ReferenceTypeName="@JobOrderVMs.JobNo" />
+                            }
+                        </div>
+
+                    </div>
+
+
+                    <div class="row g-3 mb-2">
+
+                        @if((jobId == null || jobId == 0) && !JobOrderVMs.IsManual)
+                        {
+                            <!-- =================== Customer Section =================== -->
+                            <div class="col-12 col-lg-6 mb-3">
+                                <div class="card shadow-sm border-0 rounded-3">
+                                    <div class="card-header fw-semibold text-primary py-2" style="background-color:#EAF3FF;">
+                                        <i class="bi bi-person-badge"></i> Customer Information
+                                    </div>
+
+                                    <div class="card-body">
+                                        <!-- Customer Autocomplete -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>M/S.*</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9">
+                                                <MudAutocomplete T="CustomerVM"
+                                                    Value="JobOrderVMs.SelectedCustomer"
+                                                    ValueChanged="@(async c => await OnCustomerChanged(c))"
+                                                    ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                    SearchFunc="SearchCustomers"
+                                                    Dense="true"
+                                                    Variant="Variant.Outlined"
+                                                    Placeholder="Search Customer"
+                                                    Class="w-100"
+                                                    MaxItems="50"
+                                                    Clearable="true"
+                                                    Required="true"
+                                                    Disabled="@IsSomeItemsTransMade"/>
+                                            </div>
+                                        </div>
+
+                                        <!-- Customer PO -->
+                                        @if(CustomerPendingPOs.Any())
+                                        {
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                    <small>PO No*</small>
+                                                </label>
+
+                                                <div class="col-12 col-sm-9">
+                                                    <select class="form-select form-select-sm rounded-3"
+                                                            value="@JobOrderVMs.RefPoId"
+                                                            @onchange="OnPoChanged">
+                                                        <option value="">--- Select PO ---</option>
+                                                        @foreach (var po in CustomerPendingPOs)
+                                                        {
+                                                            <option value="@po.PoId">@po.PONo</option>
+                                                        }
+                                                    </select>
+
+                                                    <ValidationMessage For="@(() => JobOrderVMs.RefPoId)" />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <!-- =================== Assembly Items =================== -->
+                            @if(JobOrderAssyPoItemVMs.Any())
+                            {
+                                <div class="col-12 mb-3">
+                                    <div class="card shadow-sm border-0 rounded-3">
+
+                                        <div class="card-header bg-info bg-opacity-10 text-dark fw-semibold py-2">
+                                            <i class="bi bi-diagram-2"></i> Assembly Details
+                                        </div>
+
+                                        <div class="card-body p-2">
+                                            <div class="table-responsive" style="overflow-x:auto;">
+                                                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1200px;">
+                                                    <thead class="custom-blue">
+                                                        <tr>
+                                                            @* <th style="width:60px;">Select</th> *@
+                                                             <th class="text-center" style="width:50px;">
+                                                                <input type="checkbox" checked="@IsAllSelected" @onchange="ToggleSelectAll" />
+                                                            </th>
+                                                                   @if(IsAssignJobOrderDepartment)
+                                                                {
+                                                                    <th style="width:150px;">Staff Name</th>
+                                                                    <th style="width:100px;">DepartmentCode</th>
+                                                                }
+                                                            <th style="width:70px;">PO No</th>
+                                                            <th style="width:80px;">PO Date</th>
+                                                            <th style="width:100px;">Assembly Code</th>
+                                                            <th style="width:80px;">PO Qty</th>
+                                                            <th style="width:80px;">Bal Qty</th>
+                                                            <th style="width:80px;">Req Qty</th>
+                                                            <th style="width:80px;">Stock Qty</th>
+                                                            <th style="width:100px;">CostCenter</th>
+                                                             <th style="width:100px;">LineNo</th>
+                                                        </tr>
+                                                    </thead>
+
+                                                    <tbody class="custom-size">
+                                                        @foreach (var itm in JobOrderAssyPoItemVMs)
+                                                        {
+                                                            <tr class="@(itm.IsSelected ? "table-warning" : "")">
+                                                                <td>
+                                                                    <div class="text-center align-content-between">
+                                                                        <input type="checkbox"
+                                                                               checked="@itm.IsSelected"
+                                                                               @onchange="(e) => OnAssemblySelectChanged(itm, (bool)e.Value)"
+                                                                               class="form-check-input darker-border-checkbox"
+                                                                               style="transform: scale(1.5); cursor: pointer;" />
+                                                                    </div>
+                                                                </td>
+                                                                   @if(IsAssignJobOrderDepartment)
+                                                                   {
+                                                                        <td> 
+                                                                             <select class="form-select"
+                                                                                 @onchange="(e => OnStaffsChanged(e, itm))">
+
+                                                                               <option value="">Select Staff</option>
+
+                                                                               @foreach (var staff in staffVMs)
+                                                                               {
+                                                                                   <option value="@staff.StaffID">@staff.StaffName</option>
+                                                                               }
+                                                                           </select>
+
+                                                                       </td>
+                   
+                                                                       <td>@itm.DepartmentCode</td>
+                                                                   }
+
+                                                                <td>@itm.RefPoNo</td>
+                                                                <td>@itm.RefPoDate?.ToString("dd-MM-yyyy")</td>
+                                                                <td>@itm.AssyItemCode</td>
+                                                                <td>@itm.PoQty</td>
+                                                                <td>@itm.WoBalQty</td>
+                                                                <td>
+                                                                    <input type="number"
+                                                                           class="form-control text-center"
+                                                                           min="0"
+                                                                           step="any"
+                                                                           max="@itm.WoBalQty"
+                                                                           @bind="itm.ReqQty"
+                                                                           @bind:event="oninput"
+                                                                           @bind:after='() => OnReqQtyChanged(itm)' />
+                                                                    <ValidationMessage For="@(() => itm.ReqQty)" />
+                                                                </td>
+                                                                <td class="text-danger fw-bold">@itm.StockQty</td>
+                                                                <td>@itm.ProjectNo</td>
+                                                                 <td>@itm.LineNo</td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <div class="text-end mt-2">
+                                                <button type="button" class="btn btn-sm btn-primary rounded-3 shadow-sm"
+                                                        @onclick="PreviewTempJobOrder"
+                                                        disabled="@(!JobOrderAssyPoItemVMs.Any(x => x.IsSelected))">
+                                                    <i class="bi bi-eye"></i> Preview Job Order
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <!-- =================== Preview Details =================== -->
+                            @if(PreviewVMs.Any())
+                            {
+                                <div class="col-12 mb-2">
+                                    <div class="card shadow-sm border-0 rounded-3">
+
+                                        <div class="card-header bg-warning bg-opacity-25 fw-semibold py-2">
+                                            <i class="bi bi-list-check"></i> Job Order Preview
+                                        </div>
+
+                                        <div class="card-body p-2">
+                                            <div class="table-responsive" style="overflow-x:auto;">
+                                                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1200px;">
+                                                    <thead class="custom-blue">
+                                                        <tr>
+                                                            <th class="text-center" style="width:50px;">
+                                                                <input type="checkbox" checked="@IsAllSelected" @onchange="PreviewVMsToggleSelectAll" />
+                                                            </th>
+                                                             @if(IsAssignJobOrderDepartment)
+                                                             {
+                                                                 <th>Staff Name</th>
+                                                                 <th>DepartmentCode</th>
+                                                             }
+                                                            <th>Temp Job No</th>
+                                                            <th class="d-none">SubAssyId</th>
+                                                            <th>Sub Assemblies</th>
+                                                            <th>UOM</th>
+                                                            <th class="d-none">RefPoSubId</th>
+                                                            <th>RefPoNo</th>
+                                                            <th>PoQty</th>
+                                                            <th>Job Qty</th>
+                                                            <th>Utility</th>
+                                                            <th>Req Qty</th>
+                                                            <th>Stock Qty</th>
+                                                            <th class="d-none">CostId</th>
+                                                            <th>CostCenter</th>
+                                                             <th>LineNo</th>
+
+                                                        </tr>
+                                                    </thead>
+
+                                                    <tbody class="custom-size">
+                                                        @foreach (var itm in PreviewVMs)
+                                                        {
+                                                            <tr>
+                                                                <td class="text-center">
+                                                                    <div class="text-center align-content-between">
+                                                                        <input type="checkbox"
+                                                                               checked="@itm.IsSelected"
+                                                                               @onchange="(e) => OnPrevAssySelectChanged(itm, (bool)e.Value)"
+                                                                               class="form-check-input darker-border-checkbox"
+                                                                               style="transform: scale(1.5); cursor: pointer;" />
+                                                                    </div>
+                                                                </td>
+                                                                  @if(IsAssignJobOrderDepartment)
+                                                                    {
+                                                                        <td> 
+                                                                            <select class="form-select"
+                                                                                @onchange="(e => OnStaffChanged(e, itm))">
+
+                                                                                <option value="">Select Staff</option>
+
+                                                                                @foreach (var staff in staffVMs)
+                                                                                {
+                                                                                    <option value="@staff.StaffID">@staff.StaffName</option>
+                                                                                }
+                                                                            </select>
+
+                                                                        </td>
+                 
+                                                                        <td>@itm.DepartmentCode</td>
+                                                                    }
+                                                                <td>@itm.TempJobNo</td>
+                                                                <td class="d-none">@itm.SubAssyId</td>
+                                                                <td>@itm.SubAssyCode</td>
+                                                                <td>@itm.MeasureUnit</td>
+                                                                <td class="d-none">@itm.RefPoSubId</td>
+                                                                <td>@itm.RefPoNo</td>
+                                                                <td>@itm.PoQty</td>
+                                                                <td>@itm.JobOrderQty</td>
+                                                                <td>@itm.UtilQty</td>
+                                                                <td>@itm.ReqQty</td>
+                                                                <td class="text-danger fw-bold">@itm.StockQty</td>
+                                                                <td class="d-none">@itm.CostId</td>
+                                                                <td>@itm.ProjectNo</td>
+                                                                 <td>@itm.LineNo</td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <div class="mt-2 d-flex justify-content-end">
+                                                <button type="button" class="btn btn-sm btn-success rounded-3 shadow-sm"
+                                                        @onclick="GenerateJobOrder"
+                                                        disabled="@(!JobOrderAssyPoItemVMs.Any(x => x.IsSelected))">
+                                                    <i class="bi bi-check-circle"></i> Generate Job Order
+                                                </button>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else if(JobOrderVMs.IsManual)
+                        {
+                            <!-- =================== Customer details =================== -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm border-0">
+        
+                                    <!-- Header -->
+                                    <div class="card-header fw-semibold text-primary py-2" style="background-color:#EAF3FF;">
+                                        <i class="bi bi-diagram-3 me-1"></i> Assembly Details
+                                    </div>
+
+                                    <div class="card-body pt-3 pb-2">
+
+                                        <!-- Assembly / Sub Assembly -->
+                                        @if(JobOrderVMs.JobId == 0 || JobOrderVMs.JobId == null)
+                                        {
+                                            <div class="row mb-3">
+                                                <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                    <small>Assembly / Sub-Assembly</small>
+                                                </label>
+
+                                                <div class="col-12 col-sm-9">
+                                                    <MudAutocomplete T="ItemVM"
+                                                        Value="JobOrderVMs.SelectedAssemblyItem"
+                                                        ValueChanged="@(async a => await OnAssyChanged(a))"
+                                                        ToStringFunc="@(a => a?.ItemCode ?? string.Empty)"
+                                                        SearchFunc="SearchAssyOrSubAssembly"
+                                                        Dense="true"
+                                                        Variant="Variant.Outlined"
+                                                        Placeholder="Search Assembly/Sub-Assembly"
+                                                        Class="w-100"
+                                                        MaxItems="50"
+                                                        Clearable="true"
+                                                        Required="true"
+                                                        Disabled="@IsSomeItemsTransMade" />
+                                                </div>
+                                            </div>
+                                            
+                                        }
+                                        else
+                                        {
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Assy/SubAssy.</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text"
+                                                           class="form-control form-control-sm rounded-3"
+                                                           @bind="JobOrderVMs.AssemblyItemCode"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- =================== Job order details =================== -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+
+                                    <!-- Header -->
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Job Order Details</span>
+                                        @if (JobOrderVMs.JobId > 0 &&
+                                                    (JobOrderVMs.JobOrderSubVMs == null ||
+                                                    !JobOrderVMs.JobOrderSubVMs.Any(x => x.ItemCancel)))
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(JobOrderVMs.Cancel ? "btn-success" : "btn-danger")"
+                                                        @onclick="Cancel">
+
+                                                @if (!JobOrderVMs.Cancel)
+                                                {
+                                                    <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                                }
+                                            </button>
+                                        }
+                                    </div>
+
+                                    <div class="card-body">
+
+                                        <!--Job order No -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Job Order No</small>
+                                            </label>
+                                              @if (IsAssignJobOrderDepartment)
+                                              {
+                                                  <div class="col-12 col-sm-9">
+                                                      <div class="input-group input-group-sm w-100">
+
+                                                          <!-- Department -->
+                                                          <span class="input-group-text">
+                                                              @JobOrderVMs.DepartmentCode
+                                                          </span>
+
+                                                          <!-- Job No -->
+                                                          <InputText class="form-control text-center"
+                                                                     placeholder="Job No."
+                                                                     @bind-Value="JobOrderVMs.JobNo"
+                                                                     readonly />
+
+                                                          <!-- Suffix -->
+                                                          <span class="input-group-text">
+                                                              @JobOrderVMs.Suffix
+                                                          </span>
+
+                                                      </div>
+
+                                                      <ValidationMessage For="@(() => JobOrderVMs.JobNo)" />
+                                                  </div>
+                                              }
+                                              else
+                                              {
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                                placeholder="Job No."
+                                                                maxlength="30"
+                                                                @bind-Value="@JobOrderVMs.JobNo"
+                                                                readonly />
+                                                    <span class="input-group-text rounded-3">@JobOrderVMs.Suffix</span>
+                                                </div>
+                                                <ValidationMessage For="@(() => JobOrderVMs.JobNo)" />
+                                            </div>
+                                            }
+                                        </div>
+
+                                        <!-- Job Date -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Job Order Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3"
+                                                            @bind-Value="@JobOrderVMs.JobDate"/>
+                                                <ValidationMessage For="@(() => JobOrderVMs.JobDate)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Job Order Qty -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Job Order Qty</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="number" class="form-control form-control-sm rounded-3 w-100" step="any"
+                                                       @bind-value="JobOrderVMs.JobOrderQty"
+                                                       @bind-value:event="oninput"
+                                                       @onchange="OnJobOrderQtyChanged" />
+                                                <ValidationMessage For="@(() => JobOrderVMs.JobOrderQty)" />
+                                            </div>
+                                        </div>
+                                         <div class="mb-2 row">
+                                             <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                 <small>Remarks</small>
+                                             </label>
+                                             <div class="col-12 col-sm-9">
+                                                 <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                           @bind-value="JobOrderVMs.Remark"
+                                                           @bind-value:event="oninput">
+                                                 </textarea>
+
+                                                 <ValidationMessage For="@(() => JobOrderVMs.Remark)" />
+                                             </div>
+                                         </div>
+
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            </label>
+
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm w-100 d-flex align-items-center justify-content-center fw-bold text-white"
+                                                        style="background-color:#6f42c1; border-color:#6f42c1;"
+                                                        @onclick="ShowBOMDetails">
+                                                    <i class="bi bi-list-ul me-1 text-white"></i> 
+                                                    Load Latest BOM Details
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- =================== Item Details =================== -->
+                            <div class="col-12">
+                                <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                               
+                                    <div class="card-header bg-primary-subtle text-dark">
+                                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                            <!-- Title -->
+                                            <span class="fw-bold fs-6">Item Details</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="card-body p-2">
+                                        <div class="table-responsive" style="overflow-x:auto;">
+                                            <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                                <thead class="custom-blue">
+                                                    <tr>
+                                                        <th style="width:50px;">Sl.No</th>
+                                                        <th style="width:200px;">Item Code</th>
+                                                        <th style="width:170px;">Item Name</th>
+                                                        <th style="width:60px;">UOM</th>
+                                                        <th style="width:60px;">Utility Qty</th>
+                                                        <th style="width:120px;">Req. Qty</th>
+                                                        <th style="width:120px;">Stock Qty</th>
+                                                        <th style="width:120px;">Bal. Qty</th>
+                                                        <th style="width:150px;">Cost-Center</th>
+                                                        @if(!JobOrderVMs.Cancel && jobId>0)
+                                                        {
+                                                            <th style="width:130px;">Item Cancel</th>
+                                                        }
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody class="custom-size">
+                                                    @foreach (var subitem in JobOrderVMs.JobOrderSubVMs)
+                                                    {
+                                                        <tr @key="subitem">
+                                                            <td>@subitem.SlNo</td>
+
+                                                            <!-- Item Code + Attachments -->
+                                                            <td>
+                                                                <div class="row g-1 align-items-center">
+                                                                    <div class="col-10">
+                                                                        @subitem.ItemCode
+                                                                    </div>
+                                                                    <div class="col-2 text-center">
+                                                                        @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                                && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                        {
+                                                                            <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                            Size="Size.Small"
+                                                                                            Color="Color.Primary"
+                                                                                            OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                            Edge="Edge.End"
+                                                                                            Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                        }
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+
+                                                            <td>@subitem.ItemName</td>
+                                                            <td>@subitem.Measureunit</td>
+
+                                                            <!-- Utility Qty -->
+                                                            <td>
+                                                                <span>@subitem.UtilQty</span>
+                                                            </td>
+
+                                                            <!-- ReqQty -->
+                                                            <td>
+                                                                <span>@subitem.ReqQty</span>
+                                                            </td>
+
+                                                            <!-- Stock Qty -->
+                                                            <td>
+                                                                <span class="text-danger fw-bold">@subitem.stockQty</span>
+                                                            </td>
+
+                                                            <!-- BalQty -->
+                                                            <td>
+                                                                <span>@subitem.BalQty</span>
+                                                            </td>
+
+                                                            <!-- Cost Center -->
+                                                            <td>
+                                                                @subitem.ProjectNo
+                                                            </td>
+
+                                                            @if(!JobOrderVMs.Cancel && jobId>0)
+                                                            {
+                                                                <td class="text-center align-middle">
+
+                                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                                        <InputCheckbox 
+                                                                        @bind-Value="subitem.ItemCancel"
+                                                                        @bind-Value:event="onchange"
+                                                                        ValueChanged="@(async (value) => await OnItemCancelChanged(subitem))"
+                                                                        class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                    </div>
+                                                                    <ValidationMessage For="@(() => subitem.ItemCancel)" 
+                                                                        class="text-danger fw-semibold small mt-2 d-block" />
+                                                                </td>
+                                                            }
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <!-- Action Buttons -->
+                                @if (CanCreate || CanEdit)
+                                {
+                                    @if(!JobOrderVMs.Cancel)
+                                    {
+                                        <div class="col-6 col-md-3 mt-3">
+                                            <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                                <i class="bi bi-floppy2-fill me-1"></i> @(JobOrderVMs.JobId > 0 ? "Update" : "Create")
+                                            </button>
+                                        </div>
+                                    }
+                                }
+
+                                <div class="col-12 col-md-3">
+                                    <SmartBackButton Url="/jobOrderList" />
+                                </div>
+
+                            </div>
+
+                        }
+                        else
+                        {
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+
+                                    <div class="card-header fw-semibold text-primary py-2" style="background-color:#EAF3FF;">
+                                        <i class="bi bi-person-badge"></i> Customer Details
+                                    </div>
+
+                                    <div class="card-body pt-3 pb-2">
+                                        <!-- Customer Autocomplete -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>M/S.*</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text"
+                                                       class="form-control form-control-sm rounded-3"
+                                                       @bind="JobOrderVMs.CustomerName"
+                                                       readonly />
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>PO Number</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text"
+                                                       class="form-control form-control-sm rounded-3"
+                                                       @bind="JobOrderVMs.RefPoNo"
+                                                       readonly />
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>PO Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="date"
+                                                       class="form-control form-control-sm rounded-3"
+                                                       @bind="JobOrderVMs.RefPODate"
+                                                       readonly />
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Assy/SubAssy.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text"
+                                                       class="form-control form-control-sm rounded-3"
+                                                       @bind="JobOrderVMs.AssemblyItemCode"
+                                                       readonly />
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Utility Qty.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="number" step="any"
+                                                       class="form-control form-control-sm rounded-3"
+                                                       @bind="JobOrderVMs.UtilQty"
+                                                       readonly />
+                                            </div>
+                                        </div>
+                                        <!--LineNo-->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Line No.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="number" 
+                                                       class="form-control form-control-sm rounded-3"
+                                                       @bind="JobOrderVMs.LineNo"
+                                                       readonly />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- =================== Job order details =================== -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+
+                                    <!-- Header -->
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Job Order Details</span>
+                                        @if (JobOrderVMs.JobId > 0 &&
+                                                    (JobOrderVMs.JobOrderSubVMs == null ||
+                                                    !JobOrderVMs.JobOrderSubVMs.Any(x => x.ItemCancel)))
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(JobOrderVMs.Cancel ? "btn-success" : "btn-danger")"
+                                                        @onclick="Cancel">
+
+                                                @if (!JobOrderVMs.Cancel)
+                                                {
+                                                    <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                                }
+                                            </button>
+                                        }
+                                    </div>
+
+                                    <div class="card-body">
+
+                                        <!--Job order No -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Job Order No</small>
+                                            </label>
+                                          @if (IsAssignJobOrderDepartment)
+                                         {
+                                             <div class="col-12 col-sm-9">
+                                                 <div class="input-group input-group-sm w-100">
+
+                                                     <!-- Department -->
+                                                     <span class="input-group-text">
+                                                         @JobOrderVMs.DepartmentCode
+                                                     </span>
+
+                                                     <!-- Job No -->
+                                                     <InputText class="form-control text-center"
+                                                                placeholder="Job No."
+                                                                @bind-Value="JobOrderVMs.JobNo"
+                                                                readonly />
+
+                                                     <!-- Suffix -->
+                                                     <span class="input-group-text">
+                                                         @JobOrderVMs.Suffix
+                                                     </span>
+
+                                                 </div>
+
+                                                 <ValidationMessage For="@(() => JobOrderVMs.JobNo)" />
+                                             </div>
+                                         }
+                                         else
+                                         {
+
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                                placeholder="Job No."
+                                                                maxlength="30"
+                                                                @bind-Value="@JobOrderVMs.JobNo"
+                                                                readonly />
+                                                    <span class="input-group-text rounded-3">@JobOrderVMs.Suffix</span>
+                                                </div>
+                                                <ValidationMessage For="@(() => JobOrderVMs.JobNo)" />
+                                            </div>
+                                         }
+                                        </div>
+
+                                        <!-- Job Date -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Job Order Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3"
+                                                            @bind-Value="@JobOrderVMs.JobDate"
+                                                            disabled />
+                                                <ValidationMessage For="@(() => JobOrderVMs.JobDate)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- PO Qty -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>PO Qty</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="number" class="form-control form-control-sm rounded-3 w-100"
+                                                        @bind="JobOrderVMs.POQty"
+                                                        readonly />
+                                                <ValidationMessage For="@(() => JobOrderVMs.POQty)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Job Order Qty -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Job Order Qty</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="number" class="form-control form-control-sm rounded-3 w-100"
+                                                        @bind="JobOrderVMs.JobOrderQty"
+                                                        readonly />
+                                                <ValidationMessage For="@(() => JobOrderVMs.JobOrderQty)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            </label>
+
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm w-100 d-flex align-items-center justify-content-center fw-bold text-white"
+                                                        style="background-color:#6f42c1; border-color:#6f42c1;"
+                                                        @onclick="ShowBOMDetails">
+                                                    <i class="bi bi-list-ul me-1 text-white"></i> 
+                                                    Load Latest BOM Details
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <!-- =================== Item Details =================== -->
+                            <div class="col-12">
+                                <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                               
+                                    <div class="card-header bg-primary-subtle text-dark">
+                                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                            <!-- Title -->
+                                            <span class="fw-bold fs-6">Item Details</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="card-body p-2">
+                                        <div class="table-responsive" style="overflow-x:auto;">
+                                            <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                                <thead class="custom-blue">
+                                                    <tr>
+                                                        <th style="width:50px;">Sl.No</th>
+                                                        <th style="width:200px;">Item Code</th>
+                                                        <th style="width:170px;">Item Name</th>
+                                                        <th style="width:60px;">UOM</th>
+                                                        <th style="width:60px;">Utility Qty</th>
+                                                        <th style="width:120px;">Req. Qty</th>
+                                                        <th style="width:120px;">Stock Qty</th>
+                                                        <th style="width:120px;">Bal. Qty</th>
+                                                        <th style="width:150px;">Cost-Center</th>
+                                                        @if(!JobOrderVMs.Cancel)
+                                                        {
+                                                            <th style="width:130px;">Item Cancel</th>
+                                                        }
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody class="custom-size">
+                                                    @foreach (var subitem in JobOrderVMs.JobOrderSubVMs)
+                                                    {
+                                                        <tr @key="subitem">
+                                                            <td>@subitem.SlNo</td>
+
+                                                            <!-- Item Code + Attachments -->
+                                                            <td>
+                                                                <div class="row g-1 align-items-center">
+                                                                    <div class="col-10">
+                                                                        @subitem.ItemCode
+                                                                    </div>
+                                                                    <div class="col-2 text-center">
+                                                                        @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                                && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                        {
+                                                                            <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                            Size="Size.Small"
+                                                                                            Color="Color.Primary"
+                                                                                            OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                            Edge="Edge.End"
+                                                                                            Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                        }
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+
+                                                            <td>@subitem.ItemName</td>
+                                                            <td>@subitem.Measureunit</td>
+
+                                                            <!-- Utility Qty -->
+                                                            <td>
+                                                                <span>@subitem.UtilQty</span>
+                                                            </td>
+
+                                                            <!-- ReqQty -->
+                                                            <td>
+                                                                <span>@subitem.ReqQty</span>
+                                                            </td>
+
+                                                            <!-- Stock Qty -->
+                                                            <td>
+                                                                <span class="text-danger fw-bold">@subitem.stockQty</span>
+                                                            </td>
+
+                                                            <!-- BalQty -->
+                                                            <td>
+                                                                <span>@subitem.BalQty</span>
+                                                            </td>
+
+                                                            <!-- Cost Center -->
+                                                            <td>
+                                                                @subitem.ProjectNo
+                                                            </td>
+
+                                                            @if(!JobOrderVMs.Cancel)
+                                                            {
+                                                                <td class="text-center align-middle">
+
+                                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                                        <InputCheckbox 
+                                                                        @bind-Value="subitem.ItemCancel"
+                                                                        @bind-Value:event="onchange"
+                                                                        ValueChanged="@(async (value) => await OnItemCancelChanged(subitem))"
+                                                                        class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                    </div>
+                                                                    <ValidationMessage For="@(() => subitem.ItemCancel)" 
+                                                                        class="text-danger fw-semibold small mt-2 d-block" />
+                                                                </td>
+                                                            }
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <!-- Action Buttons -->
+                                @if (CanCreate || CanEdit)
+                                {
+                                    @if(!JobOrderVMs.Cancel)
+                                    {
+                                        <div class="col-6 col-md-3 mt-3">
+                                            <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                                <i class="bi bi-floppy2-fill me-1"></i> @(JobOrderVMs.JobId > 0 ? "Update" : "Create")
+                                            </button>
+                                        </div>
+                                    }
+                                }
+                                <div class="col-12 col-md-3">
+                                     <a href="@($"/jobOrderList?currentPage={currentPage}")" class="btn btn-secondary w-100 rounded-3" disabled="@isProcessing">
+                                        <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                                     </a>
+                                </div>
+                            </div>
+                        }
+
+
+                        @if((jobId == 0 || jobId == null) && !JobOrderVMs.IsManual)
+                        {
+                            <div class="row g-3 mt-4 mb-2 justify-content-end">
+                                <div class="col-12 col-md-3">
+                                    <SmartBackButton Url="@($"/jobOrderList?currentPage={currentPage}")" />
+                                </div>
+                            </div>
+                        }
+                        
+                        @if (CanCreate || CanEdit && jobId > 0)
+                        {
+                            <div class="col-12 col-md-3">
+                                <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                    <i class="bi bi-printer me-1"></i>Print
+                                </button>
+                            </div>
+                        }
+
+                    </div>
+                   
+                </EditForm>
+            </div>
+        </div>
+    </div>
+} 
+
+
+@code
+{
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Job Order";
+
+    [Parameter] public int? jobId { get; set; }
+
+    private bool isProcessing = true;
+
+    private JobOrderVM JobOrderVMs { get; set; } = new();
+    private JobOrderSubVM? rowToCancel;
+    private List<MfgPoVM> CustomerPendingPOs = new();
+    private List<JobOrderAssyPoItemVM> JobOrderAssyPoItemVMs = new();
+    private List<JobOrderPreviewVM> PreviewVMs = new();
+    private List<BOMItem> bomItems = new();
+    private List<StaffVM> staffVMs = new();
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    private string? pdfBase64;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<PageHeader.BreadcrumbItem> JobOrderFormBreadcrumbs = new()
+    {
+        new() { Text = "Planning" },
+        new() { Text = "Job-Order", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+
+    private bool IsBOMModalVisible = false;
+    private List<Dictionary<string, object>>? ExistingBOMData;
+    private List<Dictionary<string, object>>? LatestChangedBOMData;
+
+    private bool IsAssmblyAndSubAssmbly { get; set; } = false;
+    private bool IsAssignJobOrderDepartment { get; set; } = false;
+
+    private List<string> LatestBOMColumns = new() { "Item Id", "Item-Code", "Item Name", "UOM", "Utility Qty"};
+    private List<string> ExistingBOMColumns = new() {"Item-Code", "Item Name", "UOM", "Utility Qty"};
+    private List<string> LatestBOMFields = new() { "ItemId", "ItemCode", "ItemName", "UOM", "UtilQty"};
+    private List<string> LatestBOMHiddenColumns = new() { "Item Id" };
+    private bool IsAllSelected { get; set; }
+      public bool ManuallyJobButton {get;set;} = false;
+
+
+    #endregion
+
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        isProcessing = true;
+
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied", true);
+                return;
+            }
+
+            IsAssignJobOrderDepartment = await jobOrderService.IsAssignJobOrderDepartmenWise();
+            ManuallyJobButton = await jobOrderService.IsManualyJobOrderHiden();
+
+            if(IsAssignJobOrderDepartment)
+            {
+                staffVMs = await jobOrderService.GetStaffOnlyProductionDepartment();
+
+            }
+            if (jobId.HasValue)
+            {
+                await LoadExistingJobId(jobId.Value);
+            }
+            else
+            {
+                JobOrderVMs = new();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingJobId(int jobId)
+    {
+        try
+        {
+            JobOrderVMs = await jobOrderService.GetJobOrderByJobIdAsync(jobId);
+            if (JobOrderVMs == null)
+            {
+                await _js.ToastrWarning("Job Order not found.");
+                return;
+            }
+
+            JobOrderVMs.SelectedCustomer = await jobOrderService.GetCustomerByIdAsync(JobOrderVMs.CustId.GetValueOrDefault());
+            if (JobOrderVMs.SelectedCustomer != null)
+                await ApplyCustomerSelectionAsync(JobOrderVMs.SelectedCustomer);
+
+            foreach (var joSub in JobOrderVMs.JobOrderSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[joSub.ItemId.Value] =
+                    await jobOrderService.GetCorrespondenceAttachmentsCountAsync(joSub.ItemId.Value, "Item");
+
+                var stock = await jobOrderService.GetAvailableStockByItemIdAsync(joSub.ItemId.Value,null);
+                joSub.stockQty = stock;
+            }
+
+            IsSomeItemsTransMade = CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing Job Order.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingJobId failed for JobId: {jobId}");
+        }
+    }
+
+    private bool CheckIsTransMade()
+    {
+        var list = JobOrderVMs?.JobOrderSubVMs;
+        if (list == null || list.Count == 0)
+            return false;
+
+        decimal totalQty = 0, totalBalQty = 0;
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            totalQty += list[i].ReqQty.GetValueOrDefault();
+            totalBalQty += list[i].BalQty.GetValueOrDefault();
+        }
+
+        return totalQty != totalBalQty;
+    }
+
+    #endregion
+
+
+    #region isManual JobOrder Toggle 
+
+    private async Task OnManualJObToggle(ChangeEventArgs e)
+    {
+        bool newValue = e.Value is bool b && b;
+        JobOrderVMs.IsManual = newValue;
+
+        if(JobOrderVMs.IsManual)
+        {
+            JobOrderVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            var JobNo= await jobOrderService.GetPreviewJobNoAsync(JobOrderVMs.Suffix);
+            JobOrderVMs.JobNo = JobNo.ToString("D3");
+        }
+        else
+        {
+            JobOrderVMs.SelectedAssemblyItem = null;
+            JobOrderVMs.AssyId = null;
+            JobOrderVMs.UtilQty = 0;
+            JobOrderVMs.Suffix = "";
+            JobOrderVMs.JobNo = "";
+        }
+        StateHasChanged();
+    }
+
+    #endregion 
+
+
+    #region Customer data
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3) 
+            return Enumerable.Empty<CustomerVM>();
+
+        try
+        {
+            var results = await jobOrderService.SearchCustomersAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<CustomerVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search customers. Please try again.");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+            await ApplyCustomerSelectionAsync(customer);
+
+            if (customer != null && customer.CustId > 0)
+            {
+                CustomerPendingPOs = await jobOrderService
+                    .GetPendingPOsByCustomerAsync(customer.CustId);
+            }
+            else
+            {
+                CustomerPendingPOs = new List<MfgPoVM>();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting customer.");
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+            JobOrderVMs.SelectedCustomer = customer;
+            JobOrderVMs.CustId = customer?.CustId ?? 0;
+            JobOrderVMs.CustomerName = customer?.CustName;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {customer?.CustId}");
+            await _js.ToastrError("Failed to apply customer selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Assembly Related
+
+    private async Task<IEnumerable<ItemVM>> SearchAssyOrSubAssembly(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3) 
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await jobOrderService.SaerchAssyOrSubAssy(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchAssyOrSubAssembly failed for value: {value}");
+            await _js.ToastrError("Failed to search Assyembly / Sub-Assembly. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnAssyChanged(ItemVM? item)
+    {
+        try
+        {
+            await ApplyItemSelectionAsync(item);
+            if (item.ItemId > 0)
+            {
+
+                JobOrderVMs.JobOrderSubVMs = await jobOrderService.GetItemDetailsByAssySubAssyIdAsync(item.ItemId, JobOrderVMs.JobOrderQty);
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting");
+        }
+    }
+
+    private async Task ApplyItemSelectionAsync(ItemVM? item)
+    {
+        try
+        {
+            JobOrderVMs.SelectedAssemblyItem = item;
+            JobOrderVMs.AssyId = item?.ItemId ?? 0;
+            JobOrderVMs.AssemblyItemCode = item?.ItemCode;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyItemSelectionAsync failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply Assembly selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await jobOrderService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(JobOrderSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItem = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.Measureunit = item.MeasureUnit;
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await jobOrderService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+                }
+            }
+            else
+            {
+
+                // Reset when deselected
+
+                subitem.SelectedItem = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.Measureunit = null;
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Row Operations
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in JobOrderVMs.JobOrderSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrError("Some items have transactions made. You cannot cancel the complete Job Order.");
+                return;
+            }
+
+            var jobOrder = await jobOrderService.GetJobOrderByJobIdAsync(JobOrderVMs.JobId);
+            if (jobOrder == null)
+            {
+                await _js.ToastrError("Job Order not found.");
+                return;
+            }
+
+            bool isPoExists = await jobOrderService
+                .IsPoExists(jobOrder.RefPoId.GetValueOrDefault(), jobOrder.AssyId);
+
+
+            if (isPoExists)
+            {
+
+                var poItemWOBalQty = await jobOrderService.GetMfgPoWOBalQtyByRefPoSubId(jobOrder.RefPoSubId.Value);
+
+                if (poItemWOBalQty < jobOrder.JobOrderQty && jobOrder.Cancel)
+                {
+                    await _js.ToastrError("Cannot Revert this Job Order. Another Job Order has already consumed the PO Work Order Balance Qty.");
+                    return;
+                }
+
+                var subJobs = await jobOrderService
+                    .GetReferenceJobListByParentJobId(jobOrder.JobId, jobOrder.RefPoSubId.Value);
+
+                if (subJobs != null && subJobs.Any())
+                {
+                    foreach (var subJob in subJobs)
+                    {
+                        bool exists = await jobOrderService
+                            .HasProductionIssueForJobAsync(subJob.AssyId.Value, subJob.JobId);
+
+                        if (exists)
+                        {
+                            await _js.ToastrWarning(
+                                "You cannot cancel this Assembly Item.\n" +
+                                "Some Sub-Assembly Job Orders have already been issued to Production.");
+                            return;
+                        }
+
+                        if (subJob.JobOrderQty != subJob.JobBalQty)
+                        {
+                            await _js.ToastrError("Cannot Cancel/revert. Some Sub-Assembly transactions are already made!");
+                            return;
+                        }
+
+                    }
+                }
+
+                if (!JobOrderVMs.Cancel)
+                {
+                    ModalTitle = "Are you sure you want to cancel this Assembly Job Order? " +
+                                 "Cancelling will also cancel all linked Sub-Assembly Job Orders.";
+
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "Cancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to revert this Assembly Job Order? " +
+                                 "Reverting will also revert all linked Sub-Assembly Job Orders.";
+
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "Revert";
+                    showCancelReasonBox = false;
+                }
+            }
+            else
+            {
+                if (JobOrderVMs.Cancel == true)
+                {
+                    if (jobOrder.JobOrderQty != jobOrder.JobBalQty)
+                    {
+                        await _js.ToastrError("Cannot revert. Some transactions have been made!");
+                        return;
+                    }
+
+                    if (jobOrder.ParentJobId > 0)
+                    {
+                        var parentOrder = await jobOrderService.GetJobOrderByJobIdAsync(jobOrder.ParentJobId.Value);
+
+                        if (parentOrder != null && parentOrder.Cancel == true)
+                        {
+                            await _js.ToastrError("Cannot revert this ony Sub-Assembly. when Assembly Job Order is cancelled state.");
+                            return;
+                        }
+                    }
+
+                    ModalTitle = "Are you sure you want to revert this Job Order?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "Revert";
+                    showCancelReasonBox = false;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to cancel this Job Order?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "Cancel";
+                    showCancelReasonBox = true;
+                }
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing cancellation.");
+            await LoggingService.LogDeveloperError(ex, "Error in Cancel()");
+        }
+    }
+
+
+
+
+    private async Task OnItemCancelChanged(JobOrderSubVM subitem)
+    {
+        try
+        {
+            if ((subitem.ReqQty ?? 0) != (subitem.BalQty ?? 0))
+            {
+                await _js.ToastrError("Item cannot be cancelled — some transactions have been made on it.");
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.ItemCancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = false;
+                }
+                rowToCancel = subitem;
+
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Item.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Item Cancel in Job Order");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "Cancel":
+                case "Revert":
+                    await ConfirmCancel_Click();
+                    break;
+
+                case "ItemCancel":
+                    await CancelItem(rowToCancel);
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task CancelItem(JobOrderSubVM rowToCancel)
+    {
+        if (rowToCancel == null) return;
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!rowToCancel.ItemCancel)
+            {
+                rowToCancel.ItemCancel = true;
+                rowToCancel.ItemCancelReason = cancelReason;
+
+                await jobOrderService.UpdateItemCancelAsync(rowToCancel);
+
+                await LoggingService.LogUserAction(
+                username, machine, ip,
+                screen: "Job Order",
+                action: $"Cancelled JobOrder No: {JobOrderVMs.JobNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"Reason: {cancelReason}");
+
+            }
+            else
+            {
+                rowToCancel.ItemCancel = false;
+                rowToCancel.ItemCancelReason = string.Empty;
+
+                await jobOrderService.UpdateItemCancelAsync(rowToCancel);
+
+                await LoggingService.LogUserAction(
+                username, machine, ip,
+                screen: "Job Order",
+                action: $"Reverted Job Order No: {JobOrderVMs.JobNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"Reason: {cancelReason}");
+
+            }
+
+            cancelReason = null;
+            JobOrderVMs.JobOrderSubVMs = await jobOrderService
+                   .GetJobOrderSubByJobIdAsync(JobOrderVMs.JobId);
+
+            await ResetSlno();
+
+            var action = rowToCancel.ItemCancel
+                ? $"Item Cancelled ItemCode: {rowToCancel.ItemCode}"
+                : $"Item Reverted ItemCode: {rowToCancel.ItemCode}";
+
+            var toastMessage = rowToCancel.ItemCancel
+                ? "Item cancelled successfully."
+                : "Item has been reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+            rowToCancel = null;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            rowToCancel = null;
+            cancelReason = null;
+            await _js.ToastrError("An error occurred while cancelling/reverting the Item.");
+            await LoggingService.LogDeveloperError(ex, $"Item Cancel/Reverse failed for JobId: {JobOrderVMs.JobId}");
+        }
+        finally
+        {
+            rowToCancel = null;
+            cancelReason = null;
+            isProcessing = false;
+        }
+    }
+
+    private async Task ConfirmCancel_Click()
+    {
+        try
+        {
+            var parentJob = await jobOrderService.GetJobOrderByJobIdAsync(JobOrderVMs.JobId);
+            if (parentJob == null)
+            {
+                await _js.ToastrError("Job Order not found.");
+                return;
+            }
+
+            bool isPoExists = await jobOrderService
+                .IsPoExists(parentJob.RefPoId.GetValueOrDefault(), parentJob.AssyId);
+
+            if (isPoExists)
+            {
+
+                List<int> jobIdsToCancel = new() { parentJob.JobId };
+
+                var SubJobReferences = await jobOrderService
+                    .GetReferenceJobListByParentJobId(parentJob.JobId, parentJob.RefPoSubId.Value);
+
+                if (SubJobReferences != null && SubJobReferences.Any())
+                {
+                    foreach (var subJob in SubJobReferences)
+                    {
+                        if (subJob.JobId > 0)
+                        {
+                            jobIdsToCancel.Add(subJob.JobId);
+                        }
+
+                        bool hasProductionIssueExists = await jobOrderService.HasProductionIssueForJobAsync(subJob.AssyId.Value, subJob.JobId);
+
+                        if (hasProductionIssueExists)
+                        {
+                            await _js.ToastrWarning("Cannot Cancel.\nSome Sub-Assembly Job Orders are already issued to Production.");
+                            return;
+                        }
+                    }
+                }
+
+                bool cancelled = await jobOrderService.CancelJobOrdersRecursiveAsync(jobIdsToCancel, JobOrderVMs, cancelReason);
+
+                if (cancelled)
+                {
+                    if(!JobOrderVMs.Cancel)
+                    {
+                        await _js.ToastrSuccess("Assembly & Sub-Assembly Job Orders cancelled successfully.");
+                    }
+                    else
+                    {
+                        await _js.ToastrSuccess("Assembly & Sub-Assembly Job Orders Reverted successfully.");
+                    }
+                }
+                else
+                {
+                    await _js.ToastrError("Failed to cancel Assembly Job Orders.");
+                }
+
+                _navigationManager.NavigateTo("/jobOrderList");
+                return;
+            }
+
+
+            if (!isPoExists)
+            {
+                var isUpdated = await jobOrderService.UpdatedCancelStatusAsync(JobOrderVMs,cancelReason);
+
+                if (isUpdated)
+                {
+                    if (!JobOrderVMs.Cancel)
+                    {
+                        await LoggingService.LogUserAction(
+                           UserName: await _userService.GetUsernameAsync(),
+                           Machine: _userService.MachineName,
+                           IP_Address: _userService.IpAddress,
+                           screen: "Job Order",
+                           action: $"Cancelled Job Order No: {JobOrderVMs.JobNo}",
+                           additionalInfo: $"Job Id: {JobOrderVMs.JobId}");
+
+                        await _js.ToastrSuccess("Job Order cancelled successfully.");
+                    }
+                    else
+                    {
+                        await LoggingService.LogUserAction(
+                          UserName: await _userService.GetUsernameAsync(),
+                          Machine: _userService.MachineName,
+                          IP_Address: _userService.IpAddress,
+                          screen: "Job Order",
+                          action: $"Cancelled Job Order No: {JobOrderVMs.JobNo}",
+                          additionalInfo: $"Job Id: {JobOrderVMs.JobId}");
+
+                        await _js.ToastrSuccess("Job Order reverted successfully.");
+                    }
+                }
+                else
+                {
+                    await _js.ToastrError("Failed to cancel/revert the Job Order.");
+                }
+            }
+
+            _navigationManager.NavigateTo("/jobOrderList");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error cancelling JobId: {JobOrderVMs.JobId}");
+            await _js.ToastrError("Failed to cancel Job Order.");
+        }
+        finally
+        {
+
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await jobOrderService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Toggles
+
+    private void OnManufacturingToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        JobOrderVMs.MfgORLab = isChecked;
+    }
+
+    private void OnLabourToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        JobOrderVMs.MfgORLab = !isChecked;
+    }
+
+    #endregion
+
+
+    #region Job Order Operations
+
+    private async Task UpsertJobOrder()
+    {
+        try
+        {
+            isProcessing = true;
+
+            JobOrderVMs.JobOrderSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.ReqQty.HasValue || x.ReqQty == 0));
+
+            if (! JobOrderVMs.JobOrderSubVMs.Any())
+            {
+                await _js.ToastrError("Cannot save a Job Order without valid items.");
+                return;
+            }
+
+            // Validate each line
+            foreach (var line in  JobOrderVMs.JobOrderSubVMs)
+            {
+                bool isValid = await ValidateJobOrderLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewJobOrder = JobOrderVMs.JobId == 0;
+
+            try
+            {
+                await jobOrderService.UpsertJobOrderAsync(JobOrderVMs);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewJobOrder)
+                await _js.ToastrSuccess("Job Order saved successfully.");
+            else
+                await _js.ToastrSuccess("Job Order updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/jobOrderList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertJobOrder failed.");
+            await _js.ToastrError("Error saving Job Order.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateJobOrderLineAsync(JobOrderSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.ReqQty.HasValue || line.ReqQty <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemCode}: Req. Qty must be greater than 0.");
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidateJobOrderLineAsync failed.");
+            await _js.ToastrError("Error Validate job Order Item line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+
+    #region PoChanged
+
+    private async Task OnPoChanged(ChangeEventArgs e)
+    {
+        isProcessing = true; 
+        StateHasChanged();
+
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int poId))
+            {
+                JobOrderVMs.RefPoId = poId;
+
+                JobOrderAssyPoItemVMs = await jobOrderService.GetAssemblyItemsByPoIdAsync(poId);
+
+                JobOrderVMs.JobOrderSubVMs = new();
+            }
+            else
+            {
+                JobOrderVMs.RefPoId = null;
+                JobOrderAssyPoItemVMs = new();
+                JobOrderVMs.JobOrderSubVMs = new();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while processing PO change event");
+            await _js.ToastrError("Failed to load PO-related assembly items.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion 
+
+
+    #region Assembly Item selection And Req Qty
+
+    private void OnAssemblySelectChanged(JobOrderAssyPoItemVM row, bool isChecked)
+    {
+        row.IsSelected = isChecked;
+        IsAllSelected = JobOrderAssyPoItemVMs.All(x => x.IsSelected);
+    }
+
+    private async Task OnReqQtyChanged(JobOrderAssyPoItemVM itm)
+    {
+        try
+        {
+            decimal req = itm.ReqQty;
+
+            if (req < 0)
+            {
+                itm.ReqQty = 0;
+                await _js.ToastrWarning("Required Qty cannot be negative.");
+                return;
+            }
+            else if (req > itm.WoBalQty)
+            {
+                itm.ReqQty = itm.WoBalQty;
+                await _js.ToastrWarning($"Required Qty cannot exceed {itm.WoBalQty} (PO Balance)");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error in OnReqQtyChanged for Item: {itm?.AssyItemCode} (ItemId: {itm?.AssyItemId})");
+            await _js.ToastrError("Something went wrong while updating Required Quantity.");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    #endregion 
+
+
+    #region Preview Job Order And Convert JobOrder
+
+    private async Task PreviewTempJobOrder()
+    {
+        isProcessing = true;
+
+        try
+        {
+            var selectedAssys = JobOrderAssyPoItemVMs.Where(x => x.IsSelected).ToList();
+            if (!selectedAssys.Any())
+            {
+                await _js.ToastrWarning("Please select at least one Assembly");
+                return;
+            }
+
+            var zeroReqQtyItem = selectedAssys.FirstOrDefault(x => x.ReqQty <= 0);
+            if (zeroReqQtyItem != null)
+            {
+                await _js.ToastrWarning("Required Qty must be greater than 0");
+                return;
+            }
+
+            var assyIds = selectedAssys
+                            .Select(x => x.AssyItemId)
+                            .Where(x => x.HasValue)
+                            .Select(x => x.Value)
+                            .ToList();
+
+            PreviewVMs = await jobOrderService.GetBOMHierarchyAsync(assyIds, selectedAssys);
+
+            await _js.ToastrSuccess("Preview generated successfully!");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error generating preview. Please try again.");
+            await LoggingService.LogDeveloperError(ex, "Error generating PreviewTempJobOrder");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnPrevAssySelectChanged(JobOrderPreviewVM row, bool isChecked)
+    {
+        row.IsSelected = isChecked;
+    }
+
+    #endregion
+
+
+    #region Genretion of Job Order from Preview
+
+    private async Task GenerateJobOrder()
+    {
+        isProcessing = true;
+
+        try
+        {
+            var SelectedAssyRows = JobOrderAssyPoItemVMs.Where(x => x.IsSelected).ToList();
+            int staffid = await jobOrderService.GetStaffIdByCurrentuserAsync() ?? 0;
+            int? correctStaffId =null;
+            if (!SelectedAssyRows.Any())
+            {
+                await _js.ToastrWarning("Please select at least 1 Assembly to generate Job Order");
+                return;
+            }
+
+            var parentMap = new Dictionary<int, (int parentJobId, int assyItemId)>();
+
+            foreach (var AssyItem in SelectedAssyRows)
+            {
+                var suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+                var PreviewJobNo = await jobOrderService.GetPreviewJobNoAsync(suffix);
+                correctStaffId = 0;
+                correctStaffId  = (AssyItem?.StaffID == null || AssyItem.StaffID == 0)
+                              ? staffid
+                              : AssyItem.StaffID.Value;
+                var AssyjobOrder = new JobOrderVM
+                {
+                    MfgORLab = JobOrderVMs.MfgORLab,
+                    IsManual = JobOrderVMs.IsManual,
+                    Suffix = suffix,
+                    JobNo = PreviewJobNo.ToString("D3"),
+                    JobDate = DateTime.Now,
+                    CustId = JobOrderVMs.SelectedCustomer?.CustId,
+                    RefPoId = JobOrderVMs.RefPoId,
+                    RefPoSubId = AssyItem.RefPoSubId,
+                    AssyId = AssyItem.AssyItemId,
+                    POQty = AssyItem.PoQty,
+                    JobOrderQty = AssyItem.ReqQty,
+                    JobBalQty = AssyItem.ReqQty,
+                    StaffID= correctStaffId == 0 ? null : correctStaffId,
+                    CreatedBy = await _userService.GetUsernameAsync(),
+                    CreatedDate = DateTime.Now,
+
+                    JobOrderSubVMs = new List<JobOrderSubVM>()
+                };
+
+                var BomItems = await jobOrderService.GetBOMItemsByAssyIdAsync(AssyItem.AssyItemId.Value);
+                int slno = 1;
+                foreach (var bomItem in BomItems)
+                {
+                    AssyjobOrder.JobOrderSubVMs.Add(new JobOrderSubVM
+                    {
+                        JobId = AssyjobOrder.JobId,
+                        SlNo = slno++,
+                        ItemId = bomItem.ItemID,
+                        UtilQty = bomItem.UtilQty,
+                        ReqQty = bomItem.UtilQty * AssyItem.ReqQty,
+                        BalQty = bomItem.UtilQty * AssyItem.ReqQty,
+                        CostId = AssyItem.CostId
+                    });
+                }
+
+                var savedParentJO = await jobOrderService.UpsertJobOrderAsync(AssyjobOrder);
+                int parentJobId = savedParentJO.JobId;
+
+                if (AssyItem.AssyItemId.HasValue)
+                    parentMap[parentJobId] = (parentJobId, AssyItem.AssyItemId.Value);
+
+                await jobOrderService.AdjustPoWorkOrderBalanceAsync(
+                    AssyjobOrder.RefPoSubId.GetValueOrDefault(),
+                    0,
+                    AssyjobOrder.JobOrderQty,
+                    "Job Order Created"
+                );
+
+                //Important
+                var childSubRowsForThisParent = PreviewVMs.Where(x => x.IsSelected&& x.RefPoSubId == AssyItem.RefPoSubId && x.SubAssyId != AssyItem.AssyItemId).ToList();
+
+                if (childSubRowsForThisParent.Any())
+                {
+                    foreach (var subItem in childSubRowsForThisParent)
+                    {
+                        var childSuffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+                        var childPreviewJobNo = await jobOrderService.GetPreviewJobNoAsync(childSuffix);
+                        correctStaffId = 0;
+                        correctStaffId  = (subItem?.StaffID == null || subItem.StaffID == 0)
+                                ? staffid
+                                : subItem.StaffID.Value;
+                        var SubAssyjobOrder = new JobOrderVM
+                        {
+                            ParentJobId = parentJobId,  // link to this specific parent
+                            MfgORLab = JobOrderVMs.MfgORLab,
+                            IsManual = JobOrderVMs.IsManual,
+                            Suffix = childSuffix,
+                            JobNo = childPreviewJobNo.ToString("D3"),
+                            JobDate = DateTime.Now,
+                            CustId = JobOrderVMs.SelectedCustomer?.CustId,
+                            RefPoId = JobOrderVMs.RefPoId,
+                            RefPoSubId = subItem.RefPoSubId,
+                            AssyId = subItem.SubAssyId,
+                            UtilQty = subItem.UtilQty,
+                            POQty = subItem.PoQty,
+                            JobOrderQty = subItem.JobOrderQty,
+                            JobBalQty = subItem.JobOrderQty,
+                            StaffID= correctStaffId == 0 ? null : correctStaffId,
+
+                            CreatedBy = await _userService.GetUsernameAsync(),
+                            CreatedDate = DateTime.Now,
+                            JobOrderSubVMs = new List<JobOrderSubVM>()
+                        };
+
+                        // add BOM items for sub-assy
+                        var subBomItems = await jobOrderService.GetBOMItemsByAssyIdAsync(subItem.SubAssyId);
+                        int slno2 = 1;
+                        foreach (var bomItem in subBomItems)
+                        {
+                            SubAssyjobOrder.JobOrderSubVMs.Add(new JobOrderSubVM
+                            {
+                                JobId = SubAssyjobOrder.JobId,
+                                SlNo = slno2++,
+                                ItemId = bomItem.ItemID,
+                                UtilQty = bomItem.UtilQty,
+                                ReqQty = bomItem.UtilQty * subItem.ReqQty,
+                                BalQty = bomItem.UtilQty * subItem.ReqQty,
+                                CostId = subItem.CostId
+                            });
+                        }
+
+                        await jobOrderService.UpsertJobOrderAsync(SubAssyjobOrder);
+                    }
+                }
+            } 
+
+            await _js.ToastrSuccess("Job Order Created Successfully!");
+            _navigationManager.NavigateTo("/jobOrderList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "GenerateJobOrder failed.");
+            await _js.ToastrError("Error generating Job Orders from preview. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+    #endregion
+
+
+    #region Manual JobOrder QtyChanges
+
+    private async Task OnJobOrderQtyChanged(ChangeEventArgs e)
+    {
+        if (!decimal.TryParse(e.Value?.ToString(), out var newQty))
+            return;
+
+        if(JobOrderVMs.JobId == 0)
+        {
+            JobOrderVMs.JobOrderQty = newQty;
+            JobOrderVMs.JobBalQty = newQty;
+        }
+        else
+        {
+            var original = await jobOrderService.GetJobQtyAndJobBalQtyByJobId(JobOrderVMs.JobId);
+            var alreadyTransacted = original.JobOrderQty - original.JobBalQty;
+
+            if (newQty < alreadyTransacted)
+            {
+                JobOrderVMs.JobOrderQty = alreadyTransacted;
+                JobOrderVMs.JobBalQty = 0;
+                await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} as it is already transacted.");
+            }
+            else
+            {
+                var difference = newQty - original.JobOrderQty;
+                JobOrderVMs.JobOrderQty = newQty;
+                JobOrderVMs.JobBalQty = original.JobBalQty + difference;
+            }
+        }
+
+        if (JobOrderVMs.JobOrderSubVMs != null && JobOrderVMs.JobOrderSubVMs.Any())
+        {
+            foreach (var row in JobOrderVMs.JobOrderSubVMs)
+            {
+                row.ReqQty = row.UtilQty * JobOrderVMs.JobOrderQty;
+                row.BalQty = row.ReqQty;
+            }
+        }
+
+        StateHasChanged();
+
+    }
+
+    #endregion 
+
+
+    #region Show BOM Details
+
+    private async Task ShowBOMDetails()
+    {
+        try
+        {
+            isProcessing = true;
+
+            ExistingBOMData = await jobOrderService.GetExistingBOMDetailsAsync(JobOrderVMs.JobId);
+            LatestChangedBOMData = await jobOrderService.GetLatestBOMFromAssemblyDefAsync(JobOrderVMs.AssyId.Value);
+
+            var existingBom = ExistingBOMData?
+                .Select(x => new
+                {
+                    ItemId = Convert.ToInt32(x["ItemId"]),
+                    UtilQty = Convert.ToDecimal(x["UtilQty"])
+                })
+                .ToList() ?? new();
+
+            // ---------------------------------------------------
+            // STEP 1: ADD FLAGS (IsNewItem, IsQtyChanged)
+            // ---------------------------------------------------
+            foreach (var latest in LatestChangedBOMData)
+            {
+                int itemId = Convert.ToInt32(latest["ItemId"]);
+                decimal latestQty = Convert.ToDecimal(latest["UtilQty"]);
+
+                var existing = existingBom.FirstOrDefault(e => e.ItemId == itemId);
+
+                if (existing == null)
+                {
+                    latest["IsNewItem"] = true;
+                    latest["IsQtyChanged"] = false;
+                }
+                else
+                {
+                    bool qtyChanged = existing.UtilQty != latestQty;
+                    latest["IsNewItem"] = false;
+                    latest["IsQtyChanged"] = qtyChanged;
+                }
+            }
+
+            // ---------------------------------------------------
+            // STEP 2: APPLY FILTER (ONLY NEW OR CHANGED ITEMS)
+            // ---------------------------------------------------
+            LatestChangedBOMData = LatestChangedBOMData
+                .Where(latest =>
+                    (bool)latest["IsNewItem"] == true ||
+                    (bool)latest["IsQtyChanged"] == true
+                )
+                .ToList();
+
+            // ---------------------------------------------------
+            // STEP 3: SHOW MODAL IF ANY DIFFERENCE FOUND
+            // ---------------------------------------------------
+            if ((ExistingBOMData?.Count ?? 0) > 0 || (LatestChangedBOMData?.Count ?? 0) > 0)
+            {
+                IsBOMModalVisible = true;
+            }
+            else
+            {
+                await _js.ToastrWarning("No BOM changes found.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ShowBOMDetails failed.");
+            await _js.ToastrError("Error fetching BOM Details list.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task OnLatestBOMSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (JobOrderVMs.JobOrderSubVMs == null)
+            JobOrderVMs.JobOrderSubVMs = new List<JobOrderSubVM>();
+
+        try
+        {
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.TryGetValue("ItemId", out var idObj) && idObj != null
+                    ? Convert.ToInt32(idObj)
+                    : 0;
+
+                decimal newUtilQty = item.TryGetValue("UtilQty", out var qtyObj) && qtyObj != null
+                    ? Convert.ToDecimal(qtyObj)
+                    : 0m;
+
+                decimal newReqQty = newUtilQty * JobOrderVMs.JobOrderQty;
+
+                var existing = JobOrderVMs.JobOrderSubVMs
+                    .FirstOrDefault(x => x.ItemId == itemId);
+
+                if (existing != null)
+                {
+                    decimal oldReq = existing.ReqQty.GetValueOrDefault();
+                    decimal oldBal = existing.BalQty.GetValueOrDefault();
+
+                    decimal diff = newReqQty - oldReq; 
+
+                    if (oldBal == 0 && diff < 0)
+                    {
+                        await _js.ToastrWarning($"Utility Qty for Item Code {existing.ItemCode} cannot be reduced as the material is already fully issued.");
+                        continue;
+                    }
+
+                    decimal newBal = oldBal + diff;
+
+                    if (newBal < 0)
+                        newBal = 0;
+
+                    existing.UtilQty = newUtilQty;
+                    existing.ReqQty = newReqQty;
+                    existing.BalQty = newBal;
+
+                    continue;
+                }
+
+                var newSubVm = new JobOrderSubVM
+                {
+                    JobId = JobOrderVMs.JobId,
+                    ItemId = itemId,
+                    ItemCode = item.TryGetValue("ItemCode", out var codeObj) ? codeObj?.ToString() : "",
+                    ItemName = item.TryGetValue("ItemName", out var nameObj) ? nameObj?.ToString() : "",
+                    Measureunit = item.TryGetValue("MeasureUnit", out var muObj) ? muObj?.ToString() :
+                                  item.TryGetValue("UOM", out var uomObj) ? uomObj?.ToString() : "",
+
+                    UtilQty = newUtilQty,
+                    ReqQty = newReqQty,
+                    BalQty = newReqQty // New row → full balance
+                };
+
+                JobOrderVMs.JobOrderSubVMs.Add(newSubVm);
+            }
+
+            int slNo = 1;
+            foreach (var row in JobOrderVMs.JobOrderSubVMs)
+                row.SlNo = slNo++;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnLatestBOMSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected Latest BOM changed items.");
+        }
+    }
+    private void OnStaffChanged(ChangeEventArgs e, JobOrderPreviewVM itm)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int staffId))
+        {
+            itm.StaffID = staffId;
+
+            var selectedStaff = staffVMs.FirstOrDefault(s => s.StaffID == staffId);
+
+            if (selectedStaff != null)
+            {
+                itm.DepartmentCode = selectedStaff.DepartmentCode; // 👈 update here
+            }
+        }
+    }
+    private void OnStaffsChanged(ChangeEventArgs e, JobOrderAssyPoItemVM itm)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int staffId))
+        {
+            itm.StaffID = staffId;
+
+            var selectedStaff = staffVMs.FirstOrDefault(s => s.StaffID == staffId);
+
+            if (selectedStaff != null)
+            {
+                itm.DepartmentCode = selectedStaff.DepartmentCode; // 👈 update here
+            }
+        }
+    }
+    private void PreviewVMsToggleSelectAll(ChangeEventArgs e)
+    {
+        bool value = (bool)e.Value;
+        foreach (var row in PreviewVMs)
+        {
+            row.IsSelected = value;
+        }
+        StateHasChanged();
+    }
+         
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool value = (bool)e.Value;
+        foreach (var row in JobOrderAssyPoItemVMs)
+        {
+            row.IsSelected = value;
+        }
+        StateHasChanged();
+    }
+
+
+    #endregion
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(jobId.GetValueOrDefault(), "JobOrder.frx", "JobId", false, ScreenName, "Sp_Print_JobOrder");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Job Order");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Job Order.");
+        }
+    }
+}

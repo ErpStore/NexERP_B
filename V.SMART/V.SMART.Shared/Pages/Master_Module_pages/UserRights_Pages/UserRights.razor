@@ -1,0 +1,487 @@
+﻿@page "/userRights"
+@using V.SMART.Shared.Data.Master.Admin
+@using V.SMART.Shared.Data.Master.MasterScreeenManagement
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IUnitOfWork _unitOfWork
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <PageHeader TitleText="@UserRightsTitle"
+                            TitleIcon="bi bi-person-fill-lock"
+                            Breadcrumbs="@userRightsBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="userRights" OnValidSubmit="UpsertUserRights">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <!-- User Selector -->
+                        <div class="mb-4">
+                            <label for="userSelect" class="form-label fw-semibold">Select User:</label>
+                            <select id="userSelect" class="form-select"
+                                    value="@selectedUserId"
+                                    @onchange="OnUserChanged">
+                                <option value="0" disabled selected>Select a user</option>
+                                @foreach (var user in users)
+                                {
+                                    <option value="@user.UserId">@user.UserName</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (selectedUserId > 0)
+                        {
+                            <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1000px; white-space:nowrap;">
+
+                                    <thead class="custom-blue text-center align-middle sticky-top">
+                                        <tr>
+                                            <th>Screen Name</th>
+                                            <th>Can View</th>
+                                            <th>Can Create</th>
+                                            <th>Can Edit</th>
+                                            <th>Can Delete</th>
+                                            <th>Is Hidden</th>
+                                            <th>All</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var screen in screens)
+                                        {
+                                            var right = userRights.FirstOrDefault(r => r.ScreenId == screen.Id);
+                                            @if (right == null)
+                                                continue;
+
+                                            <tr>
+                                                <td class="text-start">@screen.ScreenName</td>
+
+                                                <!-- Can View -->
+                                                <td>
+                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                        <input type="checkbox" class="form-check-input"
+                                                               @bind="right.CanView"
+                                                               disabled="@(!IsAdminWithEditRights || selectedUserId == 1 || isUserReadOnly)" />
+                                                    </div>
+                                                </td>
+
+                                                <!-- Can Create -->
+                                                <td>
+                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                        <input type="checkbox" class="form-check-input"
+                                                               checked="@right.CanCreate"
+                                                               @onchange="e => { right.CanCreate = (bool)e.Value!; EnsureCanView(right); }"
+                                                               disabled="@(!IsAdminWithEditRights || selectedUserId == 1 || isUserReadOnly)" />
+                                                    </div>
+                                                </td>
+
+                                                <!-- Can Edit -->
+                                                <td>
+                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                        <input type="checkbox" class="form-check-input"
+                                                               checked="@right.CanEdit"
+                                                               @onchange="e => { right.CanEdit = (bool)e.Value!; EnsureCanView(right); }"
+                                                               disabled="@(!IsAdminWithEditRights || selectedUserId == 1 || isUserReadOnly)" />
+                                                    </div>
+                                                </td>
+
+                                                <!-- Can Delete -->
+                                                <td>
+                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                        <input type="checkbox" class="form-check-input"
+                                                               checked="@right.CanDelete"
+                                                               @onchange="e => { right.CanDelete = (bool)e.Value!; EnsureCanView(right); }"
+                                                               disabled="@(!IsAdminWithEditRights || selectedUserId == 1 || isUserReadOnly)" />
+                                                    </div>
+                                                </td>
+
+                                                <!-- Is Hidden -->
+                                                <td>
+                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                        <input type="checkbox" class="form-check-input"
+                                                               checked="@right.IsHide"
+                                                               @onchange="e => { right.IsHide = (bool)e.Value!; EnsureCanView(right); }"
+                                                               disabled="@(!IsAdminWithEditRights || selectedUserId == 1 || isUserReadOnly)" />
+                                                    </div>
+                                                </td>
+
+                                                <!-- All -->
+                                                <td>
+                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                        <input type="checkbox" class="form-check-input"
+                                                               checked="@(right.CanView && right.CanCreate && right.CanEdit && right.CanDelete)"
+                                                               @onchange="e => ToggleRowAll(right, (bool)e.Value!)"
+                                                               disabled="@(!IsAdminWithEditRights || selectedUserId == 1 || isUserReadOnly)" />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+
+                                         <!-- Select All -->
+                                        @* <tr class="table-light">
+                                            <td class="fw-bold text-start">Select All</td>
+                                            <td colspan="6">
+                                                <div class="d-flex align-items-center justify-content-start">
+                                                    <div class="form-check form-switch mb-0 me-2">
+                                                        <input type="checkbox" class="form-check-input"
+                                                               @bind="SelectAll"
+                                                               disabled="@(!IsAdminWithEditRights || selectedUserId == 1 || isUserReadOnly)" />
+                                                    </div>
+                                                    <label class="form-check-label fw-semibold">Toggle All Permissions</label>
+                                                </div>
+                                            </td>
+                                        </tr>  *@
+                                    </tbody>
+                                    <tfoot class="sticky-bottom bg-light">
+                                        <tr class="table-light">
+                                            <td class="fw-bold text-start">Select All</td>
+
+                                            <td colspan="6">
+                                                <div class="d-flex align-items-center justify-content-start">
+                                                    <div class="form-check form-switch mb-0 me-2">
+                                                        <input type="checkbox"
+                                                               class="form-check-input"
+                                                               @bind="SelectAll"
+                                                               disabled="@(!IsAdminWithEditRights || selectedUserId == 1 || isUserReadOnly)" />
+                                                    </div>
+
+                                                    <label class="form-check-label fw-semibold">
+                                                        Toggle All Permissions
+                                                    </label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+
+                                </table>
+
+
+                            </div>
+
+                            @if (IsAdminWithEditRights && selectedUserId != 1)
+                            {
+
+                                <div class="col-md-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> Save UserRights
+                                    </button>
+                                </div>
+
+                            }
+                        }
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+
+@code {
+    // User Rights
+    protected override string ScreenName => "User Rights";
+
+    private bool isProcessing = true;
+    private int selectedUserId;
+    private bool selectAll;
+    private bool isUserReadOnly = false;
+
+    private List<User> users = new();
+    private List<Screens> screens = new();
+    private List<UserRight> userRights = new();
+
+    private string? currentUserName;
+    private UserRole? currentUserRole;
+
+    private bool IsAdminWithEditRights => currentUserRole == UserRole.Administrator && (CanEdit || CanCreate);
+
+    private List<PageHeader.BreadcrumbItem> userRightsBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Admin" },
+        new PageHeader.BreadcrumbItem { Text = "User Rights", IsLast = true }
+    };
+
+    private string UserRightsTitle => "User Rights";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            currentUserName = await _userService.GetUsernameAsync();
+            currentUserRole = (await _unitOfWork.Users
+                        .FindAsync(u => u.UserName == currentUserName))
+                        .FirstOrDefault()
+                        ?.Role;
+
+            if (!CanView && currentUserRole != UserRole.Administrator)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await loadUsers();
+            await loadScreens();
+
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UserRights OnInitializedAsync() method");
+        }
+    }
+
+    private async Task loadUsers()
+    {
+        try
+        {
+            users = (await _unitOfWork.Users.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UserRights loadUsers() method");
+        }
+    }
+
+    private async Task loadScreens()
+    {
+
+        try
+        {
+            screens = (await _unitOfWork.Screens.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UserRights loadScreens() method");
+        }
+    }
+
+    private async Task loadUserRights()
+    {
+        try
+        {
+            // Get selected user details including IsViewOnly
+            var User = (await _unitOfWork.Users.FindAsync(u => u.UserId == selectedUserId)).FirstOrDefault();
+            if (User != null)
+            {
+                isUserReadOnly = User.IsViewOnly;
+            }
+            else
+            {
+                isUserReadOnly = false;
+            }
+
+            var rightsFromDb = (await _unitOfWork.UserRights.FindAsync(r => r.UserId == selectedUserId)).ToList();
+
+            userRights = screens.Select(screen =>
+            {
+                var existing = rightsFromDb.FirstOrDefault(r => r.ScreenId == screen.Id);
+                return existing != null
+                    ? new UserRight
+                    {
+                        Id = existing.Id,
+                        UserId = existing.UserId,
+                        ScreenId = existing.ScreenId,
+                        CanView = existing.CanView,
+                        CanCreate = existing.CanCreate,
+                        CanEdit = existing.CanEdit,
+                        CanDelete = existing.CanDelete,
+                        IsHide = existing.IsHide,
+                    }
+                    : new UserRight
+                    {
+                        UserId = selectedUserId,
+                        ScreenId = screen.Id,
+                        CanView = false,
+                        CanCreate = false,
+                        CanEdit = false,
+                        CanDelete = false,
+                        IsHide = false
+                    };
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UserRights loadUserRights() method");
+        }
+    }
+
+    private async Task OnUserChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int newUserId))
+            {
+                selectedUserId = newUserId;
+                var SelectedUser = await _unitOfWork.Users.GetQueryable().Where(x=> x.UserId == selectedUserId).FirstOrDefaultAsync();
+
+                selectAll = false;
+                await loadUserRights();
+                StateHasChanged();
+                await LoggingService.LogUserAction(UserName: currentUserName, Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                    screen: "UserRights", action: $"UserRights OnUserChanged to {SelectedUser.UserName}",
+                additionalInfo: $"UserName: {SelectedUser.UserName}");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UserRights OnUserChanged() Event");
+
+        }
+    }
+
+    private void EnsureCanView(UserRight right)
+    {
+        if (right.CanCreate || right.CanEdit || right.CanDelete || right.IsHide)
+        {
+            right.CanView = true;
+        }
+    }
+
+
+    private async Task ToggleRowAll(UserRight right, bool isChecked)
+    {
+        try
+        {
+            right.CanView = isChecked;
+            right.CanCreate = isChecked;
+            right.CanEdit = isChecked;
+            right.CanDelete = isChecked;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UserRights ToggleRowAll() Method");
+        }
+    }
+
+    private bool SelectAll
+    {
+        get => selectAll;
+        set
+        {
+            selectAll = value;
+            foreach (var right in userRights)
+            {
+                right.CanView = value;
+                right.CanCreate = value;
+                right.CanEdit = value;
+                right.CanDelete = value;
+            }
+        }
+    }
+
+    private async Task UpsertUserRights()
+    {
+        isProcessing = true;
+        try
+        {
+            var SelectedUser = await _unitOfWork.Users.GetQueryable().Where(x=> x.UserId==selectedUserId).FirstOrDefaultAsync();
+
+            if (selectedUserId == 0)
+            {
+                await _js.ToastrWarning("Please select a user.");
+                return;
+            }
+
+            if (!IsAdminWithEditRights)
+            {
+                await _js.ToastrError("You do not have permission to perform this action.");
+                return;
+            }
+
+            var allRightsFromDb = await _unitOfWork.UserRights
+                                .GetQueryable()
+                                .Where(r => r.UserId == selectedUserId)
+                                .ToListAsync();
+
+
+            foreach (var right in userRights)
+            {
+                var existing = allRightsFromDb.FirstOrDefault(r => r.ScreenId == right.ScreenId);
+                var screen = await _unitOfWork.Screens.GetAsync(right.ScreenId);
+
+                string rightsSummary = $@"Screen: {screen.ScreenName}, View: {right.CanView}, Create: {right.CanCreate},
+                       Edit: {right.CanEdit}, Delete: {right.CanDelete}, Hide: {right.IsHide}";
+
+
+                if (existing != null)
+                {
+                    existing.CanView = right.CanView;
+                    existing.CanCreate = right.CanCreate;
+                    existing.CanEdit = right.CanEdit;
+                    existing.CanDelete = right.CanDelete;
+                    existing.IsHide = right.IsHide;
+
+                    existing.UpdatedBy = currentUserName;
+                    existing.UpdatedDate = DateTime.Now;
+
+                    await _unitOfWork.UserRights.UpdateAsync(existing);
+
+                    await LoggingService.LogUserAction(
+                     UserName: currentUserName,
+                     Machine: _userService.MachineName,
+                     IP_Address: _userService.IpAddress,
+                     screen: "UserRights",
+                     action: $"Updated rights for {SelectedUser.UserName}",
+                     additionalInfo: rightsSummary);
+                }
+                else
+                {
+                    right.UserId = selectedUserId;
+                    right.CreatedBy = currentUserName;
+                    right.CreatedDate = DateTime.Now;
+
+                    await _unitOfWork.UserRights.CreateAsync(right);
+
+                    await LoggingService.LogUserAction(
+                        UserName: currentUserName,
+                        Machine: _userService.MachineName,
+                        IP_Address: _userService.IpAddress,
+                        screen: "UserRights",
+                        action: $"Created rights for {SelectedUser.UserName}",
+                        additionalInfo: rightsSummary
+                    );
+                }
+            }
+
+            await _unitOfWork.SaveAsync();
+            await _js.ToastrSuccess("UserRights saved successfully!");
+
+            isProcessing = false;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UserRights SaveRights() Method");
+            isProcessing = false;
+        }
+    }
+}

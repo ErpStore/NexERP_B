@@ -1,0 +1,864 @@
+﻿@page "/Fundtransactions"
+
+@using V.SMART.Shared.Data.AccountsModule
+@using V.SMART.Shared.Repository.IRepository.IAccountRepository.IPaymentsRepository
+@using V.SMART.Shared.ViewModels.AccountsViewModel
+
+@inherits BaseUserRightsComponent
+@inject IFundTransRepository FundTransRepository
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject ILoggingService LoggingService
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-4 mt-3">
+            <div class="adjustment-container">
+                <!-- Header -->
+
+                <PageHeader TitleText="@("Trasaction History")"
+                            TitleIcon="bi bi-tag"
+                            Breadcrumbs="@FundtransBreadcrumbs" />
+
+
+            <div class="container-fluid">
+                <!-- Page Header -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="mb-1">Fund Transactions</h2>
+                        <p class="text-muted small mb-0">View and manage all financial transactions</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary btn-sm" @onclick="ExportToExcel">
+                            <i class="bi bi-file-excel me-1"></i> Export
+                        </button>
+         
+                    </div>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="card border">
+                            <div class="card-body py-3">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="text-muted small mb-1">Total Transactions</h6>
+                                        <h5 class="mb-0">@transactions.Count</h5>
+                                    </div>
+                                    <div class="text-primary">
+                                        <i class="bi bi-receipt fs-4"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border">
+                            <div class="card-body py-3">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="text-muted small mb-1">Total Credits</h6>
+                                        <h5 class="mb-0 text-success">@TotalCredits.ToString("N2")</h5>
+                                    </div>
+                                    <div class="text-success">
+                         
+                                        <i class="bi bi-arrow-down-circle fs-4"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border">
+                            <div class="card-body py-3">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="text-muted small mb-1">Total Debits</h6>
+                                        <h5 class="mb-0 text-danger">@TotalDebits.ToString("N2")</h5>
+                                    </div>
+                                    <div class="text-danger">
+                                        <i class="bi bi-arrow-up-circle fs-4"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border">
+                            <div class="card-body py-3">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="text-muted small mb-1">Net Balance</h6>
+                                        <h5 class="mb-0 @(NetBalance >= 0 ? "text-success" : "text-danger")">@NetBalance.ToString("N2")</h5>
+                                    </div>
+                                    <div class="text-info">
+                                        <i class="bi bi-pie-chart fs-4"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Panel -->
+                <div class="card border mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">Filters</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <!-- Search -->
+                            <div class="col-lg-3 col-md-6">
+                                <input type="text" class="form-control form-control-sm"
+                                       placeholder="Search..."
+                                       @bind="filter.SearchTerm"
+                                       @bind:event="oninput" />
+                            </div>
+
+                            <!-- Date Range -->
+                            <div class="col-lg-3 col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">From</span>
+                                    <input type="date" class="form-control" @bind="filter.StartDate" />
+                                    <span class="input-group-text">To</span>
+                                    <input type="date" class="form-control" @bind="filter.EndDate" />
+                                </div>
+                            </div>
+
+                            <!-- Transaction Type -->
+                            <div class="col-lg-2 col-md-6">
+                                <select class="form-select form-select-sm" @bind="filter.TransactionType">
+                                    <option value="">All Types</option>
+                                    @foreach (var type in distinctTypes)
+                                    {
+                                        <option value="@type">@type</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <!-- Page Size -->
+                            <div class="col-lg-2 col-md-6">
+                                <select class="form-select form-select-sm" @bind="filter.PageSize">
+                                    <option value="10">10 rows</option>
+                                    <option value="25">25 rows</option>
+                                    <option value="50">50 rows</option>
+                                    <option value="100">100 rows</option>
+                                </select>
+                            </div>
+
+                            <!-- Buttons -->
+                            <div class="col-lg-2 col-md-12">
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-primary btn-sm flex-grow-1" @onclick="LoadTransactions">
+                                        <i class="bi bi-filter me-1"></i> Apply
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="ResetFilters" title="Reset">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!----<<<<<<<<<<<<<<<<<---  --->
+                <div class="card border">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 ledger-table">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="80" @onclick="@(() => SortByColumn("TransNo"))" style="cursor:pointer">
+                                            # <i class="bi @GetSortIcon("TransNo") ms-1"></i>
+                                        </th>
+
+                                        <th width="110" @onclick="@(() => SortByColumn("TransDate"))" style="cursor:pointer">
+                                            Date <i class="bi @GetSortIcon("TransDate") ms-1"></i>
+                                        </th>
+
+                                        <th>Ledger</th>
+                                        <th>Type</th>
+                                        <th width="100">Mode</th>
+
+                                        <!-- NEW Separate Columns -->
+                                        <th class="text-end" width="120"
+                                            @onclick="@(() => SortByColumn("PaidOrReceived"))"
+                                            style="cursor:pointer">
+                                            Debit <i class="bi @GetSortIcon("PaidOrReceived") ms-1"></i>
+                                        </th>
+
+                                        <th class="text-end" width="120">
+                                            Credit
+                                        </th>
+
+                                        <th class="text-end" width="140">
+                                            Balance
+                                        </th>
+
+                                        <th width="100">Bank</th>
+                                        <th width="100">Actions</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    @if (isLoading && !transactions.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="10" class="text-center py-5">
+                                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                                <span class="ms-2">Loading transactions...</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                    else if (!transactions.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="10" class="text-center py-4 text-muted">
+                                                No transactions found
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        DateTime? lastDate = null;
+
+                                        decimal openingBalance =
+                                        transactions.First().RunningBalance
+                                        - transactions.First().PaidOrReceived;
+
+                                        <!-- Opening Balance -->
+                                        <tr class="table-secondary fw-bold">
+                                            <td colspan="7">Opening Balance</td>
+                                            <td class="text-end">
+                                                @openingBalance.ToString("N2")
+                                            </td>
+                                            <td colspan="2"></td>
+                                        </tr>
+
+                                        @foreach (var trans in transactions)
+                                        {
+                                            if (lastDate != trans.TransDate.Date)
+                                            {
+                                                <tr class="table-light">
+                                                    <td colspan="10" class="fw-bold text-primary">
+                                                        @trans.TransDate.ToString("dd MMM yyyy")
+                                                    </td>
+                                                </tr>
+                                                lastDate = trans.TransDate.Date;
+                                            }
+
+                                        <tr class="@(trans.PaidOrReceived < 0 ? "debit-row" : "credit-row")">
+
+                                            <!-- Voucher -->
+                                            <td>
+                                                <span class="badge bg-secondary">
+                                                    @trans.TransNo
+                                                </span>
+                                            </td>
+
+                                            <!-- Date -->
+                                            <td>
+                                                <div>@trans.TransDate.ToString("dd/MM/yyyy")</div>
+                                                <small class="text-muted">
+                                                    @trans.TransDate.ToString("hh:mm tt")
+                                                </small>
+                                            </td>
+
+                                            <!-- Ledger -->
+                                            <td>
+                                                <div class="fw-semibold">
+                                                    @trans.LedgerName
+                                                </div>
+                                                <small class="text-muted">
+                                                    @trans.LedgerType
+                                                </small>
+                                            </td>
+
+                                            <!-- Type -->
+                                            <td>
+                                                <span class="badge @GetTypeBadgeClass(trans.TransType)">
+                                                    @trans.TransType
+                                                </span>
+                                            </td>
+
+                                            <!-- Mode -->
+                                            <td>
+                                                <span class="badge @(trans.TrasactionMode == "BANK" ? "bg-info" : "bg-secondary")">
+                                                    @trans.TrasactionMode
+                                                </span>
+                                            </td>
+
+                                            <!-- Debit -->
+                                            <td class="text-end text-danger fw-bold">
+                                                @(trans.PaidOrReceived < 0
+                                                                                ? Math.Abs(trans.PaidOrReceived).ToString("N2")
+                                                                                : "-")
+                                                                                  </td>
+
+                                            <!-- Credit -->
+                                            <td class="text-end text-success fw-bold">
+                                                @(trans.PaidOrReceived > 0
+                                                                                ? trans.PaidOrReceived.ToString("N2")
+                                                                                : "-")
+                                                                                  </td>
+
+                                            <!-- Running Balance -->
+                                            <td class="text-end fw-bold">
+                                                @trans.RunningBalance.ToString("N2")
+                                                <div class="small text-muted">
+                                                    Adv: @trans.AdvanceBalance.ToString("N2")
+                                                </div>
+                                            </td>
+
+                                            <!-- Bank -->
+                                            <td>
+                                                @(trans.Banks?.BankName ?? "-")
+                                            </td>
+
+                                                <!-- Actions -->
+                                                <td>
+                                                    <div class="d-flex gap-1">
+                                                        <button class="btn btn-sm btn-outline-info"
+                                                                @onclick="@(() => ViewTransaction(trans.FundTransId))">
+                                                            <i class="bi bi-eye"></i>
+                                                        </button>
+
+                                                        <button class="btn btn-sm btn-outline-warning"
+                                                                @onclick="@(() => EditTransaction(trans.FundTransId))">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+
+                                                        <button class="btn btn-sm btn-outline-danger"
+                                                                @onclick="@(() => ConfirmDelete(trans))">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+
+                                            </tr>
+                                                            }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    </div>
+
+                <!-- Transactions Table -->
+               @*  <div class="card border">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="80" @onclick="@(() => SortByColumn("TransNo"))" style="cursor: pointer;">
+                                            # <i class="bi @GetSortIcon("TransNo") ms-1"></i>
+                                        </th>
+                                        <th width="100" @onclick="@(() => SortByColumn("TransDate"))" style="cursor: pointer;">
+                                            Date <i class="bi @GetSortIcon("TransDate") ms-1"></i>
+                                        </th>
+                                        <th>Type</th>
+                                        <th @onclick="@(() => SortByColumn("LedgerName"))" style="cursor: pointer;">
+                                            Ledger <i class="bi @GetSortIcon("LedgerName") ms-1"></i>
+                                        </th>
+                                        <th>Mode</th>
+                                        <th @onclick="@(() => SortByColumn("PaidOrReceived"))" style="cursor: pointer;">
+                                            Amount <i class="bi @GetSortIcon("PaidOrReceived") ms-1"></i>
+                                        </th>
+                                        <th>Balance</th>
+                                        <th>Bank</th>
+                                        <th width="100">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (isLoading && !transactions.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="9" class="text-center py-5">
+                                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                                <span class="ms-2">Loading transactions...</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                    else if (!transactions.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="9" class="text-center py-4">
+                                                <i class="bi bi-inbox fs-4 text-muted d-block mb-2"></i>
+                                                <span class="text-muted">No transactions found</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var trans in transactions)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <span class="badge bg-secondary">@trans.TransNo</span>
+                                                </td>
+                                                <td>
+                                                    <div>@trans.TransDate.ToString("dd/MM/yyyy")</div>
+                                                    <small class="text-muted">@trans.TransDate.ToString("hh:mm tt")</small>
+                                                </td>
+                                                <td>
+                                                    <span class="badge @GetTypeBadgeClass(trans.TransType)">
+                                                        @trans.TransType
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div>@trans.LedgerName</div>
+                                                    <small class="text-muted">@trans.LedgerType</small>
+                                                </td>
+                                                <td>
+                                                    <span class="badge @(trans.TrasactionMode == "BANK" ? "bg-info" : "bg-secondary")">
+                                                        @trans.TrasactionMode
+                                                    </span>
+                                                    @if (!string.IsNullOrEmpty(trans.ChequeNo))
+                                                    {
+                                                        <div class="small">@trans.ChequeNo</div>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (trans.PaidOrReceived < 0)
+                                                    {
+                                                        <div class="text-danger fw-bold">
+                                                            <i class="bi bi-arrow-up-right me-1"></i>
+                                               
+                                                            @Math.Abs(trans.PaidOrReceived).ToString("N2")
+                                                        </div>
+                                                        <small class="text-danger">Debit</small>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-success fw-bold">
+                                                            <i class="bi bi-arrow-down-right me-1"></i>
+                                                            @trans.PaidOrReceived.ToString("N2")
+                                                        </div>
+                                                        <small class="text-success">Credit</small>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <div class="fw-bold">@trans.RunningBalance.ToString("N2")</div>
+                                                    <small class="text-muted">Adv: @trans.AdvanceBalance.ToString("N2")</small>
+                                                </td>
+                                                <td>
+                                                    @if (!string.IsNullOrEmpty(trans.BankName))
+                                                    {
+                                                        @trans.BankName
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <div class="d-flex gap-1">
+                                                        <button class="btn btn-sm btn-outline-info"
+                                                                @onclick="@(() => ViewTransaction(trans.FundTransId))"
+                                                                title="View">
+                                                            <i class="bi bi-eye"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-warning"
+                                                                @onclick="@(() => EditTransaction(trans.FundTransId))"
+                                                                title="Edit">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger"
+                                                                @onclick="@(() => ConfirmDelete(trans))"
+                                                                title="Delete">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>*@
+
+                    <!-- Pagination -->
+                    <div class="card-footer bg-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="text-muted small">
+                                    Showing @((filter.Page - 1) * filter.PageSize + 1) to @Math.Min(filter.Page * filter.PageSize, totalItems) of @totalItems entries
+                                </span>
+                            </div>
+                            <div>
+                                <nav aria-label="Page navigation">
+                                    <ul class="pagination pagination-sm mb-0">
+                                        <li class="page-item @(filter.Page == 1 ? "disabled" : "")">
+                                            <button class="page-link" @onclick="FirstPage">
+                                                <i class="bi bi-chevron-double-left"></i>
+                                            </button>
+                                        </li>
+                                        <li class="page-item @(filter.Page == 1 ? "disabled" : "")">
+                                            <button class="page-link" @onclick="PrevPage">
+                                                <i class="bi bi-chevron-left"></i>
+                                            </button>
+                                        </li>
+
+                                        @for (int i = Math.Max(1, filter.Page - 2); i <= Math.Min(totalPages, filter.Page + 2); i++)
+                                        {
+                                            <li class="page-item @(i == filter.Page ? "active" : "")">
+                                                <button class="page-link" @onclick="@(() => ChangePage(i))">
+                                                    @i
+                                                </button>
+                                            </li>
+                                        }
+
+                                        <li class="page-item @(filter.Page == totalPages ? "disabled" : "")">
+                                            <button class="page-link" @onclick="NextPage">
+                                                <i class="bi bi-chevron-right"></i>
+                                            </button>
+                                        </li>
+                                        <li class="page-item @(filter.Page == totalPages ? "disabled" : "")">
+                                            <button class="page-link" @onclick="LastPage">
+                                                <i class="bi bi-chevron-double-right"></i>
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div> 
+
+            <!-- Delete Confirmation Modal -->
+            @if (deleteItem != null)
+            {
+                <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5)">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h6 class="modal-title">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>Delete Transaction
+                                </h6>
+                                <button type="button" class="btn-close btn-close-white" @onclick="CloseDeleteModal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to delete this transaction?</p>
+                                <div class="border p-3 mb-3">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <strong>#@deleteItem.TransNo</strong><br />
+                                            <small class="text-muted">@deleteItem.TransDate.ToString("dd/MM/yyyy")</small>
+                                        </div>
+                                        <div class="col-6 text-end">
+                                            <strong class="@(deleteItem.PaidOrReceived < 0 ? "text-danger" : "text-success")">
+                                                @deleteItem.PaidOrReceived.ToString("N2")
+                                            </strong><br />
+                                            <small>@deleteItem.LedgerName</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="deleteConfirmChecked" />
+                                    <label class="form-check-label small">
+                                        Confirm deletion
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDeleteModal">
+                                    Cancel
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" @onclick="DeleteTransactionNow"
+                                        disabled="@(!deleteConfirmChecked)">
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            </div>
+        </div>
+    }
+}
+
+
+
+@code {
+    protected override string ScreenName => "Fundtransactions";
+    private List<FundTrans> transactions = new();
+    private FundTransFilter filter = new();
+    private bool isLoading = false;
+    private int totalItems = 0;
+    private int totalPages = 1;
+    private List<string> distinctTypes = new();
+
+    private FundTrans? deleteItem = null;
+    private bool deleteConfirmChecked = false;
+
+    private decimal TotalCredits;
+    private decimal TotalDebits;
+    private decimal NetBalance;
+    private bool isProcessing = true;
+    private List<PageHeader.BreadcrumbItem> FundtransBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "CashFlow" },
+        new PageHeader.BreadcrumbItem { Text = "Fundtransactions", IsLast = true }
+    };
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            filter.SortBy = "FundTransId";
+            await LoadDistinctTransactionTypes();
+            await LoadTransactions();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    private async Task LoadDistinctTransactionTypes()
+    {
+        var all = await FundTransRepository.LoadDistinctTransactionTypes();
+        distinctTypes = all.ToList();
+    }
+
+    private async Task LoadTransactions()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await FundTransRepository.GetWithFiltersAsync(filter);
+            transactions = result.Items;
+            TotalCredits = result.TotalCredits;
+            TotalDebits = result.TotalDebits;
+            NetBalance = result.NetBalance;
+            totalItems = await FundTransRepository.GetTotalCountAsync(filter);
+            totalPages = (int)Math.Ceiling(totalItems / (double)filter.PageSize);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.ToastrError("LoadTransactions");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ResetFilters()
+    {
+        filter = new FundTransFilter();
+     
+        filter.SearchTerm = null;
+        filter.StartDate = null;
+        filter.EndDate = null;
+        filter.TransactionType = null;
+        filter.SortBy = "FundTransId";
+        filter.SortDescending = true;
+
+        await LoadTransactions();
+    }
+
+    private async Task SortByColumn(string columnName)
+    {
+        if (filter.SortBy == columnName)
+        {
+            filter.SortDescending = !filter.SortDescending;
+        }
+        else
+        {
+            filter.SortBy = columnName;
+            filter.SortDescending = true;
+        }
+        filter.Page = 1;
+        await LoadTransactions();
+    }
+
+    private string GetSortIcon(string columnName)
+    {
+        if (filter.SortBy != columnName)
+            return "bi-arrow-down-up text-muted";
+
+        return filter.SortDescending ? "bi-sort-down" : "bi-sort-up";
+    }
+
+    private string GetTypeBadgeClass(string? transType)
+    {
+        return transType switch
+        {
+            "PAYMENT" => "bg-danger",
+            "RECEIPT" => "bg-success",
+            "CONTRA" => "bg-primary",
+            "JOURNAL" => "bg-info",
+            "TRANSFER" => "bg-warning",
+            "Opening Balance" => "bg-secondary",
+            _ => "bg-dark"
+        };
+    }
+
+    // Pagination methods
+    private async Task FirstPage() { filter.Page = 1; await LoadTransactions(); }
+    private async Task PrevPage() { filter.Page--; await LoadTransactions(); }
+    private async Task NextPage() { filter.Page++; await LoadTransactions(); }
+    private async Task LastPage() { filter.Page = totalPages; await LoadTransactions(); }
+    private async Task ChangePage(int page) { filter.Page = page; await LoadTransactions(); }
+
+    private void ViewTransaction(int id) => Navigation.NavigateTo($"/fundtransactions/view/{id}");
+    private void EditTransaction(int id) => Navigation.NavigateTo($"/fundtransactions/edit/{id}");
+    private void AddNewTransaction() => Navigation.NavigateTo("/fundtransactions/new");
+
+    private void ConfirmDelete(FundTrans transaction)
+    {
+        deleteItem = transaction;
+        deleteConfirmChecked = false;
+    }
+
+    private void CloseDeleteModal()
+    {
+        deleteItem = null;
+        deleteConfirmChecked = false;
+    }
+
+    private async Task DeleteTransactionNow()
+    {
+        if (deleteItem != null)
+        {
+            await FundTransRepository.DeleteAsync(deleteItem.FundTransId);
+            CloseDeleteModal();
+            await LoadTransactions();
+        }
+    }
+
+    private async Task ExportToExcel()
+    {
+        try
+        {
+            var csvContent = "Transaction No,Date,Type,Mode,Ledger Name,Ledger Type,Amount,Balance,Advance Balance,Bank Name,Expense Name,Cheque No\n";
+
+            foreach (var trans in transactions)
+            {
+                csvContent += $"\"{trans.TransNo}\",";
+                csvContent += $"\"{trans.TransDate:dd/MM/yyyy HH:mm}\",";
+                csvContent += $"\"{trans.TransType}\",";
+                csvContent += $"\"{trans.TrasactionMode}\",";
+                csvContent += $"\"{trans.LedgerName}\",";
+                csvContent += $"\"{trans.LedgerType}\",";
+                csvContent += $"\"{trans.PaidOrReceived}\",";
+                csvContent += $"\"{trans.RunningBalance}\",";
+                csvContent += $"\"{trans.AdvanceBalance}\",";
+                csvContent += $"\"{trans.Banks?.BankName}\",";
+                csvContent += $"\"{trans.Expense?.ExpenseName}\",";
+                csvContent += $"\"{trans.ChequeNo}\"\n";
+            }
+
+            var fileName = $"Transactions_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            var bytes = System.Text.Encoding.UTF8.GetBytes(csvContent);
+            var base64 = Convert.ToBase64String(bytes);
+            var js = $"const link = document.createElement('a'); link.href = 'data:text/csv;base64,{base64}'; link.download = '{fileName}'; link.click();";
+            await JSRuntime.InvokeVoidAsync("eval", js);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Export error: {ex.Message}");
+        }
+    }
+}
+
+<style>
+    .card {
+        border-radius: 6px;
+    }
+
+    .card-header {
+        font-weight: 600;
+    }
+
+    .table th {
+        font-weight: 600;
+        font-size: 0.875rem;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .table td {
+        font-size: 0.875rem;
+        vertical-align: middle;
+    }
+
+    .badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .page-item.active .page-link {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+
+    .form-control-sm {
+        font-size: 0.875rem;
+    }
+
+    .form-select-sm {
+        font-size: 0.875rem;
+    }
+
+    .ledger-table th {
+        font-size: 0.85rem;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .ledger-table td {
+        font-size: 0.85rem;
+        vertical-align: middle;
+    }
+
+    .debit-row {
+        border-left: 4px solid #dc3545;
+    }
+
+    .credit-row {
+        border-left: 4px solid #198754;
+    }
+
+    .debit-row:hover {
+        background-color: #fff5f5;
+    }
+
+    .credit-row:hover {
+        background-color: #f0fff4;
+    }
+
+</style>

@@ -1,0 +1,294 @@
+﻿@page "/productionIssueComp/details/{IssueId:int}"
+@using V.SMART.Shared.Services.ReportViewer
+@inherits BaseUserRightsComponent
+
+@inject IProductionIssueCompService prodIssueCompService
+@inject IJSRuntime js
+@inject ILoggingService logs
+@inject NavigationManager _nav
+
+@inject ReportService reportService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <MyCompanyDetails />
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">Material Issue Details</h4>
+            </div>
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <!-- Document Details -->
+            <div class="row g-3 mb-4">
+
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Document Details
+                        </div>
+
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Material Issue No.</strong></td>
+                                        <td>
+                                            @((ProductionIssueCompVMs != null) ? $"{ProductionIssueCompVMs.IssueNo}{ProductionIssueCompVMs.Suffix}" : "")
+                                        </td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary"><strong>Material Issue Dt.</strong></td>
+                                        <td>@(ProductionIssueCompVMs?.IssueDate)</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Ref Route Card No.</strong></td>
+                                        <td>@refRouteCardNosDisplay</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Ref Route Card Dt.</strong></td>
+                                        <td>@refRoutecardDateDisplay</td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Production Issue Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Production Issue Details
+                        </div>
+
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Issue From store</strong></td>
+                                        <td>@(ProductionIssueCompVMs != null ? $"{ProductionIssueCompVMs.StoreIssName}" : "")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary"><strong>Issue to Whom</strong></td>
+                                        <td>@(ProductionIssueCompVMs?.IssueToWhom)</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary"><strong>Remarks</strong></td>
+                                        <td>@($"{ProductionIssueCompVMs?.MainRemark}")</td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+            <!--  Items -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                    Production Issue Items
+                </div>
+
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>Trans Type</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>UOM</th>
+                                <th>Process</th>
+                                <th>IssueQty</th>
+                                <th>Unit Price</th>
+                                <th>Stock Qty</th>
+                                <th>Balance Qty</th>
+                                <th>Batch No.</th>
+                                <th>Cost Center</th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="custom-size">
+
+                            @if (ProductionIssueCompVMs?.ProductionIssueCompSubVMs != null && ProductionIssueCompVMs.ProductionIssueCompSubVMs.Any())
+                            {
+                                @foreach (var item in ProductionIssueCompVMs.ProductionIssueCompSubVMs)
+                                {
+                                    <tr>
+                                        <td>@item.SlNo</td>
+                                        <td>@(item.TransType ?? "—")</td>
+                                        <td>@(item.ItemCode ?? "—")</td>
+                                        <td>@(item.ItemName ?? "—")</td>
+                                        <td>@item.MeasureUnit</td>
+                                        <td>@(item.ProcessName ?? "—")</td>
+                                        <td>@($"{item.Qty:0.###}")</td>
+                                        <td>@($"{item.UnitPrice:0.###}")</td>
+                                        <td>@($"{item.StockQty:0.###}")</td>
+                                        <td>@($"{item.BalQty:0.###}")</td>
+                                        <td>@item.BatchNo</td>
+                                        <td>@item.ProjectNo</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="13" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="@($"/productionCompIssueList?currentPage={currentPage}")" class="btn btn-secondary  rounded-3" disabled="@isProcessing">
+                    <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                </a>
+
+                <a href="@($"/productionIssueComp/update/{IssueId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+            </div>
+
+        </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Production Issue WO Component";
+
+    [Parameter] public int IssueId { get; set; }
+    string? pdfBase64;
+    private bool isProcessing { get; set; } = true;
+    private ProductionIssueCompVM ProductionIssueCompVMs { get; set; } = new();
+
+    private List<ProductionIssueCompSubVM> refRoutecardNumbers = new();
+    private string refRouteCardNosDisplay = "N/A";
+    private string refRoutecardDateDisplay = "N/A";
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _nav.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadAllProuctionAssyIssues();
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Error in Production Assembly Issue Details OnInitializedAsync");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadAllProuctionAssyIssues()
+    {
+        try
+        {
+            if (IssueId <= 0)
+                return;
+
+            var ProductionIssueAssy = await prodIssueCompService.GetProductionByIssueIdAsync(IssueId);
+
+            if (ProductionIssueAssy == null)
+            {
+                await js.ToastrWarning("Production Issue Assembly not found.");
+                return;
+            }
+
+            ProductionIssueCompVMs = ProductionIssueAssy;
+
+            refRoutecardNumbers = await prodIssueCompService.GetDistinctRefRouteCardByIssueIdAsync(IssueId);
+
+            if (refRoutecardNumbers.Any())
+            {
+                // Only join the existing items, no extra commas
+                refRouteCardNosDisplay = string.Join(", ", refRoutecardNumbers.Select(e => e.RcNo).Where(n => !string.IsNullOrEmpty(n)));
+                refRoutecardDateDisplay = string.Join(", ", refRoutecardNumbers
+                    .Select(e => e.RcDate.HasValue ? e.RcDate.Value.ToString("dd/MM/yyyy") : null)
+                    .Where(d => !string.IsNullOrEmpty(d)));
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Error loading Production Issue Assembly by IssueId");
+            await js.ToastrError("Failed to load Production Issue Assembly details.");
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(IssueId, "ProdMtlIssNoteComp.frx", "IssueId", false, ScreenName, "Sp_Print_ProductionIssueComp");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Production Issue Component");
+            await js.ToastrError("An unexpected error occurred while generating the PDF in Production Issue Component.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

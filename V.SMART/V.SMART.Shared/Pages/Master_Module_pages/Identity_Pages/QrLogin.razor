@@ -1,0 +1,108 @@
+﻿  @page "/qrlogin/{token:guid}"
+
+@inject NavigationManager Nav
+@inject IUserRepository UserRepository
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IUserService UserService
+@inject IJSRuntime JSRuntime
+@inject IProductionLogService ProductionLogService
+
+<h3>Please wait...</h3>
+
+@code
+{
+    [Parameter]
+    public Guid token { get; set; }
+
+    private bool _processed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _processed)
+            return;
+
+        _processed = true;
+
+        try
+        {
+            if (token == Guid.Empty)
+            {
+                Nav.NavigateTo("/login");
+                return;
+            }
+
+            var user = await UserRepository.GetUserByQrToken(token);
+
+            if (user == null)
+            {
+                await JSRuntime.ToastrError("Invalid QR Code");
+                Nav.NavigateTo("/login");
+                return;
+            }
+
+            if (!user.IsQrEnabled)
+            {
+                await JSRuntime.ToastrError("QR Login Disabled");
+                Nav.NavigateTo("/login");
+                return;
+            }
+
+            if (user.QrExpiryDate.HasValue &&
+                user.QrExpiryDate.Value < DateTime.Now)
+            {
+                await JSRuntime.ToastrError("QR Code Expired");
+                Nav.NavigateTo("/login");
+                return;
+            }
+
+            bool isProductionLog =
+                await UserService.IsProductionLogEnabledAsync(user.UserId);
+
+            if (AuthStateProvider is CustomAuthStateProvider customAuth)
+            {
+                customAuth.MarkUserAsAuthenticated(
+                    user.UserName,
+                    user.UserId,
+                    user.Role?.ToString() ?? string.Empty,
+                    true,
+                    isProductionLog);
+            }
+
+            await JSRuntime.ToastrSuccess("Login Successful");
+
+            if (isProductionLog)
+            {
+                var pendingLogId =
+                    await ProductionLogService.GetPendingProductionLogIdAsync(
+                        user.UserName.Trim());
+
+                if (pendingLogId.HasValue)
+                {
+                    Nav.NavigateTo(
+                        $"/productionLog/update/{pendingLogId.Value}/true");
+                }
+                else
+                {
+                    Nav.NavigateTo("/productionLog/create/true");
+                }
+            }
+            else
+            {
+                Nav.NavigateTo("/");
+            }
+        }
+        catch (NavigationException)
+        {
+            // Expected during navigation
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+
+            await JSRuntime.ToastrError(
+                $"Unable to login using QR. {ex.Message}");
+
+            Nav.NavigateTo("/login");
+        }
+    }
+}

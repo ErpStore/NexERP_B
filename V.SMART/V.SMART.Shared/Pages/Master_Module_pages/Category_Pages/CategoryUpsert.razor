@@ -1,0 +1,197 @@
+﻿@page "/category/create"
+@page "/category/update/{CategoryCode:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IInventoryService
+@using V.SMART.Shared.ViewModels.MasterViewModel.InventoryViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ICategoryService categoryService
+
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="@(CategoryVMs.CategoryCode > 0 ? "Update Category" : "Create Category")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@categoryFormBreadcrumbs" />
+
+            <div class="card-body">
+                <EditForm Model="CategoryVMs" OnValidSubmit="SaveCategory">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 text-end">
+
+                        <div class="col-12">
+                            <div class="form-floating">
+                                <input value="@CategoryVMs.CategoryName"
+                                       @oninput="OnValueChanged"
+                                       id="CategoryName"
+                                       placeholder="Category Name"
+                                       class="form-control" />
+
+                                <label for="CategoryName">Category Name</label>
+                                <ValidationMessage For="@(() => CategoryVMs.CategoryName)" />
+                            </div>
+                        </div>
+
+
+                        <div class="col-12">
+                            <div class="form-floating">
+                                <TrimmedInputText @bind-Value="CategoryVMs.CategoryDesc"
+                                                  Id="CategoryDesc"
+                                                  Placeholder="Category Description"
+                                                  CssClass="form-control" />
+                                <label for="CategoryDesc">Category Description</label>
+                                <ValidationMessage For="@(() => CategoryVMs.CategoryDesc)" />
+                            </div>
+                        </div>
+
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(CategoryVMs.CategoryCode > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                        }
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <SmartBackButton Url="/category" />
+                        </div>
+
+
+                    </div>
+
+                    @if (CategoryVMs.CategoryCode > 0)
+                    {
+                        <div class="mt-4 small text-muted">
+                            <p><strong>Created By:</strong> @CategoryVMs.CreatedBy</p>
+                            <p><strong>Created Date:</strong> @CategoryVMs.CreatedDate?.ToString("g")</p>
+                            <p><strong>Modified By:</strong> @CategoryVMs.ModifiedBy</p>
+                            <p><strong>Modified Date:</strong> @CategoryVMs.ModifiedDate?.ToString("g")</p>
+                        </div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    protected override string ScreenName => "Category";
+
+    [Parameter]
+    public int? CategoryCode { get; set; }
+
+    private CategoryVM CategoryVMs { get; set; } = new();
+    private bool isProcessing = true;
+    private string currentUser = "";
+
+    private List<PageHeader.BreadcrumbItem> categoryFormBreadcrumbs = new()
+    {
+        new() { Text = "Master" },
+        new() { Text = "Inventory Master" },
+        new() { Text = "Category Master", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        await LoadCategory();
+        isProcessing = false;
+    }
+
+    private async Task LoadCategory()
+    {
+        try
+        {
+            if (CategoryCode.HasValue && CategoryCode.Value > 0)
+            {
+                var existing = await categoryService.GetCategoryAsync(CategoryCode.Value);
+                CategoryVMs = existing ?? new CategoryVM();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error loading category.");
+        }
+    }
+
+    private void OnValueChanged(ChangeEventArgs e)
+    {
+        CategoryVMs.CategoryName = e.Value?.ToString()?.Trim().ToUpper();
+    }
+
+    private async Task SaveCategory()
+    {
+        try
+        {
+            isProcessing = true;
+
+            bool isDuplicate = await categoryService
+                .IsDuplicateCategoryNameAsync(
+                    CategoryVMs.CategoryName,
+                    CategoryVMs.CategoryCode == 0 ? null : CategoryVMs.CategoryCode);
+
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Category name already exists.");
+                return;
+            }
+
+            if (CategoryVMs.CategoryCode != 0 && CategoryVMs.IsSystemDefined)
+            {
+                await _js.ToastrWarning("System-defined category cannot be modified.");
+                return;
+            }
+
+            bool isNew = CategoryVMs.CategoryCode == 0;
+
+            if (isNew)
+                await categoryService.CreateCategoryAsync(CategoryVMs);
+            else
+                await categoryService.UpdateCategoryAsync(CategoryVMs);
+
+            await _js.ToastrSuccess($"Category {(isNew ? "created" : "updated")} successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/category");
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while saving category.");
+            await _js.ToastrError("An error occurred while saving the category.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

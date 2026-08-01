@@ -1,0 +1,843 @@
+﻿@page "/offer_Letter/create"
+@page "/offer_Letter/update/{OfferId:int}"  
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService
+@using V.SMART.Shared.Services.ReportViewer
+
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.OfferLetter
+@using V.SMART.Shared.ViewModels.MasterViewModel.HumanResourceViewModel
+@using MudBlazor
+@inject ReportService reportService
+
+@inherits BaseUserRightsComponent
+
+@inject IOfferLetterService _OfferLetterservice
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject CurrentUserService CurrentUserService
+@inject ILoggingService LoggingService
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- header-->
+                <PageHeader TitleText="@(offerId == 0 || offerId == null ? "Create Offer Letter" : "Update Offer Letter")"
+                            TitleIcon="bi bi-person"
+                            Breadcrumbs="@OfferLetterbreadcrumbs" />
+                <div class="card-body">
+                    <EditForm Model="OfferLetterVM" OnValidSubmit="UpsertOfferletter">
+
+
+                        <div class="row g-3 mb-2">
+                            <!-- Customer Details -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+                                    <!-- Header -->
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Candidate Information</span>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <!-- Candidate Selection -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>M/S.*</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <MudAutocomplete T="CandidateVM"
+                                                                 Value="SelectedCandidate"
+                                                                 ValueChanged="@(async c => await OnCandidateChanged(c))"
+                                                                 ToStringFunc="@(c => c?.CandidateName ?? string.Empty)"
+                                                                 SearchFunc="SearchCandidate"
+                                                                 Dense="true"
+                                                                 Variant="Variant.Outlined"
+                                                                 Placeholder="Search Candidate"
+                                                                 MaxItems="50"
+                                                                 Clearable="true"
+                                                                 ResetValueOnEmptyText="true"
+                                                                 Required="true" />
+
+                                                <ValidationMessage For="@(() => OfferLetterVM.CandidateID)" />
+                                            </div>
+                                        </div>
+                                        <!-- Address -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Address</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1"
+                                                  readonly>@OfferLetterVM.Address</textarea>
+                                            </div>
+                                        </div>
+                                        <!-- Address -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Applied Position</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       value="@OfferLetterVM.Position" readonly />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+
+                            <!-- Offer Letter Details -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+                                    <!-- Header -->
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Offer Letter Information</span>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <!-- Offer Letter No -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small> Offer Letter No.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                               placeholder="Offerlellter No."
+                                                               maxlength="30"
+                                                               @bind-Value="@OfferLetterVM.OfferNo"
+                                                               readonly />
+                                                    <span class="input-group-text rounded-3">@OfferLetterVM.Suffix</span>
+                                                </div>
+                                                <ValidationMessage For="@(() => OfferLetterVM.OfferNo)" />
+                                            </div>
+
+                                        </div>
+
+                                        <!-- Offer Letter Date -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Offer Letter Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3"
+                                                           @bind-Value="@OfferLetterVM.Offerdate" />
+                                                <ValidationMessage For="@(() => OfferLetterVM.Offerdate)" />
+                                            </div>
+                                        </div>
+                                        <!-- Template -->
+                                        @if (!offerId.HasValue)
+                                        {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Templates</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select class="form-select form-select-sm rounded-3" @onchange="OnPositionChanged">
+                                                    <option>-Select Template-</option>
+                                                    @foreach (var Pos in PositionList)
+                                                    {
+                                                        <option value="@Pos">@Pos</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="g-3">
+                            <div class="card">
+                                <div class="card-header text-white fw-bold" style="background-color:#869B7E;">
+                                    Introdution
+                                </div>
+
+                                <div class="card-body">
+                                    <div class="col-12">
+
+                                        <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="4"
+                                                  @bind="OfferLetterVM.Introduction"
+                                                  placeholder="Enter introduction...">
+                                          </textarea>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <div class="col-xxl-12 col-12  mt-3">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Body</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="max-height: 700px; overflow-y: auto; overflow-x: auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:10px; font-size:12px; ">Sl.No</th>
+                                                    <th style="width:30px; font-size:12px;">Title</th>
+                                                    <th style="width:70px; font-size:12px;">Description</th>
+                                                    <th style="width:10px;" class="freeze-last-col text-end">Action</th>
+
+                                                </tr>
+                                            </thead>
+                                            <tbody class="custom-size">
+                                                @if (OfferLetterVM.OfferLetterSubVMs != null && OfferLetterVM.OfferLetterSubVMs.Any())
+                                                {
+                                                    @foreach (var offfer in OfferLetterVM.OfferLetterSubVMs)
+                                                    {
+                                                        <tr>
+                                                            <td>@offfer.SlNo</td>
+                                                            <td>
+                                                                @if (offfer.IsEditable)
+                                                                {
+                                                                    <InputTextArea class="form-control form-control-sm"
+                                                                                   @bind-Value="offfer.Title"
+                                                                                   rows="1"
+                                                                                   maxlength="250"
+                                                                                   placeholder="Title" />
+                                                                    <ValidationMessage For="@(() => offfer.Title)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @offfer.Title
+                                                                }
+                                                            </td>
+                                                            <td>
+                                                                @if (offfer.IsEditable)
+                                                                {
+                                                                    <InputTextArea class="form-control form-control-sm"
+                                                                                   @bind-Value="offfer.Description"
+                                                                                   rows="1"
+                                                                                   placeholder="Description" />
+                                                                    <ValidationMessage For="@(() => offfer.Description)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @offfer.Description
+                                                                }
+                                                            </td>
+                                                            <!-- Actions -->
+                                                            <td class="freeze-last-col">
+                                                                <div class="text-end">
+                                                                    @if (offfer.IsEditable)
+                                                                    {
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                                @onclick="async () => await EditRowAsync(offfer)">
+                                                                            <i class="bi bi-pencil"></i>
+                                                                        </button>
+                                                                        <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                                @onclick="() => RemoveRow(offfer)">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    }
+                                                                </div>
+                                                            </td>
+
+                                                        </tr>
+                                                    }
+
+                                                }
+                                            </tbody>
+
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        @* @if (!EnquirySalesVM.Cancel && !EnquirySalesVM.ShortClose)
+                        { *@
+                        <button type="button" class="btn btn-sm rounded-3 mt-3 text-white"
+                                style="background-color: #6f42c1;"
+                                @onclick="AddRow">
+                            <i class="bi bi-plus-circle me-1"></i> Add row
+                        </button>
+                        @*  } *@
+
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+
+                        <div class="g-3">
+                            <div class="card">
+                                <div class="card-header text-white fw-bold" style="background-color:#869B7E;">
+                                    Closing Notes
+                                </div>
+
+                                <div class="card-body">
+                                    <div class="col-12">
+                                        <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="4"
+                                                  @bind="OfferLetterVM.ClosingNotes"
+                                                  placeholder="Enter ClosingNotes...">
+                                                            </textarea>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+                        @if (OfferLetterVM.OfferId > 0)
+                        {
+                            <div class="row g-3">
+                                <!-- Created By -->
+                                <div class="col-12 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="OfferLetterVM.CreatedBy"
+                                                   id="CreatedBy"
+                                                   class="form-control"
+                                                   placeholder="Created By"
+                                                   readonly />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="col-12 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="CreatedDate"
+                                               placeholder="Created Date"
+                                               value="@OfferLetterVM.CreatedDate.ToString("dd/MM/yyyy hh:mm:ss")"
+                                               readonly />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified By -->
+                                <div class="col-12 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="OfferLetterVM.ModifiedBy"
+                                                   id="ModifiedBy"
+                                                   class="form-control"
+                                                   placeholder="Modified By"
+                                                   readonly />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified Date -->
+                                <div class="col-12 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="ModifiedDate"
+                                               placeholder="Modified Date"
+                                               value="@OfferLetterVM.ModifiedDate?.ToString("dd/MM/yyyy hh:mm:ss")"
+                                               readonly />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+
+                        <div class="row mt-3 mb-2 g-2 justify-content-start">
+
+                            @if (CanCreate || CanEdit)
+                            {
+
+                                <div class="col-12 col-sm-6 col-lg-3">
+                                    <button type="submit"
+                                            class="btn btn-primary w-100 h-100"
+                                            disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i>
+                                        @(offerId == null || offerId == 0 ? "Create" : "Update")
+                                    </button>
+                                </div>
+
+                            }
+
+                            <!-- Back to List -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <SmartBackButton OnNavigate="NavigateBack" />
+                            </div>
+                        </div>
+
+                    </EditForm>
+                </div>
+
+            </div>
+        </div>
+
+    }        
+
+}
+
+
+@code {
+
+    private bool isProcessing = true;
+
+    protected override string ScreenName => "Offer Letter";
+
+    //public WYSIWYGTextEditor editor;
+
+
+    [Parameter] public int? offerId { get; set; }
+    [Parameter] public int? CandidateId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private OfferLetterVM OfferLetterVM { get; set; } = new();
+    private OfferLetterSubVM? rowToDelete;
+    private OfferLetterSubVM? rowToCancel;
+
+    private List<CandidateVM> Candidates = new();
+    private CandidateVM? SelectedCandidate;
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private List<string> PositionList = new();
+    private string? SelectedPosition;
+
+
+
+    private List<PageHeader.BreadcrumbItem> OfferLetterbreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Human Resource" },
+        new PageHeader.BreadcrumbItem { Text = "Offer Letter", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+
+
+            if (offerId.HasValue)
+            {
+                await LoadExistingOfferletter(offerId.Value);
+            }
+            else 
+            {
+                await LoadNewOfferLetter();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync");
+            await _js.ToastrError("Failed to load EnquirySales screen.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task LoadExistingOfferletter(int Offerid)
+    {
+        try
+        {
+            OfferLetterVM = await _OfferLetterservice.GetOfferidByOfferidAsync(Offerid);
+
+            if (OfferLetterVM != null)
+            {
+                SelectedCandidate = await _OfferLetterservice.GetCandidateByIdAsync(OfferLetterVM.CandidateID);
+                if (SelectedCandidate != null)
+                    await ApplyCandidateSelectionAsync(SelectedCandidate);
+
+                // foreach (var enq in OfferLetterVM.OfferLetterSubVMs)
+                // {
+                //     if (enq.ItemId.HasValue && enq.ItemId > 0)
+                //         attachmentCounts[enq.ItemId.Value] = await enquiryService.GetCorrespondenceAttachmentsCountAsync(enq.ItemId.Value, "Item");
+                // }
+
+                // IsSomeItemsTransMade = await CheckIsTransMade();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadExistingEnquiry");
+            await _js.ToastrError("Failed to load existing Enquiry details.");
+        }
+    }
+
+    private async Task LoadNewOfferLetter()
+    {
+        try
+        {
+            // var candidate = await _OfferLetterservice.GetCandidateByIdAsync(candidateId);
+            // if (candidate != null)
+            //     await ApplyCandidateSelectionAsync(candidate);
+            PositionList = await _OfferLetterservice.GetOfferLetterPositionsAsync();
+            OfferLetterVM.OfferNo = await _OfferLetterservice.GetOfferNoAsync();
+            OfferLetterVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadNewEnquiry");
+            await _js.ToastrError("Failed to initialize new Enquiry.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+        if (isConfirmed)
+        {
+            
+            if (confirmation == "Remove")
+            {
+                await confirmDeleteRow_Click(isConfirmed);
+            }
+           
+            
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            if (rowToDelete.OfferSubId > 0)
+            {
+                await _OfferLetterservice.DeleteOfferSubItemAndResequenceAsync(rowToDelete, OfferLetterVM);
+
+                OfferLetterVM.OfferLetterSubVMs = await _OfferLetterservice
+                    .GetOfferSubByOfferLetterIdAsync(OfferLetterVM.OfferId);
+            }
+            else
+            {
+                OfferLetterVM.OfferLetterSubVMs.Remove(rowToDelete);
+
+                if (!OfferLetterVM.OfferLetterSubVMs.Any())
+                {
+                    OfferLetterVM.OfferLetterSubVMs.Add(new OfferLetterSubVM
+                    {
+                        OfferId = OfferLetterVM.OfferId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    for (int i = 0; i < OfferLetterVM.OfferLetterSubVMs.Count; i++)
+                        OfferLetterVM.OfferLetterSubVMs[i].SlNo = i + 1;
+                }
+            }
+
+            await _js.ToastrSuccess("Row deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error confirming quote item deletion");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    #region Upsert / Validation
+
+    private async Task UpsertOfferletter()
+    {
+        isProcessing = true;
+        try
+        {
+            OfferLetterVM.OfferLetterSubVMs.RemoveAll(x =>
+            string.IsNullOrWhiteSpace(x.Title) &&
+            string.IsNullOrWhiteSpace(x.Description));
+
+            if (await toValidateEnuiry())
+            {
+                var isNewEnquiry = OfferLetterVM.OfferId == 0;
+
+                @if (isNewEnquiry)
+                {
+                    // bool isDuplicate = await enquiryService.IsDuplicateEnquiryAsync(EnquirySalesVM.EnquiryNo, EnquirySalesVM.Suffix, EnquirySalesVM.EnquiryId, EnquirySalesVM.CustId);
+                    // if (isDuplicate)
+                    // {
+                    //     await _js.ToastrError($"Enquiry No '{EnquirySalesVM.EnquiryNo}' with Customer '{EnquirySalesVM.CustomerName}' already exists.");
+                    //     return;
+                    // }
+                }
+
+                await _OfferLetterservice.UpsertOfferLetterAsync(OfferLetterVM);
+
+                if (isNewEnquiry)
+                    await _js.ToastrSuccess("OfferLetter saved successfully.");
+                else
+                    await _js.ToastrSuccess("OfferLetter updated successfully.");
+
+                // Discard popup Clear
+                await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+                _navigationManager.NavigateTo("/offer_Letter");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertEnquirySales");
+            await _js.ToastrError("Error saving enquiry.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> toValidateEnuiry()
+    {
+        bool valid = true;
+
+        
+        if (OfferLetterVM.CandidateID == 0)
+        {
+            await _js.ToastrWarning("Please select Customer.");
+            valid = false;
+        }
+        else if (!OfferLetterVM.OfferLetterSubVMs.Any())
+        {
+            await _js.ToastrWarning("At least one row item is required.");
+            valid = false;
+        }
+        else
+        {
+            foreach (var line in OfferLetterVM.OfferLetterSubVMs)
+            {
+                if (string.IsNullOrWhiteSpace(line.Title))
+                {
+                    await _js.ToastrWarning("Please enter the Title for all rows.");
+                    valid = false;
+                    break;
+                }
+
+                if (string.IsNullOrWhiteSpace(line.Description))
+                {
+                    await _js.ToastrWarning("Please enter the Description for all rows.");
+                    valid = false;
+                    break;
+                }
+            }
+        }
+
+        return valid;
+    }
+    #endregion
+
+    private async Task<IEnumerable<CandidateVM>> SearchCandidate(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<CandidateVM>();
+
+        try
+        {
+            var results = await _OfferLetterservice.SearchCandidatesAsync(value);
+
+            //return results.Take(50);
+            return results
+           .Where(c => c.Status == "Selected") // Filter only selected candidates
+           .Take(50);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error searching customers");
+            return Enumerable.Empty<CandidateVM>();
+        }
+    }
+
+    #region  Candidate
+
+    private async Task ApplyCandidateSelectionAsync(CandidateVM? candidate)
+    {
+        try
+        {
+            SelectedCandidate = candidate;
+            OfferLetterVM.CandidateID = candidate?.CandidateID ?? 0;
+            OfferLetterVM.Candidatename = candidate?.CandidateName;
+            OfferLetterVM.Address = candidate?.Address;
+            OfferLetterVM.Position = candidate?.Position;
+         
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ApplyCustomerSelectionAsync");
+            await _js.ToastrError("Failed to apply customer selection.");
+        }
+    }
+
+    
+
+    private async Task OnCandidateChanged(CandidateVM? candidate)
+    {
+        try
+        {
+            await ApplyCandidateSelectionAsync(candidate);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnCustomerChanged");
+            await _js.ToastrError("Error while selecting customer.");
+        }
+    }
+    #endregion
+
+    private async Task EditRowAsync(OfferLetterSubVM enq)
+    {
+        enq.IsEditable = true;
+        // if (enq.Title !="")
+        //     enq.SelectedItem = await enquiryService.GetItemByItemIdAsync(enq.ItemId);
+    }
+    private async Task RemoveRow(OfferLetterSubVM item)
+    {
+        try
+        {
+            if (OfferLetterVM.OfferLetterSubVMs.Count == 1)
+            {
+    
+                await _js.ToastrWarning("At least one item must be present in the enquiry.");
+                return;
+            }
+
+           
+            if (item.Title == "")
+            {
+                OfferLetterVM.OfferLetterSubVMs.Remove(item);
+                await ResetSlno();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this item?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Remove";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in RemoveRow method");
+            await _js.ToastrError("An error occurred while removing the item.");
+        }
+    }
+    private async Task ResetSlno()
+    {
+        int counter = 1;
+        foreach (var sub in OfferLetterVM.OfferLetterSubVMs)
+            sub.SlNo = counter++;
+    }
+
+    private async Task AddRow()
+    {
+        if (!await ValidateLastRowAsync()) return;
+
+        OfferLetterVM.OfferLetterSubVMs.Add(new OfferLetterSubVM
+        {
+            OfferId = OfferLetterVM.OfferId,
+            IsEditable = true
+        });
+
+        await ResetSlno();
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        var lastRow = OfferLetterVM.OfferLetterSubVMs.LastOrDefault();
+        if (lastRow == null) return true;
+        if (!await ValidateRowAsync(lastRow)) return false;
+        lastRow.IsEditable = false;
+        return true;
+    }
+    private async Task<bool> ValidateRowAsync(OfferLetterSubVM row)
+    {
+        var errors = new List<string>();
+
+        if ( row.Title== " ")
+            errors.Add("Please Enter Title");
+
+        if (row.Description == " ")
+            errors.Add("Please Enter Description");
+
+        if (errors.Any())
+        {
+            await _js.ToastrInfo(string.Join("<br>", errors));
+            return false;
+        }
+
+        return true;
+    }
+
+    private void NavigateBack()
+    {
+        if (!isProcessing)
+            _navigationManager.NavigateTo("/offer_Letter");
+    }
+
+    private async Task OnPositionChanged(ChangeEventArgs e)
+    {
+        var position = e.Value?.ToString();
+
+        if (string.IsNullOrWhiteSpace(position))
+            return;
+
+        var lastOffer = await _OfferLetterservice.GetLastOfferLetterByPositionAsync(position);
+
+        if (lastOffer != null)
+        {
+            OfferLetterVM.OfferLetterSubVMs = lastOffer.OfferLetterSubVMs
+                .Select(x => new OfferLetterSubVM
+                {
+                    Title = x.Title,
+                    Description = x.Description,
+                    SlNo=x.SlNo
+                })
+                .ToList();
+
+            StateHasChanged();
+        }
+    }
+    
+
+
+}

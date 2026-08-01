@@ -1,0 +1,579 @@
+﻿@page "/Rejection"
+
+
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using MudBlazor
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject IRejectionService RejectionService
+@inject IJSRuntime JS
+@inject ILoggingService LoggingService
+@inject IExcelTemplateService excelTemplateService
+@inject NavigationManager _navigation
+
+<PageTitle>Rejection Analysis Report</PageTitle>
+
+<div class="container-fluid px-2 px-md-4 mt-4">
+
+    <!-- HEADER -->
+    <div class="card shadow-sm mb-3">
+        <PageHeader TitleText="Rejection Analysis/Return"
+                    TitleIcon="bi bi-receipt-cutoff"
+                    Breadcrumbs="@PoBreadcrumbs" />
+    </div>
+
+    <div class="row g-3 align-items-end">
+
+        <!-- From Date -->
+        <div class="col-md-2">
+            <label class="form-label">From Date</label>
+            <InputDate class="form-control" @bind-Value="fromDate" />
+        </div>
+
+        <!-- To Date -->
+        <div class="col-md-2">
+            <label class="form-label">To Date</label>
+            <InputDate class="form-control" @bind-Value="toDate" />
+        </div>
+
+        <!-- Report Type -->
+        <div class="col-md-1">
+            <label class="form-label">Report Type</label>
+            <InputSelect class="form-select"
+                         @bind-Value="reportType"
+                         @bind-Value:after="LoadDropdowns">
+                <option value="0">Sales</option>
+                <option value="1">Labour</option>
+                <option value="2">Sub Contract</option>
+                <option value="3">Purchase</option>
+            </InputSelect>
+        </div>
+
+        <!-- Party -->
+        <div class="col-md-2">
+
+            @if (reportType != -1)
+            {
+                @if (reportType == 0 || reportType == 1)
+                {
+                    <MudAutocomplete T="int"
+                                     Label="Select Customer"
+                                     DebounceInterval="300"
+                                     Variant="Variant.Outlined"
+                                     Dense="true"
+                                     Margin="Margin.Dense"
+                                     Value="@selectedParty"
+                                     ValueChanged="@((int id) => LoadItems(id))"
+                                     SearchFunc="@SearchCustomers"
+                                     ToStringFunc="@(s => CustomerList.FirstOrDefault(x => x.CustId == s)?.CustName ?? "All Customer")"
+                                     ResetValueOnEmptyText="true"
+                                     CoerceText="true"
+                                     CoerceValue="false"
+                                     Placeholder="Type Customer name (any part)..."
+                                     Style="width: 100%;">
+                    </MudAutocomplete>
+                }
+                else
+                {
+                    <MudAutocomplete T="int"
+                                     Label="Select Vendor"
+                                     DebounceInterval="300"
+                                     Variant="Variant.Outlined"
+                                     Dense="true"
+                                     Margin="Margin.Dense"
+                                     Value="@selectedParty"
+                                     ValueChanged="@((int id) => LoadItems(id))"
+                                     SearchFunc="@SearchVendors"
+                                     ToStringFunc="@(s => VendorList.FirstOrDefault(x => x.VendorCode == s)?.VendorName ?? "All Vendor")"
+                                     ResetValueOnEmptyText="true"
+                                     CoerceText="true"
+                                     CoerceValue="false"
+                                     Placeholder="Type Vendor name (any part)..."
+                                     Style="width: 100%;">
+                    </MudAutocomplete>
+                }
+            }
+        </div>
+
+
+        <!-- Item -->
+        <div class="col-md-2">
+            <MudAutocomplete T="int"
+                             Label="Select item"
+                             Variant="Variant.Outlined"
+                             DebounceInterval="300"
+                             Dense="true"
+                             Margin="Margin.Dense"
+                             Value="@selectedItem"
+                             ValueChanged="@((int id) => OnItemChanged(id))"
+                             SearchFunc="@SearchItems"
+                             ToStringFunc="@(i => itemList.FirstOrDefault(x => x.ItemId == i)?.ItemCode ?? "All Items")"
+                             ResetValueOnEmptyText="true"
+                             CoerceText="true"
+                             CoerceValue="false"
+                             Placeholder="Type item code or name (any part)..."
+                             Style="width: 100%;">
+            </MudAutocomplete>
+
+
+        </div>
+
+        <!-- Search -->
+        <div class="col-md-2">
+            <label class="form-label">Search</label>
+            <input type="text"
+                   class="form-control"
+                   placeholder="Search..."
+                   @bind="searchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <!-- Export -->
+        <div class="col-md-1">
+            <button class="btn btn-success w-100"
+                    @onclick="ExportToExcel"
+                    disabled="@isProcessing">
+
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+
+    </div>
+
+    <hr />
+
+    @if (isLoading)
+    {
+        <div class="text-center p-4">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (!reportList.Any())
+    {
+        <div class="alert alert-warning">
+            No records found.
+        </div>
+    }
+    else
+    {
+        @if (FilteredReportList.Any())
+        {
+            <!-- Summary -->
+            <div class="d-flex justify-content-between align-items-center border-top border-bottom py-2 mb-2">
+
+                <div class="fw-bold text-danger">
+                    Total :-&nbsp;
+                    Quantity : @TotalQuantity.ToString("N0")&nbsp;&nbsp;
+                    Rejection : @TotalRejected.ToString("N0")
+                    (@RejectionPercentage.ToString("0.00")%)
+                    &nbsp;&nbsp;
+                    Rework : @TotalReworked.ToString("N0")
+                    (@ReworkPercentage.ToString("0.00")%)
+                </div>
+
+                <div class="form-check">
+                    <button class="btn @(IsDetail ? "btn-success" : "btn-outline-secondary")"
+                            @onclick="OnDetailChanged">
+                        <i class="bi @(IsDetail ? "bi-eye-fill" : "bi-eye-slash-fill")"></i>
+                        @(IsDetail ? "Detail View" : "Summary View")
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="table-wrapper">
+
+                <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                    <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                        <thead class="custom-blue text-center align-middle sticky-top">
+                            <tr>
+                                <th>Sl No</th>
+                                <th>Party Name</th>
+                                <th>Part No</th>
+                                <th>Part Name</th>
+
+                                @if (IsDetail)
+                                {
+                                    <th>Doc No</th>
+                                }
+
+                                <th class="text-end">Total Qty</th>
+                                <th class="text-end">Accept Qty</th>
+                                <th class="text-end">Rejected Qty</th>
+                                <th class="text-end bg-danger text-white">Rej Per%</th>
+                                <th class="text-end">Reworked Qty</th>
+                                <th class="text-end bg-warning text-dark">Rew Per%</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var row in FilteredReportList.Select((item, index) => new { item, index }))
+                            {
+                                <tr>
+                                    <td>@(row.index + 1)</td>
+                                    <td>@row.item.PartyName</td>
+                                    <td>@row.item.PartNo</td>
+                                    <td>@row.item.PartName</td>
+
+                                    @if (IsDetail)
+                                    {
+                                        <td>@row.item.DocNo</td>
+                                    }
+
+                                    <td class="text-end">@row.item.TotalQty.ToString("N3")</td>
+                                    <td class="text-end">@row.item.AcceptQty.ToString("N3")</td>
+
+                                    <td class="text-end">@row.item.QuantityRejected.ToString("N3")</td>
+
+                                    <td class="text-end bg-danger text-white fw-bold">
+                                        @($"{row.item.RejPer:N2}%")
+                                    </td>
+
+                                    <td class="text-end">@row.item.QuantityReworked.ToString("N3")</td>
+
+                                    <td class="text-end bg-warning text-dark fw-bold">
+                                        @($"{row.item.RewPer:N2}%")
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+
+                    </table>
+
+                </div>
+            </div>
+
+        }
+        else
+        {
+            <div class="alert alert-warning">
+                No matching records found.
+            </div>
+        }
+    }
+</div>
+
+@code
+{
+    protected override string ScreenName => "Income";
+
+    private DateTime fromDate = DateTime.Today.AddMonths(-1);
+    private DateTime toDate = DateTime.Today.AddDays(1);
+
+    private int reportType = 0;
+    private int selectedParty = 0;
+    private int selectedItem = 0;
+
+    private bool isLoading = false;
+    private bool isProcessing = false;
+    private string searchText = string.Empty;
+    private string selectedIssuedTo = string.Empty;
+
+    //Calculation
+    private decimal TotalQuantity => FilteredReportList.Sum(x => x.TotalQty);
+    private decimal TotalRejected => FilteredReportList.Sum(x => x.QuantityRejected);
+    private decimal TotalReworked => FilteredReportList.Sum(x => x.QuantityReworked);
+
+    private decimal RejectionPercentage =>
+        TotalQuantity == 0 ? 0 : (TotalRejected / TotalQuantity) * 100;
+
+    private decimal ReworkPercentage =>
+        TotalQuantity == 0 ? 0 : (TotalReworked / TotalQuantity) * 100;
+
+    private List<RejectionVM> reportList = new();
+    private List<CustomerVM> CustomerList = new();
+    private List<VendorVM> VendorList = new();
+    private List<ItemVM> itemList = new();
+    private int SelectedCustId = 0;
+    private bool IsDetail = false;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadDropdowns();
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync() for Rejection A");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadDropdowns()
+    {
+        reportList = new List<RejectionVM>();
+        itemList = new List<ItemVM>();
+        CustomerList = new List<CustomerVM>();
+        VendorList = new List<VendorVM>();
+
+        if (reportType == 0) // Sales
+        {
+            CustomerList = await RejectionService.GetCustomersAsync(fromDate, toDate, "Sales");
+            itemList = await RejectionService.GetItemsAsync(fromDate, toDate, "Sales", selectedParty);
+        }
+        else if (reportType == 1) // Labour
+        {
+            CustomerList = await RejectionService.GetCustomersAsync(fromDate, toDate, "Labour");
+            itemList = await RejectionService.GetItemsAsync(fromDate, toDate, "Labour", selectedParty);
+        }
+        else if (reportType == 2) // Sub Contract
+        {
+
+            VendorList = await RejectionService.GetVendorsAsync(fromDate, toDate, "Sub Contract");
+            itemList = await RejectionService.GetItemsAsync(fromDate, toDate, "Sub Contract", selectedParty);
+        }
+        else if (reportType == 3) // Purchase
+        {
+            VendorList = await RejectionService.GetVendorsAsync(fromDate, toDate, "Purchase");
+            itemList = await RejectionService.GetItemsAsync(fromDate, toDate, "Purchase", selectedParty);
+        }
+        await LoadReport();
+    }
+
+    private async Task LoadItems(int id)
+    {
+        selectedParty = id;
+
+        if (reportType == 0)
+        {
+            itemList = await RejectionService.GetItemsAsync(
+                fromDate,
+                toDate,
+                "Sales",
+                id);
+        }
+        else if (reportType == 1)
+        {
+            itemList = await RejectionService.GetItemsAsync(
+                fromDate,
+                toDate,
+                "Labour",
+                id);
+        }
+        else if (reportType == 2)
+        {
+            itemList = await RejectionService.GetItemsAsync(
+            fromDate,
+            toDate,
+            "Sub Contract",
+            id);
+        }
+        else if (reportType == 3)
+        {
+            itemList = await RejectionService.GetItemsAsync(
+            fromDate,
+            toDate,
+            "Purchase",
+            id);
+        }
+        await LoadReport();
+        StateHasChanged();
+    }
+
+    private async Task LoadReport()
+    {
+        isLoading = true;
+
+        try
+        {
+            reportList = await RejectionService.GetRejectionAnalysisAsync(
+                reportType,
+                fromDate,
+                toDate,
+                selectedParty,
+                selectedItem);
+
+            if (!IsDetail)
+            {
+                reportList = reportList
+                 .GroupBy(x => new
+                 {
+                     x.PartyName,
+                     x.PartNo,
+                     x.PartName
+                 })
+                 .Select(g => new RejectionVM
+                 {
+                     PartyName = g.Key.PartyName,
+                     PartNo = g.Key.PartNo,
+                     PartName = g.Key.PartName,
+                     TotalQty = g.Sum(x => x.TotalQty),
+                     AcceptQty = g.Sum(x => x.AcceptQty),
+                     QuantityRejected = g.Sum(x => x.QuantityRejected),
+                     QuantityReworked = g.Sum(x => x.QuantityReworked),
+                     RejPer = g.Sum(x => x.TotalQty) == 0 ? 0 :
+                              (g.Sum(x => x.QuantityRejected) * 100m / g.Sum(x => x.TotalQty)),
+                     RewPer = g.Sum(x => x.TotalQty) == 0 ? 0 :
+                              (g.Sum(x => x.QuantityReworked) * 100m / g.Sum(x => x.TotalQty))
+                 })
+                 .ToList();
+            }
+
+            long sl = 1;
+            foreach (var item in reportList)
+            {
+                item.SlNo = sl++;
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private List<PageHeader.BreadcrumbItem> PoBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Report" },
+        new PageHeader.BreadcrumbItem { Text = "Analysis Report" },
+        new PageHeader.BreadcrumbItem { Text = "Rejection Analysis", IsLast = true }
+    };
+
+    private async Task ExportExcel()
+    {
+        if (!reportList.Any())
+        {
+            await JS.InvokeVoidAsync("alert", "No records found.");
+        }
+    }
+
+    // FILTERED DATA
+    private IEnumerable<RejectionVM> FilteredReportList =>
+        reportList
+            .Where(x =>
+                (string.IsNullOrWhiteSpace(selectedIssuedTo)
+                    || x.PartyName == selectedIssuedTo))
+            .Where(x =>
+                string.IsNullOrWhiteSpace(searchText)
+                || (x.PartyName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.PartNo?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.PartName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.DocNo?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+            );
+
+    // EXPORT
+    private async Task ExportToExcel()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (!FilteredReportList.Any())
+            {
+                await JS.ToastrWarning("No records available to export.");
+                return;
+            }
+
+            string[] headers =
+            {
+                "SlNo",
+                "Party Name",
+                "Part No",
+                "Part Name",
+                "Doc No",
+                "Total Qty",
+                "Accept Qty",
+                "Quantity Rejected",
+                "RejPer",
+                "Quantity Reworked",
+                "RewPer"
+    };
+
+            var exportData = FilteredReportList.Select(x => new
+            {
+                x.SlNo,
+                // IssueDate = x.TCIssueDate.ToString("dd-MM-yyyy"),
+                x.PartyName,
+                x.PartNo,
+                x.PartName,
+                x.DocNo,
+                x.TotalQty,
+                x.AcceptQty,
+                x.QuantityRejected,
+                x.RejPer,
+                x.QuantityReworked,
+                x.RewPer
+            }).ToList<object>();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync("Rejection Analysis", headers, exportData);
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await JS.InvokeVoidAsync("downloadExcelFile", base64, $"RejectionAnalysis_{DateTime.Now:ddMMyyyyHHmmss}.xlsx");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task OnItemChanged()
+    {
+        await LoadReport();
+    }
+
+
+    private Task<IEnumerable<int>> SearchCustomers(string value, CancellationToken token)
+    {
+        IEnumerable<int> result = CustomerList
+            .Where(x => string.IsNullOrWhiteSpace(value) ||
+                        x.CustName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.CustId);
+
+        return Task.FromResult(result);
+    }
+
+    private Task<IEnumerable<int>> SearchVendors(string value, CancellationToken token)
+    {
+        return Task.FromResult(
+            VendorList
+                .Where(x => string.IsNullOrWhiteSpace(value) ||
+                            x.VendorName.Contains(value, StringComparison.OrdinalIgnoreCase))
+                .Select(x => x.VendorCode));
+    }
+
+    private async Task OnItemChanged(int itemId)
+    {
+        selectedItem = itemId;
+        await OnDetailChanged();
+
+    }
+    private Task<IEnumerable<int>> SearchItems(string term, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(term))
+            return Task.FromResult(itemList.Select(i => i.ItemId));
+
+        var result = itemList
+            .Where(i => i.ItemCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                        i.ItemName.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .Select(i => i.ItemId);
+        return Task.FromResult(result);
+    }
+
+
+
+    private async Task OnDetailChanged()
+    {
+        IsDetail = !IsDetail;
+        await LoadReport();          // Detailed data
+
+
+    }
+
+}

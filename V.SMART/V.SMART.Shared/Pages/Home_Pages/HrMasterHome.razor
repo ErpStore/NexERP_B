@@ -1,0 +1,216 @@
+﻿@page "/hr-master"
+@inject NavigationManager Nav
+@inject ThemeStateService ThemeStateService
+
+<PageTitle>Human Resource Master — ERP Suite</PageTitle>
+
+<div class="erp-wrapper @(isDark ? "dark" : "light")">
+
+    <!-- Ambient Orbs -->
+    <div class="erp-orb erp-orb-1"></div>
+    <div class="erp-orb erp-orb-2"></div>
+    <div class="erp-orb erp-orb-3"></div>
+
+    <!-- Breadcrumb -->
+    <nav class="erp-breadcrumb mb-4">
+
+        <a class="erp-bc-link"
+           @onclick='() => Nav.NavigateTo("/")'>
+
+            <i class="bi bi-house-fill me-1"></i>
+            Home
+
+        </a>
+
+        <span class="erp-bc-sep">
+            <i class="bi bi-chevron-right"></i>
+        </span>
+
+        <span class="erp-bc-active">
+            Human Resource Master
+        </span>
+
+    </nav>
+
+    <!-- Hero -->
+    <div class="erp-page-header mb-4">
+
+        <div class="erp-page-header-left">
+
+            <div class="erp-page-icon erp-icon-pink">
+                <i class="bi bi-people-fill"></i>
+            </div>
+
+            <div>
+
+                <h1 class="erp-page-title">
+                    Human Resource Master
+                </h1>
+
+                <p class="erp-page-sub mb-0">
+                    Employee setup · Leave management · Shift allocation
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Cards -->
+    <div class="row g-4">
+
+        @foreach (var item in _links)
+        {
+            <div class="col-12 col-sm-6 col-xl-3">
+
+                <div class="erp-module-card position-relative"
+                     @onclick='() => Nav.NavigateTo("/" + item.CardHref)'>
+
+                    <!-- ADD BUTTON -->
+                    @if (!string.IsNullOrWhiteSpace(item.ButtonHref))
+                    {
+                        <button class="erp-card-top-btn"
+                                @onclick:stopPropagation="true"
+                                @onclick='() => Nav.NavigateTo("/" + item.ButtonHref)'>
+
+                            <i class="bi bi-plus-circle-fill me-1"></i>
+                            Add
+
+                        </button>
+                    }
+
+                    <!-- ICON -->
+                    <div class="erp-module-icon @item.Color">
+                        <i class="@item.Icon"></i>
+                    </div>
+
+                    <div class="erp-module-shine"></div>
+
+                    <!-- TITLE -->
+                    <h5 class="erp-module-title">
+                        @item.Label
+                    </h5>
+
+                    <!-- DESCRIPTION -->
+                    <p class="erp-module-desc">
+                        @item.Desc
+                    </p>
+
+                    <!-- ARROW -->
+                    <div class="erp-module-arrow">
+                        <i class="bi bi-arrow-right-short"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        }
+
+    </div>
+
+</div>
+
+@code {
+
+    private bool isDark;
+
+    protected override void OnInitialized()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        ThemeStateService.OnChange += ThemeChanged;
+    }
+
+    private void ThemeChanged()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ThemeStateService.OnChange -= ThemeChanged;
+    }
+
+    private readonly (
+        string CardHref,
+        string ButtonHref,
+        string Label,
+        string Desc,
+        string Icon,
+        string Color
+    )[] _links =
+    {
+
+        (
+            "candidate",
+            "candidate/create",
+            "Candidate Master",
+            "Manage candidate profiles, personal details, qualifications, and recruitment information.",
+            "bi bi-person-vcard",
+            "ic-primary"
+        ),
+        (
+            "offer_letter",
+            "offer_letter/create",
+            "Offer Letter",
+            "Create, manage, and issue offer letters to selected candidates.",
+            "bi bi-file-earmark-text",
+            "ic-success"
+        ),
+        (
+            "appointment_letter",
+            "appointment_letter/create",
+            "Appointment Letter",
+            "Generate and manage appointment letters for confirmed employees.",
+            "bi bi-file-earmark-check",
+            "ic-info"
+        ),
+
+        (
+            "Staff",
+            "employee-details/create",
+            "Employee Master",
+            "Manage employee profiles and HR information",
+            "bi bi-person-badge-fill",
+            "ic-indigo"
+        ),
+
+        (
+            "hrMaster/holidayList",
+            "",
+            "Holiday Master",
+            "Configure company holidays and calendar setup",
+            "bi bi-calendar-event-fill",
+            "ic-orange"
+        ),
+
+        (
+            "leaveType",
+            "leaveType/create",
+            "Leave Master",
+            "Manage leave types and leave policies",
+            "bi bi-journal-check",
+            "ic-green"
+        ),
+
+        (
+            "employeeLeaveBalance",
+            "employeeLeaveBalance/create",
+            "Leave Allocation",
+            "Allocate and manage employee leave balances",
+            "bi bi-clipboard2-check-fill",
+            "ic-cyan"
+        ),
+
+        (
+            "shiftAllocation",
+            "shiftAllocation/create",
+            "Shift Allocation",
+            "Manage employee shift scheduling and assignment",
+            "bi bi-clock-history",
+            "ic-purple"
+        )
+
+    };
+}

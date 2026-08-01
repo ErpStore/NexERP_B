@@ -1,0 +1,244 @@
+﻿@page "/DefectInfo/create"
+@page "/DefectInfo/update/{DefectId:int}"
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IDefectInfoService _defectInfoService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/V.SMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@DefectTitle"
+                            TitleIcon="bi bi-bug"
+                            Breadcrumbs="@DefectInfosBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="DefectInfos" OnValidSubmit="UpsertDefect">
+
+                        <DataAnnotationsValidator />
+
+                        <div class="row g-3">
+
+                            <!-- Defect Name -->
+                            <div class="col-12 col-md-8">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="DefectInfos.DefectName"
+                                                 class="form-control"
+                                                 id="DefectName"
+                                                 placeholder="Defect Name" />
+                                    <label for="DefectName">Defect Name</label>
+                                    <ValidationMessage For="@(() => DefectInfos.DefectName)" />
+                                </div>
+                            </div>
+
+                            <!-- Defect No -->
+                            <div class="col-12 col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="DefectInfos.DefectNo"
+                                               class="form-control"
+                                               id="No"
+                                               placeholder="Defect No" />
+                                    <label for="DefectNo">Defect No</label>
+                                    <ValidationMessage For="@(() => DefectInfos.DefectNo)" />
+                                </div>
+                            </div>
+
+                            <!-- Defect Description -->
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="DefectInfos.DefectDesc"
+                                                   class="form-control"
+                                                   id="DefectDesc"
+                                                   placeholder="Defect Description"
+                                                   style="height:100px" />
+                                    <label for="DefectDesc">Defect Description</label>
+                                    <ValidationMessage For="@(() => DefectInfos.DefectDesc)" />
+                                </div>
+                            </div>
+
+                            <!-- Audit Info -->
+                            <div class="row g-3 mt-2">
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="DefectInfos.CreatedBy"
+                                                   class="form-control"
+                                                   id="CreatedBy"
+                                                   disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="CreatedDate"
+                                               value="@DefectInfos.CreatedDate?.ToString("dd/MM/yyyy")"
+                                               disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="DefectInfos.ModifiedBy"
+                                                   class="form-control"
+                                                   id="ModifiedBy"
+                                                   disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="ModifiedDate"
+                                               value="@DefectInfos.ModifiedDate?.ToString("dd/MM/yyyy")"
+                                               disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Actions -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit"
+                                            class="btn btn-primary w-100"
+                                            disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i>
+                                        @(DefectInfos.DefectCode == 0 ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/DefectInfo" />
+                            </div>
+
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+    }
+}
+
+@code {
+    //User Rights
+    // User Rights
+
+    #region Declarations and Properties
+    protected override string ScreenName => "DefectInfo";
+
+    [Parameter]
+    public int? DefectId { get; set; }
+
+    private bool isProcessing = true;
+
+    private DefectInfo DefectInfos { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> DefectInfosBreadcrumbs = new()
+{
+    new PageHeader.BreadcrumbItem { Text = "Master" },
+    new PageHeader.BreadcrumbItem { Text = "Inventory" },
+    new PageHeader.BreadcrumbItem { Text = "Defect Info", IsLast = true }
+};
+
+    private string DefectTitle =>
+        (DefectId == null || DefectId == 0) ? "Create Defect" : "Update Defect";
+#endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadDefectAsync();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,"Error in OnInitializedAsync() - DefectInfo");
+        }
+    }
+#endregion
+
+    #region Load Defect Data
+    private async Task LoadDefectAsync()
+    {
+        try
+        {
+            if (DefectId > 0)
+            {
+                var existing = await _unitOfWork.DefectInfos.GetAsync(DefectId.Value);
+                if (existing != null)
+                {
+                    DefectInfos = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error in LoadDefectAsync() - Defect"
+            );
+        }
+    }
+    #endregion
+
+    #region Saving
+    private async Task UpsertDefect()
+    {
+        try
+        {
+            isProcessing = true;
+            String message = await _defectInfoService.UpsertDefect(DefectInfos);
+            await _js.ToastrInfo(message);
+            isProcessing = false;
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/DefectInfo");
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertRawMaterial() Method for RawMaterial");
+            await _js.ToastrError("An error occurred while processing your request. Please try again.");
+        }
+    }
+    #endregion
+}
+

@@ -1,0 +1,601 @@
+﻿@page "/login"
+@using Microsoft.Extensions.Configuration
+
+@using System.Reflection
+@using V.SMART.Shared.Repository.IRepository.IMasterRepository.IAdminRepository
+
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject CurrentUserService currentUserService
+@inject IUserRepository _userRepository
+@inject NavigationManager _nav
+@inject IJSRuntime _js
+
+@inject ILoggingService LoggingService
+@inject IUserRightService userRightService
+@inject ThemeStateService ThemeStateService
+@inject IUserService UserService
+@inject IProductionLogService ProductionLogService
+@inject UserSession session
+@inject IAppVersionService AppVersionService
+@inject IConfiguration Configuration
+
+
+
+
+@if (isProcessing)
+{
+    <div class="login-loading-overlay @(isDark ? "" : "login-light")">
+        <div class="login-spinner-ring"></div>
+        <p class="login-loading-text">Authenticating...</p>
+    </div>
+}
+else
+{
+    <div class="login-page-wrapper @(isDark ? "login-dark" : "login-light")">
+
+        <!-- Animated Background Orbs -->
+        <div class="login-orb login-orb-1"></div>
+        <div class="login-orb login-orb-2"></div>
+        <div class="login-orb login-orb-3"></div>
+        <div class="login-orb login-orb-4"></div>
+
+        <!-- Floating Particles -->
+        <div class="login-particles">
+            @for (int i = 1; i <= 12; i++)
+            {
+                <div class="login-particle login-particle-@i"></div>
+            }
+        </div>
+
+        <div class="login-container">
+
+            <!-- LEFT PANEL — ERP Module Showcase -->
+            <div class="login-left">
+                <div class="login-left-header">
+                    <div class="login-logo-badge">
+                        <i class="bi bi-grid-1x2-fill"></i>
+                    </div>
+                    <div>
+                        <div class="login-left-brand">V.SMART ERP</div>
+                        <div class="login-left-tagline">Bhargavi Soft-Tech Pvt. Ltd.</div>
+                    </div>
+                </div>
+
+                <h2 class="login-left-headline">
+                    One Platform.<br />
+                    <span class="login-left-accent">Infinite Possibilities.</span>
+                </h2>
+                <p class="login-left-subtext">
+                    Manufacturing · Inventory · HR · Accounts · Analytics — all unified.
+                </p>
+
+                <!-- ERP Module Cards Grid -->
+                <div class="login-module-grid">
+
+                    <div class="login-mod-card login-mod-blue">
+                        <i class="bi bi-cart-check-fill"></i>
+                        <span>Sales &amp; Labour Work</span>
+                    </div>
+
+                    <div class="login-mod-card login-mod-teal">
+                        <i class="bi bi-bag-check-fill"></i>
+                        <span>Purchase &amp; Subcontract</span>
+                    </div>
+
+                    <div class="login-mod-card login-mod-purple">
+                        <i class="bi bi-calendar2-week-fill"></i>
+                        <span>Planning</span>
+                    </div>
+
+                    <div class="login-mod-card login-mod-orange">
+                        <i class="bi bi-gear-wide-connected"></i>
+                        <span>Production</span>
+                    </div>
+
+                    <div class="login-mod-card login-mod-pink">
+                        <i class="bi bi-people-fill"></i>
+                        <span>HUMAN Resource Management System</span>
+                    </div>
+
+                    <div class="login-mod-card login-mod-green">
+                        <i class="bi bi-cash-stack"></i>
+                        <span>Accounts</span>
+                    </div>
+
+                    <div class="login-mod-card login-mod-purple">
+                        <i class="bi bi-clipboard2-check-fill"></i>
+                        <span>Inspection (QC)</span>
+                    </div>
+
+                    <div class="login-mod-card login-mod-orange">
+                        <i class="bi bi-tools"></i>
+                        <span>Maintanence</span>
+                    </div>
+
+                    <div class="login-mod-card login-mod-blue">
+                        <i class="bi bi-bar-chart-fill"></i>
+                        <span>Reports</span>
+                    </div>
+
+                </div>
+                <!-- Floating stat pills -->
+                <div class="login-stat-row">
+                    <div class="login-stat-pill">
+                        <i class="bi bi-shield-check"></i>
+                        <span>ISO Compliant</span>
+                    </div>
+                    <div class="login-stat-pill">
+                        <i class="bi bi-lightning-charge-fill"></i>
+                        <span>Real-Time Sync</span>
+                    </div>
+                    <div class="login-stat-pill">
+                        <i class="bi bi-cloud-check-fill"></i>
+                        <span>Cloud Ready</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL — Login Form -->
+            <div class="login-right">
+                <div class="login-card glass-card">
+
+                    <!-- Top logo for mobile -->
+                    <div class="login-card-top-logo d-md-none">
+                        <i class="bi bi-grid-1x2-fill"></i>
+                        <span>V.SMART</span>
+                    </div>
+
+                    <div class="login-card-icon">
+                        <i class="bi bi-person-lock"></i>
+                    </div>
+
+                    <h3 class="login-card-title">Welcome Back</h3>
+                    <p class="login-card-subtitle">Sign in to your ERP dashboard</p>
+
+                    <EditForm Model="LoginModel" OnValidSubmit="HandleLogin">
+                        <DataAnnotationsValidator />
+
+                        <div class="login-field-group">
+                            <label class="login-label">
+                                <i class="bi bi-person-fill"></i>
+                                Username
+                            </label>
+                            <div class="login-input-wrap">
+                                <InputText class="login-input" @bind-Value="LoginModel.UserName" placeholder="Enter your username" />
+                                <div class="login-input-glow"></div>
+                            </div>
+                            <ValidationMessage For="@(() => LoginModel.UserName)" class="login-val-msg" />
+                        </div>
+
+                        <div class="login-field-group">
+                            <label class="login-label">
+                                <i class="bi bi-lock-fill"></i>
+                                Password
+                            </label>
+                            <div class="login-input-wrap">
+                                <InputText type="@(showPass ? "text" : "password")" class="login-input login-input-pass" @bind-Value="LoginModel.Password" placeholder="Enter your password" />
+                                <button type="button" class="login-pass-toggle" @onclick="TogglePassword" tabindex="-1">
+                                    <i class="bi @(showPass ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
+                                </button>
+                                <div class="login-input-glow"></div>
+                            </div>
+                            <ValidationMessage For="@(() => LoginModel.Password)" class="login-val-msg" />
+                        </div>
+
+                        <button class="login-btn" type="submit">
+                            <span class="login-btn-text">Sign In</span>
+                            <i class="bi bi-arrow-right-short login-btn-icon"></i>
+                            <div class="login-btn-shine"></div>
+                        </button>
+
+                    </EditForm>
+
+                    <div class="login-divider">
+                        <span>OR</span>
+                    </div>
+
+                    <div class="login-field-group">
+
+                        <label class="login-label">
+
+                            <i class="bi bi-qr-code-scan"></i>
+
+                            Scan QR Code
+
+                        </label>
+
+                        <div class="login-input-wrap">
+
+                            <input type="text"
+                                   class="login-input"
+                                   @bind="QrLoginText"
+                                   @bind:event="oninput"
+                                   @onchange="HandleQrLogin"
+                                   placeholder="Scan QR here..."
+                                   autofocus />
+
+                        </div>
+
+                    </div>
+
+                    <div class="login-footer-links">
+                        <a href="/register" class="login-link">
+                            <i class="bi bi-person-plus-fill"></i>
+                            Request Access
+                        </a>
+                        <a href="mailto:contactbspl@bhargavigroup.com" class="login-link">
+                            <i class="bi bi-headset"></i>
+                            Support
+                        </a>
+                    </div>
+
+                    <!-- Decorative corner accents -->
+                    <div class="login-card-corner login-card-corner-tl"></div>
+                    <div class="login-card-corner login-card-corner-br"></div>
+                </div>
+
+                <!-- Company info strip -->
+                <div class="login-company-strip">
+                    <i class="bi bi-geo-alt-fill"></i>
+                     Bangalore · contactbspl@bhargavigroup.com
+                </div>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    private bool isProcessing { get; set; } = true;
+    private bool showPass { get; set; } = false;
+    private bool isDark { get; set; } = false;
+    private LoginModel LoginModel { get; set; } = new();
+
+    private bool _isQrProcessing;
+    private string QrLoginText { get; set; } = "";
+
+    //11072026----------------------------------------------------------
+    private bool IsDesktop => Configuration["AppEnvironment"] == "Desktop";
+    //-----------------------------------------------------------------------
+
+    protected override async Task OnInitializedAsync()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        ThemeStateService.OnChange += ThemeChanged;
+        isProcessing = false;
+    }
+
+    private void ThemeChanged()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ThemeStateService.OnChange -= ThemeChanged;
+    }
+
+    private void TogglePassword() => showPass = !showPass;
+
+    private async Task HandleLogin()
+    {
+        isProcessing = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(LoginModel.UserName) ||
+                string.IsNullOrWhiteSpace(LoginModel.Password))
+            {
+                await _js.ToastrWarning("Please enter valid credentials.");
+                await LoggingService.LogDeveloperInfo($"Invalid login attempt: {LoginModel.UserName}");
+                return;
+            }
+
+            var user = await _userRepository.LoginAsync(LoginModel.UserName, LoginModel.Password);
+
+            if (user == null)
+            {
+                await _js.ToastrError("Invalid credentials");
+                await LoggingService.LogDeveloperInfo($"Invalid login attempt: {LoginModel.UserName}");
+                return;
+            }
+
+            //11072026----------------------------------------------------------
+            if (!IsDesktop && user.UserId>1 && user != null && user.TrialDays > 0 && user.ExpiryDate.HasValue && DateTime.Today > user.ExpiryDate.Value.Date)
+            {
+                await _js.ToastrWarning("Your trial period has expired. Please contact Administrator.");
+                return;
+            }
+
+            if (user.UserId > 1 && (user.IsMobile || user.IsDesktop))
+            {
+                var deviceId = await _js.InvokeAsync<string>("deviceHelper.getDeviceId");
+                var isMobile = await _js.InvokeAsync<bool>("deviceHelper.isMobile");
+
+                if (isMobile)
+                {
+                    if (!user.IsMobile)
+                    {
+                        await _js.ToastrError("Mobile login is not allowed.");
+                        return;
+                    }
+
+                    // First Login
+                    if (string.IsNullOrWhiteSpace(user.MobileDeviceId))
+                    {
+                        await UserService.UpdateUserDeviceAsync(user.UserId);
+                    }
+                    // Existing Device Validation
+                    else if (user.MobileDeviceId != deviceId)
+                    {
+                        await _js.ToastrError("This account is already registered on another mobile device.");
+                        return;
+                    }
+                }
+                else
+                {
+                    if (!user.IsDesktop)
+                    {
+                        await _js.ToastrError("Desktop login is not allowed.");
+                        return;
+                    }
+
+                    // First Login
+                    if (string.IsNullOrWhiteSpace(user.DesktopDeviceId))
+                    {
+                        await UserService.UpdateUserDeviceAsync(user.UserId);
+                    }
+                    // Existing Device Validation
+                    else if (user.DesktopDeviceId != deviceId)
+                    {
+                        await _js.ToastrError("This account is already registered on another desktop.");
+                        return;
+                    }
+                }
+            }
+
+            
+            if (IsDesktop)
+            {
+                if (!await CheckDesktopAppVersionAsync())
+                {
+                    return;
+                }
+            }
+            //-----------------------------------------------------------------------
+
+
+            if (AuthStateProvider is CustomAuthStateProvider customAuth)
+            {
+                customAuth.MarkUserAsAuthenticated( user.UserName, user.UserId, user.Role.ToString(),
+                    false, // QR Login
+                    false  // Production User
+                );
+                session.UserName=user.UserName;
+                session.UserId=user.UserId;
+            }
+
+            if (user.UserId == 1)
+            {
+                await LoggingService.LogDeveloperInfo($"[UserRights] Administrator login detected. Syncing rights for UserId: {user.UserId}.");
+                await userRightService.SyncRightsForUserAsync(user.UserId);
+            }
+
+
+
+            await _js.InvokeVoidAsync("toastr.success", "Login successful!");
+            await LoggingService.LogDeveloperInfo($"User logged in successfully: {LoginModel.UserName}");
+            _nav.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in HandleLogin()");
+            await _js.InvokeVoidAsync("toastr.error", "Something went wrong. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleQrLogin(ChangeEventArgs e)
+    {
+        if (_isQrProcessing)
+            return;
+
+        try
+        {
+            QrLoginText = e.Value?.ToString()?.Trim();
+
+            if (string.IsNullOrWhiteSpace(QrLoginText))
+                return;
+
+            _isQrProcessing = true;
+
+            string tokenText = QrLoginText;
+
+            // Scanner may scan full URL
+            if (tokenText.Contains("/"))
+            {
+                tokenText = tokenText.Split('/').Last();
+            }
+
+            // Scanner may append CR/LF
+            tokenText = tokenText
+                .Replace("\r", "")
+                .Replace("\n", "")
+                .Trim();
+
+            if (!Guid.TryParse(tokenText, out Guid token))
+            {
+                await _js.ToastrError("Invalid QR Code");
+
+                QrLoginText = "";
+                return;
+            }
+
+            var user = await _userRepository.GetUserByQrToken(token);
+
+            if (user == null)
+            {
+                await _js.ToastrError("QR Login Failed");
+
+                QrLoginText = "";
+                return;
+            }
+
+            if (!user.IsQrEnabled)
+            {
+                await _js.ToastrError("QR Login Disabled");
+
+                QrLoginText = "";
+                return;
+            }
+
+            if (user.QrExpiryDate.HasValue &&
+                user.QrExpiryDate.Value < DateTime.Now)
+            {
+                await _js.ToastrError("QR Expired");
+
+                QrLoginText = "";
+                return;
+            }
+
+            var isProductionLog =
+                await UserService.IsProductionLogEnabledAsync(user.UserId);
+
+            if (AuthStateProvider is CustomAuthStateProvider customAuth)
+            {
+                customAuth.MarkUserAsAuthenticated(
+                    user.UserName,
+                    user.UserId,
+                    user.Role.ToString(),
+                    true,
+                    isProductionLog);
+            }
+
+            await _js.ToastrSuccess("Login Successful");
+
+            await Task.Delay(500);
+
+            if (isProductionLog)
+            {
+                var pendingLogId =
+                    await ProductionLogService
+                        .GetPendingProductionLogIdAsync(
+                            user.UserName.Trim());
+
+                if (pendingLogId.HasValue)
+                {
+                    _nav.NavigateTo(
+                        $"/productionLog/update/{pendingLogId.Value}/true",
+                        false);
+                }
+                else
+                {
+                    _nav.NavigateTo(
+                        "/productionLog/create/true",
+                        false);
+                }
+            }
+            else
+            {
+                _nav.NavigateTo("/", false);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "QR Login Error");
+
+            await _js.ToastrError("QR Login Failed");
+        }
+        finally
+        {
+            QrLoginText = "";
+            _isQrProcessing = false;
+        }
+    }
+
+    private async Task<bool> CheckDesktopAppVersionAsync()
+    {
+        try
+        {
+            // Web application: skip version check
+            if (!IsDesktop)
+                return true;
+
+            string? databaseVersion = await AppVersionService.GetLatestVersionAsync();
+
+            string currentVersion =Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0.0";
+
+            if (string.IsNullOrWhiteSpace(databaseVersion))
+                return true;
+
+            if (Version.TryParse(databaseVersion, out var latest) && Version.TryParse(currentVersion, out var current) &&  latest > current)
+            {
+                bool updateNow = await _js.InvokeAsync<bool>(
+                    "confirm",
+                    $"A new application update is available.\n\n" +
+                    $"Current Version: {currentVersion}\n" +
+                    $"Latest Version: {databaseVersion}\n\n" +
+                    $"Would you like to install the update now?");
+
+                if (updateNow)
+                {
+                    // Start installer
+                    try
+                    {
+                        string setupPath = Configuration["UpdateSettings:SetupPath"] ?? "";
+
+                        if (!File.Exists(setupPath))
+                        {
+                            await _js.ToastrError("Setup file not found.");
+                            return false;
+                        }
+
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = setupPath,
+                            UseShellExecute = true
+                        });
+
+                        // System.Diagnostics.Process.Start(
+                        //  new System.Diagnostics.ProcessStartInfo
+                        //  {
+                        //      FileName = setupPath,
+                        //      Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
+                        //      UseShellExecute = true
+                        //  });
+
+                        // Close MAUI Desktop Application
+                        Environment.Exit(0);
+                    }
+                    catch (Exception ex)
+                    {
+                        await _js.ToastrError($"Unable to start installer.\n{ex.Message}");
+                    }
+
+                    // Stop login/navigation
+                    return false;
+                }
+
+                // User selected No → continue login
+                return true;
+            }
+
+            return true;
+
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+    }
+
+    
+}

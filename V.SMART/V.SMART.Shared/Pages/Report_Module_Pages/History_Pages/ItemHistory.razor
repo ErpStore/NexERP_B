@@ -1,0 +1,475 @@
+﻿@page "/ItemWiseReport"
+
+@using MudBlazor
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject IItemWiseReportService reportService
+@inject IExcelTemplateService excelTemplateService
+@inject IJSRuntime _JS
+@inject NavigationManager _navigation
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-4 ">
+
+    <div class="card shadow-sm">
+
+        <PageHeader TitleText="Item Wise List"
+                    TitleIcon="bi bi-receipt-cutoff"
+                    Breadcrumbs="@PoBreadcrumbs" />
+
+        <div class="card-body p-4 ">
+
+            <!-- FILTER SECTION -->
+
+            <div class="row g-3 align-items-end mb-4">
+
+                <!-- FROM DATE -->
+
+                <div class="col-xl-2 col-lg-3 col-md-6">
+
+                    <label class="form-label fw-bold text-dark">
+                        From Date
+                    </label>
+
+                    <InputDate class="form-control shadow-sm"
+                               @bind-Value="fromDate" />
+
+                </div>
+
+                <!-- TO DATE -->
+
+                <div class="col-xl-2 col-lg-3 col-md-6">
+
+                    <label class="form-label fw-bold text-dark">
+                        To Date
+                    </label>
+
+                    <InputDate class="form-control shadow-sm"
+                               @bind-Value="toDate" />
+
+                </div>
+
+                <!-- ITEM -->
+
+                <div class="col-xl-3 col-lg-4 col-md-6">
+
+                    <label class="form-label fw-bold text-dark">
+                        Item
+                    </label>
+
+                    <MudAutocomplete T="ItemVM"
+                                     Value="SelectedItem"
+                                     ValueChanged="OnItemChanged"
+                                     SearchFunc="SearchItems"
+                                     ToStringFunc="@(x => x?.ItemCode ?? string.Empty)"
+                                     Dense="true"
+                                     Variant="Variant.Outlined"
+                                     Placeholder="Search Item"
+                                     Class="w-100"
+                                     MaxItems="50"
+                                     Clearable="true"
+                                     ResetValueOnEmptyText="true"
+                                     Disabled="@(fromDate == default || toDate == default)" />
+
+                </div>
+
+                <div class="col-xl-3 col-lg-4 col-md-6">
+
+                    <div class="input-group shadow-sm rounded-3 overflow-hidden border">
+
+                        <span class="input-group-text bg-white border-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+
+                        <input type="text"
+                                class="form-control border-start-0"
+                                placeholder="Search Doc No.,To,Vendor,ItemCode..."
+                                @bind="searchText"
+                                @bind:event="oninput" />
+
+                    </div>
+
+                </div>
+
+                <!-- EXPORT BUTTON -->
+
+                <div class="col-xl-2 col-lg-2 col-md-6">
+
+                    <button class="btn btn-success w-100 shadow-sm"
+                            style="height:42px;
+                                   border-radius:10px;
+                                   font-size:15px;
+                                   font-weight:600;"
+                            @onclick="OnPrintPendingTrack"
+                            disabled="@isProcessing">
+
+                        @if (isProcessing)
+                        {
+                            <span>
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                Exporting...
+                            </span>
+                        }
+                        else
+                        {
+                            <span>
+                                <i class="bi bi-printer"></i>  Print
+                            </span>
+                        }
+
+                    </button>
+
+                </div>
+
+            </div>
+
+            <!-- REPORT TABLE -->
+
+            <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                    <thead  class="custom-blue text-center align-middle sticky-top">
+
+                        <tr>
+
+                            <th>Sl No.</th>
+                            <th>Screen Name</th>
+                            <th>Doc No.</th>
+                            <th>Doc Date</th>
+                            <th>From To Whom</th>
+                            <th>Item</th>
+                            <th>Qty Out</th>
+                            <th>Qty In</th>
+                            <th>Reject Qty</th>
+                            <th>Rework Qty</th>
+                            <th>Rate</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        @if (FilteredTaxDetailsData != null && FilteredTaxDetailsData.Any())
+                        {
+                                i = 1;
+
+                            @foreach (var item in FilteredTaxDetailsData)
+                            {
+                                <tr>
+
+                                    <td class="text-center">
+                                        @i
+                                    </td>
+
+                                    <td>
+                                        @item.Heading
+                                    </td>
+
+                                    <td>
+                                        @item.DocNo
+                                    </td>
+
+                                    <td class="text-center">
+                                        @item.Date.ToString("dd-MM-yyyy")
+                                    </td>
+
+                                    <td>
+                                        @item.FromToWhom
+                                    </td>
+
+                                    <td>
+                                        @item.ItemCode
+                                    </td>
+
+                                    <td class="text-end">
+                                        @item.QtyOut
+                                    </td>
+
+                                    <td class="text-end">
+                                        @item.QtyIn
+                                    </td>
+
+                                    <td class="text-end">
+                                        @item.RejQty
+                                    </td>
+
+                                    <td class="text-end">
+                                        @item.ReworkQty
+                                    </td>
+
+                                    <td class="text-end">
+                                        @item.Rate
+                                    </td>
+
+                                    </tr>
+                                    i++;
+                                }
+                        }
+                        else
+                        {
+                            <tr>
+
+                                <td colspan="11"
+                                    class="text-center text-muted py-4">
+
+                                    No records found
+
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+    
+}
+
+
+
+@code 
+{
+    protected override string ScreenName => "ItemHistory";
+
+    private ItemVM? SelectedItem;
+    private string searchText = string.Empty;
+
+    private DateTime fromDate =DateTime.Today.AddMonths(-1);
+
+    private DateTime toDate = DateTime.Today;
+
+    private bool isProcessing = true;
+
+    private List<ItemWiseReportVM> reportList = new();
+
+    int i = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in View DC In_Out Tally Track OnInitializedAsync");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    IEnumerable<ItemWiseReportVM> FilteredTaxDetailsData =>
+    reportList?.Where(s =>
+
+    string.IsNullOrWhiteSpace(searchText)
+
+    ||
+
+    (s.DocNo != null &&
+     s.DocNo.ToString()!.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.FromToWhom) &&
+     s.FromToWhom.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+    (!string.IsNullOrEmpty(s.ItemCode) &&
+     s.ItemCode.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+
+    ||
+
+     (!string.IsNullOrEmpty(s.Heading) &&
+     s.Heading.Contains(searchText,
+     StringComparison.OrdinalIgnoreCase))
+     );
+
+    private List<PageHeader.BreadcrumbItem> PoBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem
+        {
+            Text = "Report"
+        },
+        new PageHeader.BreadcrumbItem
+        {
+            Text = "Item History"
+        },
+        new PageHeader.BreadcrumbItem
+        {
+            Text = "Item Usage Tracking",
+            IsLast = true
+        }
+    };
+
+    // SEARCH ITEM
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value,  CancellationToken token)
+    {
+        if (fromDate == default || toDate == default)
+            return Enumerable.Empty<ItemVM>();
+
+        if (string.IsNullOrWhiteSpace(value))
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results =
+                await reportService.SearchItemAsync(value);
+
+            return results?.Take(50)
+                   ?? Enumerable.Empty<ItemVM>();
+        }
+        catch
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    // ITEM CHANGE
+    private async Task OnItemChanged(ItemVM? item)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SelectedItem = item;
+
+            await LoadReport();
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // LOAD REPORT
+    private async Task LoadReport()
+    {
+        try
+        {
+            if (SelectedItem == null)
+            {
+                reportList = new();
+                return;
+            }
+            reportList =await reportService.GetItemWiseReport(SelectedItem.ItemId,fromDate, toDate);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+   
+    // EXPORT EXCEL
+    private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            
+            isProcessing = true;
+
+            if (reportList == null || !reportList.Any())
+            {
+                await _JS.ToastrWarning("No records available to export.");
+
+                return;
+            }
+
+            string[] headers =
+            {
+            "Sl No.",
+            "Heading",
+            "Doc No",
+            "Date",
+            "From To Whom",
+            "Item Code",
+            "Qty Out",
+            "Qty In",
+            "Reject Qty",
+            "Rework Qty",
+            "Rate"
+        };
+
+            var exportData = reportList
+                .Select((x, index) => new
+                {
+                    SlNo = index + 1,
+                    Heading = x.Heading ?? string.Empty,
+                    DocNo = x.DocNo ?? string.Empty,
+                    Date = x.Date.ToString("dd-MM-yyyy"),
+                    FromToWhom = x.FromToWhom ?? string.Empty,
+                    ItemCode = x.ItemCode ?? string.Empty,
+                    QtyOut = x.QtyOut,
+                    QtyIn = x.QtyIn,
+                    RejectQty = x.RejQty,
+                    ReworkQty = x.ReworkQty,
+                    Rate = x.Rate
+                })
+                .ToList<object>();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Item Wise Report",
+                headers: headers,
+                sampleData: exportData);
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync("downloadExcelFile", base64, $"ItemWiseReport_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError($"Export failed: {ex.Message}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}
+
+
+

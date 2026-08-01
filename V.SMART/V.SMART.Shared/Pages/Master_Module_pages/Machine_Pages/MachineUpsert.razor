@@ -1,0 +1,297 @@
+﻿@page "/machine/create"
+@page "/machine/update/{MachineId:int}"
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@(MachineId == 0 || MachineId == null ? "Create Machine" : "Update Machine")"
+                            TitleIcon="@(MachineId == 0 || MachineId == null ? "bi bi-plus-circle" : "bi bi-pencil-square")"
+                            Breadcrumbs="@machineBreadcrumbs" />
+
+
+                <div class="card-body">
+                    <EditForm Model="Machine" OnValidSubmit="UpsertMachine">
+                        <DataAnnotationsValidator />
+
+                        <div class="row g-3 text-end">
+                            @* Use col-12 for mobile and col-md-6 for larger screens *@
+
+                            @* //Correspondence Screen Link *@
+                            @if (Machine != null && Machine.MachineId > 0 && !string.IsNullOrWhiteSpace(Machine.MachineName))
+                            {
+                                <CorrespondenceStatus ReferenceType="Machine"
+                                                      ReferenceId="@Machine.MachineId"
+                                                      ReferenceTypeName="@Machine.MachineName" />
+                            }
+                        </div>
+                        <div class="row g-3 mt-2">
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.MachineName" class="form-control" id="MachineName" placeholder="Machine Name" CssClass="form-control" />
+                                    <label for="MachineName">Machine Name</label>
+                                    <ValidationMessage for="@(() => Machine.MachineName)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.SerialNo" class="form-control" id="SerialNo" placeholder="Serial Number" CssClass="form-control" />
+                                    <label for="SerialNo">Serial Number</label>
+                                    <ValidationMessage for="@(() => Machine.SerialNo)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.Identification" class="form-control" id="Identification" placeholder="Identification Number" CssClass="form-control" />
+                                    <label for="Identification">Identification Number</label>
+                                    <ValidationMessage for="@(() => Machine.Identification)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.Location" class="form-control" id="Location" placeholder="Location" CssClass="form-control" />
+                                    <label for="Location">Location</label>
+                                    <ValidationMessage for="@(() => Machine.Location)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.MachineModel" class="form-control" id="MachineModel" placeholder="Machine Model" CssClass="form-control" />
+                                    <label for="MachineModel">Machine Model</label>
+                                    <ValidationMessage for="@(() => Machine.MachineModel)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="Machine.MachineHrRate" class="form-control" id="MachineHrRate" placeholder="Machine Hour Rate" CssClass="form-control" />
+                                    <label for="MachineHrRate">Machine Hour Rate</label>
+                                    <ValidationMessage for="@(() => Machine.MachineHrRate)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.MachineCapacity" class="form-control" id="MachineCapacity" placeholder="Machine Capacity" CssClass="form-control" />
+                                    <label for="MachineCapacity">Machine Capacity</label>
+                                    <ValidationMessage for="@(() => Machine.MachineCapacity)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.MachineAccuracy" class="form-control" id="MachineAccuracy" placeholder="Machine Accuracy" CssClass="form-control" />
+                                    <label for="MachineAccuracy">Machine Accuracy</label>
+                                    <ValidationMessage for="@(() => Machine.MachineAccuracy)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.Make" class="form-control" id="Make" placeholder="Machine Make" CssClass="form-control" />
+                                    <label for="Make">Make</label>
+                                    <ValidationMessage for="@(() => Machine.Make)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Machine.OtherDetails" class="form-control" id="OtherDetails" placeholder="Other Details.." CssClass="form-control" />
+                                    <label for="OtherDetails">Other Details</label>
+                                    <ValidationMessage for="@(() => Machine.OtherDetails)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Machine.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                    <label for="CreatedBy">Created By</label>
+                                </div>
+                            </div>
+
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <input class="form-control" id="CreatedDate" value="@Machine.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                    <label for="CreatedDate">Created Date</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Machine.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                    <label for="ModifiedBy">Modified By</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                    <input class="form-control" id="ModifiedDate" value="@Machine.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                    <label for="ModifiedDate">Modified Date</label>
+                                </div>
+                            </div>
+
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(MachineId == 0 || MachineId == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/machineList" />
+                            </div>
+                        </div>
+
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+    }
+}
+
+@code {
+    //User Rights
+    protected override string ScreenName => "Machine";
+
+    [Parameter]
+    public int? MachineId { get; set; }
+
+    private bool isProcessing = true;
+
+    private Machine Machine { get; set; } = new Machine();
+
+    private List<PageHeader.BreadcrumbItem> machineBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "General" },
+        new PageHeader.BreadcrumbItem { Text = "Machine", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadMachine();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() Method for MachineUpsert");
+        }
+    }
+
+    private async Task LoadMachine()
+    {
+        try
+        {
+            if (MachineId > 0)
+            {
+                var existing = await _unitOfWork.Machines.GetAsync(MachineId.Value);
+                if (existing != null)
+                {
+                    Machine = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LoadMachine() Method for MachineUpsert");
+        }
+    }
+    private async Task UpsertMachine()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Check if a category with the same name already exists
+            bool isDuplicate = await _unitOfWork.Machines
+                .ExistsByNameAsync("MachineName", Machine.MachineName, "MachineId", Machine.MachineId == 0 ? null : Machine.MachineId);
+
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Machine name already exists.");
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Machine", action: $"User tried to create duplicate Machine. {Machine.MachineName}",
+                additionalInfo: $"MachineName: {Machine.MachineName}");
+                isProcessing = false;
+                return;
+            }
+
+            if (Machine.MachineId == 0)
+            {
+                Machine.CreatedBy = await _userService.GetUsernameAsync();
+                Machine.CreatedDate = DateTime.Now;
+                await _unitOfWork.Machines.CreateAsync(Machine);
+                await _unitOfWork.SaveAsync();
+                await _js.ToastrSuccess("Machine Created Successfully");
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Machine", action: $"User created new Machine. {Machine.MachineName}",
+                additionalInfo: $"MachineName: {Machine.MachineName}");
+            }
+            else
+            {
+                Machine.ModifiedBy = await _userService.GetUsernameAsync();
+                Machine.ModifiedDate = DateTime.Now;
+
+                await _unitOfWork.Machines.UpdateAsync(Machine);
+                await _unitOfWork.SaveAsync();
+                await _js.ToastrSuccess("Machine Updated Successfully");
+                await LoggingService.LogUserAction(UserName: await _userService.GetUsernameAsync(), Machine: _userService.MachineName, IP_Address: _userService.IpAddress,
+                screen: "Machine", action: $"User Modified an existing Machine. {Machine.MachineName}",
+                additionalInfo: $"MachineName: {Machine.MachineName}");
+            }
+
+            isProcessing = false;
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/machineList");
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertMachine() event for MachineUpsert");
+        }
+    }
+}

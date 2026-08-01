@@ -1,0 +1,299 @@
+﻿@page "/maintenanceprocess/details/"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMaintenanceService
+@using V.SMART.Shared.BusinessLayer.BusinessService.MaintenanceService;
+@using V.SMART.Shared.Data.Maintenance.MaintenanceSchedule
+@using V.SMART.Shared.Data.Maintenance.Maintenance_Process
+@using V.SMART.Shared.Repository
+@using V.SMART.Shared.ViewModels.MaintenanceViewModel.MaintenanceScheduleVM
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject IMaintenanceProcessService _maintenanceProcessService
+@inject IJSRuntime _js
+@inject CurrentUserService _userService
+
+
+<BsModal OnModalConfirmation="ConfirmDelete_Click"
+         ButtonBootstrapStyle="@(status ? "btn-danger" : "btn-success")"
+         ButtonText="@(status ? "Incomplete" : "Complete")"
+         Title="@(status
+                                  ? "Are you sure you want to delete this completed Schedule?"
+                                  : "Are you sure you want to mark this Schedule as complete?")">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="card mycard rounded-3 mx-auto" style="max-width: 600px;">
+            <div class="card-body">
+                <EditForm Model="list">
+                    <DataAnnotationsValidator />
+                    <!-- Title -->
+                    @if (list != null)
+                    {
+                        <h4 class="text-center fw-bold mb-3" style="color:#004085;">
+                            @list.MachineName
+                        </h4>
+
+                        <!-- Tabs -->
+                        <ul class="nav nav-tabs justify-content-center mb-3">
+                            <li class="nav-item">
+                                <a class="nav-link @(activeTab == "details" ? "active" : "")"
+                                   @onclick="@(() => activeTab = "details")">Details</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(activeTab == "history" ? "active" : "")"
+                                   @onclick="@(() => activeTab = "history")">History</a>
+                            </li>
+                        </ul>
+
+                        <!-- Tab Content -->
+                        @if (activeTab == "details")
+                        {
+                            <div class="card p-3 shadow-sm mb-3">
+                                <ul class="list-group mb-3">
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <strong>Last Maintenance:</strong><span>@LatestMaintenanceDate</span>
+                                    </li>
+
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <strong>Next Due:</strong><span>@NextDueDate.Date.ToString("dd/MM/yyyy")</span>
+                                    </li>
+
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <strong>Maintenance Type:</strong><span>@MaintenanceName</span>
+                                    </li>
+
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <strong>Schedule Type:</strong><span>@list.ScheduleDay</span>
+                                    </li>
+
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <strong>Created By:</strong><span>@list.CreatedBy</span>
+                                    </li>
+
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <strong>Created Date:</strong><span>@list.CreatedDate.Date.ToString("dd/MM/yyyy")</span>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <strong>Modified By:</strong><span>@list.ModifiedBy</span>
+                                    </li>
+
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <strong>Modified Date:</strong>
+
+                                        <span>
+                                            @(list.ModifiedDate != default
+                                                                        ? list.ModifiedDate.Value.ToString("dd/MM/yyyy")
+                                                                        : "N/A")
+                        </span>
+
+                                    </li>
+
+                                </ul>
+
+                                <textarea class="form-control rounded-3 shadow-sm mb-3" rows="2"
+                                          @bind="Remarks" placeholder="Add remark"></textarea>
+
+                                <div class="d-flex gap-2">
+                                    <button class="@(status ? "btn btn-success w-100 py-2 rounded-pill" : "btn btn-danger w-100 py-2 rounded-pill")"
+                                            @onclick="() => SaveAndModify(list)">
+                                        @(status ? "Mark as InCompleted" : "Mark as Completed")
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        else if (activeTab == "history")
+                        {
+                            <div class="card p-3 shadow-sm mb-3">
+                                <h6 class="fw-bold mt-2">History</h6>
+                                <table class="table table-sm table-bordered align-middle text-center mb-3">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Done By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (MaintenanceProcessList?.Any() == true)
+                                        {
+                                            @foreach (var obj in MaintenanceProcessList)
+                                            {
+                                                <tr>
+                                                    <td>@obj.CreatedDate</td>
+                                                    <td>@obj.CreatedBy</td>
+                                                    <td>@obj.Remarks</td>
+                                                </tr>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td colspan="3">No History Available</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+
+                    else
+                    {
+                        _js.ToastrError("No Schedules to Display");
+                    }
+                </EditForm>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    #region Declarations And Properties
+
+    [Parameter] public bool IsReport { get; set; } = false;
+
+    [Parameter] public MaintenanceScheduleVM list { get; set; }
+
+    [Parameter] public bool isModelVisible { get; set; } = false;
+
+    [Parameter] public DateTime SelectedDate { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+
+    protected override string ScreenName => "MaintenanceProcess";
+    private bool isProcessing = true;
+    private string activeTab = "details";
+
+    private List<MaintenanceProcess> MaintenanceProcessList = new();
+    private MaintenanceScheduleVM Schedulelist;
+    private String LatestMaintenanceDate;
+    private MaintenanceProcess TempMaintenanceProcess = new();
+    private String? MaintenanceName = null;
+    private DateTime NextDueDate = DateTime.Now;
+    private string? Remarks { get; set; }
+    private bool status = false;
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            status = await _maintenanceProcessService.FindStatus(list.MachineId, list.MaintenanceId, list.ScheduleId, SelectedDate);
+            LatestMaintenanceDate = await _maintenanceProcessService.GetLatestMaintenanceDate(list.MachineId);
+            MaintenanceName = await _maintenanceProcessService.GetMaintenanceNameById(list.MaintenanceId);
+            NextDueDate = await _maintenanceProcessService.GetNextDueDate(list.MaintenanceId, SelectedDate);
+            MaintenanceProcessList = await _maintenanceProcessService.GetAllHistory(list.MachineId);
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+            await _js.ToastrError("Error in OnInitializedAsync()");
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region SaveAndModify
+    private async Task SaveAndModify(MaintenanceScheduleVM ParaSchedulelist)
+    {
+        try
+        {
+            Schedulelist = ParaSchedulelist;
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in SaveAndModify()");
+            await _js.ToastrError("Error in SaveAndModify");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+        try
+        {
+            if (!isConfirmed)
+            {
+                return;
+            }
+            var Tempselecteddate = DateTime.Now;
+            if (!IsReport)
+            {
+                Tempselecteddate = SelectedDate;
+            }
+            else
+            {
+                Tempselecteddate = Schedulelist.ScheduleDate;
+            }
+
+            if ((await _maintenanceProcessService.FindStatus(Schedulelist.MachineId, Schedulelist.MaintenanceId, Schedulelist.ScheduleId, SelectedDate)))
+            {
+                _maintenanceProcessService.UpdateStatus(Schedulelist.MachineId, Schedulelist.MaintenanceId, Schedulelist.ScheduleId, SelectedDate);
+            }
+            else
+            {
+                var username = await _userService.GetUsernameAsync();
+                TempMaintenanceProcess = new MaintenanceProcess
+                {
+                    ScheduleId = Schedulelist.ScheduleId,
+                    MaintenanceDate = DateTime.Now,
+                    MachineId = Schedulelist.MachineId,
+                    MaintenanceId = Schedulelist.MaintenanceId,
+                    MaintenanceStatus = true,
+                    Description = Schedulelist.Description,
+                    Preparedby = username,
+                    Remarks = Remarks,
+                    CreatedBy = username,
+                    CreatedDate = DateTime.Now,
+                    ModifiedBy = username,
+                    ModifiedDate = Tempselecteddate
+                    //storing Selecteed for validation purpose
+                };
+                await _unitOfWork.MaintenanceProcesses.CreateAsync(TempMaintenanceProcess);
+                await _unitOfWork.SaveAsync();
+                // Logging
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Maintenance Process",
+                    action: "Performed Maintenance process for Machine ID: " + TempMaintenanceProcess.MachineId
+            );
+            }
+            await _js.ToastrSuccess("successfully done");
+            status = !status;
+            await InvokeAsync(StateHasChanged);
+            await OnClose.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in SaveAndModify: " + ex.Message);
+            await _js.ToastrError("An error occurred while saving changes.");
+        }
+    }
+    #endregion
+}

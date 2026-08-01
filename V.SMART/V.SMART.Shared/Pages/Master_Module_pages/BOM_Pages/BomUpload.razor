@@ -1,0 +1,958 @@
+﻿@page "/bom-upload"
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+
+@inject NavigationManager _navigationManager
+
+@inject IJSRuntime JS
+@inject IJSRuntime _js
+@inject IUnitOfWork _unitOfWork
+@inject CurrentUserService _userService
+
+@inject IAssemblyDefService assemblyDefService
+
+<BsModal OnModalConfirmation="confirmSave_Click"
+         ButtonBootstrapStyle="btn-success"
+         ButtonText="Save"
+         Title="Are you sure you want to Save this Assembly?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- Card Header -->
+                <PageHeader 
+                    TitleText="BOM Upload"
+                    TitleIcon="bi bi-arrow-bar-up"
+                    Breadcrumbs="@bomUploadBreadcrumbs" />
+
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="border rounded p-3 bg-light shadow-sm">
+                                <label class="form-label fw-bold text-primary">
+                                    <i class="bi bi-upload me-2"></i>Upload File 
+                                    <span class="text-muted small">(xlsx / xls / csv)</span>
+                                </label>
+                                <InputFile OnChange="OnFileChange" accept=".xlsx,.xls,.csv" class="form-control" />
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            @if (IsExcelFile && SheetNames?.Count > 0)
+                            {
+                                <div class="border rounded p-3 bg-light shadow-sm">
+                                    <label class="form-label fw-bold text-primary">
+                                        <i class="bi bi-table me-2"></i>Select Excel Sheet
+                                    </label>
+                                    <select class="form-select" @onchange="OnSheetSelected">
+                                        <option value="-1">-- Select Sheet --</option>
+                                        @foreach (var sheet in SheetNames)
+                                        {
+                                            <option value="@sheet">@sheet</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+
+                    @if (BomList.Any())
+                    {
+                       <div class="my-4" style="max-height: 500px; overflow-y: auto; overflow-x: auto;">
+                            <table class="table table-bordered" style="table-layout: fixed; width: 3200px; font-size: 16px;">
+                                <thead style="position: sticky; top: 0; z-index: 1;">
+                                    <tr>
+                                        <th style="width: 60px; background-color:#2883c1; color: white;">Sl.No</th>
+                                        <th style="width: 200px; background-color:#2883c1; color: white;">Main Assy</th>
+                                        <th style="width: 200px; background-color:#2883c1; color: white;">Sub Assy1</th>
+                                        <th style="width: 200px; background-color:#2883c1; color: white;">Sub Assy2</th>
+                                        <th style="width: 200px; background-color:#2883c1; color: white;">Sub Assy3</th>
+                                        <th style="width: 150px; background-color:#2883c1; color: white;">Category</th>
+                                        <th style="width: 180px; background-color:#2883c1; color: white;">Part Number</th>
+                                        <th style="width: 180px; background-color:#2883c1; color: white;">Part Name</th>
+                                        <th style="width: 200px; background-color:#2883c1; color: white;">Specification</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">QTY</th>
+                                        <th style="width: 140px; background-color:#2883c1; color: white;">UOM</th>
+                                        <th style="width: 100px; background-color:#2883c1; color: white;">Rate</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">ROL</th>
+                                        <th style="width: 100px; background-color:#2883c1; color: white;">HSN</th>
+                                        <th style="width: 100px; background-color:#2883c1; color: white;">SAC</th>
+                                        <th style="width: 170px; background-color:#2883c1; color: white;">Item Type</th>
+                                        <th style="width: 120px; background-color:#2883c1; color: white;">Shape</th>
+                                        <th style="width: 150px; background-color:#2883c1; color: white;">Material</th>
+                                        <th style="width: 120px; background-color:#2883c1; color: white;">Mtl.Grade</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">Density</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">OD/L</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">ID/W</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">Thk/H</th>
+                                        <th style="width: 100px; background-color:#2883c1; color: white;">Wall Thk</th>
+                                        <th style="width: 120px; background-color:#2883c1; color: white;">OD/L RM</th>
+                                        <th style="width: 120px; background-color:#2883c1; color: white;">ID/W RM</th>
+                                        <th style="width: 120px; background-color:#2883c1; color: white;">Thk RM</th>
+                                        <th style="width: 130px; background-color:#2883c1; color: white;">Wall Thk RM</th>
+                                        <th style="width: 170px; background-color:#2883c1; color: white;">RM UOM</th>
+                                        <th style="width: 100px; background-color:#2883c1; color: white;">RM Qty</th>
+                                        <th style="width: 100px; background-color:#2883c1; color: white;">RM Wt</th>
+                                        <th style="width: 200px; background-color:#2883c1; color: white;">Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody style="word-break: break-word;">
+                                    @foreach (var row in BomList)
+                                    {
+                                        <tr style="font-size:12px;">
+                                            <td>@row.SlNo</td>
+                                            <td>@row.MainAssembly</td>
+                                            <td>@row.SubAssembly1</td>
+                                            <td>@row.SubAssembly2</td>
+                                            <td>@row.SubAssembly3</td>
+                                            <td>@row.Category</td>
+                                            <td>@row.PartNumber</td>
+                                            <td>@row.PartName</td>
+                                            <td>@row.Specification</td>
+                                            <td>@row.Qty</td>
+                                            <td>@row.UOM</td>
+                                            <td>@row.Rate</td>
+                                            <td>@row.ROL</td>
+                                            <td>@row.HSNCode</td>
+                                            <td>@row.SACCode</td>
+                                            <td>@row.ItemType</td>
+                                            <td>@row.Shape</td>
+                                            <td>@row.Material</td>
+                                            <td>@row.MaterialGrade</td>
+                                            <td>@row.Density</td>
+                                            <td>@row.ODLengthComp</td>
+                                            <td>@row.IDWidthComp</td>
+                                            <td>@row.ThicknessLengthHeightComp</td>
+                                            <td>@row.WallThicknessComp</td>
+                                            <td>@row.ODLength_RM</td>
+                                            <td>@row.IDWidth_RM</td>
+                                            <td>@row.ThicknessLengthHeight_RM</td>
+                                            <td>@row.WallThickness_RM</td>
+                                            <td>@row.RMUOM</td>
+                                            <td>@row.RMQty</td>
+                                            <td>@row.RMWt</td>
+                                            <td>@row.Remarks</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+
+                        <div class="text-end mt-4">
+                            <button class="btn btn-outline-success d-inline-flex align-items-center border border-2" @onclick="SaveBOM">
+                                <i class="bi bi-cloud-arrow-up-fill fs-4"></i>
+                                <span class="fw-semibold">Save BOM</span>
+                                <span class="ms-2 badge bg-success-subtle text-dark">@BomList.Count</span>
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+@code {
+    protected override string ScreenName => "BOM";
+
+    private BomUploadRowViewModel bomUploadRowViewModel = new();
+    private List<BomUploadRowViewModel> BomList { get; set; } = new();
+    private List<string> SheetNames { get; set; } = new();
+    private Stream? FileStream;
+    private string? SelectedSheet;
+    private string? HeaderErrorMessage { get; set; }
+    private bool IsExcelFile { get; set; }
+    private bool isProcessing = true;
+
+    private List<PageHeader.BreadcrumbItem> bomUploadBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "BOM", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "Error initializing BOM_Upload page.");
+        }
+    }
+
+    private List<string> ExpectedHeaders = new List<string>
+    {
+        "Main Assy", "Sub Assy1", "Sub Assy2", "Sub Assy3",
+        "CATEGORY", "PART NUMBER", "PART NAME", "Specification",
+        "QTY", "UOM", "Rate", "ROL",
+        "HSN Code", "SAC Code", "Item Type", "Shape",
+        "Material", "Mtl.Grade", "Density",
+        "OD/Length", "ID/Width", "Thickness/Length/Height", "Wall Thickness",
+        "OD/Length RM", "ID/Width RM", "Thickness/Length/Height RM", "Wall Thickness RM",
+        "RM UOM", "RM Qty", "RM Wt.", "Remarks"
+    };
+
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file == null) return;
+
+            FileStream = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(FileStream);
+            FileStream.Position = 0;
+
+            BomList.Clear();
+            SheetNames.Clear();
+            SelectedSheet = null;
+            HeaderErrorMessage = null;
+
+            string fileName = file.Name;
+
+            if (fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                IsExcelFile = false;
+
+                try
+                {
+                    await LoadCsvData(FileStream);
+                    await JS.ToastrSuccess("CSV file loaded successfully. Please select a sheet.");
+
+                    await LoggingService.LogUserAction(
+                        UserName: await _userService.GetUsernameAsync(),
+                        Machine: _userService.MachineName,
+                        IP_Address: _userService.IpAddress,
+                        screen: "BOM Upload",
+                        action: "CSV file loaded for BOM Upload",
+                        additionalInfo: string.Empty
+                    );
+                }
+                catch (Exception exCsv)
+                {
+                    await LoggingService.LogDeveloperError(exCsv, "CSV parsing failed in BOM Upload.");
+                    await JS.ToastrError("Failed to load the CSV file. Please ensure it is in the correct format.");
+                    FileStream = null;
+                }
+            }
+            else if (fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+            {
+                IsExcelFile = true;
+
+                try
+                {
+                    using var workbook = new XLWorkbook(FileStream);
+                    SheetNames = workbook.Worksheets.Select(ws => ws.Name).ToList();
+
+                    await JS.ToastrSuccess("Excel file loaded successfully. Please select a sheet.");
+
+                    await LoggingService.LogUserAction(
+                        UserName: await _userService.GetUsernameAsync(),
+                        Machine: _userService.MachineName,
+                        IP_Address: _userService.IpAddress,
+                        screen: "BOM Upload",
+                        action: "Excel file loaded for BOM Upload",
+                        additionalInfo: string.Empty
+                    );
+                }
+                catch (Exception exExcel)
+                {
+                    await LoggingService.LogDeveloperError(exExcel, "Excel parsing failed in BOM Upload.");
+                    await JS.ToastrError("Failed to load the Excel file. Please check if the file is corrupted or unsupported.");
+                    FileStream = null;
+                }
+            }
+            else
+            {
+                await JS.ToastrError("Unsupported file format. Please upload a valid Excel (.xlsx/.xls) or CSV (.csv) file.");
+                FileStream = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Unexpected error during file upload in BOM Upload.");
+            await JS.ToastrError("An unexpected error occurred while processing the file. Please try again.");
+        }
+    }
+
+    private async void OnSheetSelected(ChangeEventArgs e)
+    {
+        try
+        {
+            var selected = e.Value?.ToString();
+            if (!string.IsNullOrWhiteSpace(selected) && selected != "-1")
+            {
+                SelectedSheet = selected;
+                await LoadExcelSheetData(SelectedSheet);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading selected sheet in BOM Upload.");
+            await JS.ToastrError("Failed to load the selected sheet. Please try again or upload the file again.");
+        }
+    }
+
+
+    private async Task LoadExcelSheetData(string sheetName)
+    {
+        try
+        {
+            if (FileStream == null)
+            {
+                await JS.ToastrError("Excel stream is empty.");
+                return;
+            }
+
+            FileStream.Position = 0;
+
+            using var workbook = new XLWorkbook(FileStream);
+            var worksheet = workbook.Worksheet(sheetName);
+            var rows = worksheet.RowsUsed().ToList();
+
+            if (rows.Count < 3)
+            {
+                await JS.ToastrWarning("Excel sheet has no data rows.");
+                return;
+            }
+
+            var headerRow = rows[1];
+            var actualHeaders = ExtractHeaders(headerRow.Cells().Select(c => c.GetString()).ToList());
+
+            if (!await ValidateHeaders(actualHeaders)) return;
+
+            var dataRows = rows.Skip(2).ToList();
+
+            await ProcessRows(dataRows.Select(r => ExtractRowValues(r, actualHeaders)).ToList(), actualHeaders);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while loading data from Excel sheet in BOM Upload.");
+            await JS.ToastrError("Failed to load data from the selected Excel sheet. Please check the format and try again.");
+        }
+    }
+
+    private async Task LoadCsvData(Stream csvStream)
+    {
+        isProcessing = true;
+
+        try
+        {
+            using var reader = new StreamReader(csvStream);
+            var lines = new List<string>();
+
+            while (reader.Peek() >= 0)
+                lines.Add(await reader.ReadLineAsync() ?? string.Empty);
+
+            if (lines.Count < 2)
+            {
+                await JS.ToastrWarning("CSV file has no data rows.");
+                return;
+            }
+
+            var headers = lines[0].Split(',').Select(h => h.Trim()).ToList();
+            var actualHeaders = ExtractHeaders(headers);
+
+            if (!await ValidateHeaders(actualHeaders)) return;
+
+            var dataRows = lines
+                .Skip(1)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .Select(line => line.Split(',').Select(cell => cell.Trim()).ToList())
+                .ToList();
+
+            await ProcessRows(dataRows, actualHeaders);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while parsing CSV data in BOM Upload.");
+            await JS.ToastrError("Failed to load data from the CSV file. Please check the file format and try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private Dictionary<string, int> ExtractHeaders(IList<string> headers)
+    {
+        var dict = new Dictionary<string, int>();
+        for (int i = 0; i < headers.Count; i++)
+        {
+            var header = headers[i].Trim();
+            if (!string.IsNullOrWhiteSpace(header))
+                dict[header] = i + 1; // +1 for Excel column indexing, ignored in CSV
+        }
+        return dict;
+    }
+
+    private async Task<bool> ValidateHeaders(Dictionary<string, int> actualHeaders)
+    {
+        try
+        {
+            var missing = ExpectedHeaders.Where(h => !actualHeaders.ContainsKey(h)).ToList();
+            if (missing.Any())
+            {
+                HeaderErrorMessage = $"Missing headers: {string.Join(", ", missing)}";
+                await JS.ToastrError(HeaderErrorMessage);
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Header validation failed in BOM Upload.");
+            await JS.ToastrError("Error while validating headers.");
+            return false;
+        }
+    }
+
+
+    private List<string> ExtractRowValues(IXLRow row, Dictionary<string, int> actualHeaders)
+    {
+        return actualHeaders
+            .OrderBy(kvp => kvp.Value)
+            .Select(kvp => row.Cell(kvp.Value).GetValue<string>().Trim())
+            .ToList();
+    }
+
+    private async Task ProcessRows(List<List<string>> rows, Dictionary<string, int> actualHeaders)
+    {
+        try
+        {
+            BomList.Clear();
+            int sl = 1;
+
+            foreach (var rowValues in rows)
+            {
+                var model = MapToBomViewModel(rowValues, actualHeaders, sl++);
+
+                // Skip validations for the first row (but still add to list)
+                if (sl != 2)
+                {
+                    if (string.IsNullOrWhiteSpace(model.MainAssembly) &&
+                        string.IsNullOrWhiteSpace(model.SubAssembly1) &&
+                        string.IsNullOrWhiteSpace(model.SubAssembly2) &&
+                        string.IsNullOrWhiteSpace(model.SubAssembly3))
+                    {
+                        await JS.ToastrError($"Row {sl - 1}: Enter Main Assy/Sub Assy1/Sub Assy2/Sub Assy3");
+                        return;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(model.PartName))
+                    {
+                        await JS.ToastrError($"Row {sl - 1}: Part Name is required.");
+                        return;
+                    }
+
+                    if (model.Qty <= 0)
+                    {
+                        await JS.ToastrError($"Row {sl - 1}: QTY must be greater than zero.");
+                        return;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(model.UOM))
+                    {
+                        await JS.ToastrError($"Row {sl - 1}: UOM is required.");
+                        return;
+                    }
+                }
+
+                BomList.Add(model);
+            }
+
+            await JS.ToastrSuccess($"Loaded {BomList.Count} rows successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while processing BOM rows.");
+            await JS.ToastrError("An unexpected error occurred while processing the rows.");
+        }
+    }
+
+
+
+    private BomUploadRowViewModel MapToBomViewModel(List<string> values, Dictionary<string, int> actualHeaders, int slNo)
+    {
+        try
+        {
+            string Get(string name) =>
+                actualHeaders.TryGetValue(name, out int index) && index - 1 < values.Count
+                    ? values[index - 1]?.Trim() ?? string.Empty
+                    : string.Empty;
+
+            decimal GetDecimal(string name)
+            {
+                var str = Get(name);
+                return decimal.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0;
+            }
+
+            return new BomUploadRowViewModel
+            {
+                SlNo = slNo,
+                MainAssembly = Get("Main Assy"),
+                SubAssembly1 = Get("Sub Assy1"),
+                SubAssembly2 = Get("Sub Assy2"),
+                SubAssembly3 = Get("Sub Assy3"),
+                Category = Get("CATEGORY"),
+                PartNumber = Get("PART NUMBER"),
+                PartName = Get("PART NAME"),
+                Specification = Get("Specification"),
+                Qty = (decimal)GetDecimal("QTY"),
+                UOM = Get("UOM"),
+                Rate = GetDecimal("Rate"),
+                ROL = GetDecimal("ROL"),
+                HSNCode = Get("HSN Code"),
+                SACCode = Get("SAC Code"),
+                ItemType = Get("Item Type"),
+                Shape = Get("Shape"),
+                Material = Get("Material"),
+                MaterialGrade = Get("Mtl.Grade"),
+                Density = GetDecimal("Density"),
+                ODLengthComp = GetDecimal("OD/Length"),
+                IDWidthComp = GetDecimal("ID/Width"),
+                ThicknessLengthHeightComp = GetDecimal("Thickness/Length/Height"),
+                WallThicknessComp = GetDecimal("Wall Thickness"),
+                ODLength_RM = GetDecimal("OD/Length RM"),
+                IDWidth_RM = GetDecimal("ID/Width RM"),
+                ThicknessLengthHeight_RM = GetDecimal("Thickness/Length/Height RM"),
+                WallThickness_RM = GetDecimal("Wall Thickness RM"),
+                RMUOM = Get("RM UOM"),
+                RMQty = GetDecimal("RM Qty"),
+                RMWt = GetDecimal("RM Wt."),
+                Remarks = Get("Remarks")
+            };
+        }
+        catch (Exception ex)
+        {
+            return new BomUploadRowViewModel
+        {
+            SlNo = slNo,
+            PartName = $"[Error in row {slNo}]"
+        };
+            LoggingService.LogDeveloperError(ex, $"Error in MapToBomViewModel row {slNo}");
+        }
+    }
+
+
+
+    private async Task SaveBOM()
+    {
+
+        try
+        {
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error preparing saving in BOM List");
+            await _js.ToastrError("Error preparing saving.");
+        }
+
+    }
+
+
+
+    private async Task<int> GetSubAssyIdAsync(BomUploadRowViewModel row)
+    {
+        string[] subAssys = { row.SubAssembly1, row.SubAssembly2, row.SubAssembly3 };
+        foreach (var code in subAssys)
+        {
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                int id = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(code.Trim());
+                if (id > 0)
+                    return id;
+            }
+        }
+        return 0;
+    }
+
+    private decimal TODecimal(string input) => decimal.TryParse(input, out var val) ? val : 0;
+
+
+    private async Task confirmSave_Click(bool isConfirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+
+        if (!isConfirmed)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            await assemblyDefService.UploadBomAsync(BomList);
+
+            await JS.ToastrSuccess("BOM Uploaded successfully");
+            _navigationManager.NavigateTo("/bomList");
+        }
+        catch (Exception ex)
+        {
+            await JS.ToastrError("An error occurred while saving BOM.");
+            await LoggingService.LogDeveloperError(ex, "SaveBOM");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    // private async Task confirmSave_Click(bool isConfirmed)
+    // {
+
+    //     try
+    //     {
+    //         await _js.InvokeVoidAsync("HideConfirmationModal");
+
+    //         if (isConfirmed)
+    //         {
+    //             isProcessing = true;
+    //             string assemblyName = string.Empty;
+    //             if (BomList == null || !BomList.Any()) return;
+
+    //             string createdBy = await _userService.GetUsernameAsync();
+
+    //             foreach (var row in BomList)
+    //             {
+    //                 if (string.IsNullOrWhiteSpace(row.PartNumber)) continue;
+
+    //                 string uom = row.UOM?.Split('-')[0].Trim() ?? "NOS";
+    //                 string rmUOM = row.RMUOM?.Split('-')[0].Trim() ?? "NOS";
+    //                 string shape = row.Shape?.Trim() ?? "";
+    //                 string mtl = row.Material?.Trim() ?? "";
+    //                 string grade = row.MaterialGrade?.Trim() ?? "";
+    //                 string materialWithGrade = $"{mtl} {grade}".Trim();
+
+    //                 // === Category Handling ===
+    //                 int? categoryCode = null;
+    //                 if (!string.IsNullOrWhiteSpace(row.Category))
+    //                 {
+    //                     var parts = row.Category.Split('-', 2);
+    //                     if (parts.Length >= 2)
+    //                     {
+    //                         string categoryName = parts[1].Trim();
+    //                         var existingCategory = (await _unitOfWork.Categories.GetAllAsync())
+    //                             .FirstOrDefault(c => c.CategoryName.Equals(categoryName, StringComparison.OrdinalIgnoreCase));
+
+    //                         if (existingCategory != null)
+    //                             categoryCode = existingCategory.CategoryCode;
+    //                         else
+    //                         {
+    //                             var newCategory = new Category
+    //                                 {
+    //                                     CategoryName = categoryName,
+    //                                     CategoryDesc = "",
+    //                                     IsSystemDefined = false
+    //                                 };
+    //                             await _unitOfWork.Categories.CreateAsync(newCategory);
+    //                             await _unitOfWork.SaveAsync();
+    //                             categoryCode = newCategory.CategoryCode;
+    //                         }
+    //                     }
+    //                 }
+
+    //                 // === Generate Codes ===
+    //                 string itemCode = builditemcode(
+    //                     row.ODLengthComp.GetValueOrDefault(),
+    //                     row.IDWidthComp.GetValueOrDefault(),
+    //                     row.WallThicknessComp.GetValueOrDefault(),
+    //                     row.ThicknessLengthHeightComp.GetValueOrDefault(),
+    //                     row.PartNumber.Trim(), shape, materialWithGrade, false);
+
+    //                 string RMitemCode = builditemcode(
+    //                     row.ODLength_RM.GetValueOrDefault(),
+    //                     row.IDWidth_RM.GetValueOrDefault(),
+    //                     row.WallThickness_RM.GetValueOrDefault(),
+    //                     row.ThicknessLengthHeight_RM.GetValueOrDefault(),
+    //                     row.PartNumber.Trim(), shape, materialWithGrade, true);
+
+    //                 if (string.IsNullOrWhiteSpace(itemCode)) continue;
+    //                 if (await _unitOfWork.ItemRepositories.AnyAsync(x => x.ItemCode == itemCode || x.ItemCode == RMitemCode)) continue;
+
+    //                 // === Raw Material ===
+    //                 var rm = await _unitOfWork.RawMaterial.FirstOrDefaultAsync(r =>
+    //                     r.RMName.ToLower() == mtl.ToLower() && r.Grade == grade);
+
+    //                 if (rm == null && !string.IsNullOrEmpty(mtl))
+    //                 {
+    //                     rm = new RawMaterial
+    //                         {
+    //                             RMName = mtl,
+    //                             Grade = grade,
+    //                             Density = row.Density.GetValueOrDefault()
+    //                         };
+    //                     await _unitOfWork.RawMaterial.CreateAsync(rm);
+    //                     await _unitOfWork.SaveAsync();
+
+    //                     await LoggingService.LogUserAction(
+    //                         createdBy, _userService.MachineName, _userService.IpAddress,
+    //                         "Raw Material Creation",
+    //                         $"Created Raw Material: {rm.RMName} - {rm.Grade} with Density: {rm.Density}",
+    //                         "SaveBOM"
+    //                     );
+    //                 }
+
+    //                 // === HSN/SAC Codes ===
+    //                 async Task<HSNMaster> EnsureHSNExists(string code)
+    //                 {
+    //                     if (string.IsNullOrWhiteSpace(code)) return null;
+
+    //                     var hsn = await _unitOfWork.HSNMasters.FirstOrDefaultAsync(r => r.HSNcode == code);
+    //                     if (hsn == null)
+    //                     {
+    //                         hsn = new HSNMaster
+    //                             {
+    //                                 HSNCategoryCode = code.Substring(0, 2),
+    //                                 HSNcode = code,
+    //                                 Required = true
+    //                             };
+    //                         await _unitOfWork.HSNMasters.CreateAsync(hsn);
+    //                     }
+    //                     else if (!hsn.Required)
+    //                     {
+    //                         hsn.Required = true;
+    //                         await _unitOfWork.HSNMasters.UpdateAsync(hsn);
+    //                     }
+    //                     await _unitOfWork.SaveAsync();
+    //                     return hsn;
+    //                 }
+
+    //                 await EnsureHSNExists(row.HSNCode);
+    //                 await EnsureHSNExists(row.SACCode);
+
+    //                 // === Component Item ===
+    //                 var newItem = new Item
+    //                     {
+    //                         ItemCode = itemCode,
+    //                         ItemName = row.PartName?.Trim() ?? ".",
+    //                         Rate = row.Rate.GetValueOrDefault(),
+    //                         ROL = (int?)row.ROL,
+    //                         HSNCode = row.HSNCode?.Trim(),
+    //                         SACCode = row.SACCode?.Trim(),
+    //                         CategoryCode = categoryCode,
+    //                         MeasureUnit = uom,
+    //                         PurchaseUnit = uom,
+    //                         Specification = row.Specification?.Trim(),
+    //                         Shape = shape,
+    //                         RmId = rm?.RMId,
+    //                         BtOtorMfg = row.ItemType?.Trim() == "BOP-Broughtout/Purchase" ? "BtOt" : "Mfg",
+    //                         Density = row.Density.GetValueOrDefault(),
+    //                         Weight = row.RMWt.GetValueOrDefault(),
+    //                         Length = row.ODLengthComp.GetValueOrDefault(),
+    //                         Width = row.IDWidthComp.GetValueOrDefault(),
+    //                         Thickness = row.ThicknessLengthHeightComp.GetValueOrDefault(),
+    //                         WallThickness = row.WallThicknessComp.GetValueOrDefault(),
+    //                         CreatedDate = DateTime.Now,
+    //                         CreatedBy = createdBy
+    //                     };
+    //                 await _unitOfWork.ItemRepositories.CreateAsync(newItem);
+    //                 await _unitOfWork.SaveAsync();
+
+    //                 await LoggingService.LogUserAction(
+    //                     createdBy, _userService.MachineName, _userService.IpAddress,
+    //                     "Item Creation",
+    //                     $"Component Item Created: {itemCode} - {newItem.ItemName}",
+    //                     "SaveBOM"
+    //                 );
+
+    //                 // === RM Item ===
+    //                 if (!string.IsNullOrWhiteSpace(RMitemCode))
+    //                 {
+    //                     var rmItem = new Item
+    //                         {
+    //                             ItemCode = RMitemCode,
+    //                             ItemName = row.PartName?.Trim() ?? ".",
+    //                             Rate = row.Rate.GetValueOrDefault(),
+    //                             ROL = (int?)row.ROL,
+    //                             MeasureUnit = rmUOM,
+    //                             PurchaseUnit = rmUOM,
+    //                             CategoryCode = 1,
+    //                             HSNCode = row.HSNCode?.Trim(),
+    //                             SACCode = row.SACCode?.Trim(),
+    //                             Specification = row.Specification?.Trim(),
+    //                             BtOtorMfg = row.ItemType?.Trim() == "BOP-Broughtout/Purchase" ? "BtOt" : "Mfg",
+    //                             Shape = shape,
+    //                             RmId = rm?.RMId,
+    //                             Density = row.Density.GetValueOrDefault(),
+    //                             Weight = row.RMWt.GetValueOrDefault(),
+    //                             Length = row.ODLength_RM.GetValueOrDefault(),
+    //                             Width = row.IDWidth_RM.GetValueOrDefault(),
+    //                             Thickness = row.ThicknessLengthHeight_RM.GetValueOrDefault(),
+    //                             WallThickness = row.WallThickness_RM.GetValueOrDefault(),
+    //                             CreatedDate = DateTime.Now,
+    //                             CreatedBy = createdBy
+    //                         };
+    //                     await _unitOfWork.ItemRepositories.CreateAsync(rmItem);
+    //                     await _unitOfWork.SaveAsync();
+
+    //                     await LoggingService.LogUserAction(
+    //                         createdBy, _userService.MachineName, _userService.IpAddress,
+    //                         "Item Creation",
+    //                         $"Raw Material Item Created: {RMitemCode} - {rmItem.ItemName}",
+    //                         "SaveBOM"
+    //                     );
+
+    //                     var compMaster = new CompMaster
+    //                         {
+    //                             CompItemId = newItem.ItemId,
+    //                             RMId = rmItem.ItemId,
+    //                             Weight = row.RMWt.GetValueOrDefault(),
+    //                             LabWORM = false
+    //                         };
+    //                     await _unitOfWork.CompMasters.CreateAsync(compMaster);
+    //                     await _unitOfWork.SaveAsync();
+
+    //                     await LoggingService.LogUserAction(
+    //                         createdBy, _userService.MachineName, _userService.IpAddress,
+    //                         "Component Mapping",
+    //                         $"Component {itemCode} mapped to RM {RMitemCode} with weight {compMaster.Weight}",
+    //                         "SaveBOM"
+    //                     );
+    //                 }
+    //             }
+
+    //             // === Assembly Section ===
+    //             int assyId = 0;
+    //             foreach (var row in BomList)
+    //             {
+
+    //                 if (row.Category?.Split('-')[0].Trim() == "3")
+    //                 {
+    //                     assemblyName = row.PartNumber.Trim();
+    //                     assyId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(assemblyName);
+    //                 }
+    //             }
+    //             if (assyId == 0) return;
+
+    //             int slNo = await _unitOfWork.AssmblyDefs.GetNextSlNoAsync(assyId);
+
+    //             foreach (var row in BomList)
+    //             {
+    //                 if (string.IsNullOrWhiteSpace(row.PartNumber)) continue;
+
+
+    //                 int mainAssyId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(row.MainAssembly?.Trim());
+
+    //                 string builtCode = builditemcode(
+    //                     row.ODLengthComp.GetValueOrDefault(),
+    //                     row.IDWidthComp.GetValueOrDefault(),
+    //                     row.WallThicknessComp.GetValueOrDefault(),
+    //                     row.ThicknessLengthHeightComp.GetValueOrDefault(),
+    //                     row.PartNumber?.Trim(),
+    //                     row.Shape?.Trim() ?? "",
+    //                     $"{row.Material?.Trim()} {row.MaterialGrade?.Trim()}",
+    //                     false);
+
+    //                 int itemId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(builtCode);
+    //                 if (itemId == 0)
+    //                     itemId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(row.PartNumber?.Trim());
+
+    //                 if (assyId == mainAssyId)
+    //                 {
+    //                     if (await _unitOfWork.AssmblyDefs.ExistsAsync(mainAssyId, itemId)) continue;
+
+    //                     var assy = new AssmblyDef
+    //                         {
+    //                             AssmblyID = mainAssyId,
+    //                             ItemId = itemId,
+    //                             UtilQty = row.Qty.GetValueOrDefault(),
+    //                             SlNo = slNo,
+    //                             CreatedBy = createdBy,
+    //                             CreatedDate = DateTime.Now,
+    //                             Remarks = row.Remarks?.Trim(),
+    //                             BalQty = row.Qty.GetValueOrDefault()
+    //                         };
+    //                     await _unitOfWork.AssmblyDefs.CreateAsync(assy);
+    //                     await _unitOfWork.SaveAsync();
+    //                     slNo++;
+    //                 }
+    //                 else if (mainAssyId == 0)
+    //                 {
+    //                     int subassySlno = 0;
+    //                     int subAssyId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(row.SubAssembly1?.Trim());
+
+    //                     if (string.IsNullOrWhiteSpace(row.SubAssembly1) && string.IsNullOrWhiteSpace(row.SubAssembly3) && subAssyId == 0)
+    //                         subAssyId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(row.SubAssembly2?.Trim());
+    //                     else if (string.IsNullOrWhiteSpace(row.SubAssembly1) && string.IsNullOrWhiteSpace(row.SubAssembly2) && subAssyId == 0)
+    //                         subAssyId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(row.SubAssembly3?.Trim());
+
+    //                     if (subAssyId == 0) continue;
+
+    //                     subassySlno = await _unitOfWork.AssmblyDefs.GetNextSlNoAsync(subAssyId);
+    //                     if (await _unitOfWork.AssmblyDefs.ExistsAsync(subAssyId, itemId)) continue;
+
+    //                     var def = new AssmblyDef
+    //                         {
+    //                             AssmblyID = subAssyId,
+    //                             ItemId = itemId,
+    //                             UtilQty = row.Qty.GetValueOrDefault(),
+    //                             SlNo = subassySlno,
+    //                             CreatedBy = createdBy,
+    //                             CreatedDate = DateTime.Now,
+    //                             Remarks = row.Remarks?.Trim(),
+    //                             BalQty = row.Qty.GetValueOrDefault()
+    //                         };
+    //                     await _unitOfWork.AssmblyDefs.CreateAsync(def);
+    //                     await _unitOfWork.SaveAsync();
+    //                     subassySlno++;
+    //                 }
+    //             }
+
+                
+
+    //             await JS.ToastrSuccess("BOM Uploaded successfully");
+    //             _navigationManager.NavigateTo("/bomList");
+    //             await LoggingService.LogUserAction(
+    //                 createdBy, _userService.MachineName, _userService.IpAddress,
+    //                 "BOM Upload",
+    //                 $"BOM For {assemblyName} uploaded successfully",
+    //                 "SaveBOM"
+    //             );
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         await JS.ToastrError("An error occurred while saving items.");
+    //         await LoggingService.LogDeveloperError(ex, "Error while saving BOM rows.");
+    //     }
+    //     finally
+    //     {
+    //         isProcessing = false;
+    //     }
+    // }
+
+
+
+}

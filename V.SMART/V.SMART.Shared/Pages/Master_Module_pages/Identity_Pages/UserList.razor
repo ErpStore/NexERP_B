@@ -1,0 +1,885 @@
+﻿@page "/user"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAdminService
+@using V.SMART.Shared.ViewModels.MasterViewModel.AdminViewmodel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+
+@inject IUserService userService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true" 
+            Screen="@ScreenName" 
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Users List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@UserBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                 <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                 value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+
+                            <option value="">All</option>
+                            <option value="Active">Active</option>
+                            <option value="InActive">InActive</option>
+                            <option value="Readonly">Read-Only</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                       <div class="col-6 col-md-2 ms-md-auto text-end">
+                            <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewUser">
+                                <i class="bi bi-plus-square me-1"></i> Add New
+                            </button>
+                       </div>
+                    }
+
+                </div>
+
+                @if (UserVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="UserVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    @switch (col.Field)
+                                    {
+                                        case "UserId":
+                                            <PropertyColumn Title="User ID"
+                                                            Property="@(x => x.UserId)" />
+                                            break;
+
+                                        case "UserName":
+                                            <PropertyColumn Title="User Name"
+                                                            Property="@(x => x.UserName)"
+                                                            Sortable="true" />
+                                            break;
+
+                                        case "Role":
+                                            <TemplateColumn Title="Role" Context="x">
+                                                <span class="badge bg-primary rounded-pill px-3">
+                                                    @x.Role.ToString()
+                                                </span>
+                                            </TemplateColumn>
+                                            break;
+
+                                        case "PhoneNumber":
+                                            <PropertyColumn Title="Phone Number"
+                                                            Property="@(x => x.PhoneNumber)" />
+                                            break;
+
+                                        case "EmailId":
+                                            <PropertyColumn Title="Email ID"
+                                                            Property="@(x => x.EmailId)"
+                                                            Sortable="true" />
+                                            break;
+
+                                        case "EmailServerName":
+                                            <PropertyColumn Title="Email Server"
+                                                            Property="@(x => x.EmailServerName)" />
+                                            break;
+
+                                        case "EmailPortNo":
+                                            <PropertyColumn Title="Email Port"
+                                                            Property="@(x => x.EmailPortNo)" />
+                                            break;
+
+                                        case "IsActive":
+                                            <TemplateColumn Title="Status" Context="x">
+                                                @if (x.IsActive)
+                                                {
+                                                    <span class="badge bg-success rounded-pill px-3">
+                                                        <i class="bi bi-check-circle me-1"></i> Active
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-danger rounded-pill px-3">
+                                                        <i class="bi bi-x-circle me-1"></i> Inactive
+                                                    </span>
+                                                }
+                                            </TemplateColumn>
+                                            break;
+
+                                        case "IsViewOnly":
+                                            <TemplateColumn Title="View Only" Context="x">
+                                                <span class="badge @(x.IsViewOnly ? "bg-warning text-dark" : "bg-secondary") rounded-pill px-3">
+                                                    @(x.IsViewOnly ? "Yes" : "No")
+                                                </span>
+                                            </TemplateColumn>
+                                            break;
+
+                                        case "LevelAuthorization":
+                                            <TemplateColumn Title="Level Authorization" Context="x">
+                                                <span class="badge @(x.LevelAuthorization ? "bg-info" : "bg-secondary") rounded-pill px-3">
+                                                    @(x.LevelAuthorization ? "Enabled" : "Disabled")
+                                                </span>
+                                            </TemplateColumn>
+                                            break;
+
+                                        case "CreatedBy":
+                                            <PropertyColumn Title="Created By"
+                                                            Property="@(x => x.CreatedBy)" />
+                                            break;
+
+                                        case "CreatedDate":
+                                            <PropertyColumn Title="Created Date"
+                                                            Property="@(x => x.CreatedDate)"
+                                                            Format="dd/MM/yyyy" />
+                                            break;
+                                    }
+                                }
+                            }
+
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"user/update/{c.UserId}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit User">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete User"
+                                                @onclick="() => HandleDelete(c.UserId)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5"
+                                        @onclick="getPrint">
+
+                                    <i class="bi bi-download me-1"></i>Print All QR Code                                   
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center">No Item available.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "User";
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private int DeleteUserId = 0;
+    private string searchText = string.Empty;
+    private string selectedStatus = "";
+
+    private List<UserVM> UserVMs = new();
+
+    // === Paging & Search ===
+    private int totalItems;
+    private int currentPage = 1;
+    private int pageSize { get; set; } = 10;
+
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    public List<GridColumn> Columns { get; set; }
+
+    // === Modal State ===
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    // Instant Search filter parameter
+    [Parameter,SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> UserBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Admin Master" },
+        new PageHeader.BreadcrumbItem { Text = "User Master", IsLast = true }
+    };
+
+    #endregion
+
+    #region === initilization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+
+            await LoadAllUsers();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in User list OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+
+    private void AddNewUser()
+    {
+        _navigation.NavigateTo($"/user/create");
+    }
+
+    #endregion
+
+    #region === Data Loading ===
+
+    private async Task LoadAllUsers()
+    {
+        try
+        {
+            var result = await userService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            UserVMs = result.userVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading data in User List");
+            await _JS.ToastrError("Failed to load User List.");
+        }
+    }
+
+    #endregion
+
+
+
+    #region ===  Columns ===
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "User ID", Field = "UserId", IsVisible = false },
+
+                new() { Title = "User Name", Field = "UserName", IsVisible = true },
+                new() { Title = "Role", Field = "Role", IsVisible = true },
+
+                new() { Title = "Phone Number", Field = "PhoneNumber", IsVisible = false },
+                new() { Title = "Email ID", Field = "EmailId", IsVisible = true },
+
+                new() { Title = "Email Server", Field = "EmailServerName", IsVisible = false },
+                new() { Title = "Email Port", Field = "EmailPortNo", IsVisible = false },
+
+                new() { Title = "Active", Field = "IsActive", IsVisible = true },
+                new() { Title = "View Only", Field = "IsViewOnly", IsVisible = false },
+                new() { Title = "Level Authorization", Field = "LevelAuthorization", IsVisible = false },
+
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true }
+            };
+
+            if (!Hidden)
+            {
+                // future optional columns
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in User InitializeColumns()");
+        }
+    }
+
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for User List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the User List HandleColumnChange() Method");
+        }
+    }
+
+    #endregion
+
+
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in User List");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in User List");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in User List");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in User List");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllUsers();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Sales Order List");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllUsers();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing User List page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(int userId)
+    {
+        try
+        {
+            var (canDelete, message) = await userService.CanDeleteUserAsync(userId);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteUserId = userId;
+
+            ModalTitle = "Are you sure you want to delete this User? Deleting this user will also remove all assigned permissions rights.";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for UserId: {userId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+
+            var deleted = await userService.DeleteUserbyUserIdAsync(DeleteUserId);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("User deleted successfully.");
+                await LoadAllUsers();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("User could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting UserId: {DeleteUserId}");
+            await _JS.ToastrError("Failed to delete User.");
+        }
+        finally
+        {
+            DeleteUserId = 0;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region === Modal Management ===
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+            {
+                await ConfirmDelete_Click(isConfirmed);
+            }else if (confirmation == "Print")
+            {
+                await PrintQr();
+            }
+
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region SEARCH FILTERS
+
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllUsers();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in User List");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region User Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SearchFilters = new();
+            selectedStatus = e.Value?.ToString() ?? "";
+
+            if (string.IsNullOrWhiteSpace(selectedStatus))
+                SearchFilters.Remove("Status");
+            else
+                SearchFilters["Status"] = selectedStatus;
+
+            currentPage = 1;
+            await LoadAllUsers();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error OnStatusChanged in User List");
+            await _JS.ToastrError("Failed to Load User List filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion 
+
+    private async Task getPrint()
+    {
+        try
+        {
+            if (!UserVMs.Any(x => x.QrToken.HasValue))
+            {
+                await _JS.ToastrWarning("No QR codes have been generated for any user.");
+                return;
+            }
+           
+            ModalTitle = "Are you sure you want to print QR codes for all users?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Print";
+            confirmation = "Print";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating getPrint method");
+            await _JS.ToastrError(ex.Message+"Failed to getPrint() operation.");
+        }
+    }
+
+    private async Task PrintQr()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (UserVMs == null && UserVMs.Any()==false)
+                return;
+
+            byte[] excelBytes = await userService.PrintQrCards(0);
+
+            if (excelBytes == null || excelBytes.Length == 0)
+                return;
+
+            string excelBase64 = Convert.ToBase64String(excelBytes);
+
+            await _JS.InvokeVoidAsync("downloadExcelFile", excelBase64, "EmployeeQrCodes.xlsx");
+        }
+        catch (Exception ex)
+        {
+
+            await _JS.ToastrError("Print Implementation pending");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+}

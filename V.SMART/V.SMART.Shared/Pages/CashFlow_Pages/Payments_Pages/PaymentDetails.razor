@@ -1,0 +1,204 @@
+﻿
+@page "/PaymentDetails/{PaymentId:int}"
+
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IAccountsService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.AccountsViewModel
+
+@inject IPaymentsService _PaymentsService
+
+@inject IJSRuntime _js
+
+@inject ILoggingService _logs
+
+@inject ReportService _reportService
+
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigation
+
+@if (IsLoading)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2">Loading...</p>
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+
+        <!-- Header -->
+        <div class="row align-items-center mb-4">
+            <!-- Logo -->
+            <div class="col-12 col-lg-3 text-center">
+                @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                {
+                    <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid" style="max-height:120px;" />
+                }
+            </div>
+
+            <!-- Company Info -->
+            <div class="col-12 col-lg-9 text-start">
+                <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+            </div>
+        </div>
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        <div class="text-center">
+            <h4 class="fw-semibold mt-3">Enquiry Details</h4>
+        </div>
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        <!-- Customer & Document Info -->
+        <div class="row g-3 mb-4">
+            <!-- Customer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                        Customer Details
+                    </div>
+                    <div class="card-body small">
+                        <p><strong>Pay to:</strong> @(!string.IsNullOrEmpty(PaymentsVM?.PayToName) ? PaymentsVM.PayToName : "N/A")</p>
+                        <p><strong>Payment Type Name:</strong> @(!string.IsNullOrEmpty(PaymentsVM?.PaymentTypeName) ? PaymentsVM.PaymentTypeName : "N/A")</p>
+                        <p><strong>Amount:</strong> @(!string.IsNullOrEmpty(PaymentsVM?.Amount.ToString()) ? PaymentsVM.Amount.ToString("C")     : "N/A")</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                        Document Details
+                    </div>
+                    <div class="card-body small">
+                        <p><strong>Voucher No:</strong> @(PaymentsVM != null ? $"{PaymentsVM.PaymentNo} {PaymentsVM.PaymentNo} {PaymentsVM.Suffix}" : "N/A")</p>
+                        <p><strong>Voucher Date:</strong> @(PaymentsVM?.PaymentDate != null ? PaymentsVM.PaymentDate.ToString("dd/MM/yyyy") : "N/A")</p>
+                        <p><strong>Check No:</strong> @(!string.IsNullOrEmpty(PaymentsVM?.ChequeNo) ? PaymentsVM.ChequeNo : "N/A")</p>
+                        <p><strong>Check Date:</strong> @(PaymentsVM?.ChequeDate.HasValue == true ? PaymentsVM.ChequeDate.Value.ToString("dd/MM/yyyy") : "N/A")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enquiry Items -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info fw-semibold">
+                Enquiry Items
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle mb-0">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th>Bill No</th>
+                            <th>Amount Paid</th>
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (PaymentsVM?.PaymentSubVM != null && PaymentsVM.PaymentSubVM.Any())
+                        {
+                            @foreach (var item in PaymentsVM.PaymentSubVM)
+                            {
+                                <tr>
+                                    <td class="text-center">@item.BillNo</td>
+                                    <td>@(item.AdjustAmount.ToString("C") ?? "—")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+ 
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="/PaymentList" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left-circle"></i> Back To List
+            </a>
+            <a href="@($"/Payments/update/{PaymentId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+            <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Payments";
+    [Parameter]
+    public int PaymentId { get; set; }
+
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    public bool IsLoading { get; set; } = true;
+
+    private PaymentsVM PaymentsVM { get; set; } = new PaymentsVM();
+    private Companydetails company { get; set; } = new Companydetails();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+
+        if (!CanView)
+        {
+            _navigation.NavigateTo("/access-denied");
+            return;
+        }
+        company = await _PaymentsService.GetCompanyDetailsAsync();
+        await GetDetails();
+        IsLoading = false;
+    }
+
+    public async Task GetDetails()
+    {
+        if (PaymentId > 0)
+        {
+            var payments = await _PaymentsService.GetPaymentsByIdAsync(PaymentId);
+            if (payments != null)
+            {
+                PaymentsVM = payments;
+            }
+        }
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            var pdfBytes = await _reportService.Generate_Report(PaymentId, "PaymentVoucher.frx", "PaymentId", false, "Payments", "Sp_Print_Payments");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf PaymentDetails");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in PaymentDetails.");
+        }
+    }
+
+}
+

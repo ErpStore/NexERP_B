@@ -1,0 +1,1599 @@
+﻿@page "/employee-details/create"
+@page "/employee-details/update/{StaffID:int}"
+@page "/employee-details/create/candidate/{CandidateID:int}"
+
+@inject HttpClient Http
+
+@inherits BaseUserRightsComponent
+@inject CurrentUserService CurrentUserService
+@inject ILoggingService loggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         Title="@ModalTitle"
+         ButtonText="@ModalButtonText"
+         ButtonBootstrapStyle="@ModalButtonStyle">
+</BsModal>
+  <style>
+            .nav-tabs .nav-link {
+            color: #6c757d;
+            font-weight: 500;
+            border: none;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease-in-out;
+            padding: 10px 20px;
+            margin-right: 5px;
+            background-color: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .nav-tabs .nav-link:hover {
+            color: #007bff;
+            background-color: #e2e6ea;
+            transform: translateY(-2px);
+        }
+
+        .nav-tabs .nav-link.active {
+            color: #fff !important;
+            background-color: #20c997 !important; /* Teal background */
+            border-bottom: 3px solid #138f75 !important; /* Slightly darker teal */
+            font-weight: bold;
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(32, 201, 151, 0.3);
+        }
+        .bg-teal {
+            background-color: #20c997 !important; /* Elegant teal */
+        }
+        .bg-indigo {
+            background-color: #6610k8 !important; /* Deep purple-indigo */
+        }
+        .bg-rose {
+            background-color: #e83e8c !important; /* Soft rose pink */
+        }
+        .bg-soft-blue {
+            background-color: #e7f1ff !important;  /* Light sky blue */
+            color: #004085;                        /* Darker text */
+        }
+
+  </style>
+
+    @if (isProcessing)
+    {
+        <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+    }
+    else
+    {
+        if (!CanView)
+        {
+            <RedirectToLogin />
+            return;
+        }
+       else
+       {
+           <div class="container-fluid px-2 px-md-5 mt-4">
+                <div class="card shadow-sm border-1">
+
+                    <PageHeader 
+                        TitleText="@EmployeeTitle"
+                        TitleIcon="@EmployeeIcon"
+                        Breadcrumbs="@employeeBreadcrumbs" />
+
+                    <div class="card-body">
+                        <EditForm Model="Employee" OnValidSubmit="HandleSubmit">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+                            <!-- Basic Information -->
+                            <div class="row g-4">
+
+                                 @if (Employee != null && Employee.StaffID > 0 && !string.IsNullOrWhiteSpace(Employee.StaffName))
+                                {
+                                    <CorrespondenceStatus ReferenceType="Employee"
+                                                          ReferenceId="@Employee.StaffID"
+                                                          ReferenceTypeName="@Employee.StaffName" />
+                                }
+
+                                <div class="col-lg-9">
+                                    <div class="row g-4">
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <InputText id="StaffRefId" @bind-Value="Employee.StaffRefId" class="form-control" placeholder="Employee ID" />
+                                                <label for="StaffRefId">Employee ID</label>
+                                                <ValidationMessage For="@(() => Employee.StaffRefId)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <TrimmedInputText id="StaffName" @bind-Value="Employee.StaffName" CssClass="form-control" placeholder="Full Name" />
+                                                <label for="StaffName">Full Name</label>
+                                                <ValidationMessage For="@(() => Employee.StaffName)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <InputDate id="DOB" @bind-Value="Employee.DOB" class="form-control" />
+                                                <label for="DOB">Date of Birth</label>
+                                                <ValidationMessage For="@(() => Employee.DOB)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <InputSelect id="Gender" @bind-Value="Employee.Gender" class="form-select">
+                                                    <option value="">-- Select Gender --</option>
+                                                    @foreach (var sex in GenderList)
+                                                    {
+                                                        <option value="@sex">@sex</option>
+                                                    }
+                                                </InputSelect>
+                                                <label for="Gender">Gender</label>
+                                                <ValidationMessage For="@(() => Employee.Gender)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <input list="departmentList" class="form-control" id="Department" @bind="Employee.Department"
+                                                        placeholder="Type or select department" @onkeydown="HandleDepartmentEnter" />
+                                                <label for="Department">Department</label>
+                                                <datalist id="departmentList">
+                                                    @foreach (var item in DepartmentList)
+                                                    {
+                                                        <option value="@item" />
+                                                    }
+                                                </datalist>
+                                                <ValidationMessage For="@(() => Employee.Department)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <input list="designationList" class="form-control" id="Designation" @bind="Employee.Designation"
+                                                        placeholder="Type or select designation" @onkeydown="HandleEnter" />
+                                                <label for="Designation">Designation</label>
+                                                <datalist id="designationList">
+                                                    @foreach (var item in DesignationList)
+                                                    {
+                                                        <option value="@item" />
+                                                    }
+                                                </datalist>
+                                                <ValidationMessage For="@(() => Employee.Designation)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <InputDate id="DOJ" @bind-Value="Employee.DOJ" class="form-control" />
+                                                <label for="DOJ">Date of Joining</label>
+                                                <ValidationMessage For="@(() => Employee.DOJ)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <TrimmedInputText id="Phone" @bind-Value="Employee.PhoneNo" CssClass="form-control" placeholder="Phone"
+                                                                maxlength="13" inputmode="tel" onkeypress="return (event.charCode >= 48 && event.charCode <= 57) || (event.charCode == 43 && this.selectionStart == 0)" />
+                                                <label for="Phone">Phone</label>
+                                                <ValidationMessage For="@(()=>Employee.PhoneNo)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <TrimmedInputText id="Gmail" @bind-Value="Employee.Gmail" CssClass="form-control" placeholder="Email" @onblur="ValidateGmail" />
+                                                <label for="Gmail">Email</label>
+                                                <ValidationMessage For="@(() => Employee.Gmail)" />
+                                                @if (!string.IsNullOrEmpty(EmailError))
+                                                {
+                                                    <div class="text-danger mt-1">@EmailError</div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-3 d-flex flex-column align-items-center text-center mt-5">
+
+                                    @if (Employee.Img != null)
+                                    {
+                                        <!-- Display Uploaded Photo -->
+                                        <div class="rounded-circle bg-light shadow-sm border"
+                                             style="width: 120px; height: 120px; overflow: hidden;">
+                                            <img src="data:image/png;base64,@Convert.ToBase64String(Employee.Img)"
+                                                 alt="Employee Photo"
+                                                 class="w-100 h-100"
+                                                 style="object-fit: cover;" />
+                                        </div>
+
+                                        <!-- Delete Photo Button -->
+                                        <div class="mt-3">
+                                            <button type="button"
+                                                    class="btn btn-outline-danger btn-sm"
+                                                    title="Delete uploaded photo"
+                                                    @onclick="DeletePhoto">
+                                                <i class="bi bi-trash"></i> Delete Photo
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <!-- Upload Photo Placeholder -->
+                                        <label for="photoInput"
+                                               class="rounded-circle bg-light border d-flex flex-column justify-content-center align-items-center shadow-sm"
+                                               style="width: 120px; height: 120px; cursor: pointer;"
+                                               title="Click to upload photo">
+                                            <i class="bi bi-person-circle fs-1 text-secondary"></i>
+                                            <small class="text-muted">Upload</small>
+                                        </label>
+
+                                        <!-- Hidden File Input -->
+                                        <InputFile id="photoInput"
+                                                   class="d-none"
+                                                   accept="image/jpeg,image/png"
+                                                   OnChange="HandlePhotoUpload" />
+
+                                        <!-- File Info -->
+                                        <div class="text-muted small mt-2">Max size: 200 KB (JPG/PNG)</div>
+
+                                        <!-- Error Message -->
+                                        @if (!string.IsNullOrEmpty(PhotoError))
+                                        {
+                                            <div class="text-danger small mt-1">@PhotoError</div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+
+
+                            <div class="row g-4 mt-3">
+                                <div class="col-md-12 mt-3 mb-0">
+                                    <div class="border rounded p-3 bg-light shadow-sm d-flex align-items-center">
+                                        <div class="form-check d-flex align-items-center m-0">
+                                            <InputCheckbox id="SameAsPresentAddress"
+                                                            class="form-check-input me-3"
+                                                            @bind-Value="SameAsPresentAddress" />
+                                            <label for="SameAsPresentAddress"
+                                                    class="form-check-label fw-bold text-dark mb-0 fs-9">
+                                                Same as Present Address
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                    <div class="col-md-6">
+
+                                        <div class="form-floating">
+                                            <InputTextArea id="PresentAddress"
+                                                            class="form-control"
+                                                            placeholder="Present Address"
+                                                            @bind-Value="Employee.PresentAddr"
+                                                            @oninput="OnPresentAddressChanged" CssClass="form-control"/>
+                                            <label for="PresentAddress">Present Address</label>
+                                                <ValidationMessage For="@(() =>Employee.PresentAddr)"/>
+                                        </div>
+                                      
+                                    </div>
+                                            
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputTextArea id="PermanentAddress"
+                                                            class="form-control"
+                                                            placeholder="Permanent Address"
+                                                            @bind-Value="Employee.PermanentAddr"
+                                                            disabled="@SameAsPresentAddress" CssClass="form-control" />
+                                            <label for="PermanentAddress">Permanent Address</label>
+                                        </div>
+                                    </div>
+
+                                    <!-- City -->
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <TrimmedInputText id="City" @bind-Value="Employee.City" class="form-control" placeholder="City" CssClass="form-control"/>
+                                            <label for="City">City</label>
+                                                <ValidationMessage For="@(() =>Employee.City)"/>
+                                        </div>
+                                    </div>
+                                    <!-- 🧩 Relation Dropdown -->
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputSelect id="Relation" @bind-Value="Employee.RelationType" class="form-select">
+                                                <option value="">-- Select Relation Type --</option>
+                                                @foreach (var rl in Relations)
+                                                {
+                                                    <option value="@rl">@rl</option>
+                                                }
+                                            </InputSelect>
+                                            <label for="Relation">Relation Type</label>
+                                        </div>
+                                    </div>
+
+                                    <!-- 🧍 Name Field for Selected Relation -->
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputText id="FatherOrHusband"
+                                                                @bind-Value="Employee.FatherHusbName" 
+                                                                class="form-control"  CssClass="form-control" disabled="@string.IsNullOrWhiteSpace(Employee.RelationType)" />
+                                                                     
+                                            <label for="FatherOrHusband">@GetRelationLabel()</label>
+                                            </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputNumber id="Height" @bind-Value="Employee.Height" class="form-control" Placeholder="Height"/>
+                                            <label for="Height">Height</label>
+                                            <ValidationMessage For="@(()=>Employee.Height)"/>
+                                            </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputSelect id="BloodGroup" @bind-Value="Employee.BloodGroup" class="form-select">
+                                                <option value="">-- Select Blood Group --</option>
+                                                @foreach (var bg in BloodGroups)
+                                                {
+                                                    <option value="@bg">@bg</option>
+                                                }
+                                            </InputSelect>
+                                            <label for="BloodGroup">Blood Group</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputSelect id="Criteria" @bind-Value="Employee.Criteria" class="form-select">
+                                                <option value="">-- Criteria --</option>
+                                                @foreach (var c in CriteriaList)
+                                                {
+                                                    <option value="@c">@c</option>
+                                                }
+                                            </InputSelect>
+                                            <label for="Criteria">Criteria</label>
+
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputSelect id="Reporting" @bind-Value="Employee.Reporting" class="form-select">
+                                                <option value="">-- Reporting --</option>
+                                                @foreach (var report in ReportingList)
+                                                {
+                                                    <option value="@report">@report</option>
+                                                }
+                                            </InputSelect>
+                                            <label for="Reporting">Reporting</label>
+                                                <ValidationMessage For="@(() =>Employee.Reporting)"/>
+                                        </div>
+                                    </div>
+                                    <!-- Languages -->
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <TrimmedInputText id="LanguagesToRead" @bind-Value="Employee.LngRead" class="form-control" placeholder="Languages to Read" CssClass="form-control" />
+                                            <label for="LanguagesToRead">Languages to Read</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <TrimmedInputText id="LanguagesToWrite" @bind-Value="Employee.LngWrite" class="form-control" mul placeholder="Languages to Write" CssClass="form-control"/>
+                                            <label for="LanguagesToWrite">Languages to Write</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <TrimmedInputText id="LanguagesToSpeak" @bind-Value="Employee.LngSpeak" class="form-control" placeholder="Languages to Speak" CssClass="form-control"/>
+                                            <label for="LanguagesToSpeak">Languages to Speak</label>
+                                        </div>
+                                    </div>
+
+                                <!-- Experience -->
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputNumber id="TotalExperience" @bind-Value="Employee.TotExp" class="form-control" placeholder="Total Experience" CssClass="form-control"/>
+                                            <label for="TotalExperience">Total Experience </label>
+                                            <ValidationMessage For="@(()=>Employee.TotExp)" />
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputNumber id="RelevantExperience" @bind-Value="Employee.RelExp" class="form-control" placeholder="Relevant Experience" CssClass="form-control"/>
+                                            <label for="RelevantExperience">Relevant Experience</label>
+                                            <ValidationMessage For="@(()=>Employee.RelExp)"/>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                                <InputSelect id="Status" @bind-Value="Employee.Status" class="form-select">
+                                                <option value="">-- Select Status --</option>
+                                                @foreach (var status in StatusList)
+                                                {
+                                                    <option value="@status">@status</option>
+                                                }
+                                            </InputSelect>
+                                            <label for="Status">Status</label>
+                                            <ValidationMessage For="@(() =>Employee.Status)" />
+                                            </div>
+                                        </div>
+                                          
+                                    <div class="col-md-4 form-floating">
+                                        <TrimmedInputText id="MinWorkingTime" class="form-control"
+                                                @bind-value="Employee.WorkingHrs"
+                                                placeholder="Min Working Time" CssClass="form-control"/>
+                                        <label for="MinWorkingTime">Min Working Hours (HH:mm)</label>
+                                        <ValidationMessage For="@(()=>Employee.WorkingHrs)"/>
+                                    </div>
+
+                                    <div class="col-md-4 form-floating">
+                                        <TrimmedInputText id="GraceHours" class="form-control"
+                                                @bind-value="Employee.GraceHrs"
+                                                placeholder="Grace Hours" CssClass="form-control"/>
+                                        <label for="GraceHours">Grace Hours (HH:mm)</label>
+                                        <ValidationMessage For="@(()=>Employee.GraceHrs)"/>
+                                    </div>
+
+                                       
+
+                                    <div class="col-md-4 form-floating">
+                                        <InputTextArea id="OtherRemarks" class="form-control text-danger"
+                                                            @bind-Value="Employee.OtherDet"
+                                                            placeholder="Other Details" CssClass="form-control" />
+                                        <label for="OtherRemarks">Other Details</label>
+
+                                    </div>
+
+                                    <div class="col-md-4 d-flex align-items-center mt-4">
+                                        <InputCheckbox @bind-Value="Employee.OtCount" class="form-check-input me-2 text-info" id="OtRequired" />
+                                        <label for="OtRequired" class="form-check-label">OT Hours Required</label>
+
+                                    </div>
+
+                                    @if (!IsStaffUserExists)
+                                    {
+                                        <div class="col-md-4 d-flex align-items-center mt-4">
+                                            <InputCheckbox @bind-Value="Employee.IsUser" class="form-check-input me-2" id="IsUser" />
+                                            <label for="IsUser" class="form-check-label">Employee As User</label>
+                                        </div>
+                                    }
+
+                                     <div class="col-md-4 form-floating">
+                                         <TrimmedInputText id="DepartmentCode" class="form-control text-danger"
+                                                             @bind-Value="Employee.DepartmentCode"
+                                                             placeholder="Department Code" CssClass="form-control" />
+                                             <label for="DepartmentCode">Department Code </label>
+                                     </div>
+                                    
+
+                                </div>
+
+                            <div class="row g-3 mt-2 ms-0">
+                                <ul class="nav nav-tabs">
+                                    <li class="nav-item">
+                                        <a class="nav-link @(activeTab == "Legal Identifiers" ? "active" : "")"
+                                            @onclick="@(() => SetTab("Legal Identifiers"))">
+                                            Legal Identifiers
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link @(activeTab == "Education" ? "active" : "")"
+                                            @onclick="@(() => SetTab("Education"))">
+                                            Education
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link @(activeTab == "Accounting" ? "active" : "")"
+                                            @onclick="@(() => SetTab("Accounting"))">
+                                            Accounting Details
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link @(activeTab == "Family" ? "active" : "")"
+                                            @onclick="@(() => SetTab("Family"))">
+                                            Family Contacts
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link @(activeTab == "Emergency" ? "active" : "")"
+                                            @onclick="@(() => SetTab("Emergency"))">
+                                            Emergency Contacts
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+
+                                   
+                                <div class="tab-content mt-3">
+                                    <!-- 📜 Legal Identifiers -->
+                                        @if (activeTab == "Legal Identifiers")
+                                        {   
+                                            <div class="card mb-3">
+                                                <div class="card-header bg-rose text-white d-flex align-items-center gap-2">
+                                                <i class="bi bi-person-badge fs-5"></i>
+                                                <h5 class="mb-0 text-white">Legal Identifiers</h5>
+                                            </div>
+
+                                             
+                                                <div class="card-body">
+                                                    
+                                                    <div class="row g-3">
+
+                                                            <div class="col-md-4 form-floating">
+                                                            <TrimmedInputText id="EmployeeAadhaar" @bind-Value="Employee.Aadhaar" class="form-control" placeholder="Aadhaar" CssClass="form-control" maxlength="12" inputmode="numeric"onkeypress="return (event.charCode >=48 && event.charCode<=57)"/>
+                                                            <label for="EmployeeAadhaar">Aadhaar Number</label>
+                                                            <ValidationMessage For="@(()=>Employee.Aadhaar)"/>
+                                                            </div>
+
+                                                        <div class="col-md-4 form-floating">
+                                                            <TrimmedInputText id="EmployeePan" @bind-Value="Employee.PAN" class="form-control" placeholder="PAN" CssClass="form-control"/>
+                                                            <label for="EmployeePan">PAN Number</label>
+                                                            <ValidationMessage For="@(()=>Employee.PAN)"/>
+                                                        </div>
+
+                                                        <div class="col-md-4 form-floating">
+                                                            <TrimmedInputText id="EmployeeUAN" @bind-Value="Employee.UANNo" class="form-control" placeholder="UAN" CssClass="form-control" />
+                                                            <label for="EmployeeUAN">UAN Number</label>
+                                                            <ValidationMessage For="@(()=>Employee.UANNo)"/>
+
+                                                        </div>
+
+                                                        <div class="col-md-4 form-floating">
+                                                            <TrimmedInputText id="EmployeePF" @bind-Value="Employee.PFCodeNo" class="form-control" placeholder="PF Code" CssClass="form-control"/>
+                                                            <label for="EmployeePF">PF Code</label>
+                                                                <ValidationMessage For="@(()=>Employee.PFCodeNo)"/>
+                                                        </div>
+
+                                                        <div class="col-md-4 form-floating">
+                                                            <TrimmedInputText id="EmployeeESI" @bind-Value="Employee.ESICodeNo" class="form-control" placeholder="ESI Code" CssClass="form-control"/>
+                                                            <label for="EmployeeESI">ESI Code</label>
+                                                            <ValidationMessage For="@(()=>Employee.ESICodeNo)"/>
+                                                        </div>
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                               
+                                        }
+                                        else if(activeTab == "Education")
+                                        {
+                                            <!-- 🎓 Education Details Card -->
+                                                <div class="card mb-3">
+                                                    <div class="card-header bg-info text-white d-flex align-items-center gap-2">
+                                                        <i class="bi bi-mortarboard fs-6"> </i>
+                                                        <h5 class="mb-0 text-white">Education Details </h5>
+                                                    </div>
+
+                                                    <div class="card-body">
+                                                        @foreach (var edu in EducationHistory.ToList())
+                                                        {
+                                                            <div class="row g-2 mb-3">
+                                                              
+                                                                    <div class="col-md-4 form-floating">
+                                                                        <TrimmedInputText id="School" class="form-control"
+                                                                                            @bind-Value="edu.Institution"
+                                                                                            placeholder="School / College Name" CssClass="form-control" />
+                                                                        <label for="School">School / College Name</label>
+
+                                                                    </div>
+
+                                                                    <div class="col-md-3 form-floating">
+                                                                        <TrimmedInputText Id="Qualification" class="form-control"
+                                                                        @bind-Value="edu.Degree" CssClass="form-control" Placeholder="Qualification (e.g., SSLC, PUC, B.Sc, ITI)"/>
+                                                                        <ValidationMessage For="@(()=>edu.Degree)"/>
+                                                                        <label for="Qualification">Qualification (e.g., SSLC, PUC, B.Sc, ITI)</label>
+                                                                    </div>
+
+
+                                                                <div class="col-md-2  form-floating">
+                                                                        <TrimmedInputText id="From" class="form-control"
+                                                                                        placeholder="From Year"
+                                                                                        @bind-Value="edu.FromYear"
+                                                                                        CssClass="form-control" />
+                                                                    <ValidationMessage For="@(() => edu.FromYear)" />
+                                                                            <label for="From">From Year</label>
+                                                                </div>
+
+                                                                <div class="col-md-2 form-floating">
+                                                                    <TrimmedInputText id="To" class="form-control"
+                                                                                        placeholder="To Year"
+                                                                                        @bind-Value="edu.ToYear"
+                                                                                        CssClass="form-control" />
+                                                                    <ValidationMessage For="@(() => edu.ToYear)" />
+                                                                            <label for="To" >To Year</label>
+                                                                </div>
+
+                                                                <div class="col-md-1 d-flex align-items-center form-floating">
+                                                                    <button type="button" class="btn btn-danger btn-sm w-100"
+                                                                            @onclick="() => AskToRemoveAsync(edu, EducationType)"
+                                                                            title="Delete this Education History">
+                                                                        <i class="bi bi-trash3"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        }
+
+                                                        <button type="button" class="btn btn-sm btn-outline-success" @onclick="AddEducation">
+                                                            <i class="bi bi-plus-circle"></i> Add Education
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                        }
+                                    else if(activeTab == "Accounting")
+                                    {
+                                        <!-- 💳 Accounting Details Card -->
+                                                <div class="card mb-3">
+                                                    <div class="card-header bg-rose text-white d-flex align-items-center gap-2">
+                                                        <i class="bi bi-bank fs-6"></i>
+                                                        <h5 class="mb-0 text-white">Accounting Details</h5>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <div class="row g-3">
+                                                            <div class="col-md-6 form-floating">
+                                                                <TrimmedInputText id="AccountNo" class="form-control"
+                                                                                    @bind-Value="Employee.AccNo"
+                                                                                    placeholder="Account Number"
+                                                                                    CssClass="form-control"
+                                                                                    maxlength="20"
+                                                                                    inputmode="numeric"
+                                                                                    onkeypress="return (event.charCode >= 48 && event.charCode <=57)" />
+                                                                <label for="AccountNo">Account Number</label>
+                                                                <ValidationMessage For="@(() => Employee.AccNo)" />
+                                                            </div>
+
+                                                            <div class="col-md-6 form-floating">
+                                                                <InputText id="IFSCCode" class="form-control"
+                                                                            @bind-Value="Employee.IFSC"
+                                                                            @oninput="async e => await OnIfscInout(e.Value?.ToString())"
+                                                                            placeholder="IFSC Code"
+                                                                            CssClass="form-control" />
+                                                                <label for="IFSCCode">IFSC Code</label>
+                                                                <ValidationMessage For="@(() => Employee.IFSC)" />
+                                                            </div>
+
+                                                            <div class="col-md-6 form-floating">
+                                                                <TrimmedInputText id="BankName" class="form-control"
+                                                                                    @bind-Value="Employee.BankName"
+                                                                                    placeholder="Bank Name"
+                                                                                    CssClass="form-control" />
+                                                                <label for="BankName">Bank Name</label>
+                                                            </div>
+
+                                                            <div class="col-md-6 form-floating">
+                                                                <TrimmedInputText id="BranchName" class="form-control"
+                                                                                    @bind-Value="Employee.BranchName"
+                                                                                    placeholder="Branch Name"
+                                                                                    CssClass="form-control" />
+                                                                <label for="BranchName">Branch Name</label>
+                                                            </div>
+
+                                                            <div class="col-md-6 form-floating">
+                                                                <InputTextArea id="BankAddress" class="form-control"
+                                                                                @bind-Value="Employee.BankAddress"
+                                                                                placeholder="Bank Address"
+                                                                                style="height: 100px;" />
+                                                                <label for="BankAddress">Bank Address</label>
+                                                            </div>
+
+                                                            <div class="col-md-6 form-floating">
+                                                                <TrimmedInputText id="BankState" class="form-control"
+                                                                                    @bind-Value="Employee.BankState"
+                                                                                    placeholder="Bank State"
+                                                                                    CssClass="form-control" />
+                                                                <label for="BankState">Bank State</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                           
+                                    }
+                                    else if(activeTab == "Family")
+                                    {
+                                        <!-- 🚨 Family Contacts -->
+                                            <div class="card-mb-3">
+                                              
+                                                <div class="card-header bg-info text-white d-flex align-items-center gap-2">
+                                                <i class="bi bi-people fs-5"></i>
+                                                <h5 class="mb-0 text-white">Family Contacts</h5>
+                                            </div>
+
+
+                                                <div class="card-body">
+                                           
+                                                    @foreach (var member in FamilyMembers.ToList())
+                                                    {
+                                                        <div class="row g-2 mb-2">
+                                                            <div class="col-md-4 form-floating">
+                                                                <TrimmedInputText id="FMember" class="form-control" placeholder="Member Name" @bind-Value="member.Name" CssClass="form-control"/>
+                                                                <label for="FMember">Member Name</label>
+                                                            </div>
+                                                            <div class="col-md-3 form-floating">
+                                                                <TrimmedInputText Id="FRelation" class="form-control" placeholder="Relation" @bind-Value="member.Relation" CssClass="form-control"/>
+                                                                <label for="FRelation">Relation Number</label>
+                                                            </div>
+                                                            <div class="col-md-2 form-floating">
+                                                                <TrimmedInputText  id="FLandLine" class="form-control" placeholder="LandLine" @bind-Value="member.Landline" CssClass="form-control" maxlength="13" inputmode="tel" onkeypress="return (event.charCode >= 48 && event.charCode <= 57) || (event.charCode == 43 && this.selectionStart == 0)" />
+                                                                    <label for="FLandLine">LandLine Number</label>
+                                                            </div>
+                                                            <div class="col-md-2 form-floating">
+                                                                <TrimmedInputText id="FMobile" class="form-control" placeholder="Mobile" @bind-Value="member.Mobno" CssClass="form-control" maxlength="13" inputmode="tel" onkeypress="return (event.charCode >= 48 && event.charCode <= 57) || (event.charCode == 43 && this.selectionStart == 0)" />
+                                                                <label for="FMobile">Mobile Number</label>
+                                                                </div>
+                                                            <div class="col-md-1 d-flex align-items-center form-floating">
+                                                                <button type="button" class="btn btn-danger btn-sm w-100" @onclick="() => AskToRemoveAsync(member,FamilyType)" CssClass="form-control" title="Delete this FamilyMembers">
+                                                                        <i class="bi bi-trash3"></i>
+                                                                    </button>
+                                           
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                        <button type="button" class="btn btn-sm btn-outline-success mb-2" @onclick="AddFamilyMember">
+                                                        <i class="bi bi-plus-circle"></i> Add Member
+                                                    </button>
+                                                </div>
+                                            </div>
+                               
+                                    }
+                                    else if(activeTab == "Emergency")
+                                    {
+                                            <!-- 🚨 Emergency Contacts -->
+                                        <div class="card-mb-3 shadow">
+                                              
+                                            <div class="card-header bg-rose text-white d-flex align-items-center gap-2">
+                                                <i class="bi bi-exclamation-triangle fs-5"></i>
+                                                <h5 class="mb-0 text-white">Emergency Contacts</h5>
+                                            </div>
+
+                                                    <div class="card-body">
+                                                    @foreach (var contact in EmergencyContacts.ToList())
+                                                    {
+                                                        <div class="row g-2 mb-2">
+                                                            <div class="col-md-4 form-floating">
+                                                                <TrimmedInputText  id="EcName" class="form-control" placeholder="Name" @bind-Value="contact.Name" CssClass="form-control"/>
+                                                                    <label for="EmName">Name</label>
+                                                            </div>
+                                                            <div class="col-md-3 form-floating">
+                                                                <TrimmedInputText  id="Relation" class="form-control" placeholder="Relation" @bind-Value="contact.Relation" CssClass="form-control"/>
+                                                                <label for="Relation">Relation</label>
+                                                            </div>
+                                                            <div class="col-md-2 form-floating">
+                                                                <TrimmedInputText id="Landline" class="form-control" placeholder="Landline" @bind-Value="contact.Landline" CssClass="form-control" maxlength="13" inputmode="tel" onkeypress="return (event.charCode >= 48 && event.charCode <= 57) || (event.charCode == 43 && this.selectionStart == 0)" />
+                                                                <label for="Landline">Landline Number</label>
+                                                            </div>
+                                                            <div class="col-md-2 form-floating">
+                                                                <TrimmedInputText id="MobileNo" class="form-control" placeholder="Mobile" @bind-Value="contact.MobileNo" CssClass="form-control" maxlength="13" inputmode="tel" onkeypress="return (event.charCode >= 48 && event.charCode <= 57) || (event.charCode == 43 && this.selectionStart == 0)" />
+                                                                <label for="MobileNo">Mobile Number</label>
+                                                            </div>
+
+                                                            <div class="col-md-1 d-flex align-items-center form-floating">
+                                                                <button type="button" class="btn btn-danger btn-sm w-100" @onclick="() => AskToRemoveAsync(contact, EmergencyType)" CssClass="form-control  " title="Delete this EmergencyContacts" >
+                                                                        <i class="bi bi-trash3"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                     
+                                                    }
+
+                                                    <button type="button" class="btn btn-sm btn-outline-success mb-2" @onclick="AddEmergencyContact">
+                                                        <i class="bi bi-plus-circle"></i> Add Contact
+                                                    </button>
+                                                </div>
+                                            </div>
+                                    }
+                                </div>
+
+                                <div class="row mt-4">
+                        
+                                    @if (CanCreate || CanEdit)
+                                    {
+                                        <div class="col-md-3">
+                                            <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                                <i class="bi bi-floppy2-fill me-1"></i> @(StaffID == 0 || StaffID == null ? "Create" : "Update")
+                                            </button>
+                                        </div>
+                                    }
+
+                                        @if (StaffID > 0)
+                                        {
+                                        <div class="col-md-3">
+                                                <button type="button"
+                                                    class="btn w-100 @(Employee.Status == "Active" ? "btn-danger" : "btn-success")"
+                                                    @onclick="() => MarkAsInActive(Employee.Status, IsInActive)"
+                                                    disabled="@isProcessing">
+                                                <i class="me-1 @(Employee.Status == "Active" ? "bi bi-person-dash" : "bi bi-arrow-counterclockwise")"></i>
+                                                @(Employee.Status == "Active" ? "Quit" : "Revoke")
+                                            </button>
+                                        </div>
+                                        }
+                                    <div class="col-md-3">
+                                        <SmartBackButton Url="/Staff" />
+                                    </div>
+                                </div>
+                        </EditForm>
+                    </div>
+                    </div>
+                </div>
+
+   
+       }
+
+    }
+
+@code {
+    protected override string ScreenName => "Staff";
+    [Parameter]
+    public int? StaffID { get; set; }
+    private Staff Employee  { get; set; }  = new Staff();
+
+    [Parameter] public int? CandidateID { get; set; }
+
+    public List<StaffEmergency> EmergencyContacts { get; set; } = new(); ///Emergency contacts
+    public List<StaffFamilyDetails> FamilyMembers { get; set; } = new(); ///Family Details
+    public List<StaffEducation> EducationHistory { get; set; } =new ();
+    public List<User> users { get; set; } = new();
+    private List<string> DepartmentList = new();
+    private List<string> DesignationList = new();
+
+    private string? UserName = string.Empty;
+    public bool isProcessing = true;
+    private bool ShowFamilyEmptyWarning = false;
+    private string FamilyWarningMessage = string.Empty;
+    private string EmailError = "";
+    private string? PhotoError;
+    private object? PendingDeleteItem;
+    private string? DeleteType;
+    private string? Quit;
+    private const string EmergencyType = "Emergency";
+    private const string FamilyType = "Family";
+    private const string EducationType = "Education";
+
+    private const string IsInActive = "IsInActive";
+    private string? SelectedRelation = "";
+    private bool IsStaffUserExists;
+    private string activeTab = "";
+    private void SetTab(string tab) => activeTab = tab;
+    private bool IsNoTabActive => string.IsNullOrEmpty(activeTab);
+
+    private string ModalTitle = "Are You Want To Sure";
+    private string ModalButtonText = "Confirm";
+    private string ModalButtonStyle = "btn-primary";
+    private bool familyLoaded = false;
+    private bool emergencyLoaded = false;
+    private bool educationLoaded = false;
+
+    private string EmployeeTitle => (StaffID == 0 || StaffID == null ? "Create" : "Update") + " Employee";
+    private string EmployeeIcon => StaffID == 0 || StaffID == null ? "bi-person-plus" : "bi-person-lines-fill";
+
+    private List<PageHeader.BreadcrumbItem> employeeBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Human Resource Master" },
+        new PageHeader.BreadcrumbItem { Text = "Employee Master", IsLast = true }
+    };
+
+    private void HandleEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            if (!string.IsNullOrWhiteSpace(Employee.Designation) &&
+                !DesignationList.Contains(Employee.Designation, StringComparer.OrdinalIgnoreCase))
+            {
+                DesignationList.Add(Employee.Designation); // Optional: Add new
+            }
+
+            Console.WriteLine($"Entered: {Employee.Designation}");
+        }
+    }
+    private void HandleDepartmentEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            if (!string.IsNullOrWhiteSpace(Employee.Department) &&
+                !DepartmentList.Contains(Employee.Department, StringComparer.OrdinalIgnoreCase))
+            {
+                DepartmentList.Add(Employee.Department);
+            }
+
+            Console.WriteLine($"Entered/Selected Department: {Employee.Department}");
+        }
+    }
+
+    private async Task MarkAsInActive()
+    {
+        try
+        {
+            if (StaffID > 0)
+            {
+                Employee.Status = Employee.Status == "Active" ? "InActive" : "Active";
+                await _unitOfWork.Staffs.UpdateAsync(Employee);
+
+                var userToUpdate = await _unitOfWork.Users.GetQueryable().Where(u => u.StaffId == StaffID).FirstOrDefaultAsync();
+                if (userToUpdate != null)
+                {
+                    var RightsDelete = await _unitOfWork.UserRights.GetQueryable().Where(u =>  u.UserId == userToUpdate.UserId).FirstOrDefaultAsync();
+                    if(RightsDelete !=null)
+                    {
+                        await _unitOfWork.UserRights.DeleteAsync(RightsDelete.Id);
+                        await loggingService.LogUserAction(UserName: UserName, 
+                        Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress,
+                        screen: "UserRights", 
+                        action: $"User Rights Deleted successfully. {userToUpdate?.UserName ?? "Unknown"}",
+                        additionalInfo: $"User Name:{userToUpdate?.UserName ?? "Unknown"}");
+                    }
+
+                    Employee.ModifiedBy = UserName;
+                    Employee.ModifiedDate = DateTime.Now;
+                    await _unitOfWork.Users.DeleteAsync(userToUpdate.UserId);
+                    await loggingService.LogUserAction(UserName: UserName, 
+                        Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress,
+                        screen: "UserRights", 
+                        action: $"User Rights Deleted successfully. {userToUpdate?.UserName ?? "Unknown"}",
+                        additionalInfo: $"User Name:{userToUpdate?.UserName ?? "Unknown"}");
+
+                }
+
+                await loggingService.LogUserAction(
+                    UserName: UserName,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Employee",
+                    action: $"Employee Modified to {Employee.StaffName}",
+                    additionalInfo: $"EmployeeName: {Employee.StaffName}"
+                );
+
+                await _unitOfWork.SaveAsync();
+                await _js.ToastrSuccess("Employee status updated successfully.");
+                _navigationManager.NavigateTo("/Staff");
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "Error in OnAfterRenderAsync()");
+        }
+    }
+
+    private async Task MarkAsInActive(object item,string type)
+    {
+        try
+        {
+            if (StaffID > 0)
+            {
+                PendingDeleteItem = item;
+                DeleteType = type;
+
+                string message = Employee.Status == "Active"
+             ? $"Are you sure you want to mark {Employee.StaffName} as inactive?\n\nThis action will:\n- Mark the employee as having officially left the company\n- Delete their login account and system access\n- Complete all exit formalities and clearance processes\n- Release them from all assigned roles and responsibilities.\n\n Do you want to proceed?"
+             : $"Are you sure you want to reactivate {Employee.StaffName}?\n\nYou can restore their profile, but login access and role assignments will need to be reconfigured.";
+
+                ModalTitle = message;
+                ModalButtonText =  Employee.Status == "Active" ? "Quit" : "Revoke";
+                ModalButtonStyle = "btn-danger";
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "Error in OnAfterRenderAsync()");
+
+        }
+    }
+    private bool SameAsPresentAddress
+    {
+        get => _sameAsPresentAddress;
+        set
+        {
+            if (_sameAsPresentAddress != value)
+            {
+                _sameAsPresentAddress = value;
+                if (value)
+                {
+                    Employee.PermanentAddr = Employee.PresentAddr;
+                }
+            }
+        }
+    }
+    private string GetRelationLabel()
+    {
+        return string.IsNullOrWhiteSpace(Employee.RelationType)
+            ? "Father / Husband / Guardian Name"
+            : $"{Employee.RelationType}'s Name";
+    }
+    private bool _sameAsPresentAddress;
+
+    private void OnPresentAddressChanged(ChangeEventArgs e)
+    {
+        Employee.PresentAddr = e?.Value?.ToString();
+        if (SameAsPresentAddress)
+        {
+            Employee.PermanentAddr = Employee.PresentAddr;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (firstRender)
+            {
+                await LoadRightsAsync(); // Must be awaited before other DB operations
+
+                if (!CanView)
+                {
+                    _navigationManager.NavigateTo("/access-denied");
+                    return;
+                }
+
+                await LoadEmployee();
+
+                if (CandidateID > 0)
+                {
+                     await LoadCandidateToStaff(CandidateID.Value);
+                }
+                DepartmentList = await LoadDepartmentsAsync();
+                DesignationList = await LoadDesignationsAsync();
+                UserName = await CurrentUserService.GetUsernameAsync();
+
+                isProcessing = false;
+                StateHasChanged(); // update UI after data load
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "Error in OnAfterRenderAsync()");
+        }
+    }
+
+
+    private async Task LoadEmployee()
+    {
+        try
+        {
+            if (StaffID.HasValue && StaffID > 0)
+            {
+                var existing = await _unitOfWork.Staffs.GetAsync(StaffID.Value);
+                if (existing != null)
+                    Employee = existing;
+
+                FamilyMembers = (await _unitOfWork.StaffFamilyDetails.FindAsync(x => x.StaffID == Employee.StaffID))?.ToList() ?? new();
+                EmergencyContacts = (await _unitOfWork.StaffEmergencys.FindAsync(x => x.StaffID == Employee.StaffID))?.ToList() ?? new();
+                EducationHistory = (await _unitOfWork.StaffEducations.FindAsync(x => x.StaffID == Employee.StaffID))?.ToList() ?? new();
+
+                var user = await _unitOfWork.Users.GetQueryable().Where(u => u.StaffId == Employee.StaffID).FirstOrDefaultAsync();
+                IsStaffUserExists = user != null;
+            }
+            else
+            {
+                Employee = new Staff
+                {
+                    Status = "Active"
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An Error Occured while handling the LoadEmployee() Method");
+        }
+    }
+
+
+
+    private async Task AskToRemoveAsync(object item, string type)
+    {
+        try
+        {
+            PendingDeleteItem = item;
+            DeleteType = type;
+            ModalTitle = "Are you sure you want to Remove?";
+            ModalButtonText = "Remove";
+            ModalButtonStyle = "btn-danger";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+
+            await loggingService.LogDeveloperError(ex, "An Error Occured while handling the AskToRemoveAsync() Method");
+        }
+
+    }
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && !string.IsNullOrWhiteSpace(DeleteType))
+            {
+                switch (DeleteType)
+                {
+                    case "Education":
+                        if (PendingDeleteItem is StaffEducation edu)
+                        {
+                            await _unitOfWork.StaffEducations.DeleteAsync(edu.Slno);
+                            EducationHistory.Remove(edu);
+
+                        }
+
+                        break;
+
+                    case "Family":
+                        if (PendingDeleteItem is StaffFamilyDetails family)
+                        {
+                            await _unitOfWork.StaffFamilyDetails.DeleteAsync(family.Slno);
+                            FamilyMembers.Remove(family);
+                        }
+
+                        break;
+
+                    case "Emergency":
+                        if (PendingDeleteItem is StaffEmergency contact)
+                        {
+                            await _unitOfWork.StaffEmergencys.DeleteAsync(contact.SlNo);
+                            EmergencyContacts.Remove(contact);
+                        }
+
+                        break;
+                    case "IsInActive":
+                        await MarkAsInActive();
+                        break;
+
+                }
+                await _unitOfWork.SaveAsync();
+                
+                if (DeleteType != "IsInActive"  && !string.IsNullOrWhiteSpace(DeleteType))
+                {
+                    await _js.ToastrSuccess("Row Removed successfully.");
+                }
+                PendingDeleteItem = null;
+                DeleteType = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An Error Occured while handling the  Employee Row confirmDelete() Method");
+
+        }
+    }
+    private void ResetEmergencyContact(StaffEmergency contact)
+    {
+        contact.Name = string.Empty;
+        contact.Relation = string.Empty;
+        contact.Landline = string.Empty;
+        contact.MobileNo = string.Empty;
+    }
+
+    private async Task AddEducation()
+    {
+        var lastItem = EducationHistory.LastOrDefault();
+
+        if (lastItem != null && string.IsNullOrWhiteSpace(lastItem.Degree))
+        {
+            await _js.ToastrError("Please fill education details before adding a new one.");
+            return;
+        }
+        EducationHistory.Add(new StaffEducation());
+
+
+    }
+
+    private async Task AddEmergencyContact()
+
+    {
+        var lastItem = EmergencyContacts.LastOrDefault();
+
+        if (lastItem != null && string.IsNullOrWhiteSpace(lastItem.Name))
+        {
+            await _js.ToastrError("Please fill Emergency Contacts details before adding a new one.");
+            return;
+        }
+        EmergencyContacts.Add(new StaffEmergency());
+    }
+
+    private async Task AddFamilyMember()
+    {
+        var lastItem = FamilyMembers.LastOrDefault();
+
+        if (lastItem != null && string.IsNullOrWhiteSpace(lastItem.Name))
+        {
+            await _js.ToastrError("Please fill  FamilyMembers details before adding a new one.");
+            return;
+        }
+        FamilyMembers.Add(new StaffFamilyDetails());
+
+
+    }
+    private async Task ValidateGmail(FocusEventArgs e)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(Employee.Gmail) &&
+                !Regex.IsMatch(Employee.Gmail, @"^[a-zA-Z0-9._%+-]+@gmail\.com$", RegexOptions.IgnoreCase))
+            {
+                EmailError = "Enter a valid Gmail address.";
+            }
+            else
+            {
+                EmailError = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An Error Occured while handling the  Employee ValidateGmail() Method");
+        }
+    }
+
+    private async Task HandlePhotoUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+
+            if (file == null || file.Size > 200 * 1024) // 200 KB max
+            {
+                PhotoError = "Image must be smaller than 200KB.";
+                Employee.Img = null;
+                return;
+            }
+
+            var extension = Path.GetExtension(file.Name).ToLower();
+            if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
+            {
+                PhotoError = "Only JPG or PNG images are allowed.";
+                Employee.Img = null;
+                return;
+            }
+
+            try
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 500 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                Employee.Img = ms.ToArray();
+                PhotoError = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                PhotoError = "Error uploading image: " + ex.Message;
+                Employee.Img = null;
+            }
+        }
+        catch (Exception ex) 
+        {
+            await loggingService.LogDeveloperError(ex, "An Error Occured while handling the  Employee HandlePhotoUpload() Method");
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        isProcessing = true;
+
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+              bool isDuplicate = await _unitOfWork.Staffs.ExistsByNameAsync("StaffRefId", Employee.StaffRefId?.Trim(), "StaffID", Employee.StaffID == 0 ? null : Employee.StaffID);
+
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Employee RefId/ Bio-Metric name already exists.");
+                isProcessing = false;
+                await transaction.RollbackAsync();
+                return;
+            }
+
+            EmergencyContacts = EmergencyContacts
+                .Where(c => !string.IsNullOrWhiteSpace(c.Name) ||
+                            !string.IsNullOrWhiteSpace(c.Relation) ||
+                            !string.IsNullOrWhiteSpace(c.Landline) ||
+                            !string.IsNullOrWhiteSpace(c.MobileNo))
+                .ToList();
+
+            EducationHistory = EducationHistory
+                .Where(c => !string.IsNullOrWhiteSpace(c.Degree) ||
+                            !string.IsNullOrWhiteSpace(c.Institution) ||
+                            !string.IsNullOrWhiteSpace(c.FromYear) ||
+                            !string.IsNullOrWhiteSpace(c.ToYear))
+                .ToList();
+
+            FamilyMembers = FamilyMembers
+                .Where(c => !string.IsNullOrWhiteSpace(c.Name) ||
+                            !string.IsNullOrWhiteSpace(c.Relation) ||
+                            !string.IsNullOrWhiteSpace(c.Landline) ||
+                            !string.IsNullOrWhiteSpace(c.Mobno))
+                .ToList();
+
+            bool isCreate = Employee.StaffID == 0;
+
+            if (isCreate)
+            {
+                // Create new employee
+                Employee.CreatedBy = UserName;
+                Employee.CreatedDate = DateTime.Now;
+
+                await _unitOfWork.Staffs.CreateAsync(Employee);
+                await _unitOfWork.SaveAsync();
+
+                // Add details
+                foreach (var emergency in EmergencyContacts)
+                {
+                    emergency.StaffID = Employee.StaffID;
+                    await _unitOfWork.StaffEmergencys.CreateAsync(emergency);
+                }
+
+                foreach (var family in FamilyMembers)
+                {
+                    family.StaffID = Employee.StaffID;
+                    await _unitOfWork.StaffFamilyDetails.CreateAsync(family);
+                }
+
+                foreach (var edu in EducationHistory)
+                {
+                    edu.StaffID = Employee.StaffID;
+                    await _unitOfWork.StaffEducations.CreateAsync(edu);
+                }
+
+                await _unitOfWork.SaveAsync();
+
+                // Logs
+                await loggingService.LogUserAction(UserName, _userService.MachineName, _userService.IpAddress,
+                    screen: "Employee", action: $"Created Employee: {Employee.StaffName}",
+                    additionalInfo: $"StaffID: {Employee.StaffID}");
+
+                if (EmergencyContacts.Any())
+                    await loggingService.LogUserAction(UserName, _userService.MachineName, _userService.IpAddress,
+                        screen: "Employee Emergency Contacts", action: "Added Emergency Contacts",
+                        additionalInfo: $"{EmergencyContacts.Count} records for StaffID: {Employee.StaffID}");
+
+                if (FamilyMembers.Any())
+                    await loggingService.LogUserAction(UserName, _userService.MachineName, _userService.IpAddress,
+                        screen: "Employee Family Details", action: "Added Family Details",
+                        additionalInfo: $"{FamilyMembers.Count} records for StaffID: {Employee.StaffID}");
+
+                if (EducationHistory.Any())
+                    await loggingService.LogUserAction(UserName, _userService.MachineName, _userService.IpAddress,
+                        screen: "Employee Education History", action: "Added Education History",
+                        additionalInfo: $"{EducationHistory.Count} records for StaffID: {Employee.StaffID}");
+
+                await _js.ToastrSuccess("Employee Created Successfully");
+            }
+            else
+            {
+                // Update existing employee
+                Employee.ModifiedBy = UserName;
+                Employee.ModifiedDate = DateTime.Now;
+                await _unitOfWork.Staffs.UpdateAsync(Employee);
+
+                // Remove old details
+                await _unitOfWork.StaffEmergencys.DeleteByStaffIdAsync(Employee.StaffID);
+                await _unitOfWork.StaffFamilyDetails.DeleteByStaffIdAsync(Employee.StaffID);
+                await _unitOfWork.StaffEducations.DeleteByStaffIdAsync(Employee.StaffID);
+                await _unitOfWork.SaveAsync();
+
+                // Add updated details
+                foreach (var emergency in EmergencyContacts)
+                {
+                    emergency.SlNo = 0;
+                    emergency.StaffID = Employee.StaffID;
+                    await _unitOfWork.StaffEmergencys.CreateAsync(emergency);
+                }
+
+                foreach (var family in FamilyMembers)
+                {
+                    family.Slno = 0;
+                    family.StaffID = Employee.StaffID;
+                    await _unitOfWork.StaffFamilyDetails.CreateAsync(family);
+                }
+
+                foreach (var edu in EducationHistory)
+                {
+                    edu.Slno = 0;
+                    edu.StaffID = Employee.StaffID;
+                    await _unitOfWork.StaffEducations.CreateAsync(edu);
+                }
+
+                await _unitOfWork.SaveAsync();
+
+                // Logs
+                await loggingService.LogUserAction(UserName, _userService.MachineName, _userService.IpAddress,
+                    screen: "Employee", action: $"Updated Employee: {Employee.StaffName}",
+                    additionalInfo: $"StaffID: {Employee.StaffID}");
+
+                if (EmergencyContacts.Any())
+                    await loggingService.LogUserAction(UserName, _userService.MachineName, _userService.IpAddress,
+                        screen: "Employee Emergency Contacts", action: "Updated Emergency Contacts",
+                        additionalInfo: $"{EmergencyContacts.Count} records for StaffID: {Employee.StaffID}");
+
+                if (FamilyMembers.Any())
+                    await loggingService.LogUserAction(UserName, _userService.MachineName, _userService.IpAddress,
+                        screen: "Employee Family Details", action: "Updated Family Details",
+                        additionalInfo: $"{FamilyMembers.Count} records for StaffID: {Employee.StaffID}");
+
+                if (EducationHistory.Any())
+                    await loggingService.LogUserAction(UserName, _userService.MachineName, _userService.IpAddress,
+                        screen: "Employee Education History", action: "Updated Education History",
+                        additionalInfo: $"{EducationHistory.Count} records for StaffID: {Employee.StaffID}");
+
+                await _js.ToastrSuccess("Employee Updated Successfully");
+            }
+
+            await transaction.CommitAsync();
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/Staff");
+        }
+        catch (DbUpdateException ex)
+        {
+            await transaction.RollbackAsync();
+            await loggingService.LogDeveloperError(ex, "An error occurred in HandleSubmit() for Employee");
+            await _js.ToastrError("Error occurred while saving employee.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task OnIfscInout(string value)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(value))
+            {
+                Employee.IFSC = value.ToUpperInvariant();
+                await FetchIfscDetails(Employee.IFSC);
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An Error Occured while handling the  Employee OnIfscInout() Method");
+        }
+    }
+
+    private async Task FetchIfscDetails(string ifscCode)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(ifscCode) || !IsValidIfscFormat(ifscCode))
+            {
+                EmptyControl();
+                return;
+            }
+
+            var response = await Http.GetFromJsonAsync<BankDetailsResponse>($"https://ifsc.razorpay.com/{ifscCode}");
+            if (response != null)
+            {
+                Employee.BankName = response.BANK;
+                Employee.BranchName = response.BRANCH;
+                Employee.BankAddress = response.ADDRESS;
+                Employee.BankState = response.STATE;
+                Employee.IFSC = response.IFSC;
+            }
+            else
+            {
+                EmptyControl();
+            }
+        }
+        catch (Exception ex)
+        {
+            await loggingService.LogDeveloperError(ex, "An Error Occured while handling the  Employee FetchIfscDetails() Method");
+        }
+    }
+    private List<string> BloodGroups = new()
+    {
+            "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"
+     };
+    private List<string> Relations = new()
+    {
+        "Father",
+        "Mother",
+        "Brother",
+        "Sister",
+        "Son",
+        "Daughter",
+        "Uncle",
+        "Aunt",
+        "Cousin",
+        "Guardian",
+        "Spouse",
+        "Other"
+    };
+
+
+    private void DeletePhoto()
+    {
+        Employee.Img = null;
+    }
+
+    private List<string> StatusList = new()
+    {
+            "Active","InActive"
+    };
+    private List<string> ReportingList = new()
+    {
+        "On Role","Out Sourced","Trainee"
+    };
+    private List<string> CriteriaList = new()
+    {
+        "On Role","Out Sourced","Trainee"
+    };
+    private List<string> GenderList = new()
+    {
+        "Male","Female","Other"
+
+    };
+
+    private void EmptyControl()
+    {
+        Employee.BankName = string.Empty;
+        Employee.BranchName = string.Empty;
+        Employee.BankAddress = string.Empty;
+        Employee.BankState = string.Empty;
+    }
+
+    private bool IsValidIfscFormat(string ifsc)
+    {
+        if (string.IsNullOrWhiteSpace(ifsc)) return false;
+        var regex = new System.Text.RegularExpressions.Regex("^[A-Za-z]{4}0[A-Za-z0-9]{6}$");
+        return regex.IsMatch(ifsc.Trim());
+    }
+
+    private async Task<List<string>> LoadDesignationsAsync()
+    {
+        var staffList = await _unitOfWork.Staffs.GetAllAsync();
+        return staffList
+            .Where(s => !string.IsNullOrWhiteSpace(s.Designation))
+            .Select(s => s.Designation!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+    }
+
+    private async Task<List<string>> LoadDepartmentsAsync()
+    {
+        var staffList = await _unitOfWork.Staffs.GetAllAsync();
+      
+        return  staffList
+            .Where(s => !string.IsNullOrWhiteSpace(s.Department))
+            .Select(s => s.Department!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(d => d)
+            .ToList();
+    }
+
+    private async Task LoadCandidateToStaff(int CandidateID)
+    {
+        try
+        {
+            var candidate = await _unitOfWork.Candidate.GetAsync(CandidateID);
+            if (candidate == null)
+                return;
+            Employee.StaffName = candidate.CandidateName;
+            Employee.PhoneNo = candidate.PhoneNo;
+            Employee.PresentAddr = candidate.Address;
+            Employee.PermanentAddr = candidate.Address;
+            Employee.Designation = candidate.Position;
+            Employee.TotExp = candidate.Experience;
+            Employee.Gmail = candidate.Gmail;
+            Employee.Gender = candidate.Gender;
+            Employee.DOB = candidate.DOB;
+            Employee.Department = candidate.Department;
+            Employee.DOJ = DateTime.Now;
+            Employee.Status = "Active";
+        }
+        catch (Exception)
+        {
+
+            throw;
+        }
+
+    }
+}

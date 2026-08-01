@@ -1,0 +1,825 @@
+﻿@page "/enquiryFeasibility/create"
+@page "/enquiryFeasibility/create/{refEnqId:int}"
+@page "/enquiryFeasibility/update/{FesId:int}"
+
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ISalesService.IEnquiryFesibility
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.FeasibilityVM
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@inject IEnqiryFeasibilityService _enquiryFeasibility
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _JS
+@inject CurrentUserService CurrentUserService
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@buttonText"
+         Title=@ModalTitle>
+</BsModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+
+</style>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- header-->
+                <PageHeader TitleText="@(FesId == 0 || FesId == null ? "Create EnquiryFeasibility" : "Update EnquiryFeasibility")"
+                            TitleIcon="bi bi-person"
+                            Breadcrumbs="@EnquiryFeasibilityBreadcrumbs" />
+                <div class="card-body">
+                    <EditForm Model="EnquiryFeasibilityVMs" OnValidSubmit="UpsertEnquiryFeasibility">
+                        <ObjectGraphDataAnnotationsValidator />
+                        <ValidationSummary />
+                        <div class="row g-3 mb-2 align-items-center">
+
+                            <!-- Correspondence Status -->
+                            <div class="col-12 col-md-12 d-flex justify-content-end">
+                                @if (EnquiryFeasibilityVMs is not null
+                                                        && EnquiryFeasibilityVMs.FesId > 0
+                                                        && !string.IsNullOrWhiteSpace(EnquiryFeasibilityVMs.FesNo))
+                                {
+                                    <CorrespondenceStatus ReferenceType="EnquiryFeasibility"
+                                                          ReferenceId="@EnquiryFeasibilityVMs.FesId"
+                                                          ReferenceTypeName="@EnquiryFeasibilityVMs.FesNo" />
+                                }
+                            </div>
+
+                        </div>
+                        <div class="row g-3 mb-2">
+
+                            <!-- Customer Details and Ref Enquiry Details -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+                                    <!-- Header -->
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Customer and Reference Enquiry Information</span>
+                                    </div>
+                                    <div class="card-body p-3">
+
+                                        <!-- Customer Selection -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Ref Enquiry No.</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9">
+                                                @if (refEnqId > 0 || FesId>0)
+                                                {
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@EnquiryFeasibilityVMs.RefEnqNo" readonly />
+                                                        
+                                                }
+                                                else
+                                                {
+                                                    <select class="form-select form-select-sm rounded-3 w-100" 
+                                                            value="@EnquiryFeasibilityVMs.RefEnqNo"
+                                                            @onchange="OnEnquiryNoChanged">
+                                                        <option value="" disabled selected>Select a Ref Enquiry No.</option>
+                                                        @foreach (var cp in enquiry)
+                                                        {
+                                                            <option value="@cp.EnquiryNo">@cp.EnquiryNo</option>
+                                                        }
+                                                    </select>
+                                                }
+
+                                                <ValidationMessage For="@(() => EnquiryFeasibilityVMs.RefEnqNo)" />
+                                            </div>
+                                        </div>
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>RefEnqDate</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3"
+                                                           @bind-Value="@EnquiryFeasibilityVMs.RefEnqDate" Format="dd/MM/yyyy" readonly/>
+                                                <ValidationMessage For="@(() => EnquiryFeasibilityVMs.RefEnqDate)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Customer Name</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                           @bind-Value="@EnquiryFeasibilityVMs.CustomerName" readonly />
+                                                <ValidationMessage For="@(() => EnquiryFeasibilityVMs.CustomerName)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Address -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Address</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1"
+                                                  readonly>@EnquiryFeasibilityVMs.CustomerAddress</textarea>
+                                            </div>
+                                        </div>
+                                        <!-- GSTIN -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>GST No.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       value="@EnquiryFeasibilityVMs.CustomerGSTNO" readonly />
+                                            </div>
+                                        </div>
+                                        <!-- Phone No -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Phone No</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       value="@EnquiryFeasibilityVMs.CustomerPhoneNo" readonly />
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <!-- Document Details -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Document Details</span>
+                                    </div>
+                                    <div class="card-body p-3">
+
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Feasibilty No.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                               placeholder="Feasibilty No."
+                                                               maxlength="30"
+                                                               @bind-Value="@EnquiryFeasibilityVMs.FesNo" readonly />
+                                                    <span class="input-group-text rounded-3">@EnquiryFeasibilityVMs.Suffix</span>
+                                                </div>
+                                                <ValidationMessage For="@(() => EnquiryFeasibilityVMs.FesNo)" />
+                                            </div>
+                                        </div>
+                                        <!-- Date -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Feasibilty Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3"
+                                                           @bind-Value="@EnquiryFeasibilityVMs.FesDate" Format="dd/MM/yyyy"/>
+                                                <ValidationMessage For="@(() => EnquiryFeasibilityVMs.FesDate)" />
+                                            </div>
+                                        </div>
+                                       
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Quot Reference No.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                               placeholder="Quot Reference No."
+                                                               maxlength="30"
+                                                               @bind-Value="@EnquiryFeasibilityVMs.QuotRefNo" />
+
+                                                </div>
+                                                <ValidationMessage For="@(() => EnquiryFeasibilityVMs.QuotRefNo)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>PreparedBy</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+
+                                                   <select class="form-select form-select-sm rounded-3 w-100"
+                                                            @bind="EnquiryFeasibilityVMs.PreparedBy">
+                                                        <option value="" disabled selected>Select a Prepared By</option>
+                                                        @foreach (var uname in activeUserNames)
+                                                        {
+                                                            <option value="@uname">@uname</option>
+                                                        }
+                                                    </select>
+                                                   
+                                                </div>
+                                                <ValidationMessage For="@(() => EnquiryFeasibilityVMs.PreparedBy)" />
+                                            </div>
+                                        </div>
+                                         <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Remark</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1">@EnquiryFeasibilityVMs.Remark</textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Item Details Table -->
+                            <div class="col-xxl-12 col-12  mt-3">
+                                <div class="card h-100 shadow-sm">
+
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Item Details</span>
+                                    </div>
+
+                                   <div class="card-body p-2">
+                                        <div class="table-responsive" style="max-height: 700px; overflow-y: auto; overflow-x: auto;">
+                                            <table class="table table-bordered align-middle text-center mb-0" 
+                                                   style="table-layout: fixed; min-width: 1700px;">
+                                                <thead class="custom-blue">
+                                                    <tr>
+                                                        
+                                                        <th style="width:55px; font-size:13px;">Sl.No</th>
+                                                        <th style="width:200px;font-size:13px;">Item Code/Part No.</th>
+                                                        <th style="width:200px;font-size:13px;">Item Name/Description</th>
+                                                        <th style="width:65px;font-size:13px;">UOM</th>
+                                                        <th style="width:80px;font-size:13px;">HSN/SAC</th>
+                                                        <th style="width:200px;font-size:13px;">Type Of Project</th>
+                                                        <th style="width:190px;font-size:13px;">Tool Requirement</th>
+                                                        <th style="width:240px;font-size:13px;">Special Requirement (OutSourcing)</th>
+                                                        <th style="width:200px;font-size:13px;">Technical Capabilities</th>
+                                                        <th style="width:180px;font-size:13px;">Delivery Terms</th>
+                                                        <th style="width:200px;font-size:13px;">Man Hr Requirement</th>
+                                                        <th style="width:190px;font-size:13px;">Risk If Any</th>
+                                                        <th style="width:220px;font-size:13px;">Special Requirement (Customer)</th>
+                                                        <th style="width:200px;font-size:13px;">Remarks</th>
+                                                        <th style="width:200px;font-size:13px;">Capability Confirmation</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="custom-size">
+                                                    @if (EnquiryFeasibilityVMs.EnquiryFeasibilitySubVM != null && EnquiryFeasibilityVMs.EnquiryFeasibilitySubVM.Any())
+                                                    {
+                                                        @foreach (var enq in EnquiryFeasibilityVMs.EnquiryFeasibilitySubVM)
+                                                        {
+                                                            <tr @key="enq">
+                                                                <td>@enq.SlNo</td>
+
+                                                                <!-- Item Selector -->
+                                                                <td>
+                                                                    <div class="row g-1 align-items-center">
+                                                                        <div class="col-10">
+                                                                            <input type="text" class="form-control rounded-3 w-100"
+                                                                                   value="@enq.ItemCode" readonly />
+                                                                        </div>
+
+                                                                        <!-- Attachment column -->
+                                                                      
+                                                                            <div class="col-2 text-center">
+                                                                                @if (enq.ItemId.HasValue && enq.ItemId > 0 && attachmentCounts.TryGetValue(enq.ItemId.Value, out var count) && count > 0)
+                                                                                {
+                                                                                    <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                                    Size="Size.Small"
+                                                                                                    Color="Color.Primary"
+                                                                                                    OnClick="@(async () => await OpenAttachmentButton(enq.ItemId.Value))"
+                                                                                                    Edge="Edge.End"
+                                                                                                    Title=@($"This Item has  attachment(s). Click to view.") />
+                                                                                }
+                                                                            </div>
+                                                                        
+                                                                        <ValidationMessage For="@(() => enq.ItemId)" />
+                                                                    </div>
+                                                                </td>
+
+                                                                <td>@enq.ItemName</td>
+                                                                <td>@enq.UOM</td>
+                                                                <td>@enq.HSNCode</td>
+
+                                                                <td>
+                                                                    <select class="form-select rounded-3" @bind="enq.TypeOfProject">
+                                                                        <option value="" disabled selected>Select Type Project</option>
+                                                                        <option value="Manufacturing">Manufacturing</option>
+                                                                        <option value="Labour">Labour</option>
+                                                                        <option value="Development">Development</option>
+                                                                    </select>
+                                                                </td>
+                                                               <td>
+                                                                    <select class="form-select rounded-3" @bind="enq.ToolRequired">
+                                                                        <option value="" disabled selected>Select Tool Req</option>
+                                                                        <option value="Yes">YES</option>
+                                                                        <option value="No">NO</option>
+                                                                        <option value="Modify">MODIFY</option>
+                                                                    </select>
+                                                                </td>
+                                                                
+                                                                <td>
+                                                                    <InputText class="form-control rounded-3"
+                                                                               @bind-Value="enq.SpclReqOutsource"
+                                                                               maxlength="250"
+                                                                               placeholder="SpclReqOutsource" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <select class="form-select rounded-3" @bind="enq.TechCapaBilities">
+                                                                        <option value="" disabled selected>Select Tech. CapaBilities</option>
+                                                                        <option value="adequate">Adequate</option>
+                                                                        <option value="nonadequate">Non Adequate</option>
+                                                                        
+                                                                    </select>
+                                                                </td>
+
+                                                                 <td>
+                                                                    <select class="form-select rounded-3" @bind="enq.DelvryTrms">
+                                                                        <option value="" disabled selected>Select Terms</option>
+                                                                        
+                                                                    </select>
+                                                                </td>
+                                                                <td>
+                                                                    <InputNumber class="form-control rounded-3"
+                                                                               @bind-Value="enq.ManHrReq"
+                                                                               maxlength="250"
+                                                                               placeholder="Man Hr Requirement" />
+                                                                </td>
+                                                                <td>
+                                                                    <select class="form-select rounded-3" @bind="enq.RiskIfAny">
+                                                                        <option value="" disabled selected>Select Risk If Any</option>
+                                                                        <option value="Yes">YES</option>
+                                                                        <option value="No">NO</option>
+                                                                        <option value="Modify">MODIFY</option>
+                                                                    </select>
+                                                                </td>
+                                                                <td>
+                                                                    <InputText class="form-control rounded-3"
+                                                                               @bind-Value="enq.SpclReqCustomer"
+                                                                               maxlength="250"
+                                                                               placeholder="Spcl. Requirment Customer" />
+                                                                </td>
+                                                                <td>
+                                                                    <InputText class="form-control rounded-3"
+                                                                               @bind-Value="enq.Remarks"
+                                                                               maxlength="250"
+                                                                               placeholder="Remarks" />
+                                                                </td>
+
+                                                                <td>
+                                                                    <select class="form-select rounded-3" @bind="enq.CompbltyConfm">
+                                                                        <option value="" disabled selected>Select Capability</option>
+                                                                        <option value="Capable">Capable</option>
+                                                                        <option value="Out Of Scope">Out Of Scope</option>
+                                                                       
+                                                                    </select>
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+                        @if (EnquiryFeasibilityVMs.FesId > 0)
+                        {
+                            <div class="row g-3">
+                                <!-- Created By -->
+                                <div class="col-12 col-lg-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="EnquiryFeasibilityVMs.CreatedBy"
+                                                   id="CreatedBy"
+                                                   class="form-control"
+                                                   placeholder="Created By"
+                                                   disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="col-12 col-lg-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="CreatedDate"
+                                               placeholder="Created Date"
+                                               value="@EnquiryFeasibilityVMs.CreatedDate.ToString("dd/MM/yyyy hh:mm:ss")"
+                                               disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified By -->
+                                <div class="col-12 col-lg-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="EnquiryFeasibilityVMs.ModifiedBy"
+                                                   id="ModifiedBy"
+                                                   class="form-control"
+                                                   placeholder="Modified By"
+                                                   disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified Date -->
+                                <div class="col-12 col-lg-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="ModifiedDate"
+                                               placeholder="Modified Date"
+                                               value="@EnquiryFeasibilityVMs.ModifiedDate?.ToString("dd/MM/yyyy hh:mm:ss")"
+                                               disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                        }
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+
+                        <div class="row mt-3">
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-xxl-3 col-12">
+                                        <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i> @(FesId == 0 || FesId == null ? "Create" : "Update")
+                                        </button>
+                                </div>
+                            }
+                           @*  <div class="col-xxl-3 col-12">
+                                <a href="/enquiryfeasibility" class="btn btn-secondary w-100" disabled="@isProcessing">
+                                    <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                                </a>
+                            </div> *@
+
+                           @if(refEnqId>0 || selectedEnqId>0)
+                           {
+                               <div class="col-xxl-3 col-12">
+                                    <SmartBackButton Url="@($"enquirySales/update/{(refEnqId > 0 ? refEnqId : selectedEnqId)}")" />
+                               </div>
+                           }
+                           
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+
+
+@code
+{
+    protected override string ScreenName => "Enquiry Feasibility";
+
+    [Parameter] public int? FesId { get; set; }
+    [Parameter] public int? refEnqId { get; set; }
+    private int selectedEnqId = 0;
+    private bool isProcessing = true;
+
+
+    private EnquiryFeasibilityVM EnquiryFeasibilityVMs { get; set; } = new();
+    private EnquiryFeasibilitySubVM? rowToDelete;
+
+    private List<CustomerVM> Customers = new();
+    private EnquirySalesVM? SelectedRefEnqNo;
+    private ItemVM? AttachItemSelected = null;
+    private List<EnquirySalesVM> enquiry { get; set; } = new List<EnquirySalesVM>();
+    private string selectedEnquiryNo=null;
+
+
+    private IEnumerable<string> activeUserNames = new List<string>();
+
+    private string ModalTitle = string.Empty;
+    private string buttonText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    //Model Open
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<PageHeader.BreadcrumbItem> EnquiryFeasibilityBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Sales" },
+        new PageHeader.BreadcrumbItem { Text = "EnquiryFeasibility", IsLast = true }
+    };
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            if (FesId > 0)
+            {
+                await LoadExistingEnquiryFeasibility(FesId.Value);
+
+            }else if (refEnqId>0)
+            {
+
+                await ToLoadEnquiryData(refEnqId.Value);
+                await autoIncreamentNo();
+            }
+            else
+            {
+                EnquiryFeasibilityVMs.RefEnqDate = DateTime.Now;
+                await LoadNewEnquiryFeasibility();
+
+            }
+            activeUserNames = await _enquiryFeasibility.ToGetActiveUsers();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync");
+            await _JS.ToastrError("Failed to load EnquiryFeasibility upsert screen.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    private async Task autoIncreamentNo()
+    {
+        try
+        {
+            EnquiryFeasibilityVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            EnquiryFeasibilityVMs.FesNo = await _enquiryFeasibility.GetFeasibilityNumberAsync(EnquiryFeasibilityVMs.Suffix);
+        }
+        catch(Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadExistingEnquiry Feasibility upsert ");
+            await _JS.ToastrError("Failed to autoIncreamentNo");
+        }
+
+    }
+    private async Task LoadExistingEnquiryFeasibility(int FestId)
+    {
+        try
+        {
+            EnquiryFeasibilityVMs = await _enquiryFeasibility.GetEnquiryFeasibilityDetailsByFesIdAsync(FestId);
+            await To_Load_Attachment();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadExistingEnquiry Feasibility upsert ");
+            await _JS.ToastrError("Failed to load existing EnquiryFeasibility details.");
+        }
+    }
+    private async Task LoadNewEnquiryFeasibility()
+    {
+        try
+        {
+            enquiry = (await _enquiryFeasibility.GetAvailableEnquiriesAsync()).ToList();
+            await autoIncreamentNo();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadNewEnquiry in in EnquiryFeasibility upsert");
+            await _JS.ToastrError("Failed to initialize new in EnquiryFeasibility upsert.");
+        }
+    }
+    private async Task ToLoadEnquiryData(int refenqId)
+    {
+        try
+        {
+            
+            EnquiryFeasibilityVMs = await _enquiryFeasibility.GetEnquiryDetailsByEnqIdAsync(refenqId);
+            await autoIncreamentNo();
+            await To_Load_Attachment();
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "toLoadEnquiryData in  EnquiryFeasibility upsert");
+            await _JS.ToastrError("Failed to toLoadEnquiryData new in EnquiryFeasibility upsert.");
+        }
+    }
+    private async Task OnEnquiryNoChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            selectedEnquiryNo = e.Value?.ToString();
+            if (!string.IsNullOrEmpty(selectedEnquiryNo))
+            {
+                var selectedEnquiry = enquiry.FirstOrDefault(x => x.EnquiryNo == selectedEnquiryNo);
+                if (selectedEnquiry != null)
+                {
+
+                    await ToLoadEnquiryData(selectedEnquiry.EnquiryId);
+                    selectedEnqId = selectedEnquiry.EnquiryId;
+                }
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "OnEnquiryNoChanged in  EnquiryFeasibility upsert");
+            await _JS.ToastrError("Failed to OnEnquiryNoChanged  in EnquiryFeasibility upsert.");
+        }
+    }
+    private async Task To_Load_Attachment()
+    {
+        try
+        {
+            if (EnquiryFeasibilityVMs != null)
+            {
+                foreach (var enq in EnquiryFeasibilityVMs.EnquiryFeasibilitySubVM)
+                {
+                    if (enq.ItemId.HasValue && enq.ItemId > 0)
+                        attachmentCounts[enq.ItemId.Value] = await _enquiryFeasibility.GetCorrespondenceAttachmentsCountAsync(enq.ItemId.Value, "Item");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "to_Load_Attachment");
+            await _JS.ToastrError("Error to_Load_Attachment");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+    #region Upsert / Validation
+    private async Task UpsertEnquiryFeasibility() 
+    {
+        isProcessing = true;
+        try
+        {
+            
+            if (await toValidateEnuiry())
+            {
+                var isNewEnquiry = EnquiryFeasibilityVMs.FesId == 0;
+                await _enquiryFeasibility.UpsertEnquiryFeasibilityAsync(EnquiryFeasibilityVMs);
+
+                if (isNewEnquiry)
+                    await _JS.ToastrSuccess("Enquiry saved successfully.");
+                else
+                    await _JS.ToastrSuccess("Enquiry updated successfully.");
+
+                // Discard popup Clear
+                await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+                _navigationManager.NavigateTo("/enquiryfeasibility");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertEnquirySales");
+            await _JS.ToastrError("Error saving enquiry.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> toValidateEnuiry()
+    {
+        bool valid = true;
+
+        if (string.IsNullOrEmpty(EnquiryFeasibilityVMs.FesNo))
+        {
+            await _JS.ToastrWarning("EnquiryFeasibility No. should not be empty");
+            valid = false;
+        }else if (EnquiryFeasibilityVMs.FesDate == default(DateTime))
+        {
+            await _JS.ToastrWarning("Please enter FES Date."); // message matches the field
+            valid = false;
+        }else if (string.IsNullOrWhiteSpace(EnquiryFeasibilityVMs.RefEnqNo))
+        {
+             await _JS.ToastrWarning("Ref Enquiry no. should not be empty");
+            valid = false;
+        }
+        else if (EnquiryFeasibilityVMs.CustId == 0)
+        {
+            await _JS.ToastrWarning("Customer name should not be empty");
+            valid = false;
+        }
+        else if (!EnquiryFeasibilityVMs.EnquiryFeasibilitySubVM.Any())
+        {
+            await _JS.ToastrWarning("At least one row item is required.");
+            valid = false;
+        }
+        else if(string.IsNullOrWhiteSpace(EnquiryFeasibilityVMs.PreparedBy))
+        {
+            await _JS.ToastrWarning("Please select Prepared By");
+            valid = false;
+        }
+
+        return valid;
+    }
+    #endregion
+
+    #region Modal / Confirmation Handling
+    private async Task OpenModal(string type)
+    {
+        ActiveModal = type;
+        MasterModalTitle = type switch
+        {
+            "Customer" => "Add New Customer",
+            "Item" => "Add New Item",
+            "Attachments" => "Attached Drawing's",
+            _ => "Modal"
+        };
+        isModalVisible = true;
+        await Task.CompletedTask;
+    }
+    private async Task OpenAttachmentButton(int ItemId)
+    {
+        try
+        {
+            
+            AttachItemSelected = await _enquiryFeasibility.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to Open this Attachments";
+            btnColor = "btn-success";
+            buttonText = "Yes! Open";
+            confirmation = "Open Files";
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OpenAttachmentButton");
+            await _JS.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+   
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        await _JS.InvokeVoidAsync("HideConfirmationModal");
+        if (isConfirmed)
+        {
+            if (confirmation == "Open Files" && AttachItemSelected != null)
+            {
+                await OpenModal("Attachments");
+            }
+           
+        }
+    }
+    private async Task CloseModal()
+    {
+        if (ActiveModal == "Attachments")
+            AttachItemSelected = null;
+
+        isModalVisible = false;
+        ActiveModal = "";
+    }
+     #endregion
+}

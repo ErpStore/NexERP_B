@@ -1,0 +1,800 @@
+﻿@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+
+@inject NavigationManager _navigationManager
+
+@inject IJSRuntime _js
+@inject CurrentUserService _userService
+
+@inject IExcelTemplateService uploadExcelService
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/V.SMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+
+        <div class="card shadow-sm border-1">
+
+            <!-- Card Header -->
+
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 bg-light shadow-sm">
+                            <label class="form-label fw-bold text-primary">
+                                <i class="bi bi-upload me-2"></i>Upload File
+                                <span class="text-muted small">(xlsx)</span>
+                            </label>
+                            <InputFile OnChange="OnFileChange" accept=".xlsx,.xls,.csv" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        @if (IsExcelFile && SheetNames?.Count > 0)
+                        {
+                            <div class="border rounded p-3 bg-light shadow-sm">
+                                <label class="form-label fw-bold text-primary">
+                                    <i class="bi bi-table me-2"></i>Select Excel Sheet
+                                </label>
+                                <select class="form-select" value="@SelectedSheet" @onchange="OnSheetSelected">
+                                    <option value="-1">-- Select Sheet --</option>
+                                    @foreach (var sheet in SheetNames)
+                                    {
+                                        <option value="@sheet">@sheet</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @if (ExcelUploadList.Any())
+                {
+                    <div class="my-4" style="max-height: 500px; overflow-y: auto; overflow-x: auto;">
+                        <div class="mb-2">
+                            <span class="badge bg-success bg-opacity-50">New Item</span>
+                            <span class="badge bg-danger ms-4 bg-opacity-50">Missing Fields</span>
+                        </div>
+
+                        <table class="table table-bordered" style="table-layout: fixed; width: 3200px; font-size: 16px;">
+                            <thead style="position: sticky; top: 0; z-index: 1;">
+                                <tr>
+                                    <th style="width: 50px; background-color:#2883c1; color: white;">Sl.No</th>
+                                    @if (IsSalesPo)
+                                    {
+                                        <th style="width: 60px; background-color:#2883c1; color: white;">Line No.</th>
+                                    }
+                                    else if (IsLabourGRN)
+                                    {
+                                        <th style="width: 60px; background-color:#2883c1; color: white;">Trans Type</th>
+                                    }
+                                    else if (IsMfgQuote)
+                                    {
+                                        <th style="width: 60px; background-color:#2883c1; color: white;">Ref No</th>
+                                    }
+                                    <th style="width: 120px; background-color:#2883c1; color: white;">Item Type</th>
+                                    <th style="width: 100px; background-color:#2883c1; color: white;">Category</th>
+                                    <th style="width: 180px; background-color:#2883c1; color: white;">Item Code</th>
+                                    <th style="width: 180px; background-color:#2883c1; color: white;">Item Description</th>
+                                    <th style="width: 180px; background-color:#2883c1; color: white;">Item Specification</th>
+                                    <th style="width: 60px; background-color:#2883c1; color: white;">UOM</th>
+                                    <th style="width: 100px; background-color:#2883c1; color: white;">Purchase Units</th>
+                                    <th style="width: 140px; background-color:#2883c1; color: white;">HSN Code</th>
+                                    <th style="width: 150px; background-color:#2883c1; color: white;">Sac Code</th>
+                                    <th style="width: 100px; background-color:#2883c1; color: white;">Item Weight</th>
+                                    <th style="width: 100px; background-color:#2883c1; color: white;">Item Area</th>
+                                    @if (IsLabourGRN)
+                                    {
+                                        <th style="width: 60px; background-color:#2883c1; color: white;">DC Qty</th>
+                                    }
+                                    <th style="width: 80px; background-color:#2883c1; color: white;">QTY</th>
+                                    <th style="width: 80px; background-color:#2883c1; color: white;">Rate</th>
+
+                                    @if (IsSalesPo || IsMfgQuote)
+                                    {
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">Discount %</th>
+                                        <th style="width: 100px; background-color:#2883c1; color: white;">Discount Amt</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">CGST</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">SGST</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">IGST</th>
+                                    }
+                                    @if (IsSalesPo)
+                                    {
+                                        <th style="width: 120px; background-color:#2883c1; color: white;">DueDate</th>
+                                        <th style="width: 120px; background-color:#2883c1; color: white;">PoDate</th>
+                                    }
+                                    else if (IsLabourGRN)
+                                    {
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">Wo No.</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">Remarks</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">Cost Center</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">Batch No.</th>
+                                        <th style="width: 80px; background-color:#2883c1; color: white;">Heat No.</th>
+                                    }
+
+                                </tr>
+                            </thead>
+                            <tbody style="word-break: break-word;">
+                                @foreach (var row in ExcelUploadList)
+                                {
+                                    <tr style="font-size:12px;">
+                                        <td>@row.SlNo</td>
+                                        @if (IsSalesPo)
+                                        {
+                                            <td>@row.LineNo</td>
+                                        }
+                                        else if (IsLabourGRN)
+                                        {
+                                            <td>@row.TransType</td>
+                                        }
+                                        else if (IsMfgQuote)
+                                        {
+                                            <td>@row.RFQ</td>
+                                        }
+
+                                        <td class="@GetCellClass(row, "ItemType")">
+                                            @row.ItemType
+                                            @if (row.ColumnErrors?.TryGetValue("ItemType", out var typeerror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @typeerror
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td class="@GetCellClass(row, "Category")">
+                                            @row.Category
+                                            @if (row.ColumnErrors?.TryGetValue("Category", out var cateerror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @cateerror
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td class="@GetCellClass(row, "Item Code / Part No.")">
+
+                                            @row.ItemCode
+
+                                            @if (row.ColumnErrors?.TryGetValue("Item Code / Part No.", out var error) == true)
+                                            {
+                                                <div class="text-danger small fw-semibold">
+                                                    @error
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td class="@GetCellClass(row, "Item Descriptions")">
+                                            @row.ItemName
+                                            @if (row.ColumnErrors?.TryGetValue("Item Descriptions", out var nameerror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @nameerror
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td>@row.ItemSpeification</td>
+
+                                        <td class="@GetCellClass(row, "UOM")">
+                                            @row.MeasureUnit
+                                            @if (row.ColumnErrors?.TryGetValue("UOM", out var UOMerror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @UOMerror
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td class="@GetCellClass(row, "PurchaseUnit")">
+                                            @row.PurchaseUnits
+                                            @if (row.ColumnErrors?.TryGetValue("PurchaseUnit", out var purcherror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @purcherror
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td class="@GetCellClass(row, "HSN Code")">
+                                            @row.HSNCode
+                                            @if (row.ColumnErrors?.TryGetValue("HSN Code", out var hsnerror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @hsnerror
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td class="@GetCellClass(row, "Sac Code")">
+
+                                            @row.SACCode
+
+                                            @if (row.ColumnErrors?.TryGetValue("Sac Code", out var sacerror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @sacerror
+                                                </div>
+                                            }
+                                        </td>
+                                        <td>@row.ItemWeight</td>
+                                        <td>@row.ItemArea</td>
+                                        @if (IsLabourGRN)
+                                        {
+                                            <td>@row.DCQty</td>
+                                        }
+
+                                        <td class="@GetCellClass(row, "Qty")">
+                                            @row.Qty
+                                            @if (row.ColumnErrors?.TryGetValue("Qty", out var qtyerror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @qtyerror
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td class="@GetCellClass(row, "Rate")">
+                                            @row.UnitPrice
+
+                                            @if (row.ColumnErrors?.TryGetValue("Rate", out var rateerror) == true)
+                                            {
+                                                <div class="text-danger small">
+                                                    @rateerror
+                                                </div>
+                                            }
+                                        </td>
+                                        @if (IsSalesPo || IsMfgQuote)
+                                        {
+                                            <td>@row.LineDiscountPercent</td>
+                                            <td>@row.LineDiscountAmount</td>
+                                            <td>@row.LineCGSTRate</td>
+                                            <td>@row.LineSGSTRate</td>
+                                            <td>@row.LineIGSTRate</td>
+                                        }
+
+                                        @if (IsSalesPo)
+                                        {
+                                            <td>@row.DueDate</td>
+                                            <td>@row.PoDate</td>
+                                        }
+
+                                        @if (IsLabourGRN)
+                                        {
+                                            <td>@row.WONo</td>
+                                            <td>@row.RowRemarks</td>
+                                            <td>@row.ProjectNo</td>
+                                            <td>@row.BatchNo</td>
+                                            <td>@row.HeatNo</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="text-end mt-4">
+                        <button class="btn btn-outline-success d-inline-flex align-items-center border border-2"
+                                disabled="@ExcelUploadList.Any(x => x.ColumnErrors.Any())" @onclick="confirmSave_Click">
+                            <i class="bi bi-cloud-arrow-up-fill fs-4"></i>
+                            <span class="fw-semibold">Upload</span>
+                            <span class="ms-2 badge bg-success-subtle text-dark">@ExcelUploadList.Count</span>
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+
+    }
+}
+
+
+@code {
+    protected override string ScreenName => "Excel Upload";
+
+    [Parameter] public EventCallback<List<ExcelUploadVM>> OnUploadCompleted { get; set; }
+
+
+    [Parameter]
+    public bool isModelVisible { get; set; } = false;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public string uploadType { get; set; }
+
+    [Parameter]
+    public int CustomerId { get; set; }
+
+    bool IsSalesPo => uploadType == UploadTypes.SalesPo;
+    bool IsLabourGRN => uploadType == UploadTypes.LabourGRN;
+    bool IsMfgQuote => uploadType == UploadTypes.MfgQuote;
+
+    private ExcelUploadVM ExceluploadViewModel = new();
+    private List<ExcelUploadVM> ExcelUploadList { get; set; } = new();
+    private List<ExcelRowData> processedRows = new();
+    private List<string> SheetNames { get; set; } = new();
+    private Stream? FileStream;
+    private string? SelectedSheet;
+    private string? HeaderErrorMessage { get; set; }
+    private bool IsExcelFile { get; set; }
+    private bool isProcessing = true;
+
+    private string[] ExpectedHeaders;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await InitializeExpectedHeaders();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "Error initializing ExcelUpload page.");
+        }
+    }
+
+    private async Task InitializeExpectedHeaders()
+    {
+        try
+        {
+            ExpectedHeaders = await uploadExcelService.LoadHeadings(uploadType);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error initializing expected headers in ExcelUpload.");
+            await _js.ToastrError("An error occurred while setting up the expected headers. Please try again.");
+        }
+    }
+
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file == null) return;
+
+            FileStream = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(FileStream);
+            FileStream.Position = 0;
+
+            ExcelUploadList.Clear();
+            SheetNames.Clear();
+            SelectedSheet = null;
+            HeaderErrorMessage = null;
+
+            string fileName = file.Name;
+
+            if (fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+            {
+                IsExcelFile = true;
+
+                try
+                {
+                    using var workbook = new XLWorkbook(FileStream);
+                    SheetNames = workbook.Worksheets
+                   .Where(ws => ws.Visibility == XLWorksheetVisibility.Visible)
+                   .Select(ws => ws.Name)
+                   .ToList();
+
+                    if (SheetNames.Count == 1)
+                    {
+                        SelectedSheet = SheetNames.First();
+                        await _js.ToastrSuccess($"Excel file loaded. Sheet '{SelectedSheet}' selected automatically.");
+                        await LoadExcelSheetData(SelectedSheet);
+                    }
+                    else if (SheetNames.Count > 1)
+                    {
+                        await _js.ToastrSuccess("Excel file loaded successfully. Please select a sheet.");
+                    }
+                    else
+                    {
+                        await _js.ToastrError("No visible sheets found in the Excel file.");
+                    }
+
+                    await LoggingService.LogUserAction(
+                        UserName: await _userService.GetUsernameAsync(),
+                        Machine: _userService.MachineName,
+                        IP_Address: _userService.IpAddress,
+                        screen: "Excel Upload",
+                        action: "Excel file loaded for Excel Upload",
+                        additionalInfo: string.Empty
+                    );
+                }
+                catch (Exception exExcel)
+                {
+                    await LoggingService.LogDeveloperError(exExcel, "Excel parsing failed in Excel Upload.");
+                    await _js.ToastrError("Failed to load the Excel file. Please check if the file is corrupted or unsupported.");
+                    FileStream = null;
+                }
+            }
+            else
+            {
+                await _js.ToastrError("Unsupported file format. Please upload a valid Excel (.xlsx/.xls) or CSV (.csv) file.");
+                FileStream = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Unexpected error during file upload in Excel Upload.");
+            await _js.ToastrError("An unexpected error occurred while processing the file. Please try again.");
+        }
+    }
+
+    private async void OnSheetSelected(ChangeEventArgs e)
+    {
+        try
+        {
+            var selected = e.Value?.ToString();
+            if (!string.IsNullOrWhiteSpace(selected) && selected != "-1")
+            {
+                SelectedSheet = selected;
+                await LoadExcelSheetData(SelectedSheet);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading selected sheet in Excel Upload.");
+            await _js.ToastrError("Failed to load the selected sheet. Please try again or upload the file again.");
+        }
+    }
+
+    private async Task LoadExcelSheetData(string sheetName)
+    {
+        try
+        {
+            if (FileStream == null)
+            {
+                await _js.ToastrError("Excel stream is empty.");
+                return;
+            }
+
+            FileStream.Position = 0;
+
+            using var workbook = new XLWorkbook(FileStream);
+            var worksheet = workbook.Worksheet(sheetName);
+            var rows = worksheet.RowsUsed().ToList();
+
+            if (rows.Count < 1)
+            {
+                await _js.ToastrWarning("Excel sheet has no data rows.");
+                return;
+            }
+
+            var headerRow = rows[0];
+            var actualHeaders = ExtractHeaders(headerRow.Cells().Select(c => c.GetString()).ToList());
+
+            if (!await ValidateHeaders(actualHeaders)) return;
+
+            var dataRows = rows.Skip(1).ToList();
+
+            await ProcessRows(dataRows.Select(r => ExtractRowValues(r, actualHeaders)).ToList(), actualHeaders);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while loading data from Excel sheet in Excel Upload.");
+            await _js.ToastrError("Failed to load data from the selected Excel sheet. Please check the format and try again.");
+        }
+    }
+
+    private Dictionary<string, int> ExtractHeaders(IList<string> headers)
+    {
+        var dict = new Dictionary<string, int>();
+        for (int i = 0; i < headers.Count; i++)
+        {
+            var header = headers[i].Trim();
+            if (!string.IsNullOrWhiteSpace(header))
+                dict[header] = i + 1; // +1 for Excel column indexing, ignored in CSV
+        }
+        return dict;
+    }
+
+    private async Task<bool> ValidateHeaders(Dictionary<string, int> actualHeaders)
+    {
+        try
+        {
+            var missing = ExpectedHeaders.Where(h => !actualHeaders.ContainsKey(h)).ToList();
+            if (missing.Any())
+            {
+                HeaderErrorMessage = $"Missing headers: {string.Join(", ", missing)}";
+                await _js.ToastrError(HeaderErrorMessage);
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Header validation failed in Excel Upload.");
+            await _js.ToastrError("Error while validating headers.");
+            return false;
+        }
+    }
+
+    private List<string> ExtractRowValues(IXLRow row, Dictionary<string, int> actualHeaders)
+    {
+        return actualHeaders
+            .OrderBy(kvp => kvp.Value)
+            .Select(kvp => row.Cell(kvp.Value).GetValue<string>().Trim())
+            .ToList();
+    }
+
+    private async Task ProcessRows(List<List<string>> rows, Dictionary<string, int> actualHeaders)
+    {
+        try
+        {
+
+            ExcelUploadList.Clear();
+
+            //Sathish
+            // 1️⃣ Collect all item codes first
+            var itemCodes = rows.Select(r => Normalize(GetValue(r, actualHeaders, "Item Code / Part No.")))
+                           .Where(x => !string.IsNullOrWhiteSpace(x))
+                           .Distinct(StringComparer.OrdinalIgnoreCase)
+                           .ToList();
+
+            // 2️⃣ Fetch all existing items in ONE DB call
+            var existingItems = await uploadExcelService.GetItemsByCodesAsync(itemCodes);
+
+            // Convert to HashSet for O(1) lookup
+            var existingItemSet = existingItems
+                .Select(x => x.ItemCode)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            int sl = 1;
+
+            foreach (var values in rows)
+            {
+                var model = await MapToBomViewModel(values, actualHeaders, sl);
+                //Sathish
+                model.ItemCode = Normalize(model.ItemCode ?? "");
+                // 3️⃣ Local check instead of DB call
+                model.IsNewItem = !existingItemSet.Contains(model.ItemCode);
+
+                var columnErrors = await uploadExcelService.ItemValidation(model);
+
+                if (columnErrors.Any())
+                {
+                    foreach (var err in columnErrors)
+                    {
+                        model.ColumnErrors[err.Key] = err.Value;
+                    }
+                }
+
+                ExcelUploadList.Add(model);
+                sl++;
+            }
+
+            await _js.ToastrSuccess($"Loaded {ExcelUploadList.Count} rows successfully.");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while processing Excel Upload rows.");
+            await _js.ToastrError("An unexpected error occurred while processing the rows.");
+        }
+    }
+
+    private async Task<ExcelUploadVM> MapToBomViewModel(List<string> values, Dictionary<string, int> actualHeaders, int slNo)
+    {
+        try
+        {
+            string Get(string name) =>
+                actualHeaders.TryGetValue(name, out int index) && index - 1 < values.Count
+                    ? values[index - 1]?.Trim() ?? string.Empty
+                    : string.Empty;
+
+            decimal GetDecimal(string name)
+            {
+                var str = Get(name);
+                return decimal.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0;
+            }
+
+            int? GetInt(string name)
+            {
+                var str = Get(name);
+
+                return int.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var i)
+                    ? i
+                    : (int?)null;
+            }
+
+            DateTime? GetDate(string name) => actualHeaders.TryGetValue(name, out int index)
+                        && index - 1 < values.Count && DateTime.TryParse(values[index - 1]?.Trim(), out var date)
+                        ? date : null;
+
+            var sac = Get("Sac Code");
+            var hsn = Get("HSN Code");
+            var existingHSN = await uploadExcelService.EnsureHsnExists(hsn.Trim());
+            var existingSAC = await uploadExcelService.EnsureHsnExists(sac.Trim());
+            var categoryName = Get("Category");
+            var parts = categoryName.Split('-', 2);
+
+            if (parts.Length > 0)
+                int.TryParse(parts[0].Trim(), out var categoryNumber);
+            var categryName = string.Empty;
+            if (parts.Length > 1)
+                categoryName = parts[1].Trim();
+
+            var existingCategory = await uploadExcelService.EnsureCategoryExists(categoryName.Trim());
+            var CategoryCode = existingCategory?.CategoryCode ?? 0;
+            decimal qty = IsLabourGRN ? GetDecimal("Dc Qty") : GetDecimal("Qty");
+            decimal rate = GetDecimal("Rate");
+            decimal discountPercent = GetDecimal("Discount %");
+            decimal discountAmount = GetDecimal("Discount Amount");
+
+            decimal finalDiscount = discountPercent > 0
+                ? Math.Round(qty * rate * discountPercent / 100, 2)
+                : Math.Round(discountAmount, 2);
+            return new ExcelUploadVM
+            {
+                SlNo = slNo,
+                RFQ = Get("Ref. No"),
+                LineNo = GetInt("LineId"),
+                TransType = Get("Trans Type"),
+                ItemCode = Get("Item Code / Part No."),
+                ItemName = Get("Item Descriptions"),
+                MeasureUnit = Get("UOM"),
+                HSNCode = Get("HSN Code"),
+                DCQty = qty,
+                RecievedQty = GetDecimal("Recd.Qty"),
+                Qty = GetDecimal("Qty"),
+                UnitPrice = rate,
+                LineDiscountPercent = discountPercent,
+                LineDiscountAmount = discountAmount,
+                LineCGSTRate = GetDecimal("CGST"),
+                LineSGSTRate = GetDecimal("SGST"),
+                LineIGSTRate = GetDecimal("IGST"),
+                WONo = Get("WO No"),
+                RowRemarks = Get("Remarks"),
+                ProjectNo = Get("Cost Center"),
+                BatchNo = Get("Batch No"),
+                DueDate = GetDate("Due Date"),
+                PoDate = GetDate("PODate"),
+                HeatNo = Get("Heat No"),
+                SACCode = Get("Sac Code"),
+                ItemType = Get("ItemType"),
+                Category = categoryName,
+                categorycode = CategoryCode,
+                PurchaseUnits = Get("PurchaseUnit"),
+                ItemSpeification = Get("Item Specification"),
+                ItemWeight = GetDecimal("Item Weight"),
+                ItemArea = GetDecimal("Item Area"),
+                Remarks = Get("Item Remarks")
+            };
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error in MapToBomViewModel row {slNo}");
+            return new ExcelUploadVM
+            {
+                SlNo = slNo,
+                ItemCode = $"[Error in row {slNo}]"
+            };
+
+        }
+    }
+
+    private async Task confirmSave_Click()
+    {
+        if (ExcelUploadList == null || !ExcelUploadList.Any())
+        {
+            await _js.ToastrWarning("No items to upload.");
+            return;
+        }
+
+        using var transaction = await _unitOfWork.BeginTransactionAsync();
+
+        try
+        {
+            isProcessing = true;
+            StateHasChanged();
+            await Task.Yield();
+
+            var validRows = ExcelUploadList
+                .Where(row => !string.IsNullOrWhiteSpace(row.ItemCode))
+                .ToList();
+
+            foreach (var row in validRows)
+            {
+                var item = await uploadExcelService.GetOrCreateItemByCodeAsync(
+                    row.ItemCode,
+                    row.ItemName ?? string.Empty,
+                    row.ItemSpeification,
+                    row.MeasureUnit ?? string.Empty,
+                    row.HSNCode ?? string.Empty,
+                    row.SACCode ?? string.Empty,
+                    row.ItemType ?? string.Empty,
+                    row.categorycode ?? 0,
+                    row.ItemWeight ?? 0,
+                    row.ItemArea ?? 0,
+                    row.Remarks ?? string.Empty
+                );
+
+                row.ItemId = item.ItemId;
+
+                await uploadExcelService.AssignItemToCustomer(CustomerId, item.ItemId);
+            }
+
+            await transaction.CommitAsync();
+
+            await OnUploadCompleted.InvokeAsync(validRows);
+            await _js.ToastrSuccess($"{validRows.Count} items uploaded successfully");
+            await OnClose.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            await _js.ToastrError("An error occurred while uploading items.");
+            await LoggingService.LogDeveloperError(ex, "Upload error");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetValue(List<string> values, Dictionary<string, int> headers, string columnName)
+    {
+        try
+        {
+            return headers.TryGetValue(columnName, out int index) && index - 1 < values.Count
+                ? values[index - 1]?.Trim() ?? string.Empty
+                : string.Empty;
+        }
+        catch (Exception ex)
+        {
+            LoggingService.LogDeveloperError(ex, $"Error getting value for column {columnName}");
+            return string.Empty;
+        }
+
+    }
+
+    private string GetCellClass(ExcelUploadVM row, string columnName)
+    {
+        // 1️⃣ Validation error has highest priority
+        if (row.ColumnErrors != null && row.ColumnErrors.ContainsKey(columnName))
+            return "bg-danger bg-opacity-50 ";
+
+        // 2️⃣ If no error and new item → green
+
+        if (row.IsNewItem && columnName == "Item Code / Part No.")
+            return "bg-success bg-opacity-50";
+
+        // 3️⃣ Default
+        return "";
+    }
+
+    //Sathish
+    private string Normalize(string val)
+    {
+        return val?
+            .Trim()
+            .Replace("\u00A0", "")   // removes hidden space
+            .Replace("\u200B", "")   // removes zero-width space
+            .Replace("\r", "")
+            .Replace("\n", "");
+    }
+
+}

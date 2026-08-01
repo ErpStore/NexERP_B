@@ -1,0 +1,223 @@
+﻿@page "/toolcribissueDetails/{TCId:int}"
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.InventoryViewModel
+@using V.SMART.Shared.ViewModels.InventoryViewModel.ToolCribViewModels
+@inject IToolCribIssueService tcIssueService
+@inject IJSRuntime _js
+@inherits BaseUserRightsComponent
+
+@inject ReportService _reportService
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+            <!--Company Details -->
+            <MyCompanyDetails />
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">TOOLCRIB - ISSUE NOTE</h4>
+            </div>
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <!-- Issue & Store Info -->
+            <div class="row g-3 mb-4">
+                <!-- Issue Details -->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Issue Details
+                        </div>
+                        <div class="card-body small">
+                            <p><strong>Issue No:</strong> @(TCIVMs != null ? $"{TCIVMs.TCIssueNo} {TCIVMs.Suffix}" : "N/A")</p>
+                            <p><strong>Issue Date:</strong> @(TCIVMs?.TCIssueDate != null ? TCIVMs.TCIssueDate.ToString("dd/MM/yyyy") : "N/A")</p>
+                            <p><strong>Issued To Whom:</strong> @(!string.IsNullOrEmpty(TCIVMs?.IssuedToWhom) ? TCIVMs.IssuedToWhom : "N/A")</p>
+                            <p><strong>Category:</strong> @(TCIVMs?.CategoryName != null ? TCIVMs.CategoryName : "N/A")</p>
+                            @* <p><strong>Category Name:</strong> @(!string.IsNullOrEmpty(TCIVMs?.CategoryCode.ToString()) ? TCIVMs.CategoryName : "N/A")</p> *@
+                            <p><strong>Description:</strong> @(TCIVMs?.Description != null ? TCIVMs.Description : "N/A")</p>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-----Store Details---->
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Store Details
+                        </div>
+                        <div class="card-body small">
+
+                            <p><strong>Store Name:</strong> @(TCIVMs?.StoreName)</p>
+                            @*  <td class="text-secondary" style="width: 40%;"><strong>Add To Store</strong></td>
+                        <td>@(!string.IsNullOrEmpty(TCIVMs?.StoreId.ToString()) ? TCIVMs.StoreName : "N/A")</td> *@
+
+                            <p><strong>Issue Remarks:</strong> @(TCIVMs?.MainRemarks ?? "N/A")</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ToolCribIssue Items -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info fw-semibold">
+                    ToolCribIssue Items
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>UOM</th>
+                                <th>HSN</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Bal. Qty</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (TCIVMs?.ToolCribIssueSubVMs != null && TCIVMs.ToolCribIssueSubVMs.Any())
+                            {
+                                @foreach (var item in TCIVMs.ToolCribIssueSubVMs)
+                                {
+                                    <tr>
+                                        <td class="text-center">@item.SlNo</td>
+                                        <td>@(item.ItemCode ?? "—")</td>
+                                        <td>@(item.ItemName ?? "—")</td>
+                                        <td class="text-center">@(!string.IsNullOrEmpty(item.MeasureUnit) ? item.MeasureUnit : "—")</td>
+                                        <td class="text-center">@(!string.IsNullOrEmpty(item.HSNCode) ? item.HSNCode : "—")</td>
+                                        <td class="text-end">@item.QtyOut</td>
+                                        <td class="text-end">@item.BalQty</td>
+                                        <td>@(item.Remark ?? "—")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-warning-subtle text-primary fw-semibold">
+                    Notes / Remarks
+                </div>
+                <div class="card-body small">
+                    <p class="mb-0">@(string.IsNullOrWhiteSpace(TCIVMs?.MainRemarks) ? "No remarks provided." : TCIVMs.MainRemarks)</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="/tcIssueList" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+
+                <a href="@($"/tci/update/{TCId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+
+            </div>
+        </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Tool-Crib Issue";
+
+    [Parameter]
+    public int TCId { get; set; }
+
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    public bool isProcessing { get; set; } = true;
+
+    private ToolCribIssueVM TCIVMs { get; set; } = new ToolCribIssueVM();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            await GetDetails();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error Occured in OnInitializedAsync() in ToolCribIssueDetails");
+        }
+    }
+
+    public async Task GetDetails()
+    {
+        try
+        {
+            if (TCId > 0)
+            {
+                //GetEnquiryDetailsByEnqIdAsync
+                var existToolCribIssues = await tcIssueService.GetToolCribIssueByTCIdAsync(TCId);
+                if (existToolCribIssues != null)
+                {
+                    TCIVMs = existToolCribIssues;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrWarning("Error Occured in GetDetails()");
+            await _logs.LogDeveloperError(ex, "Error Occured in GetDetails() in ToolCribIssueDetails");
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            var pdfBytes = await _reportService.Generate_Report(TCId, "ToolCribIssueNote.frx", "TCIssueId", false, ScreenName, "Sp_Print_ToolCribIssueNote");
+
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf ToolCribIssue");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in ToolCrib Issue.");
+        }
+    }
+
+}

@@ -1,0 +1,3076 @@
+﻿@page "/PurchaseQuote/create"
+@page "/PurchaseQuote/create/{VendorCode:int}"
+@page "/PurchaseQuote/update/{QuoteId:int}"
+
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject IPurchaseQuoteService _purchQuotationService
+@inject ILoggingService LoggingService
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _JS
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<DetailsModal Title="Enquiry Details"
+              Columns="@EnquiryColumns"
+              ColumnFields="@EnquiryFields"
+              HiddenColumns="@EnquiryHiddenColumns"
+              Data="@EnquiryData"
+              IsVisible="@IsEnquiryModalVisible"
+              IsVisibleChanged="@((val) => IsEnquiryModalVisible = val)"
+              OnSelectedItems="OnEnquirySelectedAsync">
+</DetailsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "Vendor")
+    {
+        <VendorUpsert isVendorModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Terms")
+    {
+        <TermsUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+            refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            
+            <!-- Cancelled Watermark -->
+            @if (PurchaseQuoteVM.IsCancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+            else if (PurchaseQuoteVM.QuoteShortClose)
+            {
+                <div class="cancelWatermark">SHORT-CLOSED</div>
+            }
+
+            <PageHeader TitleText="@(PurchaseQuoteVM.QuoteId > 0 ? "Update Quotation" : "Create Quotation")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@QuoteFormBreadcrumbs" />
+            <div class="card-body bg-light">
+                <EditForm Model="PurchaseQuoteVM" OnValidSubmit="UpsertQuote">
+                    <ObjectGraphDataAnnotationsValidator  />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <!-- Purchase / SubContract Toggle -->
+                        <div class="col-12 col-md-6">
+                            <div class="card shadow-sm border-0 h-100">
+                                <div class="card-body d-flex justify-content-around align-items-center">
+
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="PurchaseSwitch"
+                                               checked="@PurchaseQuoteVM.PurchOrSub"
+                                               @onchange="(e) => OnManufacturingToggle(e)" 
+                                               disabled="@IsSomeItemsTransMade"/>
+                                        <label class="form-check-label fw-semibold @(PurchaseQuoteVM.PurchOrSub ? "text-success" : "")"
+                                               for="PurchaseSwitch">
+                                            <i class="bi bi-gear-fill me-1"></i> Purchase
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="LabourSwitch"
+                                               checked="@(!PurchaseQuoteVM.PurchOrSub)"
+                                               @onchange="(e) => OnLabourToggle(e)" 
+                                               disabled="@IsSomeItemsTransMade"/>
+                                        <label class="form-check-label fw-semibold @(!PurchaseQuoteVM.PurchOrSub ? "text-danger" : "")"
+                                               for="LabourSwitch">
+                                            <i class="bi bi-people-fill me-1"></i> SubContract
+                                        </label>
+                                    </div>
+
+                                </div>
+                                <ValidationMessage For="@(() => PurchaseQuoteVM.PurchOrSub)" />
+                            </div>
+                        </div>
+
+                        <!-- Correspondence Status -->
+                        <div class="col-12 col-md-6 d-flex justify-content-end align-items-center">
+                            @if (PurchaseQuoteVM.QuoteId > 0 && !string.IsNullOrWhiteSpace(PurchaseQuoteVM.QuoteNo))
+                            {
+                                <CorrespondenceStatus ReferenceType="@ScreenName"
+                                                      ReferenceId="@PurchaseQuoteVM.QuoteId"
+                                                      ReferenceTypeName="@PurchaseQuoteVM.QuoteNo" />
+                            }
+                        </div>
+
+
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                         <!-- =================== Vendor Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Vendor/Supplier Information</span>
+                                    <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Vendor")'>
+                                        <i class="bi bi-person-add me-1"></i> Add Vendor/Supplier
+                                    </button>
+                                </div>
+
+                                <div class="card-body">
+                                    <!-- Vendor Autocomplete -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="VendorVM"
+                                                Value="SelectedVendor"
+                                                ValueChanged="@(async c => await OnVendorChanged(c))"
+                                                ToStringFunc="@(c => c?.VendorName ?? string.Empty)"
+                                                SearchFunc="Searchvendor"
+                                                Dense="true"
+                                                Variant="Variant.Outlined"
+                                                Placeholder="Search Vendor/Supplier"
+                                                Title="Search atleast 3 letters in Vendor/Supplier"
+                                                Class="w-100 autocomplete-sm"
+                                                MaxItems="50"
+                                                Clearable="true"
+                                                ResetValueOnEmptyText="true"
+                                                Required="true"
+                                                AvoidSubmit="true"
+                                                Disabled="@(IsSomeItemsTransMade || PurchaseQuoteVM.IsCancel || PurchaseQuoteVM.QuoteShortClose)"/>
+                                        </div>
+                                    </div>
+
+                                    <!-- Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1" readonly>@PurchaseQuoteVM?.VendorAddress</textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- Phone -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Phone No</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@PurchaseQuoteVM?.ContactNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <!-- GSTIN -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GSTIN</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@PurchaseQuoteVM?.GSTNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <!-- Contact Person -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Contact Person</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                             <select class="form-select form-select-sm rounded-3 w-100"
+                                                        @bind="@PurchaseQuoteVM.KindOfAttention">
+                                                    <option disabled value="">Select Contact Person</option>
+                                                    @foreach (var cp in contactPersons)
+                                                    {
+                                                        <option value="@cp.ContactPerson">@cp.ContactPerson</option>
+                                                    }
+                                            </select>
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.KindOfAttention)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Shipping Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Shipping Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="form-check form-switch d-flex align-items-center">
+                                                <input class="form-check-input" type="checkbox" id="SameAsShipping"
+                                                       checked="@PurchaseQuoteVM.IsSameAsShipping"
+                                                       @onchange="OnShippingChange" />
+                                                <label class="form-check-label ms-2 fw-semibold"
+                                                       for="SameAsShipping">Same as Shipping</label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    @if (!PurchaseQuoteVM.IsSameAsShipping)
+                                    {
+                                        <!-- Shipping To -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Shipping To</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select value="@PurchaseQuoteVM.ShipAddrsId"
+                                                        class="form-select form-select-sm rounded-3 w-100"
+                                                        @onchange="OnConsigneeChangedAsync">
+                                                    <option value="">Select Shipping Address</option>
+                                                    @foreach (var consine in consineeAddress)
+                                                    {
+                                                        <option value="@consine.AltVendorCode">@consine.AltVendorName</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        @if (PurchaseQuoteVM.ShipAddrsId > 0)
+                                        {
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Address</small>
+                                                </label>
+                                                <div class="col-12 col-lg-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@PurchaseQuoteVM.ShippingAddress" readonly />
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Contact No</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@PurchaseQuoteVM.ShippingContactNo" readonly />
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>GSTIN</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@PurchaseQuoteVM.ShippingGstin" readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Quotation Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header bg-primary-subtle text-dark">
+
+                                    <div class="d-flex justify-content-between align-items-center">
+
+                                        <!-- Header Title -->
+                                        <span class="fw-bold fs-6">Purchase Order Details</span>
+
+                                        <!-- Action Buttons -->
+                                        @if (QuoteId > 0 && (PurchaseQuoteVM.PurchaseQuoteSubVM == null || !PurchaseQuoteVM.PurchaseQuoteSubVM.Any(x => x.ItemCancel)) && (CanCreate || CanEdit))
+                                        {
+                                            <div class="d-flex gap-2 ms-auto">
+
+                                                <!-- Cancel / Revert Button -->
+                                                <button type="button"
+                                                        class="btn btn-sm rounded-3 @(PurchaseQuoteVM.IsCancel ? "btn-success" : "btn-danger")"
+                                                        @onclick="() => Cancel(PurchaseQuoteVM)"
+                                                        disabled="@PurchaseQuoteVM.QuoteShortClose">
+
+                                                    @if (!PurchaseQuoteVM.IsCancel)
+                                                    {
+                                                        <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                                    }
+                                                </button>
+
+                                                <!-- Short Closed / Reopen Button -->
+                                                <button type="button"
+                                                        class="btn btn-sm rounded-3 @(PurchaseQuoteVM.QuoteShortClose ? "btn-success" : "btn-warning")"
+                                                        @onclick="() => AskToShortCloseAsync(PurchaseQuoteVM)"
+                                                        disabled="@PurchaseQuoteVM.IsCancel">
+
+                                                    @if (!PurchaseQuoteVM.QuoteShortClose)
+                                                    {
+                                                        <i class="bi bi-box-seam me-1"></i> <span>Short Closed</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Re-Open</span>
+                                                    }
+                                                </button>
+
+                                            </div>
+                                        }
+
+                                    </div>
+
+                                </div>
+
+
+                                
+                                <div class="card-body">
+                                    <!-- Quotation No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Quotation No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                            placeholder="Quotation No."
+                                                            maxlength="30"
+                                                            @bind-Value="@PurchaseQuoteVM.QuoteNo" />
+                                                <span class="input-group-text rounded-3">@PurchaseQuoteVM.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.QuoteNo)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Quotation Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Quotation Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                        @bind-Value="@PurchaseQuoteVM.QuoteDate" />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.QuoteDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Reference Enquiry -->
+                                    @if(enqPendingCount>0)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. Enquiry</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                        @onclick="ShowEnquiryDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> Enquiry Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Currency -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Currency</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    value="@PurchaseQuoteVM.CurrId"
+                                                    @onchange="OnCurrencyChanged"
+                                                    disabled>
+                                                @foreach (var currency in Currencies)
+                                                {
+                                                    <option value="@currency.CurrId">@currency.CurrName</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                        rows="1"
+                                                        @bind="PurchaseQuoteVM.MainRemark"></textarea>
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.MainRemark)" />
+                                        </div>
+                                    </div>
+
+                                    @if (PurchaseQuoteVM.IsCancel)
+                                    {
+                                        <div class="row mb-2">
+                                            <label class="col-sm-3 col-form-label text-danger fw-bold">
+                                                Cancel Remarks
+                                            </label>
+
+                                            <div class="col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3"
+                                                          rows="1"
+                                                          @bind="PurchaseQuoteVM.CancelReason"
+                                                          readonly>
+                                                </textarea>
+
+                                                <ValidationMessage For="@(() => PurchaseQuoteVM.CancelReason)" />
+                                            </div>
+                                        </div>
+                                    }
+
+                                    
+                                   
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Item Details</span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <!-- Discount Toggle -->
+                                        <div class="d-flex align-items-center">
+                                            <label class="me-2 mb-0"><small>Discount : </small></label>
+                                            <div class="btn-group btn-group-sm rounded-pill border" role="group" aria-label="Toggle Discount Rs and %">
+                                                <input type="radio" class="btn-check" name="toggleDiscount" id="discountToggleRs" 
+                                                        @onchange='() => SetDiscountMode(true)' 
+                                                        checked="@PurchaseQuoteVM.IsItemWiseDiscAmtOrPerReq" />
+                                                <label class="btn btn-outline-primary rounded-start-pill" for="discountToggleRs">@PurchaseQuoteVM.Symbol</label>
+
+                                                <input type="radio" class="btn-check" name="toggleDiscount" id="discountTogglePercent" 
+                                                        @onchange='() => SetDiscountMode(false)' 
+                                                        checked="@(!PurchaseQuoteVM.IsItemWiseDiscAmtOrPerReq)" />
+                                                <label class="btn btn-outline-primary rounded-end-pill" for="discountTogglePercent">%</label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Add Item Button -->
+                                        <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                            <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                     <th style="width:60px;">UOM</th>
+                                                    <th style="width:70px;">HSN</th>
+                                                    <th style="width:120px;">Qty</th>
+                                                    <th style="width:120px;">Price</th>
+                                                    <th style="width:130px;">Gross Amount</th>
+
+                                                    @if (!PurchaseQuoteVM.IsItemWiseDiscAmtOrPerReq)
+                                                    {
+                                                        <th style="width:110px;">Disc %</th>
+                                                        <th style="width:110px;">Disc Amt</th>
+                                                    }
+                                                    else
+                                                    {
+                                                        <th style="width:110px;">Disc Amt</th>
+                                                    }
+
+                                                    @if (SelectedVendor?.TaxValidate == false)
+                                                    {
+                                                        @if (SelectedVendor?.BusiType == "Local")
+                                                        {
+                                                            <th style="width:110px;">CGST %</th>
+                                                            <th style="width:110px;">SGST %</th>
+                                                        }
+                                                        else if(SelectedVendor?.BusiType == "InterState")
+                                                        {
+                                                            <th style="width:110px;">IGST %</th>
+                                                        }
+                                                    }
+
+                                                    <th style="width:130px;">Basic Amount</th>
+                                                    <th style="width:200px;">Remarks</th>
+                                                    <th style="width:110px;">Ref Enq No.</th>
+                                                    <th style="width:110px;">Ref Enq Date</th>
+                                                    <th style="width:150px;">Cost-Center</th>
+                                                    @if (QuoteId.HasValue && QuoteId > 0 &&
+                                                            !PurchaseQuoteVM.IsCancel)
+                                                    {
+                                                        <th style="width:150px;">Item Cancel</th>
+                                                        <th style="width:150px;">Cancel Remarks</th>
+                                                    }
+
+                                                    @if (!PurchaseQuoteVM.IsCancel && !PurchaseQuoteVM.QuoteShortClose)
+                                                    {
+                                                        <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+
+                                                @foreach (var subitem in PurchaseQuoteVM.PurchaseQuoteSubVM)
+                                                {
+                                                   <tr class="@(subitem.ItemCancel ? "table-danger" : "")" @key="subitem">
+
+                                                        <td>@subitem.SlNo</td>
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @if (subitem.IsEditable  && subitem.CanEditItem)
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                            Value="subitem.SelectedItem"
+                                                                            ValueChanged="@(async item => await OnItemChanged(subitem, item))"
+                                                                            ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                            SearchFunc="SearchItems"
+                                                                            Dense="true"
+                                                                            Variant="Variant.Outlined"
+                                                                            Placeholder="Search Item Code"
+                                                                            Title="Search Atleast 3 Letters in Item-Code"
+                                                                            Class="w-100 autocomplete-sm"
+                                                                            MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                            Size="Size.Small"
+                                                                            Color="Color.Primary"
+                                                                            OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                            Edge="Edge.End"
+                                                                            Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.MeasureUnit</td>
+                                                        <td>@subitem.HsnCode</td>
+                                                        
+                                                        <!-- Qty -->
+                                                        <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Qty"
+                                                                           step="any"
+                                                                           title="Enter Quantity"
+                                                                           @bind="subitem.Qty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.Qty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.Qty</span>
+                                                            }
+                                                        </td>
+
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" class="form-control form-control-sm" placeholder="Price" title="Enter Unit Price"
+                                                                        step="any"
+                                                                        @bind="subitem.UnitPrice" @bind:event="oninput"
+                                                                        @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)' />
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        <!-- Line Gross -->
+                                                        <td>@FormatDecimal(subitem.LineGross)</td>
+
+                                                        <!-- Discount -->
+                                                        @if (!PurchaseQuoteVM.IsItemWiseDiscAmtOrPerReq)
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number" class="form-control form-control-sm" placeholder="Disc %" title="Enter Discount %"
+                                                                            step="any"
+                                                                            @bind="subitem.LineDiscountPercent" @bind:event="oninput"
+                                                                            @bind:after='() => OnLineDiscountPercentChanged(subitem)' />
+                                                                    <ValidationMessage For="@(() => subitem.LineDiscountPercent)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @FormatDecimal(subitem.LineDiscountPercent)
+                                                                }
+                                                            </td>
+                                                            <td>@FormatDecimal(subitem.LineDiscountAmount)</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number" class="form-control form-control-sm" placeholder="Disc Amt" title="Enter Discount Amount"
+                                                                            step="any"
+                                                                            @bind="subitem.LineDiscountAmount" @bind:event="oninput"
+                                                                            @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)' />
+                                                                    <ValidationMessage For="@(() => subitem.LineDiscountAmount)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @FormatDecimal(subitem.LineDiscountAmount)
+                                                                }
+                                                            </td>
+                                                        }
+
+                                                        <!-- Taxes -->
+                                                        @if (SelectedVendor?.TaxValidate == false)
+                                                        {
+                                                            @if (SelectedVendor?.BusiType == "Local")
+                                                            {
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @onchange="e => OnTaxRateChanged(e, subitem)">
+                                                                            <option value="" disabled selected>CGST %</option>
+                                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineCGSTRate)
+                                                                    }
+                                                                </td>
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @onchange="e => OnTaxRateChanged(e, subitem)">
+                                                                            <option value="" disabled selected>SGST %</option>
+                                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineSGSTRate)
+                                                                    }
+                                                                </td>
+                                                            }
+                                                            else if (SelectedVendor?.BusiType == "InterState")
+                                                            {
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @bind="subitem.LineIGSTRate" @bind:event="oninput"
+                                                                                @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)'>
+                                                                            <option value="" disabled selected>IGST %</option>
+                                                                            @foreach (var rate in CommonConstants.IGSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineIGSTRate)
+                                                                    }
+                                                                </td>
+                                                            }
+                                                        }
+
+                                                        <!-- Basic Amount -->
+                                                        <td>@FormatDecimal(subitem.LineBasicAmount)</td>
+
+                                                        <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputText @bind-Value="subitem.Remarks" class="form-control form-control-sm" placeholder="Enter Remarks" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remarks
+                                                            }
+                                                        </td>
+
+                                                        <!-- Ref Enquiry -->
+                                                        <td>@subitem.RefEnqNo</td>
+                                                        <td>@subitem.RefEnqDate?.ToString("dd/MM/yyyy")</td>
+
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @if (subitem.IsEditable && (subitem.RefEnqVendorAssignId == 0 || subitem.RefEnqVendorAssignId == null) && subitem.Qty == subitem.BalQty)
+                                                            {
+                                                                <select class="form-select form-select-sm" 
+                                                                    value="@subitem.CostId"
+                                                                    @onchange="(e => OnCostCenterChanged(e, subitem))">
+                                                                    <option value="">select CostCentre</option>
+                                                                    @foreach (var cost in CostCenterVMs.Where(c =>
+                                                                            !PurchaseQuoteVM.PurchaseQuoteSubVM.Any(r => r != subitem && r.CostId == c.Id)))
+                                                                    {
+                                                                        <option value="@cost.Id">@cost.ProjectNo</option>
+                                                                    }
+                                                                </select>
+                                                                <ValidationMessage For="@(() => subitem.CostId)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.ProjectNo
+                                                            }
+                                                        </td>
+                                                        @if (QuoteId.HasValue && QuoteId > 0 && !PurchaseQuoteVM.IsCancel)
+                                                        {
+                                                            <td class="text-center align-middle">
+
+                                                                <div class="form-check form-switch d-flex justify-content-center">
+                                                                    <InputCheckbox 
+                                                                    @bind-Value="subitem.ItemCancel"
+                                                                    @bind-Value:event="onchange"
+                                                                    ValueChanged="@(async (value) => await OnItemCancelChanged(subitem))"
+                                                                    class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                </div>
+                                                                <ValidationMessage For="@(() => subitem.ItemCancel)" 
+                                                                    class="text-danger fw-semibold small mt-2 d-block" />
+                                                            </td>
+                                                            <td>
+                                                                @subitem.ItemCancelReason
+                                                            </td>
+                                                        }
+
+                                                        <!-- Action Buttons -->
+                                                        <td class="freeze-last-col text-end">
+                                                            @if (!PurchaseQuoteVM.IsCancel && !PurchaseQuoteVM.QuoteShortClose)
+                                                            {
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <button type="button" class="btn btn-success btn-icon btn-sm" title="Save" 
+                                                                            @onclick="async () => await SaveRow(subitem)" disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-check-lg"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel" 
+                                                                            @onclick="async () => await CancelEdit(subitem, PurchaseQuoteVM)" disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit" 
+                                                                            @onclick="async () => await EditRowAsync(subitem)" disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-pencil"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete" 
+                                                                            @onclick="async () => await RemoveRow(subitem)" disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                }
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            <!-- Totals -->
+                                            @if (PurchaseQuoteVM.PurchaseQuoteSubVM?.Any() == true)
+                                            {
+                                               <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="5" class="text-end fw-bold">Totals:</td>
+
+                                                        <td>@PurchaseQuoteVM.TotalQty</td>
+                                                        <td>Avg: @FormatDecimal(PurchaseQuoteVM.AvgUnitPrice)</td>
+                                                        <td>@FormatDecimal(PurchaseQuoteVM.TotalLineGross)</td>
+
+                                                        @if (!PurchaseQuoteVM.IsItemWiseDiscAmtOrPerReq)
+                                                        {
+                                                            <td></td>
+                                                            <td>@FormatDecimal(PurchaseQuoteVM.TotalLineDiscountAmount)</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>@FormatDecimal(PurchaseQuoteVM.TotalLineDiscountAmount)</td>
+                                                        }
+
+                                                        @if (SelectedVendor?.TaxValidate == false)
+                                                        {
+                                                            if (SelectedVendor?.BusiType == "Local")
+                                                            {
+                                                                <td></td>
+                                                                <td></td>
+                                                            }
+                                                            else if (SelectedVendor?.BusiType == "InterState")
+                                                            {
+                                                                <td></td>
+                                                            }
+                                                        }
+
+                                                        <td>@FormatDecimal(PurchaseQuoteVM.TotalLineBasicAmount)</td>
+
+                                                        <td colspan="7"></td>
+                                                    </tr>
+                                                </tfoot>
+
+                                            }
+
+                                        </table>
+                                    </div>
+
+                                    @if (!PurchaseQuoteVM.IsCancel && !PurchaseQuoteVM.QuoteShortClose)
+                                    {
+                                        <div class="mt-2 text-start">
+                                            <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                                <i class="bi bi-plus-circle me-1"></i> Add Item
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                         <!-- ===================Other Details Terms and Conditions ===================-->
+                        <div class="col-12 col-lg-6 mb-3">
+                            <div class="card shadow-sm rounded-4 border-0">
+                                <div class="card-body">
+                                    <div class="row g-3">
+
+                                        <!-- ================= Terms & Conditions ================= -->
+                                        <div class="col-12 col-md-7">
+                                            <label class="form-label fw-semibold text-dark">
+                                                <i class="bi bi-file-text me-1 text-primary"></i> Terms & Conditions
+                                            </label>
+                                            <select class="form-select form-select-sm rounded-3 shadow-sm"
+                                                    value="@PurchaseQuoteVM.TermsId"
+                                                    @onchange="OnTermsChanged">
+                                                <option value="">-- Select Terms --</option>
+                                                @if (TermsList != null && TermsList.Any())
+                                                {
+                                                    @foreach (var term in TermsList)
+                                                    {
+                                                        <option value="@term.Id">@term.Title</option>
+                                                    }
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.TermsId)" />
+                                        </div>
+
+                                        <!-- ================= Create New Terms Button ================= -->
+                                        <div class="col-12 col-md-2 d-flex align-items-end">
+                                            <button type="button" class="btn btn-sm btn-success rounded-3 w-100" 
+                                                    @onclick='() => OpenModal("Terms")'>
+                                                <i class="bi bi-plus-circle me-1"></i> New Terms
+                                            </button>
+                                        </div>
+
+                                        <!-- ================= Selected Terms Display ================= -->
+                                        @if (!string.IsNullOrEmpty(PurchaseQuoteVM.Details))
+                                        {
+                                            <div class="col-12">
+                                                <div class="p-3 border rounded-3 bg-light shadow-sm">
+                                                    <h6 class="fw-bold text-primary mb-1">Details</h6>
+                                                    <p class="mb-0 text-muted">@PurchaseQuoteVM.Details</p>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                         <!-- =================== Tax Details Section =================== -->
+                        <div class="col-12 col-lg-6">
+                            <div class="card shadow-sm rounded-4 border-0 p-3">
+
+                                <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
+                                    <i class="bi bi-receipt-cutoff me-1 text-primary"></i> Tax & Charges
+                                </h6>
+
+                                <!-- Total Gross -->
+                                <div class="row mb-2 gx-3">
+                                    <label for="TotalGross" class="col-5 col-md-4 col-form-label text-dark">
+                                        <small>Total Gross</small>
+                                    </label>
+                                    <div class="col-7 col-md-8">
+                                        <input id="TotalGross"
+                                               class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               type="number"
+                                               value="@FormatDecimal(PurchaseQuoteVM.TotalGrossAmount)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Discount -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Discount</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="discountToggle" id="discountRs"
+                                                   @onchange="() => SetDiscountType(true)"
+                                                   checked="@PurchaseQuoteVM.DiscAmtOrPer"
+                                                   disabled="@(PurchaseQuoteVM.TotalLineDiscountAmount > 0)" />
+                                            <label class="btn btn-outline-primary" for="discountRs">
+                                                <small>@PurchaseQuoteVM.Symbol</small>
+                                            </label>
+
+                                            <input type="radio" class="btn-check" name="discountToggle" id="discountPercent"
+                                                   @onchange="() => SetDiscountType(false)"
+                                                   checked="@(!PurchaseQuoteVM.DiscAmtOrPer)"
+                                                   disabled="@(PurchaseQuoteVM.TotalLineDiscountAmount > 0)" />
+                                            <label class="btn btn-outline-primary" for="discountPercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-3 col-md-5">
+                                        @if (PurchaseQuoteVM.DiscAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number"
+                                                   step="any"
+                                                   @bind="PurchaseQuoteVM.DiscountAmount"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)'
+                                                   disabled="@(PurchaseQuoteVM.TotalLineDiscountAmount > 0)" />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.DiscountAmount)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number"
+                                                   step="any"
+                                                   @bind="PurchaseQuoteVM.DiscountPercent"
+                                                   @bind:after="OnDiscountPercentChanged"
+                                                   disabled="@(PurchaseQuoteVM.TotalLineDiscountAmount > 0)" />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.DiscountPercent)" />
+                                            <small class="text-muted d-block text-end">
+                                                Amt: @FormatDecimal(PurchaseQuoteVM.DiscountAmount)
+                                            </small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- SubTotal -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>SubTotal</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               type="number" 
+                                               step="any"
+                                               value="@FormatDecimal(PurchaseQuoteVM.TotalBasicAmount)" 
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Freight Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Freight Charges</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end"
+                                               type="number" @bind="PurchaseQuoteVM.FreightCharges"
+                                               step="any"
+                                               @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)' />
+                                        <ValidationMessage For="@(() => PurchaseQuoteVM.FreightCharges)" />
+                                    </div>
+                                </div>
+
+                                <!-- P & F Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>P & F Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="packingToggle" id="packingToggleRs"
+                                                   @onchange="() => SetPAndFType(true)" checked="@PurchaseQuoteVM.PackingAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="packingToggleRs"><small>@PurchaseQuoteVM.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="packingToggle" id="packingTogglePercent"
+                                                   @onchange="() => SetPAndFType(false)" checked="@(!PurchaseQuoteVM.PackingAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="packingTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (PurchaseQuoteVM.PackingAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number"
+                                                   step="any" @bind="PurchaseQuoteVM.PackingCharges"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)' />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.PackingCharges)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseQuoteVM.PackingPercent"
+                                                   @bind:after="() => OnPandFPercentChanged()" />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.PackingPercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(PurchaseQuoteVM.PackingCharges)</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Insurance Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Insurance Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="insuranceToggle" id="insuranceToggleRs"
+                                                   @onchange="() => SetInsuranceType(true)" checked="@PurchaseQuoteVM.InsuranceAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="insuranceToggleRs"><small>@PurchaseQuoteVM.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="insuranceToggle" id="insuranceTogglePercent"
+                                                   @onchange="() => SetInsuranceType(false)" checked="@(!PurchaseQuoteVM.InsuranceAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="insuranceTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (PurchaseQuoteVM.InsuranceAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseQuoteVM.InsuranceCharges"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)' />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.InsuranceCharges)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseQuoteVM.InsurancePercent"
+                                                   @bind:after="() => OnInsurancePercentChanged()" />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.InsurancePercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(PurchaseQuoteVM.InsuranceCharges)</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Total Taxable -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Total Taxable</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               step="any" value="@FormatDecimal(PurchaseQuoteVM.TotalTaxable)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Taxes (CGST/SGST/IGST) -->
+                                @if (SelectedVendor?.TaxValidate == false)
+                                {
+                                    <div class="mb-2">
+                                        @if (SelectedVendor?.BusiType == "Local")
+                                        {
+                                            <!-- CGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>CGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!PurchaseQuoteVM.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="PurchaseQuoteVM.CGstRate"
+                                                                @bind:after="() => OnMainTaxRateChanged(PurchaseQuoteVM.CGstRate)">
+                                                            <option value="0">-- Select CGST % --</option>
+                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => PurchaseQuoteVM.CGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(PurchaseQuoteVM.TotalCGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+
+                                            <!-- SGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>SGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!PurchaseQuoteVM.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="PurchaseQuoteVM.SGstRate"
+                                                                @bind:after="() => OnMainTaxRateChanged(PurchaseQuoteVM.SGstRate)">
+                                                            <option value="0">-- Select SGST % --</option>
+                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => PurchaseQuoteVM.SGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(PurchaseQuoteVM.TotalSGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                        else if (SelectedVendor?.BusiType == "InterState")
+                                        {
+                                            <!-- IGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>IGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!PurchaseQuoteVM.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="PurchaseQuoteVM.IGstRate"
+                                                                @bind:after="() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)"
+                                                                disabled="@(SelectedVendor?.TaxValidate == true)">
+                                                            <option value="0">-- Select IGST % --</option>
+                                                            @foreach (var rate in CommonConstants.IGSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => PurchaseQuoteVM.IGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(PurchaseQuoteVM.TotalIGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                <!-- TCS Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>TCS Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="tcsToggle" id="tcsToggleRs"
+                                                   @onchange="() => SetTCSType(true)" checked="@PurchaseQuoteVM.TCSAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="tcsToggleRs"><small>@PurchaseQuoteVM.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="tcsToggle" id="tcsTogglePercent"
+                                                   @onchange="() => SetTCSType(false)" checked="@(!PurchaseQuoteVM.TCSAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="tcsTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (PurchaseQuoteVM.TCSAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseQuoteVM.TCSAmount"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)' />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.TCSAmount)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseQuoteVM.TCSPercent"
+                                                   @bind:after="() => OnTCSPercentChanged()" />
+                                            <ValidationMessage For="@(() => PurchaseQuoteVM.TCSPercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(PurchaseQuoteVM.TCSAmount)</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Other Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Other Charges</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end"
+                                               type="number" step="any" @bind="PurchaseQuoteVM.OtherCharges"
+                                               @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)' />
+                                        <ValidationMessage For="@(() => PurchaseQuoteVM.OtherCharges)" />
+                                    </div>
+                                </div>
+
+                                <!-- Round Off -->
+                                <div class="row mb-2 gx-2 align-items-center">
+                                    <div class="col-5 col-md-4 d-flex align-items-center">
+                                        <small class="me-2 text-dark">Round Off</small>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   role="switch"
+                                                   id="roundOffSwitch"
+                                                   @bind="PurchaseQuoteVM.IsRoundOffEnabled"
+                                                   @bind:after="() => _calculationService.UpdateTotalsAsync(PurchaseQuoteVM)" >
+                                            <label class="form-check-label" for="roundOffSwitch"></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-7 col-md-8">
+                                       <input class="form-control form-control-sm rounded-3 text-end"
+                                                step="any"
+                                               value="@FormatDecimal(PurchaseQuoteVM.RoundOff)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Grand Total -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label fw-bold text-dark">
+                                        <small>Grand Total</small>
+                                    </label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 fw-bold text-primary text-end bg-warning-subtle"
+                                               value="@FormatDecimal(PurchaseQuoteVM.GrandTotal)"
+                                               readonly />
+                                        @if (PurchaseQuoteVM.CurrId > 1)
+                                        {
+                                            <div class="mt-1 text-end">
+                                                <small class="text-muted d-block">
+                                                    Today's value: @PurchaseQuoteVM.TodayVal
+                                                </small>
+                                                <small class="fw-bold text-success d-block">
+                                                    Converted Value in Rs: @((PurchaseQuoteVM.GrandTotal * PurchaseQuoteVM.TodayVal).ToString("0.00"))
+                                                </small>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Amount in Words -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Amount in Words</small></label>
+                                    <div class="col-7 col-md-8 pt-1">
+                                        @if (PurchaseQuoteVM.CurrId > 1)
+                                        {
+                                            <small class="fw-bold text-success d-block">
+                                                Converted Value in Rs: @FormatDecimal(PurchaseQuoteVM.GrandTotal * PurchaseQuoteVM.TodayVal)
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <strong>@NumberToWordsHelper.ConvertNumberToWords(PurchaseQuoteVM.GrandTotal)</strong>
+                                        }
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!--Action Buttons -->
+                        @if (CanCreate || CanEdit)
+                        {
+                            @if (!PurchaseQuoteVM.IsCancel && !PurchaseQuoteVM.QuoteShortClose)
+                            {
+                                 <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(PurchaseQuoteVM.QuoteId > 0 ? "Update" : "Create")
+                                    </button>
+                                </div>
+                            }
+                        }
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <SmartBackButton Url="/purchaseQuoteList" />
+                        </div>
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code
+{
+    protected override string ScreenName => "Purchase-Quotation";
+
+    [Parameter] public int? QuoteId { get; set; }
+    [Parameter] public int VendorCode { get; set; }
+    private bool isProcessing = true;
+
+    private List<Currency> Currencies = new();
+    private List<TermsAndConditions> TermsList = new();
+    private int DecimalPlaces { get; set; } = 2;
+
+    private PurchaseQuoteVM PurchaseQuoteVM { get; set; } = new();
+    private PurchaseQuoteSubVM? rowToDelete;
+    private int enqPendingCount = 0;
+    private VendorVM? SelectedVendor;
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+    private List<VendorContact> contactPersons = new();
+    private List<VendorInDirect> consineeAddress = new();
+    private List<CostCenterVM> CostCenterVMs = new();
+    private PurchaseQuoteSubVM? rowToCancel;
+    private bool IsSomeItemsTransMade { get; set; } = false;
+    private string ItemName = string.Empty;
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    //Ref Purchase Enquiry
+    private List<string> EnquiryColumns = new() { "RefEnqPurchVendorId", "Enquiry No", "Enquiry Date", "ItemId", "Item Code", "Item Name", "UOM", "Qty", "Bal Qty.", "CostCenterId", "Project No" };
+    private List<string> EnquiryFields = new() { "RefEnqPurchVendorId", "EnquiryNo", "EnquiryDate", "ItemId", "ItemCode", "ItemName", "UOM", "Qty", "BalQty", "CostCenterId", "ProjectNo" };
+    private List<string> EnquiryHiddenColumns = new() { "RefEnqPurchVendorId", "ItemId", "CostCenterId" };
+    private bool IsEnquiryModalVisible = false;
+    private List<Dictionary<string, object>>? EnquiryData;
+
+    private List<PageHeader.BreadcrumbItem> QuoteFormBreadcrumbs = new()
+    {
+        new() { Text = "Purchase" },
+        new() { Text = "Quotation-Inwards", IsLast = true }
+    };
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            Currencies = await _purchQuotationService.GetCurrenciesAsync();
+            TermsList = await _purchQuotationService.GetTermsAsync();
+            DecimalPlaces = await _purchQuotationService.GetDecimalPlacesAsync();
+
+            if (QuoteId.HasValue)
+            {
+                await LoadExistingQuote(QuoteId.Value);
+            }
+            else if (VendorCode > 0)
+            {
+                await InitializeNewQuote(VendorCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingQuote(int quoteId)
+    {
+        try
+        {
+            PurchaseQuoteVM = await _purchQuotationService.GetQuotationByQuoteIdAsync(quoteId);
+            if (PurchaseQuoteVM == null)
+            {
+                await _JS.ToastrWarning("Quotation not found.");
+                return;
+            }
+
+            SelectedVendor = await _purchQuotationService.GetVendorByIdAsync(PurchaseQuoteVM.VendorCode);
+            if (SelectedVendor != null)
+                await ApplyVendorSelectionAsync(SelectedVendor);
+
+            if (PurchaseQuoteVM.VendorCode > 0)
+                await ApplyCurrencyChange(PurchaseQuoteVM.VendorCode);
+
+            foreach (var quoteSub in PurchaseQuoteVM.PurchaseQuoteSubVM.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[quoteSub.ItemId.Value] =
+                    await _purchQuotationService.GetCorrespondenceAttachmentsCountAsync(quoteSub.ItemId.Value, "Item");
+            }
+
+            //Check Transaction Completed -- Important
+            IsSomeItemsTransMade =await CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to load existing purchase quotation Upsert.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingPurchaseQuote failed for QuoteId: {quoteId}");
+        }
+    }
+    private async Task InitializeNewQuote(int VendorCode)
+    {
+        try
+        {
+            var vendor = await _purchQuotationService.GetVendorByIdAsync(VendorCode);
+            if (vendor != null)
+                await ApplyVendorSelectionAsync(vendor);
+
+            PurchaseQuoteVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to initialize new purchase quotation.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewpurchaseQuote failed for VendorCode: {VendorCode}");
+        }
+    }
+    #endregion
+
+    #region Vendor data, Currency And Tax  Handlers
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        try
+        {
+            if (!QuoteId.HasValue)
+                return false;
+
+            return await _purchQuotationService.IsQuoteTransactionsMatchedAsync(QuoteId.Value, PurchaseQuoteVM);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to check transaction exists.");
+            await LoggingService.LogDeveloperError(ex, "[CheckIsTransMade] failed");
+            return false;
+        }
+    }
+
+    private async Task<IEnumerable<VendorVM>> Searchvendor(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<VendorVM>();
+
+        try
+        {
+            var results = await _purchQuotationService.SearchVendorAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<VendorVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchVendor failed for value: {value}");
+            await _JS.ToastrError("Failed to search Vendors. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+    private async Task OnVendorChanged(VendorVM? vendor)
+    {
+        try
+        {
+            await ApplyVendorSelectionAsync(vendor);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnVendorChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error while  OnVendorChanged in Purchase Quoatation");
+            await _JS.ToastrError("Error while selecting");
+            contactPersons.Clear();
+            await ResetQuoteDefaults();
+        }
+    }
+    private async Task ApplyVendorSelectionAsync(VendorVM? vendor)
+    {
+        try
+        {
+            SelectedVendor = vendor;
+            PurchaseQuoteVM.VendorCode = vendor?.VendorCode ?? 0;
+            PurchaseQuoteVM.VendorName = vendor?.VendorName;
+            PurchaseQuoteVM.VendorAddress = vendor?.VendorAddress;
+            PurchaseQuoteVM.GSTNo = vendor?.GSTNo;
+            PurchaseQuoteVM.ContactNo = vendor?.ContactNo;
+
+            if (vendor == null)
+            {
+                contactPersons.Clear();
+                consineeAddress.Clear();
+                CostCenterVMs.Clear();
+                await ResetQuoteDefaults();
+                return;
+            }
+
+            // Load related data
+            contactPersons = await _purchQuotationService.GetVenorContactPersonsAsync(vendor.VendorCode);
+            consineeAddress = await _purchQuotationService.GetConsigneeAddressesAsync(vendor.VendorCode);
+
+            var usedCostCenters = PurchaseQuoteVM.PurchaseQuoteSubVM
+                .Where(x => x.CostId.HasValue && (x.RefEnqVendorAssignId == null || x.RefEnqVendorAssignId == 0))
+                .Select(x => x.CostId.Value)
+                .ToHashSet();
+
+            CostCenterVMs = await _purchQuotationService.GetCostCenterDetailsByCustId(vendor.VendorCode, usedCostCenters);
+
+            PurchaseQuoteVM.KindOfAttention = contactPersons.Count == 1 ? contactPersons.First().ContactPerson : string.Empty;
+
+            // Tax logic
+            if (!vendor.TaxValidate)
+            {
+                var lastQuote = await _purchQuotationService.GetLastQuoteAsync(vendor.VendorCode);
+                if (lastQuote != null)
+                {
+                    PurchaseQuoteVM.CGstRate = lastQuote.CGstRate;
+                    PurchaseQuoteVM.SGstRate = lastQuote.SGstRate;
+                    PurchaseQuoteVM.IGstRate = lastQuote.IGstRate;
+                }
+                else
+                {
+                    if (string.Equals(vendor.BusiType, "Local", StringComparison.OrdinalIgnoreCase)  && vendor.TaxValidate == false)
+                    {
+                        PurchaseQuoteVM.CGstRate = CommonConstants.GetGST(9.000m);
+                        PurchaseQuoteVM.SGstRate = CommonConstants.GetGST(9.000m);
+                        PurchaseQuoteVM.IGstRate = CommonConstants.GetIGST(0.000m);
+                    }
+                    else if (string.Equals(vendor.BusiType, "InterState", StringComparison.OrdinalIgnoreCase) && vendor.TaxValidate == false )
+                    {
+                        PurchaseQuoteVM.CGstRate = CommonConstants.GetGST(0.000m);
+                        PurchaseQuoteVM.SGstRate = CommonConstants.GetGST(0.000m);
+                        PurchaseQuoteVM.IGstRate = CommonConstants.GetIGST(18.000m);
+                    }
+                }
+            }
+
+            // Currency
+            PurchaseQuoteVM.CurrId = (vendor.CurrId.HasValue && vendor.CurrId > 0) ? vendor.CurrId.Value : 1;
+            await ApplyCurrencyChange(PurchaseQuoteVM.CurrId);
+            //Pending EnquiryDetails
+            enqPendingCount = await _purchQuotationService.GetPendingEnquiryCountAsync(vendor.VendorCode);
+            // Update totals
+            await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyVendorSelectionAsync failed for VendorCode: {vendor?.VendorCode}");
+            await _JS.ToastrError("Failed to apply Vendor selection. Please try again.");
+        }
+    }
+    private async Task OnCurrencyChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int selectedId))
+            await ApplyCurrencyChange(selectedId);
+    }
+    private async Task ApplyCurrencyChange(int currencyId)
+    {
+        var selectedCurrency = await _purchQuotationService.GetCurrencyByIdAsync(currencyId);
+        if (selectedCurrency == null) return;
+
+        PurchaseQuoteVM.CurrName = selectedCurrency.CurrName;
+        PurchaseQuoteVM.Symbol = selectedCurrency.Symbol;
+        PurchaseQuoteVM.CurrId = selectedCurrency.CurrId;
+
+        if (currencyId > 1)
+            PurchaseQuoteVM.TodayVal = await _purchQuotationService.GetLatestCurrencyValueAsync(currencyId) ?? 0m;
+    }
+    private async Task ResetQuoteDefaults()
+    {
+        PurchaseQuoteVM.CGstRate = 0m;
+        PurchaseQuoteVM.SGstRate = 0m;
+        PurchaseQuoteVM.IGstRate = 0m;
+    }
+    private async Task OnShippingChange(ChangeEventArgs e)
+    {
+        try
+        {
+            PurchaseQuoteVM.IsSameAsShipping = (bool)e.Value;
+
+            if (!PurchaseQuoteVM.IsSameAsShipping && SelectedVendor != null)
+            {
+                consineeAddress = await _purchQuotationService.GetConsigneeAddressesAsync(SelectedVendor.VendorCode);
+            }
+            else
+            {
+                consineeAddress.Clear();
+                ResetShippingDefaults();
+            }
+
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                $"Error while toggling shipping address for VendorCode={SelectedVendor?.VendorCode}");
+            await _JS.ToastrError("Error while toggling shipping address for VendorCode");
+        }
+    }
+    private void ResetShippingDefaults()
+    {
+        PurchaseQuoteVM.ShipAddrsId = null;
+        PurchaseQuoteVM.ShippingName = null;
+        PurchaseQuoteVM.ShippingAddress = null;
+        PurchaseQuoteVM.ShippingGstin = null;
+        PurchaseQuoteVM.ShippingContactNo = null;
+    }
+    private async Task OnConsigneeChangedAsync(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var selectedId) || selectedId == 0)
+            {
+                PurchaseQuoteVM.IsSameAsShipping = true; 
+                ResetShippingDefaults();
+
+                StateHasChanged();
+                return;
+            }
+
+            PurchaseQuoteVM.IsSameAsShipping = false; 
+
+            var selectedConsignee = consineeAddress.FirstOrDefault(c => c.AltVendorCode == selectedId);
+            if (selectedConsignee == null)
+                return;
+
+            PurchaseQuoteVM.ShipAddrsId = selectedConsignee.AltVendorCode;
+            PurchaseQuoteVM.ShippingAddress = string.Join(" ",
+                new[] { selectedConsignee.AltVendorAddr1, selectedConsignee.AltVendorAddr2 }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+            PurchaseQuoteVM.ShippingGstin = selectedConsignee.GSTNo ?? string.Empty;
+            PurchaseQuoteVM.ShippingContactNo = selectedConsignee.ContactNo ?? string.Empty;
+
+            await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnConsigneeChangedAsync");
+            await _JS.ToastrError("Error while OnConsigneeChangedAsync");
+        }
+    }
+    #endregion
+
+
+
+
+    #region Item Handlers
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _unitOfWork.ItemRepositories.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _JS.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(PurchaseQuoteSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItem = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.HsnCode = item.HSNCode;
+                subitem.MeasureUnit = item.MeasureUnit;
+
+                if (PurchaseQuoteVM?.VendorCode != null && subitem.ItemId.HasValue)
+                {
+                    var rates = await _purchQuotationService.GetBulkLastUnitPricesAsync(
+                        new List<int> { subitem.ItemId.Value },
+                        PurchaseQuoteVM.VendorCode
+                    );
+
+                    if (rates.TryGetValue(subitem.ItemId.Value, out decimal rate))
+                    {
+                        subitem.UnitPrice = rate;
+                    }
+                }
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _purchQuotationService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+                }
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItem = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.HsnCode = null;
+                subitem.MeasureUnit = null;
+                subitem.UnitPrice = null;
+            }
+
+            await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _JS.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    private bool IsItemAlreadySelected(int itemId, int? currentItemId)
+    {
+        return PurchaseQuoteVM.PurchaseQuoteSubVM?.Any(q => q.ItemId == itemId && q.ItemId != currentItemId) == true;
+    }
+    #endregion
+
+    #region Quantity Handlers
+
+    private async Task OnQtyChange(ChangeEventArgs e, PurchaseQuoteSubVM SubVM)
+    {
+        try
+        {
+            // Common validation: Qty must be positive
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.Qty = 0;
+                SubVM.BalQty = 0;
+                await _JS.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+
+            // NEW quote line
+            if (SubVM.QuoteSubId == 0)
+            {
+                if (SubVM.RefEnqVendorAssignId > 0)
+                {
+                    var enqBalQty = await _purchQuotationService.GetEnquiryItemBalQtyFromVendorAssignId(SubVM.RefEnqVendorAssignId.Value);
+
+                    if (newQty <= enqBalQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.Qty = enqBalQty;
+                        SubVM.BalQty = enqBalQty;
+                        await _JS.ToastrWarning($"Qty can't be greater than Enquiry Balance Qty ({enqBalQty}).");
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty;
+                }
+            }
+            // EXISTING quote line
+            else
+            {
+                var original = await _purchQuotationService.GetQuoteSubItemDetailByQuoteSubIdAsync(SubVM.QuoteSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.Qty - original.BalQty;
+
+                // Cannot decrease below transacted quantity
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.Qty = alreadyTransacted;
+                    SubVM.BalQty = 0;
+                    await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                if (SubVM.RefEnqVendorAssignId > 0)
+                {
+                    var enqBalQty = await _purchQuotationService.GetEnquiryItemBalQtyFromVendorAssignId(SubVM.RefEnqVendorAssignId.Value);
+                    var maxAllowedQty = original.Qty + enqBalQty;
+
+                    if (newQty > maxAllowedQty)
+                    {
+                        SubVM.Qty = maxAllowedQty;
+                        SubVM.BalQty = maxAllowedQty - alreadyTransacted;
+                        await _JS.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                    }
+                    else
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted;
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty - alreadyTransacted;
+                }
+            }
+            await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnQtyChange failed for QuoteSubId: {SubVM?.QuoteSubId}");
+            await _JS.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Row Operations
+    private async Task<bool> ValidateRowAsync(PurchaseQuoteSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.Qty == null || row.Qty <= 0)
+                errors.Add("Quantity must be greater than 0.");
+
+            if (row.UnitPrice == null || row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _JS.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating row in purchase Quote Upsert.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed in purchase Quote Upsert.");
+            return false;
+        }
+    }
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = PurchaseQuoteVM.PurchaseQuoteSubVM.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating last row purchase quote Upsert.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed in purchase quote Upsert.");
+            return false;
+        }
+    }
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            PurchaseQuoteVM.PurchaseQuoteSubVM.Add(new PurchaseQuoteSubVM
+            {
+                QuoteId = PurchaseQuoteVM.QuoteId,
+                IsEditable = true
+            });
+
+            await ResetSlno();
+            await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error adding new row in purchase quote upsert.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed in purchase quote upsert.");
+        }
+    }
+    private async Task SaveRow(PurchaseQuoteSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            // Ensure at least one editable row exists for new entries
+            if (!PurchaseQuoteVM.PurchaseQuoteSubVM.Any(x => x.IsEditable))
+            {
+                PurchaseQuoteVM.PurchaseQuoteSubVM.Add(new PurchaseQuoteSubVM
+                {
+                    QuoteId = PurchaseQuoteVM.QuoteId,
+                    IsEditable = true
+                });
+            }
+
+            await ResetSlno();
+            await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for QuoteSubId in purchase quotation upsert: {item?.QuoteSubId}");
+            await _JS.ToastrError("Failed to save the row in purchase quotation upsert. Please try again.");
+        }
+    }
+    private async Task EditRowAsync(PurchaseQuoteSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItem == null && item.ItemId > 0)
+            {
+                item.SelectedItem = await _purchQuotationService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for purchase quotation upsert QuoteSubId: {item?.QuoteSubId}");
+            await _JS.ToastrError("Failed to edit the row purchase quotation. Please try again.");
+        }
+    }
+    private async Task CancelEdit(PurchaseQuoteSubVM? item, PurchaseQuoteVM? parentQuote)
+    {
+        try
+        {
+            if (item == null || parentQuote == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.Qty.HasValue || item.Qty.Value <= 0) ||
+                (!item.UnitPrice.HasValue || item.UnitPrice.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentQuote.PurchaseQuoteSubVM.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for purchase quote upsert QuoteSubId: {item?.QuoteSubId}");
+            await _JS.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+    private async Task RemoveRow(PurchaseQuoteSubVM item)
+    {
+        try
+        {
+            if (PurchaseQuoteVM.PurchaseQuoteSubVM.Count == 1 && item.QuoteSubId > 0)
+            {
+                await _JS.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if(item.ItemCancel)
+            {
+                await _JS.ToastrWarning("This item has already been cancelled and cannot be removed.");
+                return;
+            }
+
+            if(PurchaseQuoteVM.IsCancel)
+            {
+                await _JS.ToastrWarning("This quotation has been cancelled and cannot be modified.");
+                return;                
+            }
+
+            if (PurchaseQuoteVM.QuoteShortClose)
+            {
+                await _JS.ToastrError("This Quotation is already short closed. Row deletion is not allowed.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                PurchaseQuoteVM.PurchaseQuoteSubVM.Remove(item);
+                await _JS.ToastrSuccess("New item row removed successfully.");
+
+                if (!PurchaseQuoteVM.PurchaseQuoteSubVM.Any())
+                    PurchaseQuoteVM.PurchaseQuoteSubVM = new List<PurchaseQuoteSubVM>();
+
+                await ResetSlno();
+                await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for purchase quote QuoteSubId: {item?.QuoteSubId}");
+            await _JS.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in PurchaseQuoteVM.PurchaseQuoteSubVM)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _JS.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+    #endregion
+
+    #region Modal Handlers
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Vendor" => "Add New Vendor",
+                "Item" => "Add New Item",
+                "Terms" => "Add New Terms and Conditions",
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task AskToShortCloseAsync(PurchaseQuoteVM PurchQuote)
+    {
+        try
+        {
+            if (PurchQuote == null)
+            {
+                await _JS.ToastrError("Invalid Purchase selected.");
+                return;
+            }
+
+            if (PurchQuote.QuotationTally)
+            {
+                await _JS.ToastrWarning("This quotation is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (PurchQuote.IsCancel)
+            {
+                await _JS.ToastrWarning("This quotation is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!PurchQuote.QuoteShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Quotation?";
+                btnText = "ShortClose";
+                btnColor = "btn-danger";
+                confirmation = "Short-Close";
+                showCancelReasonBox = false;
+            }
+            else 
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Quotation?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "Short-Close";
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while AskToShortCloseAsync Quotation.");
+            await LoggingService.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Terms")
+            {
+                TermsList = await _purchQuotationService.GetTermsAsync();
+            }
+
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task Cancel(PurchaseQuoteVM quote)
+    {
+        try
+        {
+            if (!QuoteId.HasValue || QuoteId == 0)
+            {
+                await _JS.ToastrError("cancel is not allowed before saving the Purchase Quotation.");
+                return;
+            }
+
+            if(IsSomeItemsTransMade)
+            {
+                await _JS.ToastrError("Some Items Transaction Are Made!.. You Can't Cancel the Complete Quotation");
+                return;
+            }
+
+            if (quote.QuoteShortClose)
+            {
+                await _JS.ToastrError("Quotation is already short closed. You can't cancel it.");
+                return;
+            }
+
+            if (quote.PurchaseQuoteSubVM?.Any(x => x.ItemCancel) == true)
+            {
+                await _JS.ToastrError("Some items are already cancelled. Complete Quotation cancellation is not allowed.");
+                return;
+            }
+
+            if (quote.IsCancel)
+            {
+                var subs = await _purchQuotationService.GetQuoteSubByQuoteIdAsync(quote.QuoteId); 
+
+                foreach (var sub in subs)
+                {
+                    await _purchQuotationService.ValidatePurchaseEnquiryBalanceBeforeRevertAsync(sub);
+                }
+            }
+
+            if (!quote.IsCancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this Quotation?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this Quotation?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+            await LoadExistingQuote(QuoteId.Value);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Quotation.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Quotation Sales Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnItemCancelChanged(PurchaseQuoteSubVM subitem)
+    {
+        try
+        {
+            if (subitem.QuoteSubId == 0)
+            {
+                await _JS.ToastrError("Kindly save the item before cancelling.");
+                return;
+            }
+
+            if (subitem.Qty.GetValueOrDefault() != subitem.BalQty.GetValueOrDefault())
+            {
+                await _JS.ToastrError("Item cannot be cancelled — Purchase order transactions have been made on it.");
+                return;
+            }
+
+            if (PurchaseQuoteVM.IsCancel)
+            {
+                await _JS.ToastrError("Quotation is already Cancel. You can't cancel Item.");
+                return;
+            }
+
+            if(subitem.ItemCancel )
+                await _purchQuotationService.ValidateBeforeRevertAsync(subitem.QuoteSubId);
+
+            var (CanItemCancel, message) = await _purchQuotationService.CanQuoteItemCancelCheckAsync(subitem);
+
+            if (!CanItemCancel)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.ItemCancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = false;
+                }
+                rowToCancel = subitem;
+
+                await _JS.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _JS.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            await LoadExistingQuote(QuoteId.Value);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling Item");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Item.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Item Cancel in Purchase Quotation");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void UpdateQuantities(PurchaseQuoteSubVM subVM, decimal newQty, decimal? alreadyTransacted = null)
+    {
+        subVM.Qty = newQty;
+
+        subVM.BalQty = alreadyTransacted.HasValue
+            ? Math.Max(newQty - alreadyTransacted.Value, 0)
+            : newQty;
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                case "Cancel":
+                case "Revert":
+                    await CancelQuotation();
+                    break;
+
+                case "ItemCancel":
+                    await CancelItem();
+                    break;
+                case "Short-Close":
+                    await ShortClose();
+                    break;
+                default:
+                    await _JS.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task ShortClose()
+    {
+        if (PurchaseQuoteVM == null)
+        {
+            await _JS.ToastrError("No Purchase Order selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            PurchaseQuoteVM.QuoteShortClose = !PurchaseQuoteVM.QuoteShortClose;
+            await _purchQuotationService.UpsertPurchaseQuoteShortCloseAsync(PurchaseQuoteVM);
+            StateHasChanged();
+
+            string msg = PurchaseQuoteVM.QuoteShortClose
+                 ? "Purchase Quotation ShortClose Successfully!"
+                 : "Purchase Quotation ReOpen Successfully!";
+            await _JS.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while updating ShortClose.Purchase Quotation");
+            await LoggingService.LogDeveloperError(ex, "Error in ShortClose() Purchase Quotation");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelQuotation()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!PurchaseQuoteVM.IsCancel)
+            {
+                PurchaseQuoteVM.IsCancel = true;
+                PurchaseQuoteVM.CancelDate = DateTime.Now;
+                PurchaseQuoteVM.CancelReason = cancelReason;
+                PurchaseQuoteVM.CancelledBy = username;
+
+                await _purchQuotationService.UpdatedCancelStatusAndAddOrRevertQty(PurchaseQuoteVM);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "PurchaseQuotation upsert",
+                    action: $"Cancelled Quotation: {PurchaseQuoteVM.QuoteNo}",
+                    additionalInfo: $"Quotation Id: {PurchaseQuoteVM.QuoteId}"
+                );
+
+                await _JS.ToastrSuccess("Quotation cancelled successfully.");
+            }
+            else
+            {
+
+                PurchaseQuoteVM.IsCancel = false;
+                PurchaseQuoteVM.CancelDate = null;
+                PurchaseQuoteVM.CancelReason = string.Empty;
+                PurchaseQuoteVM.CancelledBy = string.Empty;
+
+
+                await _purchQuotationService.UpdatedCancelStatusAndAddOrRevertQty(PurchaseQuoteVM);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "PurchaseQuotation upsert",
+                    action: $"Reverted Quotation: {PurchaseQuoteVM.QuoteNo}",
+                    additionalInfo: $"Quotation Id: {PurchaseQuoteVM.QuoteId}"
+                );
+
+                await _JS.ToastrSuccess("Quotation has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "[UpdatedCancelStatusAndAddOrRevertQty] Validation issue");
+            await _JS.ToastrError(ex.Message);
+
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the purchase quotation.");
+            await LoggingService.LogDeveloperError(ex, $"CancelQuotation failed for QuoteId: {PurchaseQuoteVM.QuoteId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelItem()
+    {
+        if (rowToCancel == null || isProcessing)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            bool isCancelling = !rowToCancel.ItemCancel;
+
+            if (isCancelling && string.IsNullOrWhiteSpace(cancelReason))
+            {
+                await _JS.ToastrWarning("Cancel reason is required.");
+                return;
+            }
+
+            rowToCancel.ItemCancel = isCancelling;
+            rowToCancel.ItemCancelReason = isCancelling ? cancelReason : string.Empty;
+
+            await _purchQuotationService.UpdateItemCancelAndAddorRevertAsync(rowToCancel);
+
+            string actionText = isCancelling ? "Cancelled" : "Reverted";
+
+            await LoggingService.LogUserAction(
+                username,
+                machine,
+                ip,
+                screen: "Purchase Quotation",
+                action: $"{actionText} Quotation No: {PurchaseQuoteVM.QuoteNo}, ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: isCancelling
+                    ? $"Reason: {cancelReason}"
+                    : "Item revert operation"
+            );
+
+            if(QuoteId.HasValue || QuoteId > 0)
+                await LoadExistingQuote(QuoteId.Value);
+
+            await _JS.ToastrSuccess($"Item has been {actionText.ToLower()} successfully.");
+
+            cancelReason = string.Empty;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await LoadExistingQuote(QuoteId.Value);
+            await _JS.ToastrWarning(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the item.");
+            await LoggingService.LogDeveloperError(ex, $"Item Cancel/Revert failed for QuoteId: {PurchaseQuoteVM?.QuoteId}");
+        }
+        finally
+        {
+            cancelReason= string.Empty;
+            isProcessing = false;
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _JS.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.QuoteSubId > 0)
+            {
+                await _purchQuotationService.DeleteAndResequenceAsync(rowToDelete, PurchaseQuoteVM);
+
+                PurchaseQuoteVM = await _purchQuotationService.GetQuotationByQuoteIdAsync(PurchaseQuoteVM.QuoteId);
+            }
+            else
+            {
+                PurchaseQuoteVM.PurchaseQuoteSubVM.Remove(rowToDelete);
+
+                if (!PurchaseQuoteVM.PurchaseQuoteSubVM.Any())
+                {
+                    PurchaseQuoteVM.PurchaseQuoteSubVM.Add(new PurchaseQuoteSubVM
+                    {
+                        QuoteId = PurchaseQuoteVM.QuoteId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < PurchaseQuoteVM.PurchaseQuoteSubVM.Count; i++)
+                        PurchaseQuoteVM.PurchaseQuoteSubVM[i].SlNo = i + 1;
+                }
+            }
+
+            await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+
+            await _JS.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for QuoteId: {PurchaseQuoteVM.QuoteId}");
+            await _JS.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _JS.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _JS.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _purchQuotationService.GetItemByItemIdAsync(ItemId);
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _JS.ToastrError("Error while opening attachments in purchaseQuotation.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Toggles
+    private void OnManufacturingToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        PurchaseQuoteVM.PurchOrSub = isChecked;
+    }
+
+    private void OnLabourToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        PurchaseQuoteVM.PurchOrSub = !isChecked;
+    }
+    #endregion
+
+    #region Discount, P&F, Insurance, TCS
+
+    private void SetDiscountMode(bool isRs)
+    {
+        PurchaseQuoteVM.IsItemWiseDiscAmtOrPerReq = isRs;
+
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+    }
+    private void SetDiscountType(bool isAmount)
+    {
+        PurchaseQuoteVM.DiscAmtOrPer = isAmount;
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+
+    private void SetPAndFType(bool isRs)
+    {
+        PurchaseQuoteVM.PackingAmtOrPer = isRs;
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+
+    private void SetInsuranceType(bool isRs)
+    {
+        PurchaseQuoteVM.InsuranceAmtOrPer = isRs;
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+
+    private void SetTCSType(bool isRs)
+    {
+        PurchaseQuoteVM.TCSAmtOrPer = isRs;
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+
+    private void OnLineDiscountPercentChanged(PurchaseQuoteSubVM subitem)
+    {
+        if (subitem.Qty > 0 && subitem.UnitPrice > 0)
+        {
+            var gross = subitem.Qty * subitem.UnitPrice;
+            subitem.LineDiscountAmount = (gross * subitem.LineDiscountPercent / 100m);
+        }
+        else
+        {
+            subitem.LineDiscountAmount = 0;
+        }
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+
+    private void OnDiscountPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+
+    private void OnPandFPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+
+    private void OnInsurancePercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+
+    private void OnTCSPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+    #endregion
+
+    #region Tax
+    private async Task OnTaxRateChanged(ChangeEventArgs e, PurchaseQuoteSubVM subitem)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal newRate))
+        {
+            subitem.LineCGSTRate = newRate;
+            subitem.LineSGSTRate = newRate;
+
+            await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+            StateHasChanged();
+        }
+    }
+    private async Task OnMainTaxRateChanged(decimal newRate)
+    {
+        PurchaseQuoteVM.CGstRate = newRate;
+        PurchaseQuoteVM.SGstRate = newRate;
+
+        await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+        StateHasChanged();
+    }
+    #endregion
+
+    #region CostCenter And terms
+    private Task OnCostCenterChanged(ChangeEventArgs e, PurchaseQuoteSubVM row)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            row.CostId = selectedId;
+
+            var selectedCostCenter = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            row.ProjectNo = selectedCostCenter?.ProjectNo; // Will be null if not found
+        }
+        else
+        {
+            // No selection or invalid selection
+            row.CostId = null;
+            row.ProjectNo = null;
+        }
+
+        return Task.CompletedTask;
+    }
+    private Task OnTermsChanged(ChangeEventArgs e)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            var selectedTerm = TermsList.FirstOrDefault(t => t.Id == selectedId);
+            PurchaseQuoteVM.TermsId = selectedTerm?.Id ?? null;
+            PurchaseQuoteVM.Details = selectedTerm?.Details ?? string.Empty;
+        }
+        else
+        {
+            PurchaseQuoteVM.TermsId = null;
+            PurchaseQuoteVM.Details = string.Empty;
+        }
+
+        return Task.CompletedTask;
+    }
+    #endregion
+
+    #region Quotation Operations
+
+    private async Task UpsertQuote()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            PurchaseQuoteVM.PurchaseQuoteSubVM.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.Qty.HasValue || x.Qty == 0) &&
+                (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (!PurchaseQuoteVM.PurchaseQuoteSubVM.Any())
+            {
+                await _JS.ToastrError("Cannot save a quotation without valid items.");
+                return;
+            }
+            
+
+            // Validate each line
+            foreach (var line in PurchaseQuoteVM.PurchaseQuoteSubVM)
+            {
+                bool isValid = await ValidateQuoteLineAsync(line);
+                if (!isValid) return;
+            }
+            var isNewQuote = PurchaseQuoteVM.QuoteId == 0;
+            if (isNewQuote)
+            {
+                bool isDuplicat = await _purchQuotationService.IsDuplicateQuoteAsync(PurchaseQuoteVM.QuoteNo,PurchaseQuoteVM.Suffix,PurchaseQuoteVM.VendorCode,PurchaseQuoteVM.QuoteId);
+                if (isDuplicat)
+                {
+                    await _JS.ToastrError($"Quotation number '{PurchaseQuoteVM.QuoteNo}' already exists for Vendor '{PurchaseQuoteVM.VendorName}'.");
+                    return;
+                }
+            }        
+            // Save
+            try
+            {
+                await _purchQuotationService.UpsertQuoteAsync(PurchaseQuoteVM);
+            }
+            catch (Exception ex)
+            {
+                await _JS.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewQuote)
+                await _JS.ToastrSuccess("Quotation saved successfully.");
+            else
+                await _JS.ToastrSuccess("Quotation updated successfully.");
+
+            // Discard popup Clear
+            await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/purchaseQuoteList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Purchase Quoate UpsertQuote failed.");
+            await _JS.ToastrError("Error while  saving in Purchase  quotation.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task<bool> ValidateQuoteLineAsync(PurchaseQuoteSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _JS.ToastrError("Please select an Item before saving.");
+                return false;
+            }
+
+            if (!line.Qty.HasValue || line.Qty <= 0)
+            {
+                await _JS.ToastrError($"Item {line.ItemId}: Quantity must be greater than 0.");
+                return false;
+            }
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+            {
+                await _JS.ToastrError($"Item {line.ItemId}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            // ----------------------------------------------------------
+            // CASE 1: New Quotation Line
+            // ----------------------------------------------------------
+            if (line.QuoteSubId == 0 && line.RefEnqVendorAssignId > 0)
+            {
+                var enqBalQty = await _purchQuotationService.GetEnquiryItemBalQtyFromVendorAssignId(line.RefEnqVendorAssignId.Value);
+
+                if (line.Qty > enqBalQty)
+                {
+                    await _JS.ToastrError(
+                        $"Entered Qty ({line.Qty}) exceeds Enquiry Balance Qty ({enqBalQty})."
+                    );
+                    return false;   // ❌ STOP HERE
+                }
+
+                line.BalQty = line.Qty;
+            }
+
+            // ----------------------------------------------------------
+            // CASE 2: Existing Quotation Line (Edit Mode)
+            // ----------------------------------------------------------
+            else if (line.QuoteSubId > 0)
+            {
+                var original = await _purchQuotationService
+                    .GetQuoteSubItemDetailByQuoteSubIdAsync(line.QuoteSubId);
+
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty ?? 0;
+                    decimal origQty = original.Qty ?? 0;
+                    decimal alreadyTransacted = origQty - origBalQty;
+
+                    // Qty cannot go below already transacted
+                    if (line.Qty < alreadyTransacted)
+                    {
+                        await _JS.ToastrError(
+                            $"Qty cannot be less than already transacted ({alreadyTransacted})."
+                        );
+                        return false;   // ❌ STOP HERE
+                    }
+
+                    // Recalculate balance
+                    line.BalQty = (origBalQty + (line.Qty.Value - origQty));
+
+                    if (line.BalQty < 0)
+                        line.BalQty = 0;
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidateQuoteLineAsync failed.");
+            await _JS.ToastrError("An unexpected error occurred while validating the line.");
+            return false;
+        }
+    }
+
+
+    #endregion
+
+    #region Enquiry Selection
+
+    private async Task ShowEnquiryDetails()
+    {
+        if (PurchaseQuoteVM?.VendorCode != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                EnquiryData = await _purchQuotationService.GetEnquiryDetailsByVendorCode(PurchaseQuoteVM.VendorCode, PurchaseQuoteVM.PurchOrSub);
+                IsEnquiryModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogDeveloperError(ex, "ShowEnquiryDetails failed.");
+                await _JS.ToastrError("Error fetching enquiry details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+    private async Task OnEnquirySelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (PurchaseQuoteVM.PurchaseQuoteSubVM == null)
+            PurchaseQuoteVM.PurchaseQuoteSubVM = new List<PurchaseQuoteSubVM>();
+
+        int custId = PurchaseQuoteVM.VendorCode;
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .ToList();
+
+            var priceDict = await _purchQuotationService.GetBulkLastUnitPricesAsync(itemIds, custId);
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? RefEnqPurchVendorId = item.ContainsKey("RefEnqPurchVendorId") && item["RefEnqPurchVendorId"] != null
+                    ? Convert.ToInt32(item["RefEnqPurchVendorId"])
+                    : (int?)null;
+
+                if (PurchaseQuoteVM.PurchaseQuoteSubVM.Any(x => x.ItemId == itemId && x.RefEnqVendorAssignId == RefEnqPurchVendorId))
+                    continue;
+
+                var subVm = new PurchaseQuoteSubVM
+                {
+                    RefEnqVendorAssignId = RefEnqPurchVendorId,
+                    RefEnqNo = item.ContainsKey("EnquiryNo") ? item["EnquiryNo"]?.ToString() : "",
+                    RefEnqDate = item.ContainsKey("EnquiryDate") && item["EnquiryDate"] != null
+                        ? Convert.ToDateTime(item["EnquiryDate"])
+                        : null,
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    MeasureUnit=item.ContainsKey("UOM")?item["UOM"]?.ToString():"",
+                    HsnCode=item.ContainsKey("HsnCode")?item["HsnCode"]?.ToString():"",
+
+                    Qty = item.ContainsKey("BalQty") && item["BalQty"] != null 
+                            ? Convert.ToDecimal(item["BalQty"]) 
+                            : 0m,
+
+                    BalQty = item.ContainsKey("BalQty") && item["BalQty"] != null 
+                            ? Convert.ToDecimal(item["BalQty"]) 
+                            : 0m,
+
+                    UnitPrice = priceDict.TryGetValue(itemId, out var price) ? price : 0,
+                    CostId = item.ContainsKey("CostCenterId") && item["CostCenterId"] != null
+                            ? (Convert.ToInt32(item["CostCenterId"]) == 0 ? (int?)null : Convert.ToInt32(item["CostCenterId"]))
+                            : (int?)null,
+                    ProjectNo = item.ContainsKey("ProjectNo") ? item["ProjectNo"]?.ToString() : "",
+                    IsEditable = true
+                };
+
+                PurchaseQuoteVM.PurchaseQuoteSubVM.Add(subVm);
+                await _calculationService.UpdateTotalsAsync(PurchaseQuoteVM);
+            }
+
+            int slNo = 1;
+            foreach (var row in PurchaseQuoteVM.PurchaseQuoteSubVM)
+            {
+                row.SlNo = slNo++;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnEnquirySelectedAsync failed.");
+            await _JS.ToastrError("Error processing selected enquiry items.");
+        }
+    }
+    #endregion
+
+    #region Formatting
+
+    private string FormatDecimal(decimal? value) 
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+    #endregion
+    
+}

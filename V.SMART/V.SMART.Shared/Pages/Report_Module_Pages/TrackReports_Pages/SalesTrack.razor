@@ -1,0 +1,2916 @@
+﻿@page "/SalesTrack"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.BusinessLayer.BusinessService.ReportService.TrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel.LabourTrackViewModel
+
+
+
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject NavigationManager _navigation
+@inject ISalesTrackReportService SalesTrackReportService
+
+@inject ILoggingService _logs
+@inject IExcelTemplateService excelTemplateService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Sales Track"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@materialIssueBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+
+                <!-- ================= Export Section ================= -->
+                <div class="card border mb-4">
+                    @* <div class="card-header bg-light"> *@
+                    <div class="card-header" style="background-color:#f5e6d3;">
+                        <strong>Export Details</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+
+                            <div class="col-md-3">
+                                <label class="form-label">From Date</label>
+                                <input type="date" class="form-control" @bind="FromDate" />
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">To Date</label>
+                                <input type="date" class="form-control" @bind="ToDate" />
+                            </div>
+
+                   
+
+                            <div class="col-md-3">
+                                <button class="btn btn-success w-75"
+                                        style="background-color: #4da3ff; color: white;"
+                                        @onclick="ExportRCData">
+                                    <i class="bi bi-download me-1"></i>
+                                    Load SalesTrack Data
+                                </button>
+                            </div>
+
+
+                          
+
+                          
+
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= Customer Filter ================= -->
+
+
+                <div class="card border mb-4">
+                    @* <div class="card-header bg-light"> *@
+                    <div class="card-header d-flex justify-content-between align-items-center" style="background-color:#f5e6d3;">
+
+                        <strong>Filter By Customer</strong>
+
+
+                       @*  <div class="col-md-1"></div> <!-- SPACE --> *@
+
+                        <div class="col-md-2 d-flex align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input custom-checkbox"
+                                       type="checkbox"
+                                       id="detailViewCheck"
+                                       @bind="IsDetailView"
+                                       @onclick="OnDetailViewChanged" />
+
+                                <label class="form-check-label ms-2"
+                                       for="detailViewCheck">
+                                    Detail View
+                                </label>
+                            </div>
+                        </div>
+
+                        <style>
+                            .custom-checkbox {
+                                width: 18px;
+                                height: 18px;
+                                cursor: pointer;
+                                accent-color: blue; /* ✅ Checkbox color blue */
+                            }
+                        </style>
+
+
+                       
+
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+
+                            <InputText type="text"
+                                       class="form-control"
+                                       style="max-width: 1000px; border: 1px solid #0d6efd; outline: none;"
+                                       placeholder="Min 3 letters..."
+                                       @bind-Value="searchText"
+                                       @oninput="e => searchText = e.Value?.ToString()"
+                                       onfocus="this.style.boxShadow='0 0 0 0.2rem rgba(13,110,253,.25)'"
+                                       onblur="this.style.boxShadow='none'" />
+                        </div>
+
+
+                        <!-- Column Settings -->
+                        <div class="col-6 col-md-2">
+                            <ColumnMenu Columns="Columns"
+                                        ScreenName="@ScreenName"
+                                        UserId="@UserName"
+                                        MaxVisible=int.MaxValue
+                                        OnChanged="HandleColumnChange" />
+                        </div>
+
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+
+                            <!-- Customer -->
+                            <div class="col-md-2">
+                                <label class="mb-1">
+                                    <i class="bi bi-person"></i> Customer
+                                </label>
+
+                                <MudBlazor.MudAutocomplete T="CustomerVM"
+                                                           Value="SelectedCustomer"
+                                                           ValueChanged="OnCustomerChanged"
+                                                           ToStringFunc="@( (CustomerVM c) => c?.CustName ?? string.Empty )"
+                                                           SearchFunc="SearchCustomers"
+                                                           Variant="MudBlazor.Variant.Outlined"
+                                                           Dense="true"
+                                                           Clearable="true"
+                                                           Class="w-100 small-autocomplete" />
+                            </div>
+
+                            <style>
+                                .small-autocomplete .mud-input-root {
+                                    height: 100px;
+                                }
+
+                                .small-autocomplete input {
+                                    padding: 10px 12px !important;
+                                    font-size: 14px;
+                                }
+                            </style>
+
+                            <div class="col-auto"></div>
+
+                     
+
+
+                          <div class="col-md-2">
+                                @*  <label class="form-label">Document Type</label> *@
+                                <label><i class="bi bi-file-earmark-text"></i> Document Type</label>
+                                    <select class="form-select" @onchange="OnDocTypeChanged">
+                                 
+
+
+                                @* <select class="form-select"
+                                        @bind="SelectedDocType"
+                                        @bind:after="OnDocTypeChanged"> *@
+                                        <option value="">-- Select Document Type --</option>
+                                    @if (SelectedCustomerId == null & AvailableDocTypes == null)
+                                        {
+                                            <!-- Show all document types when no customer is selected -->
+                                            <option value="Enquiry">Enquiry</option>
+                                            <option value="Quotation">Quotation</option>
+                                            <option value="PO">PO</option>
+                                            <option value="MaterialReq">MaterialReq</option>
+                                            <option value="JobOrder">Job Order</option>
+                                            <option value="RouteCard">Route Card</option>
+                                            <option value="DC">DC</option>
+                                            <option value="Invoice">Invoice</option>
+                                        }
+                                       
+                                    
+
+                                    else if  (AvailableDocTypes != null)
+                                        {
+                                            @foreach (var item in AvailableDocTypes)
+                                            {
+                                                var docType = GetDocType(item);
+                                                if (!string.IsNullOrEmpty(docType))
+                                                {
+                                                    <option value="@docType">@docType</option>
+                                                }
+                                            }
+                                        }
+                               </select>
+                          </div>
+
+                         <div class="col-auto"></div>
+
+
+                            <div class="col-md-2">
+                                <label><i class="bi bi-hash"></i> Select Number</label>
+
+                                <select class="form-select"
+                                        value="@SelectedPoId"
+                                        @onchange="OnPoChanged">
+
+                                    <option value="">-- Select Number --</option>
+
+                                    @if (FilteredList?.Any() == true)
+                                    {
+                                        @foreach (var doc in FilteredList
+                                                                        .Where(x => !string.IsNullOrEmpty(GetNumberByType(x)))
+                                                                        .GroupBy(x => GetNumberByType(x))
+                                                                        .Select(g => g.First()))
+                                        {
+                                            <option value="@GetIdByType(doc)">
+                                                @GetNumberByType(doc)
+                                            </option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                   
+
+                            <div class="col-auto"></div>
+
+
+                            <div class="col-md-2">
+                                @* <label class="form-label">Items</label> *@
+                                <label><i class="bi bi-box-seam"></i> Items</label>
+
+                                <select class="form-select"
+                                        value="SelectedItemCode"
+                                        @onchange="OnItemChanged">
+
+                                    <option value="">Select Item</option>
+
+                                    @if (ItemList != null && ItemList.Any())
+                                    {
+                                        @foreach (var item in ItemList)
+                                        {
+                                            @* <option value="">Select Item</option> *@
+                                            <option value="@item.Itemcode">@item.Itemcode</option>
+                                        }
+                                    }
+                                   @*  else
+                                    {
+                                        <option value="">Select Item</option>                                        
+                                    } *@
+
+                                </select>
+                            </div>
+
+                            <div class="col-md-1"></div> <!-- SPACE -->
+
+
+                            <!-- Print Button -->
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-primary btn-sm shadow-sm w-100 w-md-auto"
+                                        @onclick="OnPrintPendingTrack">
+                                    <i class="bi bi-printer me-1"></i> Print
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+
+
+
+                <!-- ================= Grid Section ================= -->
+                @if (SalesTrackVMs != null && SalesTrackVMs.Any())
+                {
+
+
+                    <div class="grid-wrapper">
+
+                        <style>
+                            .grid-wrapper {
+                                width: 100%;
+                                max-width: 100%;
+                                max-height: 650px;
+                                overflow: auto;
+                                position: relative;
+                                border: 1px solid #dcdcdc;
+                                border-radius: 8px;
+                                background: #ffffff;
+                                scroll-behavior: smooth;
+                                outline: none;
+                            }
+
+                                /* Keyboard focus for navigation */
+                                .grid-wrapper:focus {
+                                    border-color: #0d6efd;
+                                    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+                                }
+
+                            /* Main grid container */
+                            .custom-grid {
+                                min-width: 2400px; /* Adjust based on total columns */
+                                width: max-content;
+                                white-space: nowrap;
+                            }
+
+                                .custom-grid table {
+                                    width: max-content;
+                                    min-width: 100%;
+                                    border-collapse: collapse;
+                                    table-layout: auto;
+                                }
+
+                                /* ===============================
+                                       Sticky Header
+                                    =============================== */
+
+                                .custom-grid thead th {
+                                    position: sticky;
+                                    top: 0;
+                                    z-index: 30;
+                                    background: #ffffff;
+                                    border-bottom: 1px solid #dee2e6;
+                                    padding: 12px 16px;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    text-align: left;
+                                    white-space: nowrap;
+                                }
+
+                                    /* ===============================
+                                       Sticky First Column
+                                    =============================== */
+
+                                    .custom-grid thead th:first-child,
+                                    .custom-grid tbody td:first-child {
+                                        position: sticky;
+                                        left: 0;
+                                        z-index: 25;
+                                        background: #ffffff;
+                                        border-right: 1px solid #dee2e6;
+                                    }
+
+                                    .custom-grid thead th:first-child {
+                                        z-index: 35;
+                                    }
+
+                                /* ===============================
+                                       Table Cells
+                                    =============================== */
+
+                                .custom-grid tbody td {
+                                    padding: 10px 16px;
+                                    font-size: 14px;
+                                    color: #212529;
+                                    border-bottom: 1px solid #f1f3f5;
+                                    white-space: nowrap;
+                                    vertical-align: middle;
+                                }
+
+                                /* Row hover */
+                                .custom-grid tbody tr:hover {
+                                    background-color: #f8f9fa;
+                                }
+
+                                /* Zebra rows (optional enterprise style) */
+                                .custom-grid tbody tr:nth-child(even) {
+                                    background-color: #fcfcfc;
+                                }
+
+                            /* ===============================
+                                       Scrollbar Styling
+                                    =============================== */
+
+                            .grid-wrapper::-webkit-scrollbar {
+                                width: 10px;
+                                height: 10px;
+                            }
+
+                            .grid-wrapper::-webkit-scrollbar-track {
+                                background: #f1f1f1;
+                                border-radius: 10px;
+                            }
+
+                            .grid-wrapper::-webkit-scrollbar-thumb {
+                                background: #bdbdbd;
+                                border-radius: 10px;
+                            }
+
+                                .grid-wrapper::-webkit-scrollbar-thumb:hover {
+                                    background: #8d8d8d;
+                                }
+
+                            /* ===============================
+                                       Optional Scroll Shadow Effect
+                                    =============================== */
+
+                            .grid-wrapper::after {
+                                content: "";
+                                position: sticky;
+                                right: 0;
+                                top: 0;
+                                width: 12px;
+                                height: 100%;
+                                pointer-events: none;
+                            }
+                        </style>
+                      
+
+                        <QuickGrid TItem="PoPendingVM"
+                                   Items="FilteredPoPendingVMs.AsQueryable()"
+                                   Class="table table-bordered table-striped">
+
+
+
+
+                            @* CUSTOMER MODE *@
+                            @if (CurrentMode == GridMode.Customer)
+                            {
+                                 @if (Show("CustName"))
+                                 {
+                                            <PropertyColumn Title="Customer Name" Property="@(x => x.CustName)" />
+                                 }
+                                 @if (Show("Itemcode"))
+                                 {
+                                            <PropertyColumn Title="Item Code" Property="@(x => x.Itemcode)" />
+                                 }
+                                 @if (Show("ItemName"))
+                                 {
+                                            <PropertyColumn Title="Item Description" Property="@(x => x.ItemName)" />
+                                 }
+                                 @if (Show("CategoryCode"))
+                                 {
+                                             <PropertyColumn Title="Category code" Property="@(x => x.CategoryCode)" />
+                                 }
+                                 @if (Show("EnqNo"))
+                                 {
+                                             <PropertyColumn Title="Enquiry No" Property="@(x => x.EnqNo)" />
+                                 }
+                                 @if (Show("EnqDate"))
+                                 {
+                                              <PropertyColumn Title="Enquiry Date" Property="@(x => x.EnqDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("EnqQty"))
+                                 {
+                                               <PropertyColumn Title="Enquiry Qty" Property="@(x => x.EnqQty)" />
+                                 }
+                                 @if (Show("EnqBalQty"))
+                                 {
+                                               <PropertyColumn Title="Enquiry BQty" Property="@(x => x.EnqBalQty)" />
+                                 }
+                                @if (Show("EnqTally"))
+                                {
+                                    <TemplateColumn Title="Enquiry Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.EnqNo) && x.EnqBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.IsCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.EnqTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.EnqShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("QtNo"))
+                                 {
+                                             <PropertyColumn Title="Quatation No" Property="@(x => x.QtNo)" />
+                                 }
+                                 @if (Show("QtDate"))
+                                 {
+                                              <PropertyColumn Title="Quatation Date" Property="@(x => x.QtDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("QtQty"))
+                                 {
+                                              <PropertyColumn Title="Quatation Qty" Property="@(x => x.QtQty)" />
+                                 }
+                                 @if (Show("QtBalQty"))
+                                 {
+                                              <PropertyColumn Title="Quatation BQty" Property="@(x => x.QtBalQty)" />
+                                 }
+                                @if (Show("QuotationTally"))
+                                {
+                                    <TemplateColumn Title="Quatation Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.QtNo) && x.QtBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.IsCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.QuotationTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.QtShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                 @if (Show("PONo"))
+                                 {
+                                           <PropertyColumn Title="PO No" Property="@(x => x.PONo)" />
+                                 }
+                                @if (Show("PODate"))
+                                {
+                                           <PropertyColumn Title="PO Date" Property="@(x => x.PODate)" Format="dd/MM/yyyy" />
+                                }
+                                 @if (Show("Qty"))
+                                 {
+                                            <PropertyColumn Title="PO Qty" Property="@(x => x.Qty)" />
+                                 }
+                                 @if (Show("BalQty"))
+                                 {
+                                             <PropertyColumn Title="PO BQty" Property="@(x => x.BalQty)" />
+                                 }
+                                @if (Show("PoTally"))
+                                {
+
+                                    <TemplateColumn Title="Po Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.PONo) && x.BalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.PoCancl ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.PoTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.ShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("MReqNo"))
+                                 {
+                                <PropertyColumn Title="Indent No" Property="@(x => x.MReqNo)" />
+                                 }
+                                 @if (Show("MreqDate"))
+                                 {
+                                <PropertyColumn Title="Indent Date" Property="@(x => x.MreqDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("PurchQty"))
+                                 {
+                                <PropertyColumn Title="Indent PurchQty" Property="@(x => x.PurchQty)" />
+                                 }
+                                 @if (Show("MrBalQty"))
+                                 {
+                                 
+                                <PropertyColumn Title="Indent BQty" Property="@(x => x.MrBalQty)" />
+                                 }
+                                @if (Show("MrTally"))
+                                {
+                                    <TemplateColumn Title="Indent Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.MReqNo) && x.MrBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.MreqCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.MrTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.MreqShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("DcNo"))
+                                {
+                                <PropertyColumn Title="DcNo" Property="@(x => x.DcNo)" />
+                                 }
+                                 @if (Show("DcDate"))
+                                 {
+                                <PropertyColumn Title="DcDate" Property="@(x => x.DcDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("DcQty"))
+                                 {
+                                <PropertyColumn Title="DcQty" Property="@(x => x.DcQty)" />
+                                 }
+                                @if (Show("DcBalQty"))
+                                {
+                                <PropertyColumn Title="Dc BalQty" Property="@(x => x.DcBalQty)" />
+                                }
+                                @if (Show("DcTally"))
+                                {
+
+                                    <TemplateColumn Title="Dc Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.DcNo) && x.DcBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.DcCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.DcTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.DcShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("JobOrderNo"))
+                                {
+                                                <PropertyColumn Title="JobOrderNo" Property="@(x => x.JobOrderNo)" />
+                                }
+                                @if (Show("JobOrderDate"))
+                                {
+                                                <PropertyColumn Title="JobOrderDate" Property="@(x => x.JobOrderDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("JobOrderQty"))
+                                {
+                                                <PropertyColumn Title="JobOrderQty" Property="@(x => x.JobOrderQty)" />
+                                }
+                                 @if (Show("JobBalQty"))
+                                {
+                                                <PropertyColumn Title="JobOrder BQty" Property="@(x => x.JobBalQty)" />
+                                }
+                                @if (Show("JobTally"))
+                                {
+                                    <TemplateColumn Title="JobOrder Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.JobOrderNo) && x.JobBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.Cancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.JobTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+
+                                 @if (Show("RouteCardNo"))
+                                {
+                                                <PropertyColumn Title="RouteCardNo" Property="@(x => x.RouteCardNo)" />
+                                }
+                                @if (Show("RouteCardDate"))
+                                {
+                                                <PropertyColumn Title="RouteCardDate" Property="@(x => x.RouteCardDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("RcQty"))
+                                {
+                                                <PropertyColumn Title="RouteCard Qty" Property="@(x => x.RcQty)" />
+                                }
+                                @if (Show("RcBalQty"))
+                                {
+                                                <PropertyColumn Title="RouteCard BQty" Property="@(x => x.RcBalQty)" />
+                                }
+                                @if (Show("RcStatus"))
+                                {
+                                    <TemplateColumn Title="RouteCard Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.RouteCardNo) && x.RcStatus == false)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+
+                                        else if (x.RcStatus ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("InvNo"))
+                                {
+                                           <PropertyColumn Title="InvNo" Property="@(x => x.InvNo)" />
+                                }
+                                @if (Show("InvoiceDate"))
+                                {
+                                           <PropertyColumn Title="Invoice Date" Property="@(x => x.InvoiceDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("InvQty"))
+                                {
+                                           <PropertyColumn Title="InvQty" Property="@(x => x.InvQty)" />
+                                }
+                                @if (Show("InvBQty"))
+                                {
+                                                <PropertyColumn Title="Inv BQty" Property="@(x => x.InvBQty)" />
+                                }
+                                @if (Show("InvTally"))
+                                {
+                                    <TemplateColumn Title="Inv Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.InvNo) && x.InvBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.InvCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.InvTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.PoShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                
+                                <FooterTemplate>
+                                <a direction="right" style="color:green; font-weight:bold;">
+                                        Total Invoice Value: @totalInvoiceValue.ToString("N2")
+                                </a>
+                                </FooterTemplate>
+
+
+
+
+
+                            }
+
+                            @* PO MODE *@
+                            else if (CurrentMode == GridMode.Po)
+                            {
+                                 @if (Show("CustName"))
+                                 {
+                                            <PropertyColumn Title="Customer Name" Property="@(x => x.CustName)" />
+                                 }
+                                 @if (Show("Itemcode"))
+                                 {
+                                            <PropertyColumn Title="Item Code" Property="@(x => x.Itemcode)" />
+                                 }
+                                 @if (Show("ItemName"))
+                                 {
+                                            <PropertyColumn Title="Item Description" Property="@(x => x.ItemName)" />
+                                 }
+                                 @if (Show("CategoryCode"))
+                                 {
+                                             <PropertyColumn Title="Category code" Property="@(x => x.CategoryCode)" />
+                                 }
+                                 @if (Show("EnqNo"))
+                                 {
+                                             <PropertyColumn Title="Enquiry No" Property="@(x => x.EnqNo)" />
+                                 }
+                                 @if (Show("EnqDate"))
+                                 {
+                                              <PropertyColumn Title="Enquiry Date" Property="@(x => x.EnqDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("EnqQty"))
+                                 {
+                                               <PropertyColumn Title="Enquiry Qty" Property="@(x => x.EnqQty)" />
+                                 }
+                                 @if (Show("EnqBalQty"))
+                                 {
+                                               <PropertyColumn Title="Enquiry BQty" Property="@(x => x.EnqBalQty)" />
+                                 }
+                                @if (Show("EnqTally"))
+                                {
+                                    <TemplateColumn Title="Enquiry Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.EnqNo) && x.EnqBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.IsCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.EnqTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.EnqShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("QtNo"))
+                                 {
+                                             <PropertyColumn Title="Quatation No" Property="@(x => x.QtNo)" />
+                                 }
+                                 @if (Show("QtDate"))
+                                 {
+                                              <PropertyColumn Title="Quatation Date" Property="@(x => x.QtDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("QtQty"))
+                                 {
+                                              <PropertyColumn Title="Quatation Qty" Property="@(x => x.QtQty)" />
+                                 }
+                                 @if (Show("QtBalQty"))
+                                 {
+                                              <PropertyColumn Title="Quatation BQty" Property="@(x => x.QtBalQty)" />
+                                 }
+                                @if (Show("QuotationTally"))
+                                {
+                                    <TemplateColumn Title="Quatation Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.QtNo) && x.QtBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.IsCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.QuotationTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.QtShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                 @if (Show("PONo"))
+                                 {
+                                           <PropertyColumn Title="PO No" Property="@(x => x.PONo)" />
+                                 }
+                                @if (Show("PODate"))
+                                {
+                                           <PropertyColumn Title="PO Date" Property="@(x => x.PODate)" Format="dd/MM/yyyy" />
+                                }
+                                 @if (Show("Qty"))
+                                 {
+                                            <PropertyColumn Title="PO Qty" Property="@(x => x.Qty)" />
+                                 }
+                                 @if (Show("BalQty"))
+                                 {
+                                             <PropertyColumn Title="PO BQty" Property="@(x => x.BalQty)" />
+                                 }
+                                @if (Show("PoTally"))
+                                {
+
+                                    <TemplateColumn Title="Po Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.PONo) && x.BalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.PoCancl ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.PoTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.ShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("MReqNo"))
+                                 {
+                                <PropertyColumn Title="Indent No" Property="@(x => x.MReqNo)" />
+                                 }
+                                 @if (Show("MreqDate"))
+                                 {
+                                <PropertyColumn Title="Indent Date" Property="@(x => x.MreqDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("PurchQty"))
+                                 {
+                                <PropertyColumn Title="Indent PurchQty" Property="@(x => x.PurchQty)" />
+                                 }
+                                 @if (Show("MrBalQty"))
+                                 {
+                                 
+                                <PropertyColumn Title="Indent BQty" Property="@(x => x.MrBalQty)" />
+                                 }
+                                @if (Show("MrTally"))
+                                {
+                                    <TemplateColumn Title="Indent Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.MReqNo) && x.MrBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.MreqCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.MrTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.MreqShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("DcNo"))
+                                {
+                                <PropertyColumn Title="DcNo" Property="@(x => x.DcNo)" />
+                                 }
+                                 @if (Show("DcDate"))
+                                 {
+                                <PropertyColumn Title="DcDate" Property="@(x => x.DcDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("DcQty"))
+                                 {
+                                <PropertyColumn Title="DcQty" Property="@(x => x.DcQty)" />
+                                 }
+                                @if (Show("DcBalQty"))
+                                {
+                                <PropertyColumn Title="Dc BalQty" Property="@(x => x.DcBalQty)" />
+                                }
+                                @if (Show("DcTally"))
+                                {
+
+                                    <TemplateColumn Title="Dc Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.DcNo) && x.DcBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.DcCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.DcTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.DcShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("JobOrderNo"))
+                                {
+                                                <PropertyColumn Title="JobOrderNo" Property="@(x => x.JobOrderNo)" />
+                                }
+                                @if (Show("JobOrderDate"))
+                                {
+                                                <PropertyColumn Title="JobOrderDate" Property="@(x => x.JobOrderDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("JobOrderQty"))
+                                {
+                                                <PropertyColumn Title="JobOrderQty" Property="@(x => x.JobOrderQty)" />
+                                }
+                                 @if (Show("JobBalQty"))
+                                {
+                                                <PropertyColumn Title="JobOrder BQty" Property="@(x => x.JobBalQty)" />
+                                }
+                                @if (Show("JobTally"))
+                                {
+                                    <TemplateColumn Title="JobOrder Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.JobOrderNo) && x.JobBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.Cancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.JobTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+
+                                 @if (Show("RouteCardNo"))
+                                {
+                                                <PropertyColumn Title="RouteCardNo" Property="@(x => x.RouteCardNo)" />
+                                }
+                                @if (Show("RouteCardDate"))
+                                {
+                                                <PropertyColumn Title="RouteCardDate" Property="@(x => x.RouteCardDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("RcQty"))
+                                {
+                                                <PropertyColumn Title="RouteCard Qty" Property="@(x => x.RcQty)" />
+                                }
+                                @if (Show("RcBalQty"))
+                                {
+                                                <PropertyColumn Title="RouteCard BQty" Property="@(x => x.RcBalQty)" />
+                                }
+                                @if (Show("RcStatus"))
+                                {
+                                    <TemplateColumn Title="RouteCard Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.RouteCardNo) && x.RcStatus == false)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+
+                                        else if (x.RcStatus ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("InvNo"))
+                                {
+                                           <PropertyColumn Title="InvNo" Property="@(x => x.InvNo)" />
+                                }
+                                @if (Show("InvoiceDate"))
+                                {
+                                           <PropertyColumn Title="Invoice Date" Property="@(x => x.InvoiceDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("InvQty"))
+                                {
+                                           <PropertyColumn Title="InvQty" Property="@(x => x.InvQty)" />
+                                }
+                                @if (Show("InvBQty"))
+                                {
+                                                <PropertyColumn Title="Inv BQty" Property="@(x => x.InvBQty)" />
+                                }
+                                @if (Show("InvTally"))
+                                {
+                                    <TemplateColumn Title="Inv Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.InvNo) && x.InvBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.InvCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.InvTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.PoShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                
+                                <FooterTemplate>
+                                <a direction="right" style="color:green; font-weight:bold;">
+                                        Total Invoice Value: @totalInvoiceValue.ToString("N2")
+                                </a>
+                                </FooterTemplate>
+
+
+
+
+                            }
+
+                            @* ITEM MODE *@
+                            else if (CurrentMode == GridMode.Item)
+                            {
+                               @if (Show("CustName"))
+                                 {
+                                            <PropertyColumn Title="Customer Name" Property="@(x => x.CustName)" />
+                                 }
+                                 @if (Show("Itemcode"))
+                                 {
+                                            <PropertyColumn Title="Item Code" Property="@(x => x.Itemcode)" />
+                                 }
+                                 @if (Show("ItemName"))
+                                 {
+                                            <PropertyColumn Title="Item Description" Property="@(x => x.ItemName)" />
+                                 }
+                                 @if (Show("CategoryCode"))
+                                 {
+                                             <PropertyColumn Title="Category code" Property="@(x => x.CategoryCode)" />
+                                 }
+                                 @if (Show("EnqNo"))
+                                 {
+                                             <PropertyColumn Title="Enquiry No" Property="@(x => x.EnqNo)" />
+                                 }
+                                 @if (Show("EnqDate"))
+                                 {
+                                              <PropertyColumn Title="Enquiry Date" Property="@(x => x.EnqDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("EnqQty"))
+                                 {
+                                               <PropertyColumn Title="Enquiry Qty" Property="@(x => x.EnqQty)" />
+                                 }
+                                 @if (Show("EnqBalQty"))
+                                 {
+                                               <PropertyColumn Title="Enquiry BQty" Property="@(x => x.EnqBalQty)" />
+                                 }
+                                @if (Show("EnqTally"))
+                                {
+                                    <TemplateColumn Title="Enquiry Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.EnqNo) && x.EnqBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.IsCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.EnqTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.EnqShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("QtNo"))
+                                 {
+                                             <PropertyColumn Title="Quatation No" Property="@(x => x.QtNo)" />
+                                 }
+                                 @if (Show("QtDate"))
+                                 {
+                                              <PropertyColumn Title="Quatation Date" Property="@(x => x.QtDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("QtQty"))
+                                 {
+                                              <PropertyColumn Title="Quatation Qty" Property="@(x => x.QtQty)" />
+                                 }
+                                 @if (Show("QtBalQty"))
+                                 {
+                                              <PropertyColumn Title="Quatation BQty" Property="@(x => x.QtBalQty)" />
+                                 }
+                                @if (Show("QuotationTally"))
+                                {
+                                    <TemplateColumn Title="Quatation Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.QtNo) && x.QtBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.IsCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.QuotationTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.QtShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                 @if (Show("PONo"))
+                                 {
+                                           <PropertyColumn Title="PO No" Property="@(x => x.PONo)" />
+                                 }
+                                @if (Show("PODate"))
+                                {
+                                           <PropertyColumn Title="PO Date" Property="@(x => x.PODate)" Format="dd/MM/yyyy" />
+                                }
+                                 @if (Show("Qty"))
+                                 {
+                                            <PropertyColumn Title="PO Qty" Property="@(x => x.Qty)" />
+                                 }
+                                 @if (Show("BalQty"))
+                                 {
+                                             <PropertyColumn Title="PO BQty" Property="@(x => x.BalQty)" />
+                                 }
+                                @if (Show("PoTally"))
+                                {
+
+                                    <TemplateColumn Title="Po Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.PONo) && x.BalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.PoCancl ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.PoTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.ShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("MReqNo"))
+                                 {
+                                <PropertyColumn Title="Indent No" Property="@(x => x.MReqNo)" />
+                                 }
+                                 @if (Show("MreqDate"))
+                                 {
+                                <PropertyColumn Title="Indent Date" Property="@(x => x.MreqDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("PurchQty"))
+                                 {
+                                <PropertyColumn Title="Indent PurchQty" Property="@(x => x.PurchQty)" />
+                                 }
+                                 @if (Show("MrBalQty"))
+                                 {
+                                 
+                                <PropertyColumn Title="Indent BQty" Property="@(x => x.MrBalQty)" />
+                                 }
+                                @if (Show("MrTally"))
+                                {
+                                    <TemplateColumn Title="Indent Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.MReqNo) && x.MrBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.MreqCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.MrTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.MreqShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+                                @if (Show("DcNo"))
+                                {
+                                <PropertyColumn Title="DcNo" Property="@(x => x.DcNo)" />
+                                 }
+                                 @if (Show("DcDate"))
+                                 {
+                                <PropertyColumn Title="DcDate" Property="@(x => x.DcDate)" Format="dd/MM/yyyy" />
+                                 }
+                                 @if (Show("DcQty"))
+                                 {
+                                <PropertyColumn Title="DcQty" Property="@(x => x.DcQty)" />
+                                 }
+                                @if (Show("DcBalQty"))
+                                {
+                                <PropertyColumn Title="Dc BalQty" Property="@(x => x.DcBalQty)" />
+                                }
+                                @if (Show("DcTally"))
+                                {
+
+                                    <TemplateColumn Title="Dc Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.DcNo) && x.DcBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.DcCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.DcTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.DcShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("JobOrderNo"))
+                                {
+                                                <PropertyColumn Title="JobOrderNo" Property="@(x => x.JobOrderNo)" />
+                                }
+                                @if (Show("JobOrderDate"))
+                                {
+                                                <PropertyColumn Title="JobOrderDate" Property="@(x => x.JobOrderDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("JobOrderQty"))
+                                {
+                                                <PropertyColumn Title="JobOrderQty" Property="@(x => x.JobOrderQty)" />
+                                }
+                                 @if (Show("JobBalQty"))
+                                {
+                                                <PropertyColumn Title="JobOrder BQty" Property="@(x => x.JobBalQty)" />
+                                }
+                                @if (Show("JobTally"))
+                                {
+                                    <TemplateColumn Title="JobOrder Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.JobOrderNo) && x.JobBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.Cancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.JobTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+
+                                 @if (Show("RouteCardNo"))
+                                {
+                                                <PropertyColumn Title="RouteCardNo" Property="@(x => x.RouteCardNo)" />
+                                }
+                                @if (Show("RouteCardDate"))
+                                {
+                                                <PropertyColumn Title="RouteCardDate" Property="@(x => x.RouteCardDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("RcQty"))
+                                {
+                                                <PropertyColumn Title="RouteCard Qty" Property="@(x => x.RcQty)" />
+                                }
+                                @if (Show("RcBalQty"))
+                                {
+                                                <PropertyColumn Title="RouteCard BQty" Property="@(x => x.RcBalQty)" />
+                                }
+                                @if (Show("RcStatus"))
+                                {
+                                    <TemplateColumn Title="RouteCard Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.RouteCardNo) && x.RcStatus == false)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+
+                                        else if (x.RcStatus ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("InvNo"))
+                                {
+                                           <PropertyColumn Title="InvNo" Property="@(x => x.InvNo)" />
+                                }
+                                @if (Show("InvoiceDate"))
+                                {
+                                           <PropertyColumn Title="Invoice Date" Property="@(x => x.InvoiceDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("InvQty"))
+                                {
+                                           <PropertyColumn Title="InvQty" Property="@(x => x.InvQty)" />
+                                }
+                                @if (Show("InvBQty"))
+                                {
+                                                <PropertyColumn Title="Inv BQty" Property="@(x => x.InvBQty)" />
+                                }
+                                @if (Show("InvTally"))
+                                {
+                                    <TemplateColumn Title="Inv Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.InvNo) && x.InvBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.InvCancel ?? false)
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">
+                                                <i class="bi bi-x-circle me-1"></i> Cancelled
+                                            </span>
+                                        }
+
+                                        else if (x.InvTally ?? false)
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">
+                                                <i class="bi bi-check-circle me-1"></i> Completed
+                                            </span>
+                                        }
+                                        else if (x.PoShortClose ?? false)
+                                        {
+                                            <span class="badge bg-light text-muted rounded-pill px-2">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Shortclose
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">
+                                                <i class="bi bi-hourglass-split me-1"></i> Pending
+                                            </span>
+                                        }
+                                    </TemplateColumn>
+                                }
+
+                                
+                                <FooterTemplate>
+                                <a direction="right" style="color:green; font-weight:bold;">
+                                        Total Invoice Value: @totalInvoiceValue.ToString("N2")
+                                </a>
+                                </FooterTemplate>
+
+
+                            }
+                          
+
+                        </QuickGrid>
+
+                    </div>
+                    
+                }
+                else
+                {
+                    <div class="text-center mt-3">
+                        <p>No Data Available</p>
+                    </div>
+                }
+
+         
+
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    protected override string ScreenName => "Sales Track Report";
+
+    private bool isProcessing = true;
+    private string? UserName;
+
+    private DateTime? FromDate;
+    private DateTime? ToDate;
+
+    private string searchText;
+
+
+
+    public List<GridColumn> Columns { get; set; }
+
+
+    private List<SalesTrackVM> SalesTrackVMs = new();
+    private List<SalesTrackVM> PendingList = new();
+
+    private List<SalesTrackVM> PoList = new();
+
+    
+
+
+    private List<SalesTrackVM> ItemList = new();
+
+    private decimal totalInvoiceValue { get; set; }
+
+    List<SalesTrackVM> allDocs;
+
+    private bool IsDetailView = false;
+
+    private List<SalesTrackVM> AllData = new();
+
+    public string SelectedItemId { get; set; }
+
+    private CustomerVM? SelectedCustomer;
+
+    private int? SelectedCustomerId;
+    private int? SelectedPoId;
+    private int? SelectedDcId;
+    private int? SelectedInvoiceId;
+    private int? selectedEnqiryId;
+    private int? selectedQuoteId;
+    private int? selectedRouteId;
+    private int? selectedJobId;
+    private int? selectedMrqId;
+
+    private CustomerVM AllCustomer = new CustomerVM
+    {
+        CustId = 0,
+        CustName = "All"
+    };
+
+    private List<CustomerVM> CustomerList = new();
+
+    private string SelectedDocType { get; set; }
+
+    // List of documents to populate second dropdown
+    private List<SalesTrackVM> FilteredList { get; set; } = new List<SalesTrackVM>();
+
+    private string SelectedItemCode;
+
+    private List<SalesTrackVM> AvailableDocTypes = new();
+
+
+    private bool IsCustomerDisabled => SelectedPoId.HasValue;
+
+    private List<PageHeader.BreadcrumbItem> materialIssueBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Sales Track", IsLast = true }
+    };
+
+    private String? SelectedPo;
+
+    public enum GridMode
+    {
+        Full,
+        Customer,
+        Po,
+        Item
+    }
+
+    private GridMode CurrentMode = GridMode.Full;
+
+
+
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+
+
+            await InitializeColumns(IsHidden);
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+
+
+
+            allDocs = await SalesTrackReportService.ExportDataAsync(FromDate, ToDate, SelectedCustomerId);
+           
+           
+
+            // Ensure SalesTrackVMs has data before filtering
+            SalesTrackVMs = allDocs?.ToList() ?? new List<SalesTrackVM>();
+
+            // Load customer list only for customers having
+            // PO / DC / Invoice / Enquiry / Quotation / MaterialReq / RC / Job
+            var allList = SalesTrackVMs
+                .Where(x =>
+                    x.CustId != null &&
+                    (
+                        x.PoId != null ||
+                        x.DcId != null ||
+                        x.InvId != null ||
+                        x.EnquiryId != null ||
+                        x.QuoteId != null ||
+                        x.MreqId != null ||
+                        x.RCId != null ||
+                        x.JobId != null
+                    ))
+                .GroupBy(x => x.CustId)
+                .Select(g => new CustomerVM
+                {
+                    CustId = g.Key ?? 0,
+                    CustName = g.First().CustName
+                })
+                .OrderBy(x => x.CustName)
+                .Take(50)
+                .ToList();
+
+            // Always insert "All" option at top
+            allList.Insert(0, AllCustomer);
+
+            CustomerList = allList;
+
+           
+
+
+            totalInvoiceValue = await SalesTrackReportService
+            .GetTotalInvoiceValue(FromDate, ToDate, SelectedCustomerId);
+
+            PoList = SalesTrackReportService.GetPendingPo(allDocs, SelectedDocType);
+
+
+
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in PoReport Init");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+
+
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+
+        SelectedCustomer = customer;
+
+
+        bool IsInRange(DateTime? date) =>
+        (!FromDate.HasValue || (date.HasValue && date.Value.Date >= FromDate.Value.Date)) &&
+        (!ToDate.HasValue || (date.HasValue && date.Value.Date <= ToDate.Value.Date));
+
+        // Reset if "All" or null
+        if (SelectedCustomer == null || SelectedCustomer.CustId == 0)
+        {
+            var allFiltered = allDocs
+                   .Where(x =>
+                         IsInRange(x.PODate) ||
+                         IsInRange(x.DcDate) ||
+                         IsInRange(x.EnqDate) ||
+                         IsInRange(x.QtDate) ||
+                         IsInRange(x.RouteCardDate) ||
+                         IsInRange(x.MreqDate) ||
+                         IsInRange(x.JobOrderDate) ||
+                         IsInRange(x.InvoiceDate)
+
+                   )
+                   .ToList();
+
+            SalesTrackVMs = allFiltered;
+            FilteredList = allFiltered;
+
+            // Get single customer id (example: first customer)
+            SelectedCustomerId = SalesTrackVMs
+                .Select(x => x.CustId)
+                .FirstOrDefault();
+
+            totalInvoiceValue = await SalesTrackReportService
+           .GetTotalInvoiceValue(FromDate, ToDate, SelectedCustomerId);
+
+
+
+
+            // ✅ Update doc types for all customers
+            AvailableDocTypes = SalesTrackReportService.GetCustomerDocTypes(allFiltered);
+
+            CurrentMode = GridMode.Customer;
+
+            StateHasChanged(); // refresh UI
+        }
+        else
+        {
+            var filterCustomer = allDocs
+           .Where(x => x.CustId == SelectedCustomer.CustId &&
+            (
+            IsInRange(x.PODate) ||
+            IsInRange(x.DcDate) ||
+            IsInRange(x.EnqDate) ||
+            IsInRange(x.QtDate) ||
+            IsInRange(x.RouteCardDate) ||
+            IsInRange(x.MreqDate) ||
+            IsInRange(x.JobOrderDate) ||
+            IsInRange(x.InvoiceDate)
+            ))
+           .ToList();
+
+            // ✅ Load grid data
+            SalesTrackVMs = filterCustomer;
+
+            // Get single customer id (example: first customer)
+            SelectedCustomerId = SalesTrackVMs
+                .Select(x => x.CustId)
+                .FirstOrDefault();
+
+            totalInvoiceValue = await SalesTrackReportService
+           .GetTotalInvoiceValue(FromDate, ToDate, SelectedCustomerId);
+
+            // ✅ Store for next filters
+            FilteredList = filterCustomer.ToList();
+
+            // Doc types
+            AvailableDocTypes = SalesTrackReportService.GetCustomerDocTypes(filterCustomer, FromDate, ToDate);
+
+            CurrentMode = GridMode.Customer;
+
+            StateHasChanged(); // 🔥 REQUIRED
+        }
+    }
+
+
+    
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        try
+        {
+            bool IsInRange(DateTime? date) =>
+                (!FromDate.HasValue || (date.HasValue && date.Value.Date >= FromDate.Value.Date)) &&
+                (!ToDate.HasValue || (date.HasValue && date.Value.Date <= ToDate.Value.Date));
+
+            // Base filter → only customers having records within date range
+            var filteredDocs = allDocs?
+                .Where(x =>
+                    IsInRange(x.PODate) ||
+                    IsInRange(x.DcDate) ||
+                    IsInRange(x.EnqDate) ||
+                    IsInRange(x.QtDate) ||
+                    IsInRange(x.RouteCardDate) ||
+                    IsInRange(x.MreqDate) ||
+                    IsInRange(x.JobOrderDate) ||
+                    IsInRange(x.InvoiceDate))
+                .ToList() ?? new List<SalesTrackVM>();
+
+
+            // If clicked without typing → load all customers within date range
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                var allList = filteredDocs
+                    .Where(x =>
+                        x.CustId != null &&
+                        (
+                            x.EnquiryId != null ||
+                            x.QuoteId != null ||
+                            x.PoId != null ||
+                            x.MreqId != null ||
+                            x.RCId != null ||
+                            x.JobId != null ||
+                            x.DcId != null ||
+                            x.InvId != null
+                        ))
+                    .GroupBy(x => x.CustId)
+                    .Select(g => new CustomerVM
+                    {
+                        CustId = g.Key ?? 0,
+                        CustName = g.First().CustName
+                    })
+                    .OrderBy(x => x.CustName)
+                    .Take(50)
+                    .ToList();
+
+                // Always insert All at top
+                allList.Insert(0, AllCustomer);
+
+                return allList;
+            }
+
+            // Search while typing
+            var results = await SalesTrackReportService.SearchCustomersAsync(value);
+
+            var list = results?
+                .Where(c => filteredDocs.Any(x =>
+                    x.CustId == c.CustId &&
+                    (
+                        x.EnquiryId != null ||
+                        x.QuoteId != null ||
+                        x.PoId != null ||
+                        x.MreqId != null ||
+                        x.RCId != null ||
+                        x.JobId != null ||
+                        x.DcId != null ||
+                        x.InvId != null
+                    )))
+                .OrderBy(x => x.CustName)
+                .Take(50)
+                .ToList() ?? new List<CustomerVM>();
+
+            // Always insert All at top
+            list.Insert(0, AllCustomer);
+
+            return list;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Customer search failed: {value}");
+            await _JS.ToastrError("Customer search failed");
+
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    private async Task OnDocTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            SelectedDocType = e.Value?.ToString();
+
+            // Reset dependent selections
+            SelectedPoId = null;
+            SelectedItemCode = null;
+            ItemList = new List<SalesTrackVM>();
+
+            // Current source → customer filtered data first
+            var source = FilteredList?.Any() == true
+                ? FilteredList
+                : allDocs;
+
+            bool IsInRange(DateTime? date) =>
+                (!FromDate.HasValue || (date.HasValue && date.Value.Date >= FromDate.Value.Date)) &&
+                (!ToDate.HasValue || (date.HasValue && date.Value.Date <= ToDate.Value.Date));
+
+            // Reset when DocType is empty
+            if (string.IsNullOrWhiteSpace(SelectedDocType))
+            {
+                var allFiltered = source
+                    .Where(x =>
+                        IsInRange(x.PODate) ||
+                        IsInRange(x.DcDate) ||
+                        IsInRange(x.EnqDate) ||
+                        IsInRange(x.QtDate) ||
+                        IsInRange(x.RouteCardDate) ||
+                        IsInRange(x.MreqDate) ||
+                        IsInRange(x.JobOrderDate) ||
+                        IsInRange(x.InvoiceDate))
+                    .ToList();
+
+                SalesTrackVMs = allFiltered;
+                FilteredList = allFiltered;
+
+                CurrentMode = GridMode.Customer;
+                StateHasChanged();
+                return;
+            }
+
+            // Filter by selected document type + corresponding date field
+            SalesTrackVMs = SelectedDocType switch
+            {
+                "PO" => source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.PONo) &&
+                        IsInRange(x.PODate))
+                    .OrderBy(x => x.PONo)
+                    .ToList(),
+
+                "DC" => source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.DcNo) &&
+                        IsInRange(x.DcDate))
+                    .OrderBy(x => x.DcNo)
+                    .ToList(),
+
+                "Enquiry" => source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.EnqNo) &&
+                        IsInRange(x.EnqDate))
+                    .OrderBy(x => x.EnqNo)
+                    .ToList(),
+
+                "Quotation" => source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.QtNo) &&
+                        IsInRange(x.QtDate))
+                    .OrderBy(x => x.QtNo)
+                    .ToList(),
+
+                "Route Card" => source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.RouteCardNo) &&
+                        IsInRange(x.RouteCardDate))
+                    .OrderBy(x => x.RouteCardNo)
+                    .ToList(),
+
+                "Material Req" => source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.MReqNo) &&
+                        IsInRange(x.MreqDate))
+                    .OrderBy(x => x.MReqNo)
+                    .ToList(),
+
+                "Job Order" => source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.JobOrderNo) &&
+                        IsInRange(x.JobOrderDate))
+                    .OrderBy(x => x.JobOrderNo)
+                    .ToList(),
+
+                "Invoice" => source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.InvNo) &&
+                        IsInRange(x.InvoiceDate))
+                    .OrderBy(x => x.InvNo)
+                    .ToList(),
+
+                _ => source.ToList()
+            };
+
+            // Maintain same flow
+            FilteredList = SalesTrackVMs.ToList();
+
+            CurrentMode = GridMode.Customer;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnDocTypeChanged");
+            await _JS.ToastrError("Failed to process document type.");
+        }
+    }
+
+
+
+    private void OnPoChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int value) && FilteredList != null)
+        {
+            SelectedPoId = value;
+            CurrentMode = GridMode.Po;
+
+            // ✅ Dynamic filtering based on docType
+            SalesTrackVMs = SelectedDocType switch
+            {
+                "Enquiry" => FilteredList.Where(x => x.EnquiryId == value).ToList(),
+                "Quotation" => FilteredList.Where(x => x.QuoteId == value).ToList(),
+                "PO" => FilteredList.Where(x => x.PoId == value).ToList(),
+                "MaterialReq" => FilteredList.Where(x => x.MreqId == value).ToList(),
+                "DC" => FilteredList.Where(x => x.DcId == value).ToList(),
+                "Invoice" => FilteredList.Where(x => x.InvId == value).ToList(),
+                "RouteCard" => FilteredList.Where(x => x.RCId == value).ToList(),
+                "JobOrder" => FilteredList.Where(x => x.JobId == value).ToList(),
+                _ => new List<SalesTrackVM>()
+            };
+
+            // Load items
+            ItemList = SalesTrackReportService.GetItemsByPoId(FilteredList, SelectedDocType, value);
+
+            SelectedItemCode = null;
+        }
+        else
+        {
+            SelectedPoId = null;
+            SelectedItemCode = null;
+            SalesTrackVMs = FilteredList?.ToList();
+            CurrentMode = GridMode.Customer;
+        }
+
+        StateHasChanged();
+    }
+
+
+
+
+
+    private void OnItemChanged(ChangeEventArgs e)
+    {
+        SelectedItemCode = e.Value?.ToString();
+        var source = SalesTrackVMs ?? new List<SalesTrackVM>();
+
+        if (!string.IsNullOrEmpty(SelectedItemCode))
+        {
+            CurrentMode = GridMode.Item;
+
+            SalesTrackVMs = SalesTrackReportService
+                .GetItemsByItemCode(FilteredList, SelectedItemCode);
+        }
+        else
+        {
+            // PoPendingVMs = FilteredList.ToList();
+            SalesTrackVMs = ApplyFilters(source);
+        }
+
+        StateHasChanged(); // 🔥 REQUIRED
+    }
+
+       
+
+    private List<SalesTrackVM> ApplyFilters(List<SalesTrackVM> source)
+    {
+        return source
+            .Where(x =>
+                (string.IsNullOrEmpty(SelectedDocType) || MatchDocType(x)) &&
+               (string.IsNullOrEmpty(SelectedPo) || GetDocNo(x) == SelectedPo) &&
+                (string.IsNullOrEmpty(SelectedItemCode) || x.Itemcode == SelectedItemCode)
+            )
+            .ToList();
+    }
+
+    private string GetDocNo(SalesTrackVM x)
+    {
+        return SelectedDocType switch
+        {
+            "Enquiry" => x.EnqNo,
+            "Quotation" => x.QtNo,
+            "PO" => x.PONo,
+            "MaterialReq" => x.MReqNo,
+            "JobOrder" => x.JobOrderNo,
+            "RouteCard" => x.RouteCardNo,
+            "DC" => x.DcNo,
+            "Invoice" => x.InvNo,
+            _ => null
+        };
+    }
+    private bool MatchDocType(SalesTrackVM x)
+    {
+        return SelectedDocType switch
+        {
+            "Enquiry" => !string.IsNullOrEmpty(x.EnqNo),
+            "Quotation" => !string.IsNullOrEmpty(x.QtNo),
+            "PO" => !string.IsNullOrEmpty(x.PONo),
+            "MaterialReq" => !string.IsNullOrEmpty(x.MReqNo),
+            "JobOrder" => !string.IsNullOrEmpty(x.JobOrderNo),
+            "RouteCard" => !string.IsNullOrEmpty(x.RouteCardNo),
+            "DC" => !string.IsNullOrEmpty(x.DcNo),
+            "Invoice" => !string.IsNullOrEmpty(x.InvNo),
+            _ => true
+        };
+    }
+
+    private string GetDocType(SalesTrackVM doc)
+    {
+        return doc?.DocType ?? "";
+    }
+
+
+
+
+    // Return correct number for selected document type
+    private string GetNumberByType(SalesTrackVM doc)
+    {
+        return SelectedDocType switch
+        {
+            "Enquiry" => doc.EnqNo,
+            "Quotation" => doc.QtNo,
+            "PO" => doc.PONo,
+            "MaterialReq" => doc.MReqNo,
+            "JobOrder" => doc.JobOrderNo,
+            "RouteCard" => doc.RouteCardNo,
+            "DC" => doc.DcNo,
+            "Invoice" => doc.InvNo,
+            _ => ""
+        };
+    }
+
+  
+
+   
+    
+    private async Task OnDetailViewChanged()
+    {
+        if (IsDetailView)
+        {
+            // Show all data
+            SalesTrackVMs = allDocs.ToList();
+            CurrentMode = GridMode.Item;
+        }
+        else
+        {
+            // Show filtered data based on available dates
+            SalesTrackVMs = allDocs
+                .Where(x =>
+                    (
+                        !FromDate.HasValue ||
+                        (
+                            (x.PODate.HasValue && x.PODate.Value >= FromDate.Value) ||
+                            (x.DcDate.HasValue && x.DcDate.Value >= FromDate.Value) ||
+                            (x.MreqDate.HasValue && x.MreqDate.Value >= FromDate.Value) ||
+                            (x.EnqDate.HasValue && x.EnqDate.Value >= FromDate.Value) ||
+                            (x.QtDate.HasValue && x.QtDate.Value >= FromDate.Value) ||
+                            (x.RouteCardDate.HasValue && x.RouteCardDate.Value >= FromDate.Value) ||
+                            (x.JobOrderDate.HasValue && x.JobOrderDate.Value >= FromDate.Value) ||
+                            (x.InvoiceDate.HasValue && x.InvoiceDate.Value >= FromDate.Value)
+                        )
+                    )
+                    &&
+                    (
+                        !ToDate.HasValue ||
+                        (
+                            (x.PODate.HasValue && x.PODate.Value <= ToDate.Value) ||
+                            (x.DcDate.HasValue && x.DcDate.Value <= ToDate.Value) ||
+                            (x.MreqDate.HasValue && x.MreqDate.Value <= ToDate.Value) ||
+                            (x.EnqDate.HasValue && x.EnqDate.Value <= ToDate.Value) ||
+                            (x.QtDate.HasValue && x.QtDate.Value <= ToDate.Value) ||
+                            (x.RouteCardDate.HasValue && x.RouteCardDate.Value <= ToDate.Value) ||
+                            (x.JobOrderDate.HasValue && x.JobOrderDate.Value <= ToDate.Value) ||
+                            (x.InvoiceDate.HasValue && x.InvoiceDate.Value <= ToDate.Value)
+                        )
+                    )
+                )
+                .ToList();
+
+            CurrentMode = GridMode.Item;
+        }
+
+        StateHasChanged();
+    }
+
+
+
+    private int GetIdByType(SalesTrackVM doc)
+    {
+        return SelectedDocType switch
+        {
+            "PO" => doc.PoId ?? 0,
+            "DC" => doc.DcId ?? 0,
+            "MaterialReq" => doc.MreqId ?? 0,
+            "Invoice" => doc.InvId ?? 0,
+            "Enquiry" => doc.EnquiryId ?? 0,
+            "Quotation" => doc.QuoteId ?? 0,
+            "RouteCard" => doc.RCId ?? 0,
+            "JobOrder" => doc.JobId ?? 0,
+            _ => doc.PoId ?? 0
+        };
+    }
+
+    private IEnumerable<SalesTrackVM> FilteredPoPendingVMs
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText) || searchText.Length < 3)
+                return SalesTrackVMs;
+
+            return SalesTrackVMs.Where(x =>
+                (x.CustName ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.Itemcode ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.ItemName ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.EnqNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.QtNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.PONo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.JobOrderNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.RouteCardNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.MReqNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.DcNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.InvNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            );
+        }
+    }
+
+    private bool Show(string field)
+    {
+      return Columns?.Any(x => x.Field == field && x.IsVisible) ?? false;
+    }
+
+
+
+    // private async void OnDocNumberChanged(ChangeEventArgs e)
+    // {
+    //     if (int.TryParse(e.Value?.ToString(), out int poId))
+    //     {
+
+    //         // SelectedPo = PoList.FirstOrDefault(p => p.PoId == poId);
+
+    //         SelectedPoId = poId;
+
+
+
+
+    //         CurrentMode = GridMode.Po;
+
+
+    //         // Load items for selected PO
+    //         //  PoPendingVMs = await PopendingService.GetItemsByPoIdAsync(poId);
+    //         // PoPendingVMs = await PopendingService.GetItemsByPoIdAsync(SelectedDocType, poId);
+    //         // 2️⃣ Filter items by PO ID (in-memory, synchronous)
+    //         var PoPendingVMs = PopendingService.GetItemsByPoId(allDocs, "PO", poId);
+
+    //         CurrentMode = GridMode.Po;
+
+    //     }
+    //     else
+    //     {
+    //         SelectedPo = null;
+    //     }
+    // }
+
+
+
+
+
+
+    private async Task LoadAllData()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Today's date
+         //   ToDate = DateTime.Today;
+
+            // One month back from today
+          //  FromDate = DateTime.Today.AddMonths(-1);
+
+
+
+
+            // AllData = await PopendingService.ExportDataAsync();
+           // AllData = await PopendingService.ExportDataAsync((DateTime?)null, (DateTime?)null, (int?)null);
+            allDocs = await SalesTrackReportService.ExportDataAsync(FromDate, ToDate, SelectedCustomerId);
+            SalesTrackVMs = allDocs.ToList();
+            PendingList = allDocs.ToList();
+
+            // Set the grid mode to full (or Customer, depending on UI)
+            CurrentMode = GridMode.Full;
+
+           
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading PO Pending");
+            await _JS.ToastrError("Failed to load data.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+
+
+    private async Task ExportRCData()
+    {
+
+        await LoadAllData();
+        // Optionally, if you want to export right after loading:
+        await OnPrintPendingTrack();
+        await _JS.ToastrSuccess("RC Data Loaded Successfully");
+    }
+
+    // private async Task View()
+    // {
+
+    //     await LoadAllData();
+    //     //await _JS.ToastrSuccess("Data Loaded Successfully");
+    // }
+
+
+  
+
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+        {
+            new() { Title = "Customer Name", Field = "CustName" , IsVisible = true},
+            new() { Title = "Item Description", Field = "ItemName", IsVisible = true},
+            new() { Title = "Category code", Field = "CategoryCode" , IsVisible = true},
+            new() { Title = "Enquiry No", Field = "EnqNo", IsVisible = true},
+            new() { Title = "Enquiry Date", Field = "EnqDate", IsVisible = true},
+            new() { Title = "Enquiry Qty", Field = "EnqQty" , IsVisible = true},
+            new() { Title = "Enquiry BQty", Field = "EnqBalQty", IsVisible = true},
+            new() { Title = "Enquiry Status", Field = "EnqTally", IsVisible = true},
+            new() { Title = "Quatation No", Field = "QtNo", IsVisible = true},
+            new() { Title = "Quatation Date", Field = "QtDate", IsVisible = true},
+            new() { Title = "Quatation Qty", Field = "QtQty", IsVisible = true },
+            new() { Title = "Quatation BQty", Field = "QtBalQty", IsVisible = true },
+            new() { Title = "Quatation Status", Field = "QuotationTally", IsVisible = true},
+            new() { Title = "PO No", Field = "PONo" , IsVisible = true},
+            new() { Title = "PO Date", Field = "PODate", IsVisible = true },
+            new() { Title = "PO Qty", Field = "BQty" , IsVisible = true},
+            new() { Title = "PO BQty", Field = "BalQty", IsVisible = true },
+            new() { Title = "Po Status", Field = "PoTally" , IsVisible = true},
+            new() { Title = "Indent No", Field = "MReqNo", IsVisible = true},
+            new() { Title = "Indent Date", Field = "MreqDate" , IsVisible = true},
+            new() { Title = "Indent PurchQty", Field = "PurchQty", IsVisible = true},
+            new() { Title = "Indent BQty", Field = "MrBalQty", IsVisible = true },
+            new() { Title = "Indent Status", Field = "MrTally", IsVisible = true},
+            new() { Title = "DcNo", Field = "DcNo", IsVisible = true},
+            new() { Title = "DcDate", Field = "DcDate", IsVisible = true},
+            new() { Title = "DcQty", Field = "DcQty", IsVisible = true},
+            new() { Title = "Dc BalQty", Field = "DcBalQty", IsVisible = true},
+            new() { Title = "Dc Status", Field = "DcTally", IsVisible = true},
+            new() { Title = "JobOrderNo", Field = "JobOrderNo", IsVisible = true},
+            new() { Title = "JobOrderDate", Field = "JobOrderDate", IsVisible = true},
+            new() { Title = "JobOrderQty", Field = "JobOrderQty", IsVisible = true},
+            new() { Title = "JobOrder BQty", Field = "JobBalQty", IsVisible = true},
+            new() { Title = "JobOrder Status", Field = "JobTally", IsVisible = true},
+            new() { Title = "RouteCardNo", Field = "RouteCardNo", IsVisible = true},
+            new() { Title = "RouteCardDate", Field = "RouteCardDate",IsVisible = true},
+            new() { Title = "RouteCard Qty", Field = "RcQty", IsVisible = true},
+            new() { Title = "RouteCard BQty", Field = "RcBalQty",IsVisible = true},
+            new() { Title = "RouteCard Status", Field = "RcStatus",IsVisible = true},
+            new() { Title = "InvNo", Field = "InvNo",IsVisible = true},
+            new() { Title = "Invoice Date", Field = "InvoiceDate",IsVisible = true},
+            new() { Title = "InvQty", Field = "InvQty",IsVisible = true},
+            new() { Title = "Inv BQty", Field = "InvBQty",IsVisible = true},
+            new() { Title = "Inv Status", Field = "InvTally",IsVisible = true},
+
+        };
+
+
+            if (!Hidden)
+            {
+                // Columns.AddRange(new[]
+                // {
+                //     new GridColumn { Title = "Extra Column 1", Field = "Extra1", IsVisible = false },
+                //     new GridColumn { Title = "Extra Column 2", Field = "Extra2", IsVisible = false },
+                // });
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    
+
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the SalesEnquiryList HandleColumnChange() Method");
+        }
+    }
+
+ 
+
+    private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (SalesTrackVMs == null || !SalesTrackVMs.Any())
+            {
+                await _JS.ToastrError("No records available to export.");
+                return;
+            }
+
+            string[] headers;
+            IEnumerable<object> exportData = null;
+
+            // ✅ CUSTOMER MODE
+            if (CurrentMode == GridMode.Customer)
+            {
+                headers = new[]
+                {
+                "Customer Name","Item Code","Item Description","Category Code",
+                "Enq No","Enq Date","Enq Qty","Enq BQty","Enq Status",
+                "Qt No","Qt Date","Qt Qty","Qt BQty","Qt Status",
+                "PO No","PO Date","Qty","Rate","BQty","Po Status",
+                "Mrq No","Mrq Date","PurchMrq Qty","Mrq Bqty","Mrq Status",
+                "Dc No","Dc Date","Dc Qty","Dc BalQty","Dc Status",
+                "JobOrderNo","JobOrderDate","JobOrderQty","JobOrder BQty","Job Status",
+                "RouteCardNo","RouteCardDate","RouteCard Qty","Routecard BQty","RouteCard Status",
+                "InvNo","InvoiceDate","InvQty","BalQty","Inv Status"
+            };
+
+                exportData = SalesTrackVMs.Select(x => new
+                {
+                    x.CustName,
+                    x.Itemcode,
+                    x.ItemName,
+                    x.CategoryCode,
+
+                    x.EnqNo,
+                    x.EnqDate,
+                    x.EnqQty,
+                    x.EnqBalQty,
+                    EnqStatus = (x.Cancel ?? false) ? "Cancelled" :
+                    (x.EnqTally ?? false) ? "Completed" : "Pending",
+
+
+                    x.QtNo,
+                    x.QtDate,
+                    x.QtQty,
+                    x.QtBalQty,
+                    QtStatus = (x.IsCancel ?? false) ? "Cancelled" :
+                    (x.EnqTally ?? false) ? "Completed" : "Pending",
+
+                    x.PONo,
+                    x.PODate,
+                    x.Qty,
+
+                    x.BalQty,
+                    PoStatus = (x.PoCancl ?? false) ? "Cancelled" :
+                    (x.PoTally ?? false) ? "Completed" : "Pending",
+
+
+                    x.MReqNo,
+                    x.MreqDate,
+                    x.PurchQty,
+                    x.MrBalQty,
+                    MrqStatus = (x.MreqCancel ?? false) ? "Cancelled" :
+                    (x.MrTally ?? false) ? "Completed" : "Pending",
+
+                    x.DcNo,
+                    x.DcDate,
+                    x.DcQty,
+                    x.DcBalQty,
+                    DcStatus = (x.DcCancel ?? false) ? "Cancelled" :
+                    (x.DcTally ?? false) ? "Completed" : "Pending",
+
+                    x.JobOrderNo,
+                    x.JobOrderDate,
+                    x.JobOrderQty,
+                    x.JobBalQty,
+                    JobStatus = (x.Cancel ?? false) ? "Cancelled" :
+                    (x.JobTally ?? false) ? "Completed" : "Pending",
+
+
+                    x.RouteCardNo,
+                    x.RouteCardDate,
+                    x.RcQty,
+                    x.RcBalQty,
+                    x.RcStatus,
+
+                    x.InvNo,
+                    x.InvoiceDate,
+                    x.InvQty,
+                    x.InvBQty,
+                    InvStatus = (x.InvCancel ?? false) ? "Cancelled" :
+                    (x.InvTally ?? false) ? "Completed" : "Pending",
+                }).ToList();
+            }
+
+
+            // ✅ PO MODE
+            else if (CurrentMode == GridMode.Po)
+            {
+                headers = new[]
+                {
+                "Customer Name","Item Code","Item Description","Category Code",
+                "Enq No","Enq Date","Enq Qty","Enq BQty","Enq Status",
+                "Qt No","Qt Date","Qt Qty","Qt BQty","Qt Status",
+                "PO No","PO Date","Qty","Rate","BQty","Po Status",
+                "Mrq No","Mrq Date","PurchMrq Qty","Mrq Bqty","Mrq Status",
+                "Dc No","Dc Date","Dc Qty","Dc BalQty","Dc Status",
+                "JobOrderNo","JobOrderDate","JobOrderQty","JobOrder BQty","Job Status",
+                "RouteCardNo","RouteCardDate","RouteCard Qty","RouteCard BQty","RouteCard Status",
+                "InvNo","InvoiceDate","InvQty","BalQty","Inv Status"
+            };
+
+                exportData = SalesTrackVMs.Select(x => new
+                {
+                    x.CustName,
+                    x.Itemcode,
+                    x.ItemName,
+                    x.CategoryCode,
+
+                    x.EnqNo,
+                    x.EnqDate,
+                    x.EnqQty,
+                    x.EnqBalQty,
+                    EnqStatus = (x.Cancel ?? false) ? "Cancelled" :
+                    (x.EnqTally ?? false) ? "Completed" : "Pending",
+                    x.QtNo,
+                    x.QtDate,
+                    x.QtQty,
+                    x.QtBalQty,
+                    QtStatus = (x.IsCancel ?? false) ? "Cancelled" :
+                    (x.EnqTally ?? false) ? "Completed" : "Pending",
+
+                    x.PONo,
+                    x.PODate,
+                    x.Qty,
+                  
+                    x.BalQty,
+                    PoStatus = (x.PoCancl ?? false) ? "Cancelled" :
+                    (x.PoTally ?? false) ? "Completed" : "Pending",
+
+                    x.MReqNo,
+                    x.MreqDate,
+                    x.PurchQty,
+                    x.MrBalQty,
+                    MrqStatus = (x.MreqCancel ?? false) ? "Cancelled" :
+                    (x.MrTally ?? false) ? "Completed" : "Pending",
+
+                    x.DcNo,
+                    x.DcDate,
+                    x.DcQty,
+                    x.DcBalQty,
+                    DcStatus = (x.DcCancel ?? false) ? "Cancelled" :
+                    (x.DcTally ?? false) ? "Completed" : "Pending",
+
+                    x.JobOrderNo,
+                    x.JobOrderDate,
+                    x.JobOrderQty,
+                    x.JobBalQty,
+                    JobStatus = (x.Cancel ?? false) ? "Cancelled" :
+                    (x.JobTally ?? false) ? "Completed" : "Pending",
+
+                    x.RouteCardNo,
+                    x.RouteCardDate,
+                    x.RcQty,
+                    x.RcBalQty,
+                    x.RcStatus,
+
+                    x.InvNo,
+                    x.InvoiceDate,
+                    x.InvQty,
+                    x.InvBQty,
+                    
+
+                    InvStatus = (x.InvCancel ?? false) ? "Cancelled" :
+                    (x.InvTally ?? false) ? "Completed" : "Pending"
+                }).ToList();
+            }
+
+            // ✅ ITEM MODE
+            else
+            {
+                headers = new[]
+                {
+                "Customer Name","Item Code","Item Description","Category Code",
+                "Enq No","Enq Date","Enq Qty","Enq BQty","Enq Status",
+                "Qt No","Qt Date","Qt Qty","Qt BQty","Qt Status",
+                "PO No","PO Date","Qty","Rate","BQty","Po Status",
+                "Mrq No","Mrq Date","PurchMrq Qty","Mrq Bqty","Mrq Status",
+                "Dc No","Dc Date","Dc Qty","Dc BalQty","Dc Status",
+                "JobOrderNo","JobOrderDate","JobOrderQty","JobOrder BQty","Job Status",
+                "RouteCardNo","RouteCardDate","RouteCard Qty","Routecard BQty","RouteCard Status",
+                "InvNo","InvoiceDate","InvQty","BalQty","Inv Status"
+            };
+
+                exportData = SalesTrackVMs.Select(x => new
+                {
+                    x.CustName,
+                    x.Itemcode,
+                    x.ItemName,
+                    x.CategoryCode,
+
+                    x.EnqNo,
+                    x.EnqDate,
+                    x.EnqQty,
+                    x.EnqBalQty,
+                    EnqStatus = (x.Cancel ?? false) ? "Cancelled" :
+                    (x.EnqTally ?? false) ? "Completed" : "Pending",
+
+
+                    x.QtNo,
+                    x.QtDate,
+                    x.QtQty,
+                    x.QtBalQty,
+                    QtStatus = (x.IsCancel ?? false) ? "Cancelled" :
+                    (x.EnqTally ?? false) ? "Completed" : "Pending",
+
+                    x.PONo,
+                    x.PODate,
+                    x.Qty,
+                   
+                    x.BalQty,
+                    PoStatus = (x.PoCancl ?? false) ? "Cancelled" :
+                    (x.PoTally ?? false) ? "Completed" : "Pending",
+
+
+                    x.MReqNo,
+                    x.MreqDate,
+                    x.PurchQty,
+                    x.MrBalQty,
+                    MrqStatus = (x.MreqCancel ?? false) ? "Cancelled" :
+                    (x.MrTally ?? false) ? "Completed" : "Pending",
+
+                    x.DcNo,
+                    x.DcDate,
+                    x.DcQty,
+                    x.DcBalQty,
+                    DcStatus = (x.DcCancel ?? false) ? "Cancelled" :
+                    (x.DcTally ?? false) ? "Completed" : "Pending",
+
+                    x.JobOrderNo,
+                    x.JobOrderDate,
+                    x.JobOrderQty,
+                    x.JobBalQty,
+                    JobStatus = (x.Cancel ?? false) ? "Cancelled" :
+                    (x.JobTally ?? false) ? "Completed" : "Pending",
+
+
+                    x.RouteCardNo,
+                    x.RouteCardDate,
+                    x.RcQty,
+                    x.RcBalQty,
+                    x.RcStatus,
+
+                    x.InvNo,
+                    x.InvoiceDate,
+                    x.InvQty,
+                    x.InvBQty,
+                   
+                    InvStatus = (x.InvCancel ?? false) ? "Cancelled" :
+                    (x.InvTally ?? false) ? "Completed" : "Pending",
+                }).ToList();
+            }
+
+            // ✅ Generate Excel
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Sales Track",
+                headers: headers,
+                sampleData: exportData
+            );
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync(
+                "downloadExcelFile",
+                base64,
+                "SalesTrack.xlsx"
+            );
+
+            await _JS.ToastrSuccess("Pending Track exported successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPrintPendingTrack failed.");
+            await _JS.ToastrError("Failed to export pending Track.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+}

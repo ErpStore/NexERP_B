@@ -1,0 +1,129 @@
+﻿@page "/uom"
+@using V.SMART.Shared.Data.Master.Inventory
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitofworkRepository
+@inject IJSRuntime _js
+@inject NavigationManager _nav
+
+@if (IsProcessing)
+{
+    <div class="position-absolute w-75 h-75 d-flex flex-column align-items-center bg-white justify-content-center">
+        <img src="/images/loading.gif" alt="loading" />
+    </div>
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+         <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- Card Header -->
+                <PageHeader TitleText="@UnitTitle"
+                    TitleIcon="bi bi-box-fill"
+                    Breadcrumbs="@unitBreadcrumbs" />
+
+
+        
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-12 col-md-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <input type="text"
+                                    class="form-control border-start-0"
+                                    placeholder="Search Unit Code or Description..."
+                                    @bind="SearchTerm" @bind:event="oninput" />
+                        </div>
+                    </div>
+                </div>
+                
+
+                @if (FilteredUOMs.Any())
+                {
+
+                     <div class="table-responsive">
+
+                    <QuickGrid Items="FilteredUOMs.AsQueryable()" Class="quickgrid table table-secondary text-lg-start table-bordered">
+                        <PropertyColumn Title="Unit Code" Property="@(c => c.UnitCode)"  Sortable="true"/>
+                        <PropertyColumn Title="Unit Description" Property="@(c => c.UnitDescription)" Sortable="true"/>
+                    </QuickGrid>
+                    </div>
+
+                }
+                else
+                {
+                    <p>No UOMs found.</p>
+                }
+            </div>
+        </div>
+    </div>
+        
+    }
+}
+
+@code {
+     // User Rights
+    protected override string ScreenName => "UOM";
+
+    private bool IsProcessing { get; set; } = true;
+    private IEnumerable<UOM> AllUOMs { get; set; } = new List<UOM>();
+
+    private IEnumerable<UOM> FilteredUOMs => AllUOMs
+        .Where(u => string.IsNullOrWhiteSpace(SearchTerm)
+            || u.UnitCode.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)
+            || u.UnitDescription.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private List<PageHeader.BreadcrumbItem> unitBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory Master" },
+        new PageHeader.BreadcrumbItem { Text = "Measurement Unit Master", IsLast = true }
+    };
+
+    private string UnitTitle => "Measure Units List";
+
+    private string SearchTerm { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _nav.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadUOMs();
+            IsProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            
+             await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UOMList OnInitializedAsync() Method");
+        }
+    }
+
+    private async Task LoadUOMs()
+    {
+        try
+        {
+            AllUOMs = await _unitofworkRepository.UOMs.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            
+           await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UOMList LoadUOMs() Method");
+        }
+    }
+}

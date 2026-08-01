@@ -1,0 +1,353 @@
+﻿@page "/shiftAllocation/create"
+@page "/shiftAllocation/update/{ShiftId:int}"
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <!-- Header -->
+                <PageHeader TitleText="@shiftAllocationTitle"
+                            TitleIcon="bi bi-clock"
+                            Breadcrumbs="@shiftAllocationBreadcrumbs" />
+
+                <!-- Body -->
+                <div class="card-body">
+                    <EditForm Model="ShiftAllocation" OnValidSubmit="UpsertShiftAllocation">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+
+                            <!-- Shift Code -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="shift-code" placeholder="SC01" @bind="ShiftAllocation.ShiftCode">
+                                    <label for="shift-code">Shift Code</label>
+                                </div>
+                                <ValidationMessage For="@(() => ShiftAllocation.ShiftCode)" />
+                            </div>
+
+                            <!-- Shift Name -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="shift-name" placeholder="Morning Shift" @bind="ShiftAllocation.ShiftName">
+                                    <label for="shift-name">Shift Name</label>
+                                </div>
+                                <ValidationMessage For="@(() => ShiftAllocation.ShiftName)" />
+                            </div>
+
+                            <!-- Shift Start Time -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="time" step="1" class="form-control" id="start-time" lang="en-GB"
+                                           value="@ShiftAllocation.ShiftStartTime?.ToString("HH\\:mm")"
+                                           @oninput="e => OnTimeChanged(e, nameof(ShiftAllocation.ShiftStartTime))" />
+                                    <label for="start-time">Start Time</label>
+                                </div>
+                                <ValidationMessage For="@(() => ShiftAllocation.ShiftStartTime)" />
+                            </div>
+
+                            <!-- Shift End Time -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="time" step="1" class="form-control" id="end-time" lang="en-GB"
+                                           value="@ShiftAllocation.ShiftEndTime?.ToString("HH\\:mm")"
+                                           @oninput="e => OnTimeChanged(e, nameof(ShiftAllocation.ShiftEndTime))" />
+                                    <label for="end-time">End Time</label>
+                                </div>
+                                <ValidationMessage For="@(() => ShiftAllocation.ShiftEndTime)" />
+                            </div>
+
+                            <!-- Break Start Time -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="time" step="1" class="form-control" id="bStart-time" lang="en-GB"
+                                           value="@ShiftAllocation.BreakStartTime?.ToString("HH\\:mm")"
+                                           @oninput="e => OnTimeChanged(e, nameof(ShiftAllocation.BreakStartTime))" />
+                                    <label for="bStart-time">Break Start Time</label>
+                                </div>
+                                <ValidationMessage For="@(() => ShiftAllocation.BreakStartTime)" />
+                            </div>
+
+                            <!-- Break End Time -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="time" step="1" class="form-control" id="bEnd-time" lang="en-GB"
+                                           value="@ShiftAllocation.BreakEndTime?.ToString("HH\\:mm")"
+                                           @oninput="e => OnTimeChanged(e, nameof(ShiftAllocation.BreakEndTime))" />
+                                    <label for="bEnd-time">Break End Time</label>
+                                </div>
+                                <ValidationMessage For="@(() => ShiftAllocation.BreakEndTime)" />
+                            </div>
+
+                            <!-- Total Working Hours -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="time" step="1" class="form-control" id="totWorking" lang="en-GB"
+                                           value="@ShiftAllocation.TotalWorkingHours?.ToString(@"hh\:mm")"
+                                           readonly />
+                                    <label for="totWorking">Total Working Hours</label>
+                                </div>
+                            </div>
+
+                            <!-- Overtime -->
+                            <div class="col-md-6 d-flex align-items-center">
+                                <div class="form-check mt-2">
+                                    <input type="checkbox" class="form-check-input" id="overtime" @bind="ShiftAllocation.OverTimeAllowed">
+                                    <label class="form-check-label" for="overtime">Overtime</label>
+                                </div>
+                            </div>
+
+                            <!-- Late Mark Allowed -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="number" class="form-control" id="late-mark" placeholder="Minutes" @bind="ShiftAllocation.LateMarkAllowed">
+                                    <label for="late-mark">Late Mark Allowed (Minutes)</label>
+                                </div>
+                            </div>
+
+                            <!-- Early Leave Allowed -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="number" class="form-control" step="any" id="early-leave" placeholder="Minutes" @bind="ShiftAllocation.EarlyLeaveAllowed">
+                                    <label for="early-leave">Early Leave Allowed (Minutes)</label>
+                                </div>
+                            </div>
+
+                            @if (ShiftAllocation.ShiftId > 0)
+                            {
+                                <div class="row g-3">
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="ShiftAllocation.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" disabled />
+                                            <label for="CreatedBy">Created By</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <input class="form-control" id="CreatedDate" value="@ShiftAllocation.CreatedDate.ToString("dd/MM/yyyy")" disabled />
+                                            <label for="CreatedDate">Created Date</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="ShiftAllocation.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" disabled />
+                                            <label for="ModifiedBy">Modified By</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="form-floating">
+                                            <input class="form-control" id="ModifiedDate" value="@ShiftAllocation.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                            <label for="ModifiedDate">Modified Date</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="row mt-4">
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-md-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(ShiftId == 0 || ShiftId == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-md-3">
+                                <SmartBackButton Url="/shiftAllocation" />
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Shift Allocation";
+
+    [Parameter] public int? ShiftId { get; set; }
+
+    private bool isProcessing = true;
+    private ShiftAllocation ShiftAllocation { get; set; } = new();
+    private string currentUser = "";
+
+    private List<PageHeader.BreadcrumbItem> shiftAllocationBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Human Resource" },
+        new PageHeader.BreadcrumbItem { Text = "Shift Allocation", IsLast = true }
+    };
+
+    private string shiftAllocationTitle => ShiftId == 0 || ShiftId == null
+        ? "Create Shift Allocation"
+        : "Update Shift Allocation";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            currentUser = await _userService.GetUsernameAsync();
+            await LoadShiftAllocation();
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync() for ShiftAllocation");
+        }
+    }
+
+    private async Task OnTimeChanged(ChangeEventArgs e, string propertyName)
+    {
+        if (!string.IsNullOrWhiteSpace(e.Value?.ToString()) &&
+            TimeOnly.TryParse(e.Value.ToString(), out var time))
+        {
+            switch (propertyName)
+            {
+                case nameof(ShiftAllocation.ShiftStartTime):
+                    ShiftAllocation.ShiftStartTime = time;
+                    break;
+                case nameof(ShiftAllocation.ShiftEndTime):
+                    ShiftAllocation.ShiftEndTime = time;
+                    break;
+                case nameof(ShiftAllocation.BreakStartTime):
+                    ShiftAllocation.BreakStartTime = time;
+                    break;
+                case nameof(ShiftAllocation.BreakEndTime):
+                    ShiftAllocation.BreakEndTime = time;
+                    break;
+            }
+
+            await CalculateTotalWorkingHours();
+        }
+    }
+
+    private async Task CalculateTotalWorkingHours()
+    {
+        if (ShiftAllocation.ShiftStartTime.HasValue && ShiftAllocation.ShiftEndTime.HasValue)
+        {
+            var start = DateTime.Today.Add(ShiftAllocation.ShiftStartTime.Value.ToTimeSpan());
+            var end = DateTime.Today.Add(ShiftAllocation.ShiftEndTime.Value.ToTimeSpan());
+            if (end < start) end = end.AddDays(1);
+
+            var total = end - start;
+
+            if (ShiftAllocation.BreakStartTime.HasValue && ShiftAllocation.BreakEndTime.HasValue)
+            {
+                var breakStart = DateTime.Today.Add(ShiftAllocation.BreakStartTime.Value.ToTimeSpan());
+                var breakEnd = DateTime.Today.Add(ShiftAllocation.BreakEndTime.Value.ToTimeSpan());
+                if (breakEnd < breakStart) breakEnd = breakEnd.AddDays(1);
+
+                total -= (breakEnd - breakStart);
+            }
+
+            ShiftAllocation.TotalWorkingHours = total < TimeSpan.Zero ? TimeSpan.Zero : total;
+        }
+        else
+        {
+            ShiftAllocation.TotalWorkingHours = null;
+        }
+    }
+
+    private async Task LoadShiftAllocation()
+    {
+        if (ShiftId > 0)
+        {
+            var existing = await _unitOfWork.ShiftAllocations.GetAsync(ShiftId.Value);
+            if (existing != null)
+                ShiftAllocation = existing;
+        }
+    }
+
+    private async Task UpsertShiftAllocation()
+    {
+        try
+        {
+            isProcessing = true;
+            var now = DateTime.Now;
+            ShiftAllocation.ShiftName = ShiftAllocation.ShiftName?.Trim();
+
+            if (ShiftAllocation.ShiftId == 0)
+            {
+                ShiftAllocation.CreatedBy = currentUser;
+                ShiftAllocation.CreatedDate = now;
+
+                await _unitOfWork.ShiftAllocations.CreateAsync(ShiftAllocation);
+                await _unitOfWork.SaveAsync();
+
+                await LoggingService.LogUserAction(
+                    await _userService.GetUsernameAsync(),
+                    _userService.MachineName,
+                    _userService.IpAddress,
+                    "ShiftAllocation",
+                    $"Created new ShiftAllocation: {ShiftAllocation.ShiftName}",
+                    $"ShiftName: {ShiftAllocation.ShiftName}");
+
+                await _js.ToastrSuccess("Shift Allocation Created Successfully");
+            }
+            else
+            {
+                ShiftAllocation.ModifiedBy = currentUser;
+                ShiftAllocation.ModifiedDate = now;
+
+                await _unitOfWork.ShiftAllocations.UpdateAsync(ShiftAllocation);
+                await _unitOfWork.SaveAsync();
+
+                await LoggingService.LogUserAction(
+                    await _userService.GetUsernameAsync(),
+                    _userService.MachineName,
+                    _userService.IpAddress,
+                    "ShiftAllocation",
+                    $"Updated ShiftAllocation: {ShiftAllocation.ShiftName}",
+                    $"ShiftName: {ShiftAllocation.ShiftName}");
+
+                await _js.ToastrSuccess("Shift Allocation Updated Successfully");
+            }
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/shiftAllocation");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in UpsertShiftAllocation");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

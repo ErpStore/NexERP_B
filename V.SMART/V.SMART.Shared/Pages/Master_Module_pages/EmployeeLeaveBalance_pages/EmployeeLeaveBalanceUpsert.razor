@@ -1,0 +1,299 @@
+﻿@page "/employeeLeaveBalance/create"
+@page "/employeeLeaveBalance/update/{LeaveBalanceID:int}"
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject CurrentUserService _userService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@(LeaveBalanceID > 0 ? "Update Employee Leave Balance" : "Create Employee Leave Balance")"
+                            TitleIcon="bi bi-person"
+                            Breadcrumbs="@leaveBalanceBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="EmployeeLeaveBalance" OnValidSubmit="SaveEmployeeLeaveBalance">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <div class="form-floating">
+                                    <select value="@EmployeeLeaveBalance.Year" class="form-select" id="leaveYear"
+                                            disabled="@(LeaveBalanceID > 0)" @onchange="OnYearChanged">
+                                        <option value="0">--Select Year--</option>
+                                        @foreach (var year in AvailableYears)
+                                        {
+                                            <option value="@year">@year</option>
+                                        }
+                                    </select>
+                                    <label for="leaveYear">Leave Year</label>
+                                </div>
+                                <ValidationMessage For="@(() => EmployeeLeaveBalance.Year)" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <div class="form-floating">
+                                    <select value="@EmployeeLeaveBalance.LeaveTypeId" class="form-select" id="leaveType"
+                                            disabled="@(!IsYearSelected || LeaveBalanceID > 0)" @onchange="OnLeaveTypeChanged">
+                                        <option value="0">--Select Leave Type--</option>
+                                        @foreach (var lt in LeaveTypes)
+                                        {
+                                            <option value="@lt.LeaveTypeId">@lt.LeaveName</option>
+                                        }
+                                    </select>
+                                    <label for="leaveType">Leave Type</label>
+                                </div>
+                                <ValidationMessage For="@(() => EmployeeLeaveBalance.LeaveTypeId)" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <div class="form-floating">
+                                    <InputSelect @bind-Value="EmployeeLeaveBalance.EmployeeID" class="form-select" id="employeeName"
+                                                 disabled="@(!IsLeaveTypeSelected || LeaveBalanceID > 0)">
+                                        <option value="0">--Select Employee--</option>
+                                        @foreach (var emp in FilteredEmployees)
+                                        {
+                                            <option value="@emp.StaffID">@emp.StaffName</option>
+                                        }
+                                    </InputSelect>
+                                    <label for="employeeName">Employee</label>
+                                </div>
+                                <ValidationMessage For="@(() => EmployeeLeaveBalance.EmployeeID)" />
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="EmployeeLeaveBalance.TotalAllocatedLeave" class="form-control" />
+                                    <label>Total Allocated Leaves</label>
+                                </div>
+                                <ValidationMessage For="@(() => EmployeeLeaveBalance.TotalAllocatedLeave)" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="EmployeeLeaveBalance.LeavesTaken" class="form-control" />
+                                    <label>Leaves Taken</label>
+                                </div>
+                                <ValidationMessage For="@(() => EmployeeLeaveBalance.LeavesTaken)" />
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+                            <div class="col-6 col-md-3">
+                                <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(LeaveBalanceID > 0 ? "Update" : "Save")
+                                </button>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <a href="/employeeLeaveBalance" class="btn btn-secondary w-100">
+                                    <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                                </a>
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Employee Leave Balance";
+
+    [Parameter] public int? LeaveBalanceID { get; set; }
+
+    private bool isProcessing = true;
+    private EmployeeLeaveBalance EmployeeLeaveBalance { get; set; } = new();
+
+    private IEnumerable<Staff> AllEmployees = new List<Staff>();
+    private IEnumerable<Staff> FilteredEmployees = new List<Staff>();
+    private IEnumerable<LeaveType> LeaveTypes = new List<LeaveType>();
+    private IEnumerable<int> AvailableYears = new List<int>();
+
+    private int SelectedYear { get; set; }
+    private int SelectedLeaveTypeId { get; set; }
+
+    private bool IsYearSelected => SelectedYear > 0;
+    private bool IsLeaveTypeSelected => SelectedLeaveTypeId > 0;
+
+    private string currentUser = "";
+
+    private List<PageHeader.BreadcrumbItem> leaveBalanceBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Human Resource" },
+        new PageHeader.BreadcrumbItem { Text = "Employee Leave Balance", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            currentUser = await _userService.GetUsernameAsync();
+
+            AllEmployees = await _unitOfWork.Staffs.GetAllAsync();
+            LeaveTypes = await _unitOfWork.LeaveTypes.GetAllAsync();
+
+            var currentYear = DateTime.Now.Year;
+            AvailableYears = Enumerable.Range(currentYear - 3, 7).ToList();
+
+            if (LeaveBalanceID > 0)
+            {
+                var existing = await _unitOfWork.EmployeeLeaveBalances.GetAsync(LeaveBalanceID.Value);
+                if (existing != null)
+                {
+                    EmployeeLeaveBalance = existing;
+                    SelectedYear = existing.Year;
+                    SelectedLeaveTypeId = existing.LeaveTypeId ?? 0;
+                    FilteredEmployees = AllEmployees.Where(e => e.StaffID == existing.EmployeeID).ToList();
+                }
+            }
+            else
+            {
+                EmployeeLeaveBalance.Year = DateTime.Now.Year;
+                SelectedYear = EmployeeLeaveBalance.Year;
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "EmployeeLeaveBalance - OnInitializedAsync");
+        }
+    }
+
+    private async Task OnYearChanged(ChangeEventArgs e)
+    {
+        SelectedYear = int.Parse(e.Value?.ToString() ?? "0");
+        EmployeeLeaveBalance.Year = SelectedYear;
+        ResetSelections();
+    }
+
+    private async Task OnLeaveTypeChanged(ChangeEventArgs e)
+    {
+        SelectedLeaveTypeId = int.Parse(e.Value?.ToString() ?? "0");
+        EmployeeLeaveBalance.LeaveTypeId = SelectedLeaveTypeId;
+        EmployeeLeaveBalance.EmployeeID = 0;
+
+        if (SelectedYear > 0 && SelectedLeaveTypeId > 0)
+        {
+            var existingBalances = await _unitOfWork.EmployeeLeaveBalances
+                .FindAsync(lb => lb.Year == SelectedYear && lb.LeaveTypeId == SelectedLeaveTypeId);
+
+            var existingEmployeeIds = existingBalances.Select(lb => lb.EmployeeID).ToList();
+            FilteredEmployees = AllEmployees.Where(emp => !existingEmployeeIds.Contains(emp.StaffID)).ToList();
+
+            if (!FilteredEmployees.Any())
+            {
+                await _js.ToastrWarning("All employees already have records for this Year and Leave Type.");
+            }
+        }
+        else
+        {
+            FilteredEmployees = new List<Staff>();
+        }
+    }
+
+    private void ResetSelections()
+    {
+        SelectedLeaveTypeId = 0;
+        EmployeeLeaveBalance.LeaveTypeId = 0;
+        EmployeeLeaveBalance.EmployeeID = 0;
+        FilteredEmployees = new List<Staff>();
+    }
+
+    private async Task SaveEmployeeLeaveBalance()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (EmployeeLeaveBalance.EmployeeID == 0 || SelectedYear == 0 || SelectedLeaveTypeId == 0)
+            {
+                await _js.ToastrError("Please select Year, Leave Type, and Employee.");
+                isProcessing = false;
+                return;
+            }
+
+            EmployeeLeaveBalance.RecalculateBalance();
+
+            if (LeaveBalanceID > 0)
+            {
+                // Update
+                EmployeeLeaveBalance.ModifiedBy = currentUser;
+                EmployeeLeaveBalance.ModifiedDate = DateTime.Now;
+
+                await _unitOfWork.EmployeeLeaveBalances.UpdateAsync(EmployeeLeaveBalance);
+                await _unitOfWork.SaveAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: currentUser,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Leave Allocation",
+                    action: "Updated Employee Leave Balance",
+                    additionalInfo: $"LeaveBalanceID={EmployeeLeaveBalance.LeaveBalanceID}, EmployeeID={EmployeeLeaveBalance.EmployeeID}"
+                );
+
+                await _js.ToastrSuccess("Employee Leave Balance Updated Successfully");
+            }
+            else
+            {
+                // Create
+                EmployeeLeaveBalance.CreatedBy = currentUser;
+                EmployeeLeaveBalance.CreatedDate = DateTime.Now;
+
+                await _unitOfWork.EmployeeLeaveBalances.CreateAsync(EmployeeLeaveBalance);
+                await _unitOfWork.SaveAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: currentUser,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Leave Allocation",
+                    action: "Created Employee Leave Balance",
+                    additionalInfo: $"EmployeeID={EmployeeLeaveBalance.EmployeeID}, Year={EmployeeLeaveBalance.Year}"
+                );
+
+                await _js.ToastrSuccess("Employee Leave Balance Created Successfully");
+            }
+
+            _navigationManager.NavigateTo("/employeeLeaveBalance");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "EmployeeLeaveBalance - SaveEmployeeLeaveBalance");
+            await _js.ToastrError("An error occurred while saving. Please try again.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

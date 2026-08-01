@@ -1,0 +1,3436 @@
+﻿@page "/creditNote/create"
+@page "/creditNote/create/{CustId:int}"
+@page "/creditNote/update/{CrId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IEInvoiceAPI
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.CreditNote_VM
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@inject ICalculationService _calculationService
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IEinvoiceDatabaseService _einvoiceService
+
+@inject ICreditNoteService _creditNoteService
+@inject ReportService reportService
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<DetailsModal Title="Invoice Details"
+              Columns="InvColumns"
+              ColumnFields="InvFields"
+              HiddenColumns="InvHiddenColumns"
+              Data="InvData"
+              IsVisible="@IsDcModalVisible"
+              IsVisibleChanged="@((val) => IsDcModalVisible = val)"
+              OnSelectedItems="OnInvoiceSelectedAsync">
+</DetailsModal>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+
+    if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                   refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+             <!-- Cancelled Watermark -->
+            @if ((CreditNoteVMs?.Cancel ?? false))
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+
+            <PageHeader TitleText="@(CreditNoteVMs.CrId > 0 ? "Update Credit Note" : "Create Credit Note")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@CreditNoteFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="CreditNoteVMs" OnValidSubmit="UpsertCreditNote">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 justify-content-end">
+
+                        <!-- Correspondence Status -->
+                        <div class="col-12 col-md-6 d-flex align-items-center justify-content-end">
+                            @if (CreditNoteVMs.CrId > 0 && !string.IsNullOrWhiteSpace(CreditNoteVMs.CrId.ToString()))
+                            {
+                                <CorrespondenceStatus ReferenceType="@ScreenName"
+                                                      ReferenceId="@CreditNoteVMs.CrId.Value"
+                                                      ReferenceTypeName="@CreditNoteVMs.CreditNo" />
+                            }
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-2">
+                        <!-- =================== Customer Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+
+                            <div class="card h-100 shadow-sm">
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Customer Information</span>
+                                </div>
+                                <div class="card-body">
+
+                                    <div class="mb-2 row">
+                                        
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Credit Note Type</small>
+                                        </label>
+
+                                        <div class="col-12 col-sm-9">
+
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input border-3"
+                                                       type="radio" name="cnType" checked="@CreditNoteVMs.Sales"
+                                                       @onchange="(e) => OnSalesToggle(e)" />
+                                                <label class="form-check-label fw-semibold" style="color:blue;">
+                                                    Manufacturing
+                                                </label>
+                                            </div>
+
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input border-3" type="radio" name="cnType" checked="@CreditNoteVMs.Labour"
+                                                @onchange="(e) => OnLabourToggle(e)" />
+                                                <label class="form-check-label fw-semibold" style="color:orange;">
+                                                    Labour
+                                                </label>
+                                            </div>
+
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input border-3" type="radio" name="cnType" checked="@CreditNoteVMs.Export"
+                                                       @onchange="(e) => OnExportToggle(e)" />
+                                                <label class="form-check-label fw-semibold" style="color:green;">
+                                                    Export
+                                                </label>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="CustomerVM"
+                                                                 Value="SelectedCustomer"
+                                                                 ValueChanged="@(async c => await OnCustomerChanged(c))"
+                                                                 ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                                 SearchFunc="SearchCustomers"
+                                                                 Dense="true"
+                                                                 Variant="Variant.Outlined"
+                                                                 Placeholder="Search Customer"
+                                                                 Title="Search atleast 3 letters in Customer"
+                                                                 Class="w-100 autocomplete-sm"
+                                                                 MaxItems="50"
+                                                                 Clearable="true"
+                                                                 ResetValueOnEmptyText="true"
+                                                                 Required="true"
+                                                                 AvoidSubmit="true" 
+                                                                 Disabled="@IsSomeItemsTransMade"/>
+                                        </div>
+                                    </div>
+                                    <!-- Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1" readonly>@CreditNoteVMs?.CustAddress</textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- Phone -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Phone No</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@CreditNoteVMs?.ContactNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <!-- GSTIN -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GSTIN</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@CreditNoteVMs?.GSTNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <!-- Contact Person -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Contact Person</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    @bind="@CreditNoteVMs.KindOfAttention">
+                                                <option disabled value="">Select Contact Person</option>
+                                                @foreach (var cp in contactPersons)
+                                                {
+                                                    <option value="@cp.ContactPersonName">@cp.ContactPersonName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => CreditNoteVMs.KindOfAttention)" />
+                                        </div>
+                                    </div>
+
+                                    @if (!string.IsNullOrEmpty(CreditNoteVMs.ACKNO) && !string.IsNullOrEmpty(CreditNoteVMs.IRNNo))
+                                    {
+                                        <div class="accordion mb-3" id="transportEinvoice">
+                                            <div class="accordion-item border-0 shadow-sm rounded-3">
+
+                                                <h2 class="accordion-header" id="headingEInvoice">
+                                                    <button class="accordion-button collapsed fw-semibold text-primary"
+                                                            type="button"
+                                                            data-bs-toggle="collapse"
+                                                            data-bs-target="#collapseEInvoice"
+                                                            aria-expanded="false"
+                                                            aria-controls="collapseEInvoice">
+                                                        <i class="bi bi-truck me-2"></i> E-Invoice Details
+                                                    </button>
+                                                </h2>
+
+                                                <div id="collapseEInvoice"
+                                                     class="accordion-collapse collapse"
+                                                     aria-labelledby="headingEInvoice"
+                                                     data-bs-parent="#transportEinvoice">
+
+                                                    <div class="accordion-body">
+
+                                                        <!-- ACK No -->
+                                                        <div class="mb-2 row">
+                                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                                <small>ACK No.</small>
+                                                            </label>
+                                                            <div class="col-12 col-sm-9">
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm rounded-3 w-100"
+                                                                       @bind="CreditNoteVMs.ACKNO"
+                                                                       readonly />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- ACK Date -->
+                                                        <div class="mb-2 row">
+                                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                                <small>ACK Date</small>
+                                                            </label>
+                                                            <div class="col-12 col-sm-9">
+                                                                <InputDate class="form-control form-control-sm rounded-3 w-100"
+                                                                           @bind-Value="CreditNoteVMs.ACKNODate"
+                                                                           disabled />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- IRN No -->
+                                                        <div class="mb-2 row">
+                                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                                <small>IRN No.</small>
+                                                            </label>
+                                                            <div class="col-12 col-sm-9">
+                                                                <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                                           @bind-Value="CreditNoteVMs.IRNNo" />
+                                                                <ValidationMessage For="@(() => CreditNoteVMs.IRNNo)" />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- QR Code -->
+                                                        <div class="mb-2 row align-items-center">
+                                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                                <small>QR Code</small>
+                                                            </label>
+
+                                                            <div class="col-12 col-sm-9">
+                                                                @if (!string.IsNullOrEmpty(CreditNoteVMs.SignedInvoiceQrCode))
+                                                                {
+                                                                    <img src="@($"data:image/png;base64,{CreditNoteVMs.SignedInvoiceQrCode}")"
+                                                                         class="bg-white p-2"
+                                                                         style="width:150px;height:auto;" />
+                                                                }
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    }
+
+
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                         <!-- =================== Invoice Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+                                 <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Credit Note Details</span>
+
+                                    @if (CreditNoteVMs.CrId > 0  && (CanCreate || CanEdit) )
+                                    {
+                                        <button type="button"
+                                                class="btn btn-sm rounded-3 @(CreditNoteVMs.Cancel ? "btn-success" : "btn-danger")"
+                                                 @onclick="Cancel">
+
+                                            @if (!CreditNoteVMs.Cancel)
+                                            {
+                                                <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                            }
+                                        </button>
+
+                                    }
+
+
+                                </div>
+                                <div class="card-body">
+
+                                    <!-- Credit No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Credit Note No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                           placeholder="Prefix"
+                                                           maxlength="10"
+                                                           @bind-Value="@CreditNoteVMs.Prefix"
+                                                           style="flex:0 0 130px;" />
+
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                           placeholder="Invoice No."
+                                                           maxlength="30"
+                                                           @bind-Value="@CreditNoteVMs.CreditNo"
+                                                           readonly="@IsInvNoReadonly" />
+
+                                                <span class="input-group-text rounded-3">@CreditNoteVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => CreditNoteVMs.Prefix)" />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.CreditNo)" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Credit Note Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@CreditNoteVMs.CreditDate" />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.CreditDate)" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Credit Note Reason:</small>
+                                        </label>
+
+                                        <div class="col-12 col-sm-9">
+
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input border-3"
+                                                       type="radio" name="rejType" checked="@CreditNoteVMs.Rejection"
+                                                       @onchange="(e) => OnRejectionToggle(e)" />
+                                                <label class="form-check-label fw-semibold">
+                                                    Rejection
+                                                </label>
+                                            </div>
+
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input border-3" type="radio" name="rejType" checked="@CreditNoteVMs.RateDifference"
+                                                       @onchange="(e) => OnRateDiffToggle(e)" />
+                                                <label class="form-check-label fw-semibold">
+                                                    Rate Difference
+                                                </label>
+                                            </div>
+
+
+                                        </div>
+                                    </div>
+
+                                    @if (InvPendingCount > 0)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Our Invoice</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                        @onclick="ShowInvoiceDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> Invoice Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Currency -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Currency</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    value="@CreditNoteVMs.CurrId"
+                                                    @onchange="OnCurrencyChanged"
+                                                    disabled>
+                                                @foreach (var currency in Currencies)
+                                                {
+                                                    <option value="@currency.CurrId">@currency.CurrName</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      @bind="CreditNoteVMs.MainRemark"></textarea>
+                                            <ValidationMessage For="@(() => CreditNoteVMs.MainRemark)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Item Details</span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <!-- Discount Toggle -->
+                                        <div class="d-flex align-items-center">
+                                            <label class="me-2 mb-0"><small>Discount : </small></label>
+                                            <div class="btn-group btn-group-sm rounded-pill border" role="group" aria-label="Toggle Discount Rs and %">
+                                                <input type="radio" class="btn-check" name="toggleDiscount" id="discountToggleRs" 
+                                                        @onchange='() => SetDiscountMode(true)' 
+                                                        checked="@CreditNoteVMs.IsItemWiseDiscAmtOrPerReq" />
+                                                <label class="btn btn-outline-primary rounded-start-pill" for="discountToggleRs">@CreditNoteVMs.Symbol</label>
+
+                                                <input type="radio" class="btn-check" name="toggleDiscount" id="discountTogglePercent" 
+                                                        @onchange='() => SetDiscountMode(false)' 
+                                                        checked="@(!CreditNoteVMs.IsItemWiseDiscAmtOrPerReq)" />
+                                                <label class="btn btn-outline-primary rounded-end-pill" for="discountTogglePercent">%</label>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl No.</th>
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:90px;">HSNCODE</th>
+                                                    <th style="width:120px;">Qty</th>
+                                                     <th style="width:120px;">Reject Qty</th>
+                                                    <th style="width:120px;">UnitPrice</th>
+                                                    
+                                                    <th style="width:130px;">Gross Amount</th>
+
+                                                    @if (!CreditNoteVMs.IsItemWiseDiscAmtOrPerReq)
+                                                    {
+                                                        <th style="width:110px;">Disc %</th>
+                                                        <th style="width:110px;">Disc Amt</th>
+                                                    }
+                                                    else
+                                                    {
+                                                        <th style="width:110px;">Disc Amt</th>
+                                                    }
+                                                    <th style="width:120px;">Rework Qty</th>
+                                                    <th style="width:120px;">Cr/Dr Qty</th>
+                                                    <th style="width:120px;">Cr/Dr UnitPrice</th>
+
+                                                   @*  @if (SelectedCustomer?.TaxValidate == false)
+                                                    {
+                                                        @if (SelectedCustomer?.BusiType == "Local")
+                                                        {
+                                                            <th style="width:110px;">CGST %</th>
+                                                            <th style="width:110px;">SGST %</th>
+                                                        }
+                                                        else if(SelectedCustomer?.BusiType == "InterState")
+                                                        {
+                                                            <th style="width:110px;">IGST %</th>
+                                                        }
+                                                    } *@
+
+                                                    <th style="width:130px;">Basic Amount</th>
+                                                    <th style="width:200px;">Remarks</th>
+
+                                                    <th style="width:110px;">Ref Invoice No.</th>
+                                                    <th style="width:110px;">Ref Invoice Date</th>
+
+                                                
+                                                    <th style="width:150px;">Cost-Center</th>
+                                                    <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+
+                                                @if (CreditNoteVMs.CreditNoteSubVMs != null && CreditNoteVMs.CreditNoteSubVMs.Any())
+                                                {
+                                                @foreach (var subitem in CreditNoteVMs.CreditNoteSubVMs)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                        @subitem.ItemCode
+                                                                </div>
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId!=0 && subitem.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(subitem.ItemId, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                        Size="Size.Small"
+                                                                                        Color="Color.Primary"
+                                                                                        OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId, count))"
+                                                                                        Edge="Edge.End"
+                                                                                        Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.MeasureUnit</td>
+                                                        <td>@subitem.HsnCode</td>
+
+                                                        <!-- Qty -->
+                                                        <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           step="any"
+                                                                           placeholder="Qty"
+                                                                           title="Enter Quantity"
+                                                                           @bind="subitem.Qty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" readonly />
+                                                                <ValidationMessage For="@(() => subitem.Qty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.Qty</span>
+                                                            }
+                                                           
+                                                        </td>
+
+                                                        <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           step="any"
+                                                                           placeholder="RejQty"
+                                                                           title="Enter Rej Quantity"
+                                                                           @bind="subitem.RejQty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" readonly="@(!CreditNoteVMs.Rejection)" />
+                                                                <ValidationMessage For="@(() => subitem.RejQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.RejQty</span>
+                                                            }
+                                                           
+                                                        </td>
+
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                           
+                                                            @FormatDecimal(subitem.UnitPrice)
+                                                        </td>
+
+                                                        <!-- Line Gross -->
+                                                        <td>@FormatDecimal(subitem.LineGross)</td>
+
+                                                        <!-- Discount -->
+                                                        @if (!CreditNoteVMs.IsItemWiseDiscAmtOrPerReq)
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number" class="form-control form-control-sm"  step="any" placeholder="Disc %" title="Enter Discount %"
+                                                                            @bind="subitem.LineDiscountPercent" @bind:event="oninput"
+                                                                            @bind:after='() => OnLineDiscountPercentChanged(subitem)'  />
+                                                                    <ValidationMessage For="@(() => subitem.LineDiscountPercent)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @FormatDecimal(subitem.LineDiscountPercent)
+                                                                }
+                                                            </td>
+                                                            <td>@FormatDecimal(subitem.LineDiscountAmount)</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                        <input type="number" class="form-control form-control-sm" step="any" placeholder="Disc Amt" title="Enter Discount Amount"
+                                                                            @bind="subitem.LineDiscountAmount" @bind:event="oninput"
+                                                                            @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)'  />
+                                                                    <ValidationMessage For="@(() => subitem.LineDiscountAmount)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @FormatDecimal(subitem.LineDiscountAmount)
+                                                                }
+                                                            </td>
+                                                        }
+
+                                                        <!-- Taxes -->
+                                                        @* @if (SelectedCustomer?.TaxValidate == false)
+                                                        {
+                                                            @if (SelectedCustomer?.BusiType == "Local")
+                                                            {
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @onchange="e => OnTaxRateChanged(e, subitem)">
+                                                                            <option value="" disabled selected>CGST %</option>
+                                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineCGSTRate)
+                                                                    }
+                                                                </td>
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @onchange="e => OnTaxRateChanged(e, subitem)">
+                                                                            <option value="" disabled selected>SGST %</option>
+                                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineSGSTRate)
+                                                                    }
+                                                                </td>
+                                                            }
+                                                            else if (SelectedCustomer?.BusiType == "InterState")
+                                                            {
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @bind="subitem.LineIGSTRate" @bind:event="oninput"
+                                                                                @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)'>
+                                                                            <option value="" disabled selected>IGST %</option>
+                                                                            @foreach (var rate in CommonConstants.IGSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineIGSTRate)
+                                                                    }
+                                                                </td>
+                                                            }
+                                                        } *@
+
+
+                                                        <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           step="any"
+                                                                           placeholder="RewQty"
+                                                                           title="Enter Rew Quantity"
+                                                                           @bind="subitem.RewQty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" readonly />
+                                                                <ValidationMessage For="@(() => subitem.RewQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.RewQty</span>
+                                                            }
+                                                           
+                                                        </td>
+
+                                                         <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           step="any"
+                                                                           placeholder="Cr/DrQty"
+                                                                           title="Enter Cr/DrQty Quantity"
+                                                                           @bind="subitem.CrDrQty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" readonly="@(!CreditNoteVMs.RateDifference)" />
+                                                                <ValidationMessage For="@(() => subitem.CrDrQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.CrDrQty</span>
+                                                            }
+                                                           
+                                                        </td>
+                                                         
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" class="form-control form-control-sm"  step="any" placeholder="Price" title="Enter Cr/Dr Unit Price"
+                                                                        @bind="subitem.CrDrUnitPrice" @bind:event="oninput"
+                                                                        @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)' readonly="@(!CreditNoteVMs.RateDifference)" />
+                                                                <ValidationMessage For="@(() => subitem.CrDrUnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.CrDrUnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        <!-- Basic Amount -->
+                                                        <td>@FormatDecimal(subitem.LineBasicAmount)</td>
+
+
+
+                                                        <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputText @bind-Value="subitem.Remarks" class="form-control form-control-sm" placeholder="Enter Remarks" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remarks
+                                                            }
+                                                        </td>
+
+                                                         <td>@subitem.RefInvNo</td>
+                                                        <td>@subitem.RefInvDate?.ToString("dd/MM/yyyy")</td>
+                                                       
+                                                       
+                                                        
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @if (subitem.IsEditable && subitem.Qty == subitem.CrBalQty)
+                                                            {
+                                                                <select class="form-select form-select-sm" 
+                                                                    value="@subitem.CostId"
+                                                                    @onchange="(e => OnCostCenterChanged(e, subitem))">
+                                                                    <option value="">select CostCentre</option>
+                                                                    @foreach (var cost in CostCenterVMs.Where(c =>
+                                                                        !CreditNoteVMs.CreditNoteSubVMs.Any(r => r != subitem && r.CostId == c.Id)))
+                                                                    {
+                                                                        <option value="@cost.Id">@cost.ProjectNo</option>
+                                                                    }
+                                                                </select>
+                                                                <ValidationMessage For="@(() => subitem.CostId)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.ProjectNo
+                                                            }
+                                                        </td>
+
+                                                        <!-- Action Buttons -->
+                                                        <td class="freeze-last-col text-end">
+                                                            
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <button type="button" class="btn btn-success btn-icon btn-sm" title="Save" 
+                                                                        @onclick="async () => await SaveRow(subitem)">
+                                                                    <i class="bi bi-check-lg"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel" 
+                                                                        @onclick="async () => await CancelEdit(subitem, CreditNoteVMs)">
+                                                                    <i class="bi bi-x-lg"></i>
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit" 
+                                                                        @onclick="async () => await EditRowAsync(subitem)">
+                                                                    <i class="bi bi-pencil"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete" 
+                                                                        @onclick="async () => await RemoveRow(subitem)">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            }
+                                                            
+                                                        </td>
+                                                    </tr>
+                                                }
+                                                }
+                                                else
+                                                {
+                                                    <tr>
+                                                        <td colspan="22" style="height:150px;" class="text-center align-middle text-muted fs-6 fw-semibold">
+                                                            <div class="d-flex justify-content-center align-items-center" style="min-height:100px;">
+                                                                <i class="bi bi-info-circle me-2 text-secondary"></i>
+                                                                No items to display
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            <!-- Totals -->
+                                            @if (CreditNoteVMs.CreditNoteSubVMs?.Any() == true)
+                                            {
+                                                <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="5" class="text-end fw-bold">Totals:</td>
+                                                        <td>@CreditNoteVMs.TotalQty</td>
+                                                         <td>@CreditNoteVMs.TotalRejQty</td>
+                                                        <td>Avg: @FormatDecimal(CreditNoteVMs.AvgUnitPrice)</td>
+                                                        <td>@FormatDecimal(CreditNoteVMs.TotalLineGross)</td>
+
+                                                        @if (!CreditNoteVMs.IsItemWiseDiscAmtOrPerReq)
+                                                        {
+                                                            <td></td>
+                                                            <td>@FormatDecimal(CreditNoteVMs.TotalLineDiscountAmount)</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>@FormatDecimal(CreditNoteVMs.TotalLineDiscountAmount)</td>
+                                                        }
+
+                                                        @if (SelectedCustomer?.TaxValidate == false)
+                                                        {
+                                                            @if(SelectedCustomer?.BusiType == "Local")
+                                                            {
+                                                                <td></td>
+                                                                <td></td>
+
+                                                            }
+                                                            else if(SelectedCustomer?.BusiType == "InterState")
+                                                            {
+                                                                <td></td>
+
+                                                            }
+
+                                                        }
+
+                                                        <td>@FormatDecimal(CreditNoteVMs.TotalLineBasicAmount)</td>
+                                                        <td colspan="10"></td>
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+                                        </table>
+                                    </div>
+                                  
+                                </div>
+                            </div>
+                        </div>
+
+                          <div class="col-12 col-lg-6 mb-3">
+                            
+                        </div>
+
+                        <!-- =================== Tax Details Section =================== -->
+                        <div class="col-12 col-lg-6">
+                            <div class="card shadow-sm rounded-4 border-0 p-3">
+
+                                <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
+                                    <i class="bi bi-receipt-cutoff me-1 text-primary"></i> Tax & Charges
+                                </h6>
+
+                                <!-- Total Gross -->
+                                <div class="row mb-2 gx-3">
+                                    <label for="TotalGross" class="col-5 col-md-4 col-form-label text-dark">
+                                        <small>Total Gross</small>
+                                    </label>
+                                    <div class="col-7 col-md-8">
+                                        <input id="TotalGross"
+                                               class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               type="number"
+                                               value="@FormatDecimal(CreditNoteVMs.TotalGrossAmount)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Discount -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Discount</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="discountToggle" id="discountRs"  step="any"
+                                                   @onchange="() => SetDiscountType(true)"
+                                                   checked="@CreditNoteVMs.DiscAmtOrPer" disabled="true" />
+                                            <label class="btn btn-outline-primary" for="discountRs">
+                                                <small>@CreditNoteVMs.Symbol</small>
+                                            </label>
+
+                                            <input type="radio" class="btn-check" name="discountToggle" id="discountPercent"  step="any"
+                                                   @onchange="() => SetDiscountType(false)"
+                                                   checked="@(!CreditNoteVMs.DiscAmtOrPer)" disabled="true"   />
+                                            <label class="btn btn-outline-primary" for="discountPercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-3 col-md-5">
+                                        @if (CreditNoteVMs.DiscAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"  step="any"
+                                                   type="number"
+                                                   @bind="CreditNoteVMs.DiscountAmount"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)'
+                                                   disabled="@(CreditNoteVMs.TotalLineDiscountAmount > 0)" readonly />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.DiscountAmount)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"  step="any"
+                                                   type="number"
+                                                   @bind="CreditNoteVMs.DiscountPercent"
+                                                   @bind:after="OnDiscountPercentChanged"
+                                                   disabled="@(CreditNoteVMs.TotalLineDiscountAmount > 0)" readonly />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.DiscountPercent)" />
+                                            <small class="text-muted d-block text-end">
+                                                Amt: @FormatDecimal(CreditNoteVMs.DiscountAmount)
+                                            </small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- SubTotal -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>SubTotal</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               type="number" 
+                                               value="@FormatDecimal(CreditNoteVMs.TotalBasicAmount)" 
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Freight Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Freight Charges</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end"  step="any"
+                                               type="number" @bind="CreditNoteVMs.FreightCharges"
+                                               @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)' readonly />
+                                        <ValidationMessage For="@(() => CreditNoteVMs.FreightCharges)" />
+                                    </div>
+                                </div>
+
+                                <!-- P & F Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>P & F Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="packingToggle" id="packingToggleRs"
+                                                   @onchange="() => SetPAndFType(true)" checked="@CreditNoteVMs.PackingAmtOrPer" disabled="true"/>
+                                            <label class="btn btn-outline-primary" for="packingToggleRs"><small>@CreditNoteVMs.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="packingToggle" id="packingTogglePercent"
+                                                   @onchange="() => SetPAndFType(false)" checked="@(!CreditNoteVMs.PackingAmtOrPer)"  disabled="true"/>
+                                            <label class="btn btn-outline-primary" for="packingTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (CreditNoteVMs.PackingAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"  step="any"
+                                                   type="number" @bind="CreditNoteVMs.PackingCharges"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)' readonly />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.PackingCharges)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"  step="any"
+                                                   type="number" @bind="CreditNoteVMs.PackingPercent"
+                                                   @bind:after="() => OnPandFPercentChanged()" readonly />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.PackingPercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(CreditNoteVMs.PackingCharges) </small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Insurance Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Insurance Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="insuranceToggle" id="insuranceToggleRs"
+                                                   @onchange="() => SetInsuranceType(true)" disabled="true" />
+                                            <label class="btn btn-outline-primary" for="insuranceToggleRs"><small>@CreditNoteVMs.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="insuranceToggle" id="insuranceTogglePercent"
+                                                   @onchange="() => SetInsuranceType(false)" disabled="true" />
+                                            <label class="btn btn-outline-primary" for="insuranceTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (CreditNoteVMs.InsuranceAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"  step="any"
+                                                   type="number" @bind="CreditNoteVMs.InsuranceCharges"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)' readonly/>
+                                            <ValidationMessage For="@(() => CreditNoteVMs.InsuranceCharges)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"  step="any"
+                                                   type="number" @bind="CreditNoteVMs.InsurancePercent"
+                                                   @bind:after="() => OnInsurancePercentChanged()" readonly />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.InsurancePercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(CreditNoteVMs.InsuranceCharges)</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Total Taxable -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Total Taxable</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               value="@FormatDecimal(CreditNoteVMs.TotalTaxable)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Taxes (CGST/SGST/IGST) -->
+                                @if (SelectedCustomer?.TaxValidate == false)
+                                {
+                                    <div class="mb-2">
+                                        @if (SelectedCustomer?.BusiType == "Local")
+                                        {
+                                            <!-- CGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>CGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!CreditNoteVMs.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="CreditNoteVMs.CGstRate"
+                                                                @bind:after="() => OnMainTaxRateChanged(CreditNoteVMs.CGstRate) " disabled >
+                                                            <option value="0" >-- Select CGST % --</option>
+                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => CreditNoteVMs.CGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(CreditNoteVMs.TotalCGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+
+                                            <!-- SGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>SGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!CreditNoteVMs.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="CreditNoteVMs.SGstRate"
+                                                                @bind:after="() => OnMainTaxRateChanged(CreditNoteVMs.SGstRate)" disabled>
+                                                            <option value="0" disabled>-- Select SGST % --</option>
+                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => CreditNoteVMs.SGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(CreditNoteVMs.TotalSGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                        else if (SelectedCustomer?.BusiType == "InterState")
+                                        {
+                                            <!-- IGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>IGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!CreditNoteVMs.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="CreditNoteVMs.IGstRate"
+                                                                @bind:after="() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)"
+                                                                disabled >
+                                                            <option value="0" >-- Select IGST % --</option>
+                                                            @foreach (var rate in CommonConstants.IGSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => CreditNoteVMs.IGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(CreditNoteVMs.TotalIGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                <!-- TCS Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>TCS Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="tcsToggle" id="tcsToggleRs"
+                                                   @onchange="() => SetTCSType(true)" disabled="true" />
+                                            <label class="btn btn-outline-primary" for="tcsToggleRs"><small>@CreditNoteVMs.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="tcsToggle" id="tcsTogglePercent"
+                                                   @onchange="() => SetTCSType(false)" disabled="true" />
+                                            <label class="btn btn-outline-primary" for="tcsTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (CreditNoteVMs.TCSAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" @bind="CreditNoteVMs.TCSAmount"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)' readonly />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.TCSAmount)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" @bind="CreditNoteVMs.TCSPercent"
+                                                   @bind:after="() => OnTCSPercentChanged()" readonly />
+                                            <ValidationMessage For="@(() => CreditNoteVMs.TCSPercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @CreditNoteVMs.TCSAmount</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Other Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Other Charges</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end"
+                                               type="number" @bind="CreditNoteVMs.OtherCharges"
+                                               @bind:after='() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)' readonly />
+                                        <ValidationMessage For="@(() => CreditNoteVMs.OtherCharges)" />
+                                    </div>
+                                </div>
+
+                                <!-- Round Off -->
+                                <div class="row mb-2 gx-2 align-items-center">
+                                    <div class="col-5 col-md-4 d-flex align-items-center">
+                                        <small class="me-2 text-dark">Round Off</small>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   role="switch"
+                                                   id="roundOffSwitch"
+                                                   @bind="CreditNoteVMs.IsRoundOffEnabled"
+                                                   @bind:after="() => _calculationService.UpdateTotalsAsync(CreditNoteVMs)" >
+                                            <label class="form-check-label" for="roundOffSwitch"></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-7 col-md-8">
+                                       <input class="form-control form-control-sm rounded-3 text-end"
+                                               value="@FormatDecimal(CreditNoteVMs.RoundOff)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Grand Total -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label fw-bold text-dark">
+                                        <small>Grand Total</small>
+                                    </label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 fw-bold text-primary text-end bg-warning-subtle"
+                                               value="@FormatDecimal(CreditNoteVMs.GrandTotal)"
+                                               readonly />
+                                        @if (CreditNoteVMs.CurrId > 1)
+                                        {
+                                            <div class="mt-1 text-end">
+                                                <small class="text-muted d-block">
+                                                    Today's value: @CreditNoteVMs.TodayVal
+                                                </small>
+                                                <small class="fw-bold text-success d-block">
+                                                    Converted Value in Rs: @((CreditNoteVMs.GrandTotal * CreditNoteVMs.TodayVal).ToString("0.00"))
+                                                </small>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Amount in Words -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Amount in Words</small></label>
+                                    <div class="col-7 col-md-8 pt-1">
+                                        @if (CreditNoteVMs.CurrId > 1)
+                                        {
+                                            <small class="fw-bold text-success d-block">
+                                                Converted Value in Rs: @FormatDecimal(CreditNoteVMs.GrandTotal * CreditNoteVMs.TodayVal)
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <strong>@NumberToWordsHelper.ConvertNumberToWords(CreditNoteVMs.GrandTotal)</strong>
+                                        }
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                         <!--Action Buttons -->
+                        @if (CanCreate || CanEdit)
+                        {
+                            
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(CreditNoteVMs.CrId > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                            
+                        }
+                        
+
+                        @if(CreditNoteVMs.CrId>0 && string.IsNullOrEmpty(CreditNoteVMs.ACKNO) && string.IsNullOrEmpty(CreditNoteVMs.IRNNo) && !CreditNoteVMs.Cancel)
+                        {
+                            <div class="col-4 col-md-3 mt-3">
+                            <button type="button" class="btn  btn-success w-100 rounded-3 rounded-3" @onclick='() => ConfirmEinvoice()'>
+                                <i class="bi bi-person-add me-1"></i> E-Invoice
+                            </button>
+                            
+                            </div>
+                        }
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <SmartBackButton Url="@($"/creditNoteList?currentPage={currentPage}")" />
+                        </div>
+
+                        @if (CanCreate || CanEdit && CrId > 0)
+                        {
+                            <div class="col-12 col-md-3">
+                                <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                    <i class="bi bi-printer me-1"></i>Print
+                                </button>
+                            </div>
+                        }
+
+                    </div>
+
+                </EditForm>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code
+{
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Credit Note";
+
+    [Parameter] public int? CrId { get; set; }
+    [Parameter] public int CustId { get; set; }
+
+    private bool isProcessing = true;
+    private CreditNoteVM CreditNoteVMs { get; set; } = new();
+    private CreditNoteSubVM? rowToDelete;
+
+    private int InvPendingCount = 0;
+
+    private int screenCode { get; set; }
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    
+    string? pdfBase64;
+
+    private CustomerVM? SelectedCustomer;
+    private List<ContactPerson> contactPersons = new();
+    private List<CustomerIndirect> consineeAddress = new();
+    private List<Currency> Currencies = new();
+    private List<CostCenterVM> CostCenterVMs = new();
+
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private bool IsDcModalVisible = false;
+
+    private List<Dictionary<string, object>>? InvData;
+
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<string> InvColumns = new() {"Sl No.","ItemId", "Item Code", "Item Name","UOM","HSNCode",
+                                            "CrBalQty","UnitPrice","Amount","Invoice No.","Invoice Date","Cost-Center Id","Project No","Specification",
+                                            "Category","RefInvSubId","RefPoSubId","RefDcSubId" };
+
+    private List<string> InvFields = new() { "SlNo","ItemId","ItemCode", "ItemName","UOM","HSNCode", "CrBalQty",
+                                            "UnitPrice","Amount","InvNo","InvDate","CostCenterId" ,"ProjectNo","Specification","Category"};
+
+    private List<string> InvHiddenColumns = new() { "ItemId", "Cost-Center Id", "RefInvSubId", "RefPoSubId", "RefDcSubId" };
+
+
+    private List<PageHeader.BreadcrumbItem> CreditNoteFormBreadcrumbs = new()
+    {
+        new() { Text = "Sales" },
+        new() { Text = "Credit Note", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    #endregion
+
+    #region Toggles
+
+    private async Task OnSalesToggle(ChangeEventArgs e)
+    {
+        CreditNoteVMs.Sales = true;
+        CreditNoteVMs.Labour = false;
+        CreditNoteVMs.Export = false;
+        SelectedCustomer = null;
+
+        CreditNoteVMs.CustAddress=null;
+        CreditNoteVMs.ContactNo=null;
+        CreditNoteVMs.GSTNo = null;
+
+        StateHasChanged();
+    }
+
+    private async Task OnLabourToggle(ChangeEventArgs e)
+    {
+        CreditNoteVMs.Labour = true;
+        CreditNoteVMs.Sales = false;
+        CreditNoteVMs.Export = false;
+        SelectedCustomer = null;
+
+        CreditNoteVMs.CustAddress=null;
+        CreditNoteVMs.ContactNo=null;
+        CreditNoteVMs.GSTNo = null;
+
+        StateHasChanged();
+    }
+
+    private async Task OnExportToggle(ChangeEventArgs e)
+    {
+
+        CreditNoteVMs.Export = true;
+        CreditNoteVMs.Sales = false;
+        CreditNoteVMs.Labour = false;
+        SelectedCustomer = null;
+
+        CreditNoteVMs.CustAddress=null;
+        CreditNoteVMs.ContactNo=null;
+        CreditNoteVMs.GSTNo = null;
+
+        StateHasChanged();
+    }
+
+
+    private async Task OnRejectionToggle(ChangeEventArgs e)
+    {
+        CreditNoteVMs.Rejection = true;
+        CreditNoteVMs.RateDifference = false;
+
+        foreach (var row in CreditNoteVMs.CreditNoteSubVMs)
+        {
+            row.CrDrQty=0;
+            row.CrDrUnitPrice = 0;
+        }
+    }
+
+    private async Task OnRateDiffToggle(ChangeEventArgs e)
+    {
+        CreditNoteVMs.Rejection = false;
+        CreditNoteVMs.RateDifference = true;
+
+        foreach (var row in CreditNoteVMs.CreditNoteSubVMs)
+        {
+            row.RejQty=0;
+            row.RewQty = 0;
+            row.CrDrQty = row.Qty.Value;
+
+        }
+    }
+
+    #endregion
+
+    public bool IsInvNoReadonly => !(CreditNoteVMs.IsManualInvNo ?? false) || CrId == 0;
+
+    // private async Task ToggleAutoInvNo()
+    // {
+    //     if (CreditNoteVMs.IsManualInvNo ?? false)
+    //     {
+    //         CreditNoteVMs.InvNo = await mfgInvService.GetInvoiceNumberAsync(CreditNoteVMs.Suffix);
+    //     }
+    // }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                isProcessing = false;
+                StateHasChanged();
+                _navigationManager.NavigateTo("/access-denied", true);
+                return;
+            }
+
+            Currencies = await _creditNoteService.GetCurrenciesAsync();
+            DecimalPlaces = await _creditNoteService.GetDecimalPlacesAsync();
+            screenCode = await _creditNoteService.GetScreenCodeByScreenNameAsync(ScreenName);
+
+            if (CrId.HasValue)
+                await LoadExistingCreditNote(CrId.Value);
+            else if (CustId > 0)
+                await InitializeNewCreditNote(CustId);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadExistingCreditNote(int CrId)
+    {
+        try
+        {
+            CreditNoteVMs = await _creditNoteService.GetCreditNoteBycrIdAsync(CrId);
+
+            if (CreditNoteVMs == null)
+            {
+                await _js.ToastrWarning("CreditNote not found.");
+                return;
+            }
+
+            SelectedCustomer = await _creditNoteService.GetCustomerByIdAsync(CreditNoteVMs.CustId.Value);
+            if (SelectedCustomer != null)
+                await ApplyCustomerSelectionAsync(SelectedCustomer);
+
+            if (CreditNoteVMs.CurrId > 0)
+                await ApplyCurrencyChange(CreditNoteVMs.CurrId);
+
+            foreach (var savedSub in CreditNoteVMs.CreditNoteSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[savedSub.ItemId] = await _creditNoteService.GetCorrespondenceAttachmentsCountAsync(savedSub.ItemId, "Item");
+            }
+
+            CreditNoteVMs.SignedInvoiceQrCode = await _creditNoteService.GenerateQrBase64(CreditNoteVMs.SignedInvoiceQrCode);
+
+            IsSomeItemsTransMade = CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing CreditNote.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingCreditNote failed for CrId: {CrId}");
+        }
+    }
+
+    private bool CheckIsTransMade()
+    {
+        return (string.IsNullOrEmpty(CreditNoteVMs.ACKNO) && string.IsNullOrEmpty(CreditNoteVMs.IRNNo)) ? false : true;
+    }
+
+    private async Task InitializeNewCreditNote(int custId)
+    {
+        try
+        {
+            var customer = await _creditNoteService.GetCustomerByIdAsync(custId);
+            if (customer != null)
+            {
+
+                await ApplyCustomerSelectionAsync(customer);
+            }
+            CreditNoteVMs.Prefix = await _creditNoteService.GetPrefixFromDb();
+            CreditNoteVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            CreditNoteVMs.CreditNo = await _creditNoteService.GetCreditNoteNumberAsync(CreditNoteVMs.Suffix);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new quotation.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewQuote failed for CustId: {custId}");
+        }
+    }
+
+
+    #region Customer data, Currency And Tax  Handlers
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (!CreditNoteVMs.Sales.Value && !CreditNoteVMs.Labour.Value && !CreditNoteVMs.Export.Value)
+        {
+            await _js.ToastrWarning("Please select the Credit Note Type first.");
+            return Enumerable.Empty<CustomerVM>(); ;
+        }
+
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<CustomerVM>();
+
+        try
+        {
+            if (!CreditNoteVMs.Export.Value)
+            {
+                var results = await _creditNoteService.SearchCustomersAsync(value);
+                return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+            }
+            else
+            {
+                var results = await _creditNoteService.SearchExportCustomersAsync(value);
+                return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+            }
+
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<CustomerVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search customers. Please try again.");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+
+            await ApplyCustomerSelectionAsync(customer);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnCustomerChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting");
+            contactPersons.Clear();
+            await ResetCreditNoteDefaults();
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+            SelectedCustomer = customer;
+            CreditNoteVMs.CustId = customer?.CustId ?? 0;
+            CreditNoteVMs.CustName = customer?.CustName;
+            CreditNoteVMs.CustAddress = customer?.CustAddr;
+            CreditNoteVMs.GSTNo = customer?.GSTNo;
+            CreditNoteVMs.ContactNo = customer?.ContactNo;
+            CreditNoteVMs.BusiType = customer?.BusiType;
+
+            if (customer == null)
+            {
+                contactPersons.Clear();
+                consineeAddress.Clear();
+                CostCenterVMs.Clear();
+                await ResetCreditNoteDefaults();
+                return;
+            }
+
+            contactPersons = await _creditNoteService.GetContactPersonsAsync(customer.CustId);
+            consineeAddress = await _creditNoteService.GetConsigneeAddressesAsync(customer.CustId);
+
+            var usedCostCenters = CreditNoteVMs.CreditNoteSubVMs
+                .Where(x => x.CostId.HasValue && (x.RefInvSubId == 0))
+                .Select(x => x.CostId.Value)
+                .ToHashSet();
+
+            CostCenterVMs = await _creditNoteService.GetCostCenterDetailsByCustId(customer.CustId, usedCostCenters);
+
+            CreditNoteVMs.KindOfAttention = contactPersons.Count == 1 ? contactPersons.First().ContactPersonName : string.Empty;
+
+            // Tax logic
+            if (!customer.TaxValidate)
+            {
+                var lastInvoice = await _creditNoteService.GetLastcreditNoteAsync(customer.CustId);
+                if (lastInvoice != null)
+                {
+                    CreditNoteVMs.CGstRate = lastInvoice.CGstRate;
+                    CreditNoteVMs.SGstRate = lastInvoice.SGstRate;
+                    CreditNoteVMs.IGstRate = lastInvoice.IGstRate;
+                }
+                else
+                {
+                    if (string.Equals(customer.BusiType, "Local", StringComparison.OrdinalIgnoreCase) && customer.TaxValidate == false)
+                    {
+                        CreditNoteVMs.CGstRate = CommonConstants.GetGST(9.000m);
+                        CreditNoteVMs.SGstRate = CommonConstants.GetGST(9.000m);
+                        CreditNoteVMs.IGstRate = CommonConstants.GetIGST(0.000m);
+                    }
+                    else if (string.Equals(customer.BusiType, "InterState", StringComparison.OrdinalIgnoreCase) && customer.TaxValidate == false)
+                    {
+                        CreditNoteVMs.CGstRate = CommonConstants.GetGST(0.000m);
+                        CreditNoteVMs.SGstRate = CommonConstants.GetGST(0.000m);
+                        CreditNoteVMs.IGstRate = CommonConstants.GetIGST(18.000m);
+                    }
+                }
+            }
+
+            CreditNoteVMs.CurrId = (customer.CurrId.HasValue && customer.CurrId > 0) ? customer.CurrId.Value : 1;
+            await ApplyCurrencyChange(CreditNoteVMs.CurrId);
+
+
+            await CountPendingInvs();
+
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {customer?.CustId}");
+            await _js.ToastrError("Failed to apply customer selection. Please try again.");
+        }
+    }
+
+    private async Task CountPendingInvs()
+    {
+        if (CreditNoteVMs.Sales.Value)
+        {
+            InvPendingCount = await _creditNoteService.GetPendingInvCountAsync(CreditNoteVMs.CustId.Value, "Sales");
+        }
+        else if (CreditNoteVMs.Labour.Value)
+        {
+            InvPendingCount = await _creditNoteService.GetPendingInvCountAsync(CreditNoteVMs.CustId.Value, "Labour");
+        }
+        else if (CreditNoteVMs.Export.Value)
+        {
+            InvPendingCount = await _creditNoteService.GetPendingInvCountAsync(CreditNoteVMs.CustId.Value, "Export");
+        }
+
+
+    }
+
+    private async Task OnCurrencyChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int selectedId))
+            await ApplyCurrencyChange(selectedId);
+    }
+
+    private async Task ApplyCurrencyChange(int currencyId)
+    {
+        var selectedCurrency = await _creditNoteService.GetCurrencyByIdAsync(currencyId);
+        if (selectedCurrency == null) return;
+
+        CreditNoteVMs.CurrName = selectedCurrency.CurrName;
+        CreditNoteVMs.Symbol = selectedCurrency.Symbol;
+        CreditNoteVMs.CurrId = selectedCurrency.CurrId;
+
+        if (currencyId > 1)
+            CreditNoteVMs.TodayVal = await _creditNoteService.GetLatestCurrencyValueAsync(currencyId) ?? 0m;
+    }
+
+    private async Task ResetCreditNoteDefaults()
+    {
+        CreditNoteVMs.CGstRate = 0m;
+        CreditNoteVMs.SGstRate = 0m;
+        CreditNoteVMs.IGstRate = 0m;
+    }
+
+    private async Task OnShippingChange(ChangeEventArgs e)
+    {
+        try
+        {
+            CreditNoteVMs.IsSameAsShipping = (bool)e.Value;
+
+            if (!CreditNoteVMs.IsSameAsShipping && SelectedCustomer != null)
+            {
+                consineeAddress = await _creditNoteService.GetConsigneeAddressesAsync(SelectedCustomer.CustId);
+            }
+            else
+            {
+                consineeAddress.Clear();
+                ResetShippingDefaults();
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                $"Error while toggling shipping address for CustId={SelectedCustomer?.CustId}");
+        }
+    }
+
+    private async Task OnConsigneeChangedAsync(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var selectedId) || selectedId == 0)
+            {
+                CreditNoteVMs.IsSameAsShipping = true;
+                ResetShippingDefaults();
+
+                StateHasChanged();
+                return;
+            }
+            CreditNoteVMs.IsSameAsShipping = false;
+
+            var selectedConsignee = consineeAddress.FirstOrDefault(c => c.AltCustId == selectedId);
+            if (selectedConsignee == null)
+                return;
+
+            CreditNoteVMs.ShipAddrsId = selectedConsignee.AltCustId;
+            CreditNoteVMs.ShippingAddress = string.Join(" ",
+                new[] { selectedConsignee.AltCustAddr1, selectedConsignee.AltCustAddr2 }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+            CreditNoteVMs.ShippingGstin = selectedConsignee.GSTNo ?? string.Empty;
+            CreditNoteVMs.ShippingContactNo = selectedConsignee.ContactNo ?? string.Empty;
+
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnConsigneeChangedAsync");
+        }
+    }
+
+    private void ResetShippingDefaults()
+    {
+        CreditNoteVMs.ShipAddrsId = null;
+        CreditNoteVMs.ShippingName = null;
+        CreditNoteVMs.ShippingAddress = null;
+        CreditNoteVMs.ShippingGstin = null;
+        CreditNoteVMs.ShippingContactNo = null;
+    }
+
+    #endregion
+
+    #region Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _creditNoteService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(CreditNoteSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItem = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.HsnCode = item.HSNCode;
+                subitem.MeasureUnit = item.MeasureUnit;
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _creditNoteService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId, "Item");
+                    attachmentCounts[subitem.ItemId] = count;
+                }
+            }
+            else
+            {
+                subitem.SelectedItem = null;
+                subitem.ItemId = 0;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.HsnCode = null;
+                subitem.MeasureUnit = null;
+                subitem.UnitPrice = null;
+            }
+
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    private bool IsItemAlreadySelected(int itemId, int? currentItemId)
+    {
+        return CreditNoteVMs.CreditNoteSubVMs?.Any(q => q.ItemId == itemId && q.ItemId != currentItemId) == true;
+    }
+
+    #endregion
+
+    #region Quantity Handlers
+
+    private async Task OnQtyChange(ChangeEventArgs e, CreditNoteSubVM SubVM) 
+    {
+        try
+        {
+            // Common validation: Qty must be positive
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.Qty = 0;
+                SubVM.CrBalQty = 0;
+                await _js.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+            decimal stkqty=0;
+            string cate = CreditNoteVMs.Rejection.Value ? "Reject" : "Cr/Dr";
+            // NEW quote line
+            if (SubVM.CrSubId == 0)
+            {
+                int.TryParse(SubVM.RefInvSubId.ToString(),out int RefInvSubId);
+                int.TryParse(SubVM.LabInvSubId.ToString(),out int RefLabInvSubId);
+                int.TryParse(SubVM.ExpInvSubId.ToString(), out int RefExpInvSubId);
+                decimal invBalQty = 0;
+                if (RefInvSubId > 0)
+                {
+
+                    invBalQty = await GetInvBalQty(RefInvSubId);
+
+                    if (newQty <= invBalQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.CrBalQty = newQty;
+                        if (CreditNoteVMs.Rejection.Value)
+                        {
+                            SubVM.RejQty = newQty;
+                        }
+                        else
+                        {
+                            SubVM.CrDrQty = newQty;
+                        }
+
+                    }
+                    else
+                    {
+                        SubVM.Qty = invBalQty;
+                        SubVM.CrBalQty = invBalQty;
+                        if (CreditNoteVMs.Rejection.Value)
+                        {
+                            SubVM.RejQty = invBalQty;
+                        }
+                        else
+                        {
+                            SubVM.CrDrQty = invBalQty;
+                        }
+                        await _js.ToastrWarning($"{cate} Qty {newQty} can't be greater than  Qty ({invBalQty}).");
+                        return;
+                    }
+                }else if (RefLabInvSubId>0)
+                {
+                    invBalQty = await GetInvBalQty(RefLabInvSubId);
+                    if (newQty <= invBalQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.CrBalQty = newQty;
+                        if (CreditNoteVMs.Rejection.Value)
+                        {
+                            SubVM.RejQty = newQty;
+                        }
+                        else
+                        {
+                            SubVM.CrDrQty = newQty;
+                        }
+
+                    }
+                    else
+                    {
+                        SubVM.Qty = invBalQty;
+                        SubVM.CrBalQty = invBalQty;
+                        if (CreditNoteVMs.Rejection.Value)
+                        {
+                            SubVM.RejQty = invBalQty;
+                        }
+                        else
+                        {
+                            SubVM.CrDrQty = invBalQty;
+                        }
+                        await _js.ToastrWarning($"{cate} Qty {newQty} can't be greater than  Qty ({invBalQty}).");
+                        return;
+                    }
+
+
+                }else if (RefExpInvSubId>0)
+                {
+                    invBalQty = await GetInvBalQty(RefExpInvSubId);
+                    if (newQty <= invBalQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.CrBalQty = newQty;
+                        if (CreditNoteVMs.Rejection.Value)
+                        {
+                            SubVM.RejQty = newQty;
+                        }
+                        else
+                        {
+                            SubVM.CrDrQty = newQty;
+                        }
+
+                    }
+                    else
+                    {
+                        SubVM.Qty = invBalQty;
+                        SubVM.CrBalQty = invBalQty;
+                        if (CreditNoteVMs.Rejection.Value)
+                        {
+                            SubVM.RejQty = invBalQty;
+                        }
+                        else
+                        {
+                            SubVM.CrDrQty = invBalQty;
+                        }
+                        await _js.ToastrWarning($"{cate} Qty {newQty} can't be greater than  Qty ({invBalQty}).");
+                        return;
+                    }
+
+
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.CrBalQty = newQty;
+                    if (CreditNoteVMs.Rejection.Value)
+                    {
+                        SubVM.RejQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.CrDrQty = newQty;
+                    }
+                }
+
+            }
+            // EXISTING quote line
+            else
+            {
+                var reason = CreditNoteVMs.Rejection ?? false ? "Rejection" : "RateDifference";
+
+                var original = await _creditNoteService.GetCreditNoteSubItemDetailByCrSubIdAsync(SubVM.CrSubId,reason);
+                if (original == null) return;
+
+                var alreadyTransacted = original.Qty - original.RejQty;
+
+                // Cannot decrease below transacted quantity
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.Qty = alreadyTransacted;
+                    SubVM.CrBalQty = 0;
+                    SubVM.RejQty=0;
+                    SubVM.CrDrQty = 0;
+                    await _js.ToastrWarning($"{cate} Qty  cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                if (SubVM.RefInvSubId > 0)
+                {
+                    decimal invBalQty = 0;
+
+                    invBalQty = await GetInvBalQty(SubVM.RefInvSubId.Value);
+
+                    var maxAllowedQty = original.Qty + invBalQty;
+
+                    if (newQty > maxAllowedQty)
+                    {
+                        SubVM.Qty = maxAllowedQty;
+                        SubVM.CrBalQty = maxAllowedQty - alreadyTransacted;
+
+                        if (CreditNoteVMs.Rejection.Value)
+                        {
+                            SubVM.RejQty = SubVM.CrBalQty.Value;
+                        }
+                        else
+                        {
+                            SubVM.CrDrQty = SubVM.CrBalQty.Value;
+                        }
+                        await _js.ToastrWarning($"{cate} Qty cannot be greater than {maxAllowedQty}.");
+                        return ;
+                    }
+                    else
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.CrBalQty = newQty - alreadyTransacted;
+                        if (CreditNoteVMs.Rejection.Value)
+                        {
+                            SubVM.RejQty = SubVM.CrBalQty.Value;
+                        }
+                        else
+                        {
+                            SubVM.CrDrQty = SubVM.CrBalQty.Value;
+                        }
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.CrBalQty = newQty - alreadyTransacted;
+                    if (CreditNoteVMs.Rejection.Value)
+                    {
+                        SubVM.RejQty = SubVM.CrBalQty.Value;
+                    }
+                    else
+                    {
+                        SubVM.CrDrQty = SubVM.CrBalQty.Value;
+                    }
+                }
+
+
+            }
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnQtyChange failed for InvSubId: {SubVM?.CrSubId}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+    private async Task<decimal> GetInvBalQty(int refInvId)
+    {
+        decimal invBalQty = 0;
+        if (CreditNoteVMs.Sales.Value)
+        {
+            invBalQty=await _creditNoteService.GetInvItemBalQtyFromDcSubId(refInvId,"Sales");
+        }
+        else if (CreditNoteVMs.Labour.Value)
+        {
+            invBalQty=await _creditNoteService.GetInvItemBalQtyFromDcSubId(refInvId,"Labour");
+        }
+        else if (CreditNoteVMs.Export.Value)
+        {
+            invBalQty=await _creditNoteService.GetInvItemBalQtyFromDcSubId(refInvId,"Export");
+        }
+        return invBalQty;
+    }
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(CreditNoteSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.Qty == null || row.Qty <= 0)
+                errors.Add("Quantity must be greater than 0.");
+
+            if (row.UnitPrice == null || row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = CreditNoteVMs.CreditNoteSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            CreditNoteVMs.CreditNoteSubVMs.Add(new CreditNoteSubVM
+            {
+                CrId = CreditNoteVMs.CrId.Value,
+                IsEditable = true
+            });
+
+            await ResetSlno();
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(CreditNoteSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            // Ensure at least one editable row exists for new entries
+            if (!CreditNoteVMs.CreditNoteSubVMs.Any(x => x.IsEditable))
+            {
+                // CreditNoteVMs.CreditNoteSubVMs.Add(new CreditNoteSubVM
+                // {
+                //     CrId = CreditNoteVMs.CrId,
+                //     IsEditable = true
+                // });
+            }
+
+            await ResetSlno();
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for InvSubId: {item?.CrSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(CreditNoteSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItem == null && item.ItemId > 0)
+            {
+                item.SelectedItem = await _creditNoteService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for InvSubId: {item?.CrSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(CreditNoteSubVM? item, CreditNoteVM? parentQuote)
+    {
+        try
+        {
+            if (item == null || parentQuote == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.Qty.HasValue || item.Qty.Value <= 0) ||
+                (!item.UnitPrice.HasValue || item.UnitPrice.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentQuote.CreditNoteSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for CrSubId: {item?.CrId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(CreditNoteSubVM item)
+    {
+        try
+        {
+            if (CreditNoteVMs.CreditNoteSubVMs.Count == 1 && item.CrSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }else if (CreditNoteVMs.CreditNoteSubVMs.Count == 1)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if(IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction history.");
+                return;
+            }
+
+            if(!string.IsNullOrEmpty(CreditNoteVMs.ACKNO) && !string.IsNullOrEmpty(CreditNoteVMs.IRNNo))
+            {
+                await _js.ToastrWarning("This Credit Note has been done e-invoice so cannot be modified.");
+                return;                
+            }
+
+
+
+            if (item.ItemId == 0)
+            {
+                CreditNoteVMs.CreditNoteSubVMs.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                if (!CreditNoteVMs.CreditNoteSubVMs.Any())
+                    CreditNoteVMs.CreditNoteSubVMs = new List<CreditNoteSubVM>();
+
+                await ResetSlno();
+                await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for InvoiceSubId: {item?.CrSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in CreditNoteVMs.CreditNoteSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+
+
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+
+            // CreditNoteVMs = await _creditNoteService.GetInvoiceByInvIdAsync(CrId.Value);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                case "EInvoice":
+                    await GenerateEInvoice();
+                    break;
+                case "Cancel":
+                case "Revert":
+                    await CancelInvoice();
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.CrSubId > 0)
+            {
+                if (CreditNoteVMs.Sales.Value)
+                {
+                    await _creditNoteService.DeleteAndResequenceAsync(rowToDelete, CreditNoteVMs,screenCode,"Sales");
+                }
+                else if (CreditNoteVMs.Labour.Value)
+                {
+                    await _creditNoteService.DeleteAndResequenceAsync(rowToDelete, CreditNoteVMs,screenCode,"Labour");
+                }
+                else if (CreditNoteVMs.Export.Value)
+                {
+                    await _creditNoteService.DeleteAndResequenceAsync(rowToDelete, CreditNoteVMs,screenCode,"Export");
+                }
+
+
+                CreditNoteVMs.CreditNoteSubVMs = await _creditNoteService.GetCreditNoteSubByCrIdAsync(CreditNoteVMs.CrId.Value);
+
+                await CountPendingInvs();
+            }
+            else
+            {
+                CreditNoteVMs.CreditNoteSubVMs.Remove(rowToDelete);
+
+                if (!CreditNoteVMs.CreditNoteSubVMs.Any())
+                {
+                    CreditNoteVMs.CreditNoteSubVMs.Add(new CreditNoteSubVM
+                    {
+                        CrId = CreditNoteVMs.CrId.Value,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    await ResetSlno();
+                }
+            }
+
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for InvId: {CreditNoteVMs.CrId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _creditNoteService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+
+    #region Discount, P&F, Insurance, TCS
+
+    private async Task SetDiscountMode(bool isRs)
+    {
+        try
+        {
+            CreditNoteVMs.IsItemWiseDiscAmtOrPerReq = isRs;
+
+            foreach(var row in CreditNoteVMs.CreditNoteSubVMs)
+            {
+                row.LineDiscountPercent = 0;
+                row.LineDiscountAmount = 0;
+            }
+
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing of SetDiscountMode in Mfg Invoice");
+            await LoggingService.LogDeveloperError(ex, "Error in  SetDiscountMode() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task SetDiscountType(bool isAmount)
+    {
+        try
+        {
+            CreditNoteVMs.DiscAmtOrPer = isAmount;
+            CreditNoteVMs.DiscountPercent = 0;
+            CreditNoteVMs.DiscountAmount = 0;
+
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing of SetDiscountType in Mfg Invoice");
+            await LoggingService.LogDeveloperError(ex, "Error in  SetDiscountType() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task SetPAndFType(bool isRs)
+    {
+        try
+        {
+            CreditNoteVMs.PackingAmtOrPer = isRs;
+
+            CreditNoteVMs.PackingPercent = 0;
+            CreditNoteVMs.PackingCharges = 0;
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing of SetPAndFType in Mfg Invoice");
+            await LoggingService.LogDeveloperError(ex, "Error in  SetPAndFType() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task SetInsuranceType(bool isRs)
+    {
+        try
+        {
+            CreditNoteVMs.InsuranceAmtOrPer = isRs;
+            CreditNoteVMs.InsurancePercent = 0;
+            CreditNoteVMs.InsuranceCharges = 0;
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing of SetInsuranceType in Mfg Invoice");
+            await LoggingService.LogDeveloperError(ex, "Error in  SetInsuranceType() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task SetTCSType(bool isRs)
+    {
+        try
+        {
+            CreditNoteVMs.TCSAmtOrPer = isRs;
+            CreditNoteVMs.TCSAmount = 0;
+            CreditNoteVMs.TCSPercent = 0;
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing of SetTCSType in Mfg Invoice");
+            await LoggingService.LogDeveloperError(ex, "Error in  SetTCSType() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnLineDiscountPercentChanged(CreditNoteSubVM subitem)
+    {
+        try
+        {
+            decimal gross = 0;
+            if (subitem.Qty > 0 && subitem.UnitPrice > 0)
+            {
+                if (CreditNoteVMs.Rejection.Value)
+                {
+                    gross = subitem.Qty.Value * subitem.UnitPrice.Value;
+                }
+                else
+                {
+                    gross = subitem.CrDrQty * subitem.CrDrUnitPrice;
+
+                }
+
+                subitem.LineDiscountAmount = (gross * subitem.LineDiscountPercent / 100m);
+                CreditNoteVMs.DiscountPercent = 0;
+            }
+            else
+            {
+                subitem.LineDiscountAmount = 0;
+            }
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing of OnLineDiscountPercentChanged in Mfg Invoice");
+            await LoggingService.LogDeveloperError(ex, "Error in  OnLineDiscountPercentChanged() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void OnDiscountPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+        StateHasChanged();
+    }
+
+    private void OnPandFPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+        StateHasChanged();
+    }
+
+    private void OnInsurancePercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+        StateHasChanged();
+    }
+
+    private void OnTCSPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+        StateHasChanged();
+    }
+    #endregion
+
+
+    #region Tax
+
+    private async Task OnTaxRateChanged(ChangeEventArgs e, CreditNoteSubVM subitem)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal newRate))
+        {
+            subitem.LineCGSTRate = newRate;
+            subitem.LineSGSTRate = newRate;
+
+            await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnMainTaxRateChanged(decimal newRate)
+    {
+        CreditNoteVMs.CGstRate = newRate;
+        CreditNoteVMs.SGstRate = newRate;
+
+        await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+        StateHasChanged();
+    }
+
+    #endregion
+
+
+    #region CostCenter And terms
+
+    private Task OnCostCenterChanged(ChangeEventArgs e, CreditNoteSubVM row)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            row.CostId = selectedId;
+
+            var selectedCostCenter = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            row.ProjectNo = selectedCostCenter?.ProjectNo; // Will be null if not found
+        }
+        else
+        {
+            // No selection or invalid selection
+            row.CostId = null;
+            row.ProjectNo = null;
+        }
+
+        return Task.CompletedTask;
+    }
+
+
+    #endregion
+
+
+    private async Task ShowInvoiceDetails()
+    {
+        if (CreditNoteVMs?.CustId != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                if (CreditNoteVMs.Sales.Value)
+                {
+                    InvData = await _creditNoteService.GetMfgInvoiceDetailsByCustId(CreditNoteVMs.CustId.Value);
+                }
+                else if (CreditNoteVMs.Labour.Value)
+                {
+                    InvData = await _creditNoteService.GetLabourInvoiceDetailsByCustId(CreditNoteVMs.CustId.Value);
+                }
+                else if (CreditNoteVMs.Export.Value)
+                {
+                    InvData = await _creditNoteService.GetExportInvoiceDetailsByCustId(CreditNoteVMs.CustId.Value);
+                }
+
+                if (InvData != null && InvData.Any())
+                {
+                    decimal discamt = 0,disPercent=0,frieghtValue=0,PackPercent=0,packValue=0,Insuperce=0,InsuVal=0,tcsPerc=0,tcsVal=0,otherVal=0;
+                    var firstItem = InvData.FirstOrDefault();
+                    if (firstItem != null)
+                    {
+                        // cast the object to the correct type (decimal, double, or int)
+
+                        //Discount--------------------
+                        bool DiscAmtOrPer = firstItem.ContainsKey("DiscAmtOrPer") && firstItem["DiscAmtOrPer"] != null
+                                            ? Convert.ToBoolean(firstItem["DiscAmtOrPer"]) : false;
+                        CreditNoteVMs.DiscAmtOrPer = DiscAmtOrPer;
+
+                        if (firstItem.TryGetValue("DiscountPercent", out var discperc))
+                        {
+                            decimal.TryParse(discperc?.ToString(), out disPercent);
+                        }
+
+                        CreditNoteVMs.DiscountPercent = disPercent;
+
+                        if (firstItem.TryGetValue("DiscountAmount", out var discamtValue))
+                        {
+                            decimal.TryParse(discamtValue?.ToString(), out discamt);
+                        }
+                        CreditNoteVMs.DiscountAmount = discamt;
+                        //---------------------------------------
+
+
+                        //FreightCharges------------------------------
+                        if (firstItem.TryGetValue("FreightCharges", out var fcharge))
+                        {
+                            decimal.TryParse(fcharge?.ToString(), out frieghtValue);
+                        }
+                        CreditNoteVMs.FreightCharges = frieghtValue;
+                        //-----------------------------------------------
+
+                        //P and F------------------------------------------
+                        bool panfAmtOrPer = firstItem.ContainsKey("PackingAmtOrPer") && firstItem["PackingAmtOrPer"] != null
+                                            ? Convert.ToBoolean(firstItem["PackingAmtOrPer"]) : false;
+                        CreditNoteVMs.PackingAmtOrPer = panfAmtOrPer;
+
+                        if (firstItem.TryGetValue("PackingPercent", out var packperc))
+                        {
+                            decimal.TryParse(packperc?.ToString(), out PackPercent);
+                        }
+                        CreditNoteVMs.PackingPercent = PackPercent;
+
+                        if (firstItem.TryGetValue("PackingCharges", out var packcharges))
+                        {
+                            decimal.TryParse(packcharges?.ToString(), out packValue);
+                        }
+                        CreditNoteVMs.PackingCharges = packValue;
+                        //------------------------------------------------------
+
+                        //Insurance------------------------------------------
+                        bool insuAmtOrPer = firstItem.ContainsKey("InsuranceAmtOrPer") && firstItem["InsuranceAmtOrPer"] != null
+                                            ? Convert.ToBoolean(firstItem["InsuranceAmtOrPer"]) : false;
+                        CreditNoteVMs.InsuranceAmtOrPer = insuAmtOrPer;
+
+                        if (firstItem.TryGetValue("InsurancePercent", out var perc))
+                        {
+                            decimal.TryParse(perc?.ToString(), out Insuperce);
+                        }
+                        CreditNoteVMs.InsurancePercent = Insuperce;
+
+                        if (firstItem.TryGetValue("InsuranceCharges", out var insucharges))
+                        {
+                            decimal.TryParse(insucharges?.ToString(), out InsuVal);
+                        }
+                        CreditNoteVMs.InsuranceCharges = InsuVal;
+                        //------------------------------------------------------
+
+                        //TCS-------------------------------------
+                        bool tcsAmtOrPer = firstItem.ContainsKey("TCSAmtOrPer") && firstItem["TCSAmtOrPer"] != null
+                                            ? Convert.ToBoolean(firstItem["TCSAmtOrPer"]) : false;
+                        CreditNoteVMs.TCSAmtOrPer = tcsAmtOrPer;
+
+                        if (firstItem.TryGetValue("TCSPercent", out var TCSperc))
+                        {
+                            decimal.TryParse(TCSperc?.ToString(), out tcsPerc);
+                        }
+                        CreditNoteVMs.TCSPercent = tcsPerc;
+
+                        if (firstItem.TryGetValue("TCSAmount", out var tcscharges))
+                        {
+                            decimal.TryParse(tcscharges?.ToString(), out tcsVal);
+                        }
+                        CreditNoteVMs.TCSAmount = tcsVal;
+
+                        //----------------------------------------
+
+                        //OtherCharges------------------------------
+                        if (firstItem.TryGetValue("OtherCharges", out var othercharge))
+                        {
+                            decimal.TryParse(othercharge?.ToString(), out otherVal);
+                        }
+                        CreditNoteVMs.OtherCharges = otherVal;
+                    }
+                }
+
+                IsDcModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogDeveloperError(ex, "ShowPoDetails failed.");
+                await _js.ToastrError("Error fetching Po details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnInvoiceSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (CreditNoteVMs.CreditNoteSubVMs == null)
+            CreditNoteVMs.CreditNoteSubVMs = new List<CreditNoteSubVM>();
+
+        int custId = CreditNoteVMs.CustId.Value;
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .ToList();
+
+
+
+            decimal balQty = 0;
+            decimal price = 0;
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? RefInvSubId = item.ContainsKey("InvSubId") && item["InvSubId"] != null
+                    ? Convert.ToInt32(item["InvSubId"])
+                    : (int?)null;
+
+                int? RefDcSubId = item.ContainsKey("DcSubId") && item["DcSubId"] != null
+                    ? Convert.ToInt32(item["DcSubId"])
+                    : (int?)null;
+
+                int? RefPoSubId = item.ContainsKey("PoSubId") && item["PoSubId"] != null
+                    ? Convert.ToInt32(item["PoSubId"])
+                    : (int?)null;
+
+                if (item.TryGetValue("CrBalQty", out var balQtyValue))
+                {
+                    decimal.TryParse(balQtyValue?.ToString(), out balQty);
+                }
+
+                if (item.TryGetValue("UnitPrice", out var unitprice))
+                {
+                    decimal.TryParse(unitprice?.ToString(), out price);
+                }
+
+
+
+                if (CreditNoteVMs.CreditNoteSubVMs.Any(x => x.ItemId == itemId && x.RefInvSubId == RefInvSubId))
+                    continue;
+
+                var subVm = new CreditNoteSubVM
+                {
+                    RefInvSubId = CreditNoteVMs.Sales == true ? RefInvSubId : null,
+                    LabInvSubId = CreditNoteVMs.Labour == true ? RefInvSubId : null,
+                    ExpInvSubId = CreditNoteVMs.Export == true ? RefInvSubId : null,
+
+
+                    RefInvNo = item.ContainsKey("InvNo") ? item["InvNo"]?.ToString() : "",
+                    RefInvDate = item.ContainsKey("InvDate") && item["InvDate"] != null
+                        ? Convert.ToDateTime(item["InvDate"]) : null,
+                    RefPoSubId=RefPoSubId,
+
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    Qty = balQty,
+                    // CrDrQty = balQty,
+                    CrBalQty = balQty,
+                    UnitPrice = price,
+
+                    CostId = item.ContainsKey("CostCenterId") && item["CostCenterId"] != null
+                            ? (Convert.ToInt32(item["CostCenterId"]) == 0 ? (int?)null : Convert.ToInt32(item["CostCenterId"]))
+                            : (int?)null,
+                    ProjectNo = item.ContainsKey("ProjectNo") ? item["ProjectNo"]?.ToString() : "",
+
+                    Specification = item.ContainsKey("Specification") ? item["Specification"]?.ToString() : "",
+                    MeasureUnit = item.ContainsKey("UOM") ? item["UOM"]?.ToString() : "",
+                    HsnCode = item.ContainsKey("HSNCode") ? item["HSNCode"]?.ToString() : "",
+
+                    Category = item.ContainsKey("Category") ? item["Category"]?.ToString() : "",
+
+                    IsEditable = true,
+
+                    CreditNote =CreditNoteVMs,
+                };
+
+                CreditNoteVMs.CreditNoteSubVMs.Add(subVm);
+                await _calculationService.UpdateTotalsAsync(CreditNoteVMs);
+            }
+
+            int slNo = 1;
+            foreach (var row in CreditNoteVMs.CreditNoteSubVMs)
+            {
+                row.SlNo = slNo++;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnDcSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected Dc items.");
+        }
+    }
+
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value) 
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+    private async Task UpsertCreditNote()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            CreditNoteVMs.CreditNoteSubVMs.RemoveAll(x => x.ItemId!=0 && (!x.Qty.HasValue || x.Qty == 0) && (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (!CreditNoteVMs.CreditNoteSubVMs.Any())
+            {
+                await _js.ToastrWarning("Cannot save a CreditNote without valid items.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(CreditNoteVMs.CreditNo))
+            {
+                await _js.ToastrWarning("Please enter the CreditNote number");
+                return;
+            }
+
+            if (CreditNoteVMs.CustId==0)
+            {
+                await _js.ToastrWarning("Please select  Customer");
+                return;
+            }
+
+
+            // Validate each line
+            foreach (var line in CreditNoteVMs.CreditNoteSubVMs)
+            {
+                bool isValid = await ValidateCreditNoteLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewCredit = CreditNoteVMs.CrId == 0;
+
+            try
+            {
+
+                if (CreditNoteVMs.Sales.Value)
+                {
+                    await _creditNoteService.UpsertCreditNoteAsync(CreditNoteVMs,screenCode,"Sales");
+                }
+                else if (CreditNoteVMs.Labour.Value)
+                {
+                    await _creditNoteService.UpsertCreditNoteAsync(CreditNoteVMs,screenCode,"Labour");
+                }
+                else if (CreditNoteVMs.Export.Value)
+                {
+                    await _creditNoteService.UpsertCreditNoteAsync(CreditNoteVMs,screenCode,"Export");
+                }
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewCredit)
+                await _js.ToastrSuccess("Credit Note saved successfully.");
+            else
+                await _js.ToastrSuccess("Credit Note  updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/creditNoteList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertInvoic failed.");
+            await _js.ToastrError("Error saving Invoice.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateCreditNoteLineAsync(CreditNoteSubVM line)
+    {
+        try
+        {
+            if (line.ItemId==0)
+            {
+                await _js.ToastrWarning ("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (line.RejQty <= 0 && line.CrDrQty<=0)
+            {
+                await _js.ToastrWarning($"Item {line.ItemId}: Reject or CrDrQty Quantity must be greater than 0.");
+                return false;
+            }
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+            {
+                await _js.ToastrWarning($"Item {line.ItemId}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            // Qty vs Enquiry / Already Transacted validation
+            decimal qtyOut = 0,stkqty=0;
+
+            int RefInvSubId = 0, RefLabInvSubId = 0, RefExpInvSubId=0;
+
+            int.TryParse(line.RefInvSubId.ToString(),out RefInvSubId);
+            int.TryParse(line.LabInvSubId.ToString(),out RefLabInvSubId);
+            int.TryParse(line.ExpInvSubId.ToString(), out RefExpInvSubId);
+
+
+            if (line.CrSubId == 0)
+            {
+                decimal invBalQty = 0;
+                if(RefInvSubId>0)
+                {
+                    invBalQty = await GetInvBalQty(RefInvSubId);
+                    if (line.Qty > invBalQty)
+                    {
+                        line.Qty = invBalQty;
+                        line.RejQty = invBalQty;
+                        await _js.ToastrWarning($"Qty cannot exceed Invoice Balance Qty ({invBalQty}).");
+                        return false;
+                    }
+                }else if (RefLabInvSubId>0)
+                {
+                    invBalQty = await GetInvBalQty(RefLabInvSubId);
+                    if (line.Qty > invBalQty)
+                    {
+                        line.Qty = invBalQty;
+                        line.RejQty = invBalQty;
+                        await _js.ToastrWarning($"Qty cannot exceed Invoice Balance Qty ({invBalQty}).");
+                        return false;
+                    }
+
+                }else if (RefExpInvSubId>0)
+                {
+                    invBalQty = await GetInvBalQty(RefExpInvSubId);
+                    if (line.Qty > invBalQty)
+                    {
+                        line.Qty = invBalQty;
+                        line.RejQty = invBalQty;
+                        await _js.ToastrWarning($"Qty cannot exceed Invoice Balance Qty ({invBalQty}).");
+                        return false;
+                    }
+                    
+                }
+
+            }
+            else if (line.CrSubId > 0)
+            {
+                var reason = CreditNoteVMs.Rejection ?? false ? "Rejection" : "RateDifference";
+
+                var original = await _creditNoteService.GetCreditNoteSubItemDetailByCrSubIdAsync(line.CrSubId,reason);
+
+                if (original != null)
+                {
+                    decimal origBalQty =reason=="Rejection"?original.RejQty:original.CrDrQty;
+                    decimal origQty = original.Qty ?? 0m;
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.Qty < alreadyTransacted)
+                    {
+                        line.Qty = alreadyTransacted;
+                        line.RejQty = 0m;
+                        await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = line.Qty.GetValueOrDefault() - origQty;
+                        line.RejQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidateInvoiceLineAsync failed.");
+            await _js.ToastrError("Error validating Invoice line.");
+            return false;
+        }
+    }
+
+     //-------------E-Invoice------------------------
+    private async Task ConfirmEinvoice()
+    {
+        try
+        {
+            if(await _creditNoteService.CheckPrefixValid(ScreenName)  && string.IsNullOrEmpty(CreditNoteVMs.Prefix))
+            {
+                await _js.ToastrWarning($"Prefix is required for the {ScreenName}  number because 'Prefix Required' is enabled in Screen Management.");
+                return;
+            }
+
+
+            ModalTitle = "Are you sure you want to generate the E-Invoice for this invoice?";
+            btnColor = "btn-success";
+            btnText = "Yes!";
+            confirmation = "EInvoice";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }   
+    }
+
+    private async Task GenerateEInvoice()
+    {
+        try
+        {
+             await _einvoiceService.GetRequiredDetailsFromDb(CreditNoteVMs.CreditNo, "CreditNote", false);
+             await _js.ToastrSuccess("E-Invoice generated successfully.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            
+             await _js.ToastrError("Something went wrong: " + ex.Message);
+        }
+    }
+
+    //Cancel CreditNote
+    private async Task Cancel()
+    {
+        try
+        {
+            if (CrId == 0)
+            {
+                await _js.ToastrWarning("Credit Note  cancel is not allowed before saving the Credit Note.");
+                return;
+            }
+
+            if(CreditNoteVMs.Cancel)
+            {
+                var subs = await _creditNoteService.GetCreditSubDetailsByCrIdAsync(CreditNoteVMs.CrId.GetValueOrDefault());
+
+                if (subs == null || subs.Count == 0)
+                    return;
+
+                foreach (var sub in subs)
+                {
+                    await _creditNoteService.ValidateCreditNoteBalanceBeforeRevertAsync(sub);
+                }
+            }
+
+             
+            if (!CreditNoteVMs.Cancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this Credit Note?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this Credit Note?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+           
+            await _js.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the CreditNote.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Credit Note Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelInvoice()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!CreditNoteVMs.Cancel)
+            {
+                CreditNoteVMs.Cancel = true;
+                CreditNoteVMs.CancelReason = cancelReason;
+
+                await _creditNoteService.UpdatedCancelStatusAndAddOrRevertQty(CreditNoteVMs,screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "CreditNote",
+                    action: $"Cancelled CreditNote: {CreditNoteVMs.CreditNo}",
+                    additionalInfo: $"Invoice Id: {CreditNoteVMs.CrId}"
+                );
+
+                await _js.ToastrSuccess("CreditNote cancelled successfully.");
+            }
+            else
+            {
+                CreditNoteVMs.Cancel = false;
+                CreditNoteVMs.CancelReason = string.Empty;
+
+                await _creditNoteService.UpdatedCancelStatusAndAddOrRevertQty(CreditNoteVMs,screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "CreditNote",
+                    action: $"Reverted CreditNote: {CreditNoteVMs.CreditNo}",
+                    additionalInfo: $"CreditNote Id: {CreditNoteVMs.CrId}"
+                );
+
+                await _js.ToastrSuccess("CreditNote has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while cancelling/reverting the CreditNote.");
+            await LoggingService.LogDeveloperError(ex, $"DebitNote failed for CrId: {CreditNoteVMs.CrId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(CrId.Value, "CreditNote.frx", "CrId", false, ScreenName, "Sp_Print_CREDITNOTE");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Credit Note ");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Credit Note");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

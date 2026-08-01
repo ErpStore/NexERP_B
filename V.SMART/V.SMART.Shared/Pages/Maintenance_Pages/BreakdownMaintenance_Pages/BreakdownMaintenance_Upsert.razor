@@ -1,0 +1,455 @@
+﻿@page "/BreakdownMaintenance/create"
+@page "/BreakdownMaintenance/update/{BreakdownId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMaintenanceService
+@using V.SMART.Shared.BusinessLayer.BusinessService.MaintenanceService
+@using V.SMART.Shared.Data.Maintenance.BreakdownMaintenance
+@using V.SMART.Shared.Data.Master.Inventory
+@using V.SMART.Shared.ViewModels.MaintenanceViewModel.BreakdownMaintenanceVM
+
+
+@inherits BaseUserRightsComponent
+
+@inject IBreakdownMaintenanceService breakdownmaintenanceservice    
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ICommonService _commonService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@(BreakdownId == 0 || BreakdownId == null ? "Create BreakDown" : "Update BreakDown")"
+                            TitleIcon="@(BreakdownId == 0 || BreakdownId == null ? "bi bi-plus-circle" : "bi bi-pencil-square")"
+                            Breadcrumbs="@machineBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="BreakdownMaintenance" OnValidSubmit="UpsertBreakdownMaintenance">
+                        <DataAnnotationsValidator />
+
+                            @* Use col-12 for mobile and col-md-6 for larger screens *@
+
+                        <div class="row g-3 mt-2">
+                            <div class="col-12">
+                                <div class="form-floating">
+                                  
+                                    <InputSelect class="form-select form-select-sm" @bind-Value="BreakdownMaintenance.MachineId" Id="MachineName" placeholder="Select Machine Name">
+                                        <option value=0>--Select Machine--</option>
+                                        @foreach (var machine in MachineList)
+                                        {
+                                            <option value="@machine.MachineId">@machine.MachineName</option>
+                                        }
+                                    </InputSelect>
+                                    <label for="MachineName">Machine Name</label>
+                                    <ValidationMessage for="@(() => BreakdownMaintenance.MachineId)" />
+                                </div>
+                            </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="form-floating">
+                                <input type="datetime-local"
+                                       class="form-control"
+                                       id="BreakdownDate"
+                                       placeholder="Breakdown Happened Date"
+                                           @bind="FromDate"/>
+                                <label for="BreakdownDate">Breakdown Happened</label>
+                                <ValidationMessage for="@(() => BreakdownMaintenance.BreakdownDate)" />
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="form-floating">
+                                    <input type="datetime-local"
+                                           class="form-control"
+                                           id="ResolutionDate"
+                                           placeholder="Breakdown Recovered Date"
+                                           @bind="ToDate" />
+                                <label for="ResolutionDate">Breakdown Recovered Date</label>
+                                <ValidationMessage for="@(() => BreakdownMaintenance.ResolutionDate)" />
+                            </div>
+                        </div>
+
+
+                            <div class="col-12 col-md-4 ">
+                                <div class="form-floating">
+                                <InputText @bind-Value="TimeSpent" class="form-control" readonly id="TimeSpent" placeholder="Time Spent" />
+                                <label for="TimeSpent">Time Spent</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <InputTextArea id="desc" class="form-control"
+                                               @bind-Value="BreakdownMaintenance.BreakdownDescription" placeholder="Breakdown Description" />
+                                    <ValidationMessage for="@(() => BreakdownMaintenance.BreakdownDescription)" />
+                                    <label for="desc">Breakdown Description</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+
+                                    <InputTextArea id="corrdesc" class="form-control"
+                                               @bind-Value="BreakdownMaintenance.ResolutionDescription" placeholder="Corrective Action" />
+                                    <ValidationMessage for="@(() => BreakdownMaintenance.ResolutionDescription)" />
+                                 <label for="corrdesc">Corrective Action</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                   
+                                    <InputNumber id="amount"
+                                                 class="form-control"
+                                                 @bind-Value="BreakdownMaintenance.Amount" placeholder="Amount Spent" />
+                                    <label for="amount">Amount Spent</label>
+                                    <ValidationMessage for="@(() => BreakdownMaintenance.Amount)" />
+                                </div>
+                            </div>
+
+
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating">
+                                  
+                                    <InputNumber id="IdleTimeCost"
+                                                 class="form-control"
+                                                 @bind-Value="BreakdownMaintenance.Idlecost" placeholder="Machine Idle Time Cost" />
+                                    <label for="IdleTimeCost">Machine Idle Time Cost</label>
+                                    <ValidationMessage for="@(() => BreakdownMaintenance.Idlecost)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                 
+                                    <InputText id="Remarks" class="form-control"
+                                               @bind-Value="BreakdownMaintenance.Remarks" placeholder="Remarks"/>
+                                    <ValidationMessage for="@(() => BreakdownMaintenance.Remarks)" />
+                                    <label for="Remarks">Remarks</label>
+                                    </div>
+                            </div>
+
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(BreakdownId == 0 || BreakdownId == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/BreakdownMaintenance" />
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+    }
+}
+
+
+@code {
+    #region Declaration And Properties
+    //User Rights
+    protected override string ScreenName => "BreakdownMaintenance";
+
+    [Parameter]
+    public int? BreakdownId { get; set; }
+    private string? TimeSpent { get; set; }
+
+    private DateTime _fromDate =DateTime.Now;
+    private DateTime _toDate=DateTime.Now;
+    private bool isProcessing = true;
+    private List<Machine> MachineList = new();
+    private BreakdownMaintenanceVM BreakdownMaintenance { get; set; } = new BreakdownMaintenanceVM();
+
+    private List<PageHeader.BreadcrumbItem> machineBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Maintenace" },
+        new PageHeader.BreadcrumbItem { Text = "BreakDown Maintenance", IsLast = true }
+    };
+
+    private decimal CostPerHour { get; set; }
+    #endregion
+
+    #region Initialization
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            MachineList = await _commonService.GetAllMachineAsync();
+            await LoadBreakdownMaintenance();
+            FromDate = BreakdownMaintenance.BreakdownDate;
+            ToDate = BreakdownMaintenance.ResolutionDate;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;  // ← ALWAYS turn off spinner
+        }
+    }
+    #endregion
+
+    #region On DateChange Value will be assigned in Variable
+
+    public DateTime ToDate
+    {
+        get => _toDate;
+        set
+        {
+            try
+            {
+                if (_toDate != value)
+                {
+                    _toDate = value;
+                    BreakdownMaintenance.ResolutionDate = _toDate;
+
+                    if (BreakdownMaintenance.ResolutionDate < BreakdownMaintenance.BreakdownDate)
+                    {
+                        _js.ToastrError("Breakdown Recovered Date cannot be earlier than Breakdown Happened Date.");
+                        return;
+                    }
+
+                    CalculateTimeSpent(); // run logic when value changes
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogDeveloperError(ex,"Error occurred while setting ToDate");
+                _js.ToastrError("Error occurred while setting ToDate");
+            }
+        }
+    }
+
+
+    public DateTime FromDate
+    {
+        get => _fromDate;
+        set
+        {
+            try
+            {
+                if (_fromDate != value)
+                {
+                    _fromDate = value;
+                    BreakdownMaintenance.BreakdownDate = _fromDate;
+                    CalculateTimeSpent(); // run logic when value changes
+                }
+            }
+            catch(Exception ex)
+            {
+                LoggingService.LogDeveloperError(ex, "Error occurred while setting FromDate");
+                _js.ToastrError("Error occurred while setting FromDate");
+            }
+        }
+    }
+    #endregion
+
+    #region Load BreakdownMaintenance
+    private async Task LoadBreakdownMaintenance()
+    {
+        try
+        {
+            if (BreakdownId.HasValue && BreakdownId.Value > 0)
+            {
+                BreakdownMaintenanceVM? existing = await breakdownmaintenanceservice.GetBreakdownMaintenanceById(BreakdownId.Value);
+
+
+                if (existing != null)
+                    BreakdownMaintenance = existing;
+            }
+            else
+            {
+                BreakdownMaintenance = new BreakdownMaintenanceVM();
+                BreakdownMaintenance.Amount=0;
+                BreakdownMaintenance.ResolutionDescription ="";
+                BreakdownMaintenance.Idlecost = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadBreakdownMaintenance()");
+            await _js.ToastrError("Error in LoadBreakdownMaintenance()");
+        }
+    }
+    #endregion
+
+    #region  Creating Creating The Breakdwon Maintenance
+    private async Task UpsertBreakdownMaintenance()
+    {
+        try
+        {
+            isProcessing = true;
+            if (BreakdownMaintenance.MachineId == null || BreakdownMaintenance.MachineId == 0)
+            {
+                await _js.ToastrError("Please select a Machine.");
+                isProcessing = false;
+                return;
+            }
+
+            if (BreakdownMaintenance.BreakdownDate > BreakdownMaintenance.ResolutionDate)
+            {
+                await _js.ToastrError("Breakdown Happened Date cannot be later than Breakdown Recovered Date.");
+                isProcessing = false;
+                return;
+            }
+
+            if (BreakdownMaintenance.Amount<0)
+            {
+                await _js.ToastrError("Amount Spent cannot be negative.");
+                isProcessing = false;
+                return;
+            }
+
+            if(BreakdownMaintenance.Idlecost<0)
+            {
+                await _js.ToastrError("Machine Idle Time Cost cannot be negative.");
+                isProcessing = false;
+                return;
+            }
+            // Check if a breakdown already exists for the same Machine on the same date
+            bool isDuplicate = await breakdownmaintenanceservice.FindDuplicateMaintenanceRecords(
+                                                            BreakdownMaintenance.MachineId,
+                                                            BreakdownMaintenance.BreakdownDate,
+                                                            BreakdownMaintenance.BreakdownId);
+
+
+            if (isDuplicate)
+            {
+                await _js.ToastrError("A breakdown for this machine on the same date already exists.");
+
+                await LoggingService.LogUserAction(
+                    UserName: await _userService.GetUsernameAsync(),
+                    Machine: BreakdownMaintenance.MachineName ?? "",
+                    IP_Address: _userService.IpAddress,
+                    screen: "BreakdownMaintenance",
+                    action: $"User tried to create duplicate Breakdown. {BreakdownMaintenance.BreakdownDescription}",
+                    additionalInfo: $"MachineId: {BreakdownMaintenance.MachineId}, BreakdownDate: {BreakdownMaintenance.BreakdownDate}");
+
+                isProcessing = false;
+                return;
+            }
+
+            if (BreakdownMaintenance.BreakdownId == 0) // New
+            {
+
+                BreakdownMaintenance.CreatedBy = await _userService.GetUsernameAsync();
+                BreakdownMaintenance.CreatedDate = DateTime.Now;
+                await breakdownmaintenanceservice.CreateBreakdownMaintenance(BreakdownMaintenance);
+
+                await _js.ToastrSuccess("Breakdown record created successfully.");
+
+                await LoggingService.LogUserAction(
+                    UserName: BreakdownMaintenance.CreatedBy,
+                    Machine: BreakdownMaintenance.MachineName ?? "",
+                    IP_Address: _userService.IpAddress,
+                    screen: "BreakdownMaintenance",
+                    action: $"User created new Breakdown. {BreakdownMaintenance.BreakdownDescription}",
+                    additionalInfo: $"MachineId: {BreakdownMaintenance.MachineId}, BreakdownDate: {BreakdownMaintenance.BreakdownDate}");
+            }
+            else // Update
+            {
+                BreakdownMaintenance.ModifiedBy = await _userService.GetUsernameAsync();
+                BreakdownMaintenance.ModifiedDate = DateTime.Now;
+                await breakdownmaintenanceservice.UpdateBreakdownMaintenanceAsync(BreakdownMaintenance);
+                await _js.ToastrSuccess("Breakdown record updated successfully.");
+                await LoggingService.LogUserAction(
+                    UserName: BreakdownMaintenance.ModifiedBy,
+                    Machine: BreakdownMaintenance.MachineName ?? "",
+                    IP_Address: _userService.IpAddress,
+                    screen: "BreakdownMaintenance",
+                    action: $"User updated Breakdown. {BreakdownMaintenance.BreakdownDescription}",
+                    additionalInfo: $"MachineId: {BreakdownMaintenance.MachineId}, BreakdownDate: {BreakdownMaintenance.BreakdownDate}");
+            }
+
+            isProcessing = false;
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            // Navigate back to list page
+            _navigationManager.NavigateTo("/BreakdownMaintenance");
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the UpsertBreakdownMaintenance()");
+            await _js.ToastrError("An error occurred while handling the UpsertBreakdownMaintenance()");
+        }
+    }
+    #endregion
+
+    #region Calculating the Time Differance
+
+    private async void CalculateTimeSpent()
+    {
+        try
+        {
+            var diff = _toDate - _fromDate;
+
+            CostPerHour = await breakdownmaintenanceservice.GetMachinePrice(BreakdownMaintenance.MachineId);
+            double totalHoursDecimal = diff.TotalHours;
+
+            BreakdownMaintenance.Idlecost = Math.Round((decimal)totalHoursDecimal * CostPerHour);
+
+            int totalMinutes = (int)diff.TotalMinutes;
+            int totalHours = (int)diff.TotalHours;
+            int days = diff.Days;
+            int hours = diff.Hours;
+            int minutes = diff.Minutes;
+
+            // Case 1: More than 24 hours → show days, hours, mins
+            if (days > 0)
+            {
+                TimeSpent = $"{days} day(s) {hours} hour(s) {minutes} min(s)";
+            }
+            // Case 2: Less than 24 hours but more than 60 minutes → show hours+minutes
+            else if (totalHours > 0)
+            {
+                TimeSpent = $"{totalHours} hour(s) {minutes} min(s)";
+            }
+            // Case 3: Less than 60 minutes → show only minutes
+            else
+            {
+                TimeSpent = $"{totalMinutes} min(s)";
+            }
+        }
+        catch(Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the CalculateTimeSpent()");
+            await _js.ToastrError("An error occurred while handling the CalculateTimeSpent()");
+        }
+    }
+    #endregion
+
+}
+

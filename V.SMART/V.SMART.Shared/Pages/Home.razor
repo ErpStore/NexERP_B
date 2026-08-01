@@ -1,0 +1,826 @@
+﻿@page "/"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices
+@inject NavigationManager Nav
+@inject ThemeStateService ThemeStateService
+@inject ILoggingService LoggingService
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ICompanyService _companyService
+
+<PageTitle>V.SMART ERP — Bhargavi Soft-Tech</PageTitle>
+
+@if (isProcessing)
+{
+    <div class="d-flex justify-content-center align-items-center py-5" style="min-height:60vh;">
+        <div class="erp-hero-spinner">
+            <div class="erp-spinner-ring"></div>
+            <div class="erp-spinner-ring erp-spinner-ring-2"></div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="erp-wrapper @(isDark ? "dark" : "light")">
+
+        <!-- Ambient Orbs -->
+        <div class="erp-orb erp-orb-1"></div>
+        <div class="erp-orb erp-orb-2"></div>
+        <div class="erp-orb erp-orb-3"></div>
+
+        <!-- ══════════════════════════════════════════
+            STICKY NAVBAR
+        ══════════════════════════════════════════ -->
+
+        <AuthorizeView>
+            <NotAuthorized>
+
+                <nav class="erp-navbar @(navScrolled ? "erp-navbar--scrolled" : "")" id="erp-top-navbar">
+
+                    <div class="erp-nav-brand" @onclick='() => ScrollTo("top")'>
+                        <div class="erp-nav-logo-badge">
+                            <img src="/_content/V.SMART.Shared/images/bspllogo.jpg"
+                                 class="erp-logo-img" alt="BSPL Logo"
+                                 style="mix-blend-mode: multiply; background: transparent;" />
+                        </div>
+                        <img src="/_content/V.SMART.Shared/images/bsplimage.png"
+                             class="erp-brand-img" alt="BSPL Brand" />
+                    </div>
+
+                    <ul class="erp-nav-links">
+                        <li>
+                            <button class="erp-nav-link @(activeSection == "home" ? "active" : "")"
+                                    @onclick='() => ScrollTo("home")'>
+                                <i class="bi bi-house-fill"></i> Home
+                            </button>
+                        </li>
+
+                        <li>
+                            <button class="erp-nav-link @(activeSection == "services" ? "active" : "")"
+                                    @onclick='() => ScrollTo("services")'>
+                                <i class="bi bi-grid-3x3-gap-fill"></i> Services
+                            </button>
+                        </li>
+
+                        <li>
+                            <button class="erp-nav-link @(activeSection == "about" ? "active" : "")"
+                                    @onclick='() => ScrollTo("about")'>
+                                <i class="bi bi-building"></i> About
+                            </button>
+                        </li>
+
+                        <li>
+                            <button class="erp-nav-link @(activeSection == "contact" ? "active" : "")"
+                                    @onclick='() => ScrollTo("contact")'>
+                                <i class="bi bi-envelope-fill"></i> Contact
+                            </button>
+                        </li>
+                    </ul>
+
+                    <button class="erp-nav-signin erp-nav-signin-desktop" @onclick="GoLogin">
+                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    </button>
+
+
+                    <button class="erp-nav-mobile-btn" @onclick="ToggleMobileMenu">
+                        <i class="bi @(mobileMenuOpen ? "bi-x-lg" : "bi-list")"></i>
+                    </button>
+                </nav>
+
+
+                <!-- Mobile drawer -->
+                <div class="erp-nav-drawer @(mobileMenuOpen ? "open" : "") @(isDark ? "dark" : "light") erp-wrapper">
+                    <button class="erp-nav-link" @onclick='() => { ScrollTo("home"); mobileMenuOpen = false; }'>
+                        <i class="bi bi-house-fill"></i> Home
+                    </button>
+                    <button class="erp-nav-link" @onclick='() => { ScrollTo("services"); mobileMenuOpen = false; }'>
+                        <i class="bi bi-grid-3x3-gap-fill"></i> Services
+                    </button>
+                    <button class="erp-nav-link" @onclick='() => { ScrollTo("about"); mobileMenuOpen = false; }'>
+                        <i class="bi bi-building"></i> About
+                    </button>
+                    <button class="erp-nav-link" @onclick='() => { ScrollTo("contact"); mobileMenuOpen = false; }'>
+                        <i class="bi bi-envelope-fill"></i> Contact
+                    </button>
+
+                    <button class="erp-nav-signin" @onclick="GoLogin">
+                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    </button>
+
+                </div>
+
+                <!-- ══════════════════════════════════════════
+                     HERO / BRAND
+                     ══════════════════════════════════════════ -->
+                <section class="erp-public-hero" id="home">
+                    <div class="erp-hero-bg-grid"></div>
+
+                    <div class="row align-items-center g-5">
+                        <div class="col-lg-6">
+                            <div class="erp-hero-eyebrow">
+                                <i class="bi bi-shield-check-fill"></i>
+                                ISO Compliant · Manufacturing ERP
+                            </div>
+
+                            <h1 class="erp-hero-headline">
+                                Empower Your<br />
+                                <span class="erp-hero-gradient-text">Business Operations</span>
+                            </h1>
+                            <p class="erp-hero-body">
+                                Bhargavi Soft-Tech provides superior consulting and software solutions for manufacturing and
+                                inventory management — designed for small to medium scale industries across India.
+                                Fresh, innovative, and built to exceed your expectations.
+                            </p>
+
+                            <div class="erp-hero-actions">
+
+                                <button class="erp-hero-btn-primary" @onclick="GoLogin">
+                                    <i class="bi bi-box-arrow-in-right"></i>
+                                    Sign In to ERP
+                                </button>
+                                <button class="erp-hero-btn-outline"
+                                        @onclick='() => ScrollTo("services")'>
+                                    <i class="bi bi-grid-3x3-gap-fill"></i>
+                                    Explore Modules
+                                </button>
+                            </div>
+
+                            <div class="erp-hero-stats">
+                                <div class="erp-hero-stat">
+                                    <span class="erp-hero-stat-num">12+</span>
+                                    <span class="erp-hero-stat-label">ERP Modules</span>
+                                </div>
+                                <div class="erp-hero-stat-divider"></div>
+                                <div class="erp-hero-stat">
+                                    <span class="erp-hero-stat-num">15+</span>
+                                    <span class="erp-hero-stat-label">Years Experience</span>
+                                </div>
+                                <div class="erp-hero-stat-divider"></div>
+                                <div class="erp-hero-stat">
+                                    <span class="erp-hero-stat-num">24/7</span>
+                                    <span class="erp-hero-stat-label">Customer Support</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ═══════════════════════════════════════════════════════
+                             PREMIUM CRYSTAL GLASS ERP ANIMATION
+                             Pentagon + Pentagon layout — NO overlaps
+                             Outer (r=228): Purchase · Inventory · QC · Maintenance · Production
+                             Inner (r=148): Reports · Finance · HR · Sales · Labour
+                             ═══════════════════════════════════════════════════════ -->
+                        <div class="col-lg-6 d-none d-lg-flex justify-content-center">
+                            <div class="erp-anim-wrapper">
+
+                                <!-- Ambient Glass Circles -->
+                                <div class="erp-bg-circle erp-bg-circle-1"></div>
+                                <div class="erp-bg-circle erp-bg-circle-2"></div>
+                                <div class="erp-bg-circle erp-bg-circle-3"></div>
+                                <div class="erp-bg-circle erp-bg-circle-4"></div>
+
+                                <!-- Crystal Orbit Rings -->
+                                <div class="erp-anim-ring erp-anim-ring-1"></div>
+                                <div class="erp-anim-ring erp-anim-ring-2"></div>
+                                <div class="erp-anim-ring erp-anim-ring-3"></div>
+                                <div class="erp-anim-ring erp-anim-ring-4"></div>
+
+                                <!-- Floating Data Packets -->
+                                <div class="erp-anim-packet erp-anim-packet-sm erp-packet-1"></div>
+                                <div class="erp-anim-packet erp-anim-packet-md erp-packet-2"></div>
+                                <div class="erp-anim-packet erp-anim-packet-sm erp-packet-3"></div>
+                                <div class="erp-anim-packet erp-anim-packet-sm erp-packet-4"></div>
+                                <div class="erp-anim-packet erp-anim-packet-md erp-packet-5"></div>
+
+                                <!-- Central Hub -->
+                                <div class="erp-anim-hub">
+                                    <div class="erp-nav-logo-badge">
+                                        <img src="/_content/V.SMART.Shared/images/bspllogo.jpg"
+                                             class="erp-logo-img" alt="BSPL Logo" />
+                                    </div>
+                                </div>
+
+                                <!-- ════════════ OUTER RING (5 cards, r=228) ════════════ -->
+                                <!-- sat-1 · Purchase · 12 o'clock · top:17px left:245px -->
+                                <div class="erp-anim-sat erp-anim-sat-1">
+                                    <i class="bi bi-cart-check-fill sat-teal"></i>
+                                    <span class="erp-anim-sat-label">Sales</span>
+
+                                </div>
+
+                                <!-- sat-2 · Inventory · 2 o'clock · top:175px left:462px -->
+                                <div class="erp-anim-sat erp-anim-sat-2">
+                                    <i class="bi bi-bag-check-fill sat-blue"></i>
+                                    <span class="erp-anim-sat-label">Outsourcing</span>
+
+                                </div>
+
+
+
+                                <!-- sat-3 · QC · 4 o'clock · top:429px left:379px -->
+                                <div class="erp-anim-sat erp-anim-sat-3">
+                                    <i class="bi bi-person-badge-fill sat-indigo"></i>
+                                    <span class="erp-anim-sat-label">Labour Work</span>
+
+                                </div>
+
+                                <!-- sat-4 · Maintenance · 6 o'clock · top:429px left:111px -->
+                                <div class="erp-anim-sat erp-anim-sat-4">
+                                    <i class="bi bi-box-seam-fill sat-cyan"></i>
+                                    <span class="erp-anim-sat-label">Inventory</span>
+
+                                </div>
+
+                                <!-- sat-5 · Production · 10 o'clock · top:175px left:28px -->
+                                <div class="erp-anim-sat erp-anim-sat-5">
+                                    <i class="bi bi-gear-wide-connected sat-red"></i>
+                                    <span class="erp-anim-sat-label">Production</span>
+                                </div>
+
+                                <!-- ════════════ INNER RING (5 cards, r=148) ════════════ -->
+                                <!-- sat-6 · Reports · 1 o'clock · top:125px left:332px -->
+                                <div class="erp-anim-sat erp-anim-sat-6">
+                                    <i class="bi bi-patch-check-fill sat-lime"></i>
+                                    <span class="erp-anim-sat-label">QC</span>
+
+                                </div>
+
+                                <!-- sat-7 · Finance · 5 o'clock · top:291px left:386px -->
+                                <div class="erp-anim-sat erp-anim-sat-7">
+                                    <i class="bi bi-cash-stack sat-green"></i>
+                                    <span class="erp-anim-sat-label">Finance</span>
+                                </div>
+
+                                <!-- sat-8 · HR · 7 o'clock · top:393px left:245px -->
+                                <div class="erp-anim-sat erp-anim-sat-8">
+                                    <i class="bi bi-people-fill sat-pink"></i>
+                                    <span class="erp-anim-sat-label">HR</span>
+                                </div>
+
+                                <!-- sat-9 · Sales · 11 o'clock · top:291px left:104px -->
+                                <div class="erp-anim-sat erp-anim-sat-9">
+                                    <i class="bi bi-tools sat-orange"></i>
+                                    <span class="erp-anim-sat-label">Maintenance</span>
+
+                                </div>
+
+                                <!-- sat-10 · Labour · 11 inner · top:125px left:158px -->
+                                <div class="erp-anim-sat erp-anim-sat-10">
+                                    <i class="bi bi-bar-chart-fill sat-purple"></i>
+                                    <span class="erp-anim-sat-label">Reports</span>
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+
+
+
+                <!-- ══ SERVICES / MODULES SHOWCASE ══ -->
+                <section class="erp-public-section" id="services">
+                    <div class="erp-section-badge">Our Solutions</div>
+                    <h2 class="erp-section-title">Complete ERP Suite</h2>
+                    <p class="erp-section-subtitle">
+                        From procurement to payroll — every business function, one integrated platform.
+                    </p>
+
+                    <div class="row g-4 mt-2">
+                        @foreach (var s in _services)
+                        {
+                            <div class="col-12 col-sm-6 col-xl-4">
+                                <div class="erp-service-card glass-card">
+                                    <div class="erp-service-icon @s.Ic">
+                                        <i class="@s.Icon"></i>
+                                    </div>
+                                    <h5 class="erp-service-title">@s.Title</h5>
+                                    <p class="erp-service-desc">@s.Desc</p>
+                                    <div class="erp-service-tags">
+                                        @foreach (var tag in s.Tags)
+                                        {
+                                            <span class="erp-tag">@tag</span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                </div>
+            </section>
+
+            <!-- ══ ABOUT BSPL ══ -->
+            <section class="erp-public-section" id="about">
+                <div class="row g-5 align-items-center">
+                    <div class="col-lg-5">
+                        <div class="erp-about-visual glass-card">
+                            <div class="erp-about-logo-wrap">
+                                <img src="/_content/V.SMART.Shared/images/BSPLLOGO.jpg"
+                                     alt="Bhargavi Soft-Tech Logo"
+                                     class="erp-about-logo" />
+                            </div>
+                            <div class="erp-about-badges">
+                                <div class="erp-about-badge">
+                                    <i class="bi bi-award-fill"></i>
+                                    <span>BSPL Certified Partner</span>
+                                </div>
+                                <div class="erp-about-badge">
+                                    <i class="bi bi-building-check"></i>
+                                    <span>Pvt. Ltd. Company</span>
+                                </div>
+                                <div class="erp-about-badge">
+                                    <i class="bi bi-globe-asia-australia"></i>
+                                    <span>Domestic &amp; International</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-7">
+                        <div class="erp-section-badge">About Us</div>
+                        <h2 class="erp-section-title">Bhargavi Soft-Tech Pvt. Ltd.</h2>
+                        <p class="erp-about-body">
+                            A part of Bhargavi Group of Industries, we provide superior consulting services for managing
+                            the implementation of manufacturing and inventory management systems in the small to medium scale
+                            industries — serving both domestic and international sectors.
+                        </p>
+                        <p class="erp-about-body">
+                            We bring a fresh and innovative approach to software development. Our goal is to exceed the
+                            expectations of every client by offering outstanding customer service, increased flexibility,
+                            and greater value — optimizing system functionality and improving operational efficiency.
+                        </p>
+                        <div class="erp-about-features">
+                            <div class="erp-about-feat">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Hardware &amp; Networking Support</span>
+                            </div>
+                            <div class="erp-about-feat">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>24/7 Customer Support</span>
+                            </div>
+                            <div class="erp-about-feat">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Data Entry &amp; Migration Services</span>
+                            </div>
+                            <div class="erp-about-feat">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>End-to-End Implementation</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══ CONTACT SECTION ══ -->
+            <section class="erp-public-section" id="contact">
+                <div class="erp-section-badge">Get In Touch</div>
+                <h2 class="erp-section-title">Contact Us</h2>
+                <p class="erp-section-subtitle">Reach out for quality service and quality products.</p>
+
+                <div class="row g-4 mt-2">
+                    <div class="col-lg-5">
+                        <div class="erp-contact-card glass-card">
+                            <h5 class="erp-contact-card-title">Registered Office</h5>
+
+                            <div class="erp-contact-item">
+                                <div class="erp-contact-icon-wrap ic-blue">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                </div>
+                                <div>
+                                    <div class="erp-contact-label">Address</div>
+                                    <a href="https://maps.app.goo.gl/zz71wPHRQLjjYaRR8"
+                                       target="_blank" class="erp-contact-map-link">
+                                        <div class="erp-contact-value">
+                                            <i class="bi bi-geo-alt-fill"></i>
+                                            #5, Ashirwaad Nilaya, Opp.<br />
+                                            Ascent PU College / Behind More Supermarket,<br />
+                                            Hesaraghatta Main Road, 8th Mile, Bengaluru-560073
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="erp-contact-item">
+                                <div class="erp-contact-icon-wrap ic-green">
+                                    <i class="bi bi-telephone-fill"></i>
+                                </div>
+                                <div>
+                                    <div class="erp-contact-label">Phone</div>
+                                    <div class="erp-contact-value"><span>Boss :</span> +91 9844046791</div>
+                                    <div class="erp-contact-value"><span>Admin :</span> +91 8660821782</div>
+                                    <div class="erp-contact-value"><span>Office :</span> +91 9035046791 · 8073253024 · 9901331092</div>
+                                </div>
+                            </div>
+
+                            <div class="erp-contact-item">
+                                <div class="erp-contact-icon-wrap ic-purple">
+                                    <i class="bi bi-envelope-fill"></i>
+                                </div>
+                                <div>
+                                    <div class="erp-contact-label">Email</div>
+                                    <a href="mailto:contactbspl@bhargavigroup.com" class="erp-contact-link">
+                                        contactbspl@bhargavigroup.com
+                                    </a>
+                                    <a href="mailto:bhargavispl@gmail.com" class="erp-contact-link">
+                                        bhargavispl@gmail.com
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-7">
+                        <div class="erp-cta-card glass-card">
+                            <div class="erp-cta-icon">
+                                <i class="bi bi-rocket-takeoff-fill"></i>
+                            </div>
+                            <h4 class="erp-cta-title">Ready to Streamline Your Business?</h4>
+                            <p class="erp-cta-body">
+                                Login to access your personalized ERP dashboard and take control of every business process
+                                — from purchase and production to HR and accounts.
+                            </p>
+
+                            <button class="erp-cta-btn" @onclick="GoLogin">
+                                <i class="bi bi-box-arrow-in-right"></i>
+                                Login to ERP
+                            </button>
+
+                            <div class="erp-cta-note">
+                                <i class="bi bi-shield-lock-fill"></i>
+                                Secure · Encrypted · Enterprise-Grade
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </NotAuthorized>
+    </AuthorizeView>
+
+    <!-- ══════════════════════════════════════════
+         AUTHORIZED SECTION — ERP Modules Grid
+         ══════════════════════════════════════════ -->
+    <AuthorizeView Roles="Administrator,ERPAdmin,User">
+        <Authorized>
+            <section class="erp-public-section">
+                <div class="erp-hero-section mb-4">
+                    <div class="row align-items-center g-4">
+                        <div class="col-lg-8">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <div class="erp-brand-logo">
+                                    <i class="bi bi-grid-1x2-fill"></i>
+                                </div>
+                                <div>
+                                    <h2 class="erp-brand-title mb-0">Enterprise ERP</h2>
+                                    <p class="erp-brand-sub mb-0">
+                                        V.Smart · Manufacturing · Inventory · HR · Accounts
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="erp-user-card">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="erp-user-avatar">
+                                            @(context.User.Identity?.Name?.Length > 0
+                                                                                        ? context.User.Identity.Name.Substring(0, 1).ToUpper()
+                                                                                        : "U")
+                                        </div>
+                                        <div>
+                                            <div class="erp-user-greeting">Welcome back</div>
+                                            <div class="erp-user-name">@context.User.Identity?.Name</div>
+                                        </div>
+                                    </div>
+                                    <button class="erp-btn-danger" @onclick="GoLogout">
+                                        <i class="bi bi-box-arrow-right"></i>
+                                        Logout
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                            <div class="col-lg-4 d-none d-lg-flex justify-content-center">
+                                <div class="erp-hero-deco">
+                                @if (!string.IsNullOrWhiteSpace(_companyLogoUrl))
+                                    {
+                                        <img src="@_companyLogoUrl"
+                                             alt="Company Logo"
+                                             style="max-width:160px; max-height:160px;
+                                            object-fit:contain; border-radius:16px;
+                                            mix-blend-mode:multiply;" />
+                                    }
+                                    else
+                                    {
+                                        
+                                        <img src="/_content/V.SMART.Shared/images/bspllogo.jpg"
+                                                alt="BSPL Logo"
+                                             style="max-width:160px; max-height:160px;
+                                                    object-fit:contain; border-radius:16px;
+                                                    mix-blend-mode:multiply;" />
+                                    }
+                                </div>
+                            </div>
+
+
+                    </div>
+                </div>
+
+                    <div class="erp-section-eyebrow mb-2">Business Modules</div>
+                    <h3 class="erp-section-heading mb-4">Select a Module</h3>
+
+                    <div class="row g-4">
+                    @foreach (var m in _modules)
+                        {
+                            var nav = m.Href;
+                            var title = m.Title;
+                            var desc = m.Desc;
+                            var icon = m.Icon;
+                            var ic = m.Ic;
+
+                            <div class="col-12 col-sm-6 col-xl-3">
+                                <div class="erp-module-card" @onclick='() => Nav.NavigateTo(nav)'>
+                                    <div class="erp-module-icon @ic">
+                                        <i class="@icon"></i>
+                                    </div>
+                                    <div class="erp-module-shine"></div>
+                                    <h5 class="erp-module-title">@title</h5>
+                                    <p class="erp-module-desc">@desc</p>
+                                    <div class="erp-module-arrow">
+                                        <i class="bi bi-arrow-right-short"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </section>
+            </Authorized>
+
+            <NotAuthorized>
+                <section class="erp-public-section">
+                    <div class="erp-notauth glass-card">
+                        <div class="erp-notauth-icon">
+                            <i class="bi bi-shield-lock-fill"></i>
+                        </div>
+                        <h4 class="erp-notauth-title">Business Modules Require Login</h4>
+                        <p class="erp-notauth-desc">
+                            Sign in with your credentials to access the full ERP suite — Purchase, Sales,
+                            Production, Inventory, HR, Accounts, Reports and more.
+                        </p>
+                        <button class="erp-btn-add" @onclick="GoLogin">
+                            <i class="bi bi-box-arrow-in-right"></i>
+                            Login Now
+                        </button>
+                    </div>
+                </section>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <!-- Footer strip -->
+        <footer class="erp-public-footer">
+            <span>© @DateTime.Now.Year Bhargavi Soft-Tech Pvt. Ltd. · All rights reserved.</span>
+            <span class="erp-footer-links">
+                <a href="mailto:contactbspl@bhargavigroup.com">Contact</a>
+                <span>·</span>
+                <a href="https://bhargavigroup.com" target="_blank">Website</a>
+                <span>·</span>
+                <a @onclick="GoLogin">Login</a>
+            </span>
+        </footer>
+
+    </div>
+}
+
+
+<style>
+    /* ── NAV BRAND OVERRIDES (page-scoped) ─────────────────────── */
+    .erp-logo-img,
+    .erp-brand-img {
+        mix-blend-mode: multiply;
+        background: transparent;
+        background-color: transparent;
+    }
+
+    .erp-nav-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        cursor: pointer;
+    }
+
+    .erp-nav-logo-badge {
+        width: 54px;
+        height: 54px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 18px;
+        background: linear-gradient(145deg,rgba(255,255,255,0.72),rgba(255,255,255,0.38));
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border: 1px solid rgba(255,255,255,0.55);
+        box-shadow: 0 8px 24px rgba(15,23,42,0.08), inset 0 1px 1px rgba(255,255,255,0.85);
+        overflow: hidden;
+    }
+
+    .erp-logo-img {
+        width: 42px;
+        height: 42px;
+        object-fit: contain;
+        mix-blend-mode: multiply;
+        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.08));
+    }
+
+    .erp-brand-img {
+        height: 42px;
+        width: auto;
+        object-fit: contain;
+        mix-blend-mode: multiply;
+        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.06));
+    }
+</style>
+
+<script>
+    window.erpNavbarInit = function (dotNetRef) {
+        const sections = ['home', 'services', 'about', 'contact'];
+
+        function getActiveSection() {
+            let current = 'home';
+            for (const id of sections) {
+                const el = document.getElementById(id);
+                if (!el) continue;
+                if (el.getBoundingClientRect().top <= 80) current = id;
+            }
+            return current;
+        }
+
+        function onScroll() {
+            dotNetRef.invokeMethodAsync('OnScrollUpdate', window.scrollY > 20, getActiveSection());
+        }
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+    };
+
+    window.erpScrollTo = function (id) {
+        if (id === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+        const el = document.getElementById(id);
+        if (!el) return;
+        window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 72, behavior: 'smooth' });
+    };
+</script>
+
+@code {
+    private bool isProcessing;
+    private bool isDark;
+    private bool navScrolled;
+    private bool mobileMenuOpen;
+    private string activeSection = "home";
+
+    private string? _companyLogoUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            isDark = ThemeStateService.IsDarkMode;
+            ThemeStateService.OnChange += ThemeChanged;
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Home page initialization failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("erpNavbarInit", DotNetObjectReference.Create(this));
+            await LoadCompanyLogoAsync();
+        }
+    }
+
+    private async Task LoadCompanyLogoAsync()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+            {
+                _companyLogoUrl = await _companyService.GetCompanyLogoUrlAsync();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Failed to load company logo.");
+            _companyLogoUrl = null;
+        }
+    }
+
+    [JSInvokable]
+    public void OnScrollUpdate(bool scrolled, string section)
+    {
+        navScrolled = scrolled;
+        activeSection = section;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ThemeChanged()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => ThemeStateService.OnChange -= ThemeChanged;
+
+    private void ToggleMobileMenu() => mobileMenuOpen = !mobileMenuOpen;
+
+    private async Task ScrollTo(string id)
+    {
+        mobileMenuOpen = false;
+        await JS.InvokeVoidAsync("erpScrollTo", id);
+    }
+
+    private void GoLogin() => Nav.NavigateTo("/login");
+    private void GoLogout() => Nav.NavigateTo("/logout", true);
+
+    /* ── Public service showcase ── */
+    private readonly (string Title, string Desc, string Icon, string Ic, string[] Tags)[] _services =
+    {
+        ("Sales & Labour Work",
+            "Customer enquiries, quotations, sales orders, labour work tracking and invoice management.",
+            "bi bi-cart-check-fill",
+            "ic-teal",
+            new[] { "Sales", "Invoice", "Labour Work" }),
+
+        ("Purchase & Subcontract",
+            "Vendor management, purchase orders, subcontract processing and GRN tracking.",
+            "bi bi-bag-check-fill",
+            "ic-amber",
+            new[] { "Purchase", "GRN", "Subcontract" }),
+
+        ("Planning",
+            "Production planning, route cards, material requirements and scheduling management.",
+            "bi bi-calendar2-week-fill",
+            "ic-purple",
+            new[] { "Planning", "MRP", "Schedule" }),
+
+        ("Production",
+            "Shop floor control, job orders, BOM handling and manufacturing operations.",
+            "bi bi-gear-wide-connected",
+            "ic-red",
+            new[] { "Production", "BOM", "WIP" }),
+
+        ("HUMAN Resource Management System",
+            "Employee records, attendance, leave, payroll and HR operations management.",
+            "bi bi-people-fill",
+            "ic-pink",
+            new[] { "HRMS", "Payroll", "Attendance" }),
+
+        ("Accounts",
+            "Financial accounting, payments, receipts, ledger and cash flow monitoring.",
+            "bi bi-cash-stack",
+            "ic-green",
+            new[] { "Accounts", "Ledger", "Finance" }),
+
+        ("Inspection (QC)",
+            "Quality inspection, in-process checking, final QC and rejection analysis.",
+            "bi bi-clipboard2-check-fill",
+            "ic-blue",
+            new[] { "QC", "Inspection", "Quality" }),
+
+        ("Maintanence",
+            "Machine maintenance, preventive maintenance schedules and breakdown tracking.",
+            "bi bi-tools",
+            "ic-orange",
+            new[] { "Machine", "Service", "Maintenance" }),
+
+        ("Reports",
+            "Business analytics, MIS reports, dashboards and performance monitoring.",
+            "bi bi-bar-chart-line-fill",
+            "ic-indigo",
+            new[] { "Reports", "Dashboard", "Analytics" }),
+    };
+
+    /* ── Authorized module navigation grid ── */
+    private readonly (string Href, string Title, string Desc, string Icon, string Ic)[] _modules =
+    {
+        ("/dashboard",        "Dashboard",       "Real-time business analytics and KPIs",                "bi bi-speedometer2",        "ic-indigo"),
+        ("/master-home",      "Master",          "Inventory, HR, accounts and admin configuration",      "bi bi-database-fill",       "ic-cyan"),
+        ("/sales-home",       "Sales",           "Leads, quotations, invoices and customer orders",      "bi bi-cart-check-fill",     "ic-teal"),
+        ("/purchase-home",    "Out Sourcing",    "Vendor management and procurement flow",               "bi bi-bag-check-fill",      "ic-amber"),
+        ("/production-home",  "Production",      "Shop floor and manufacturing operations",              "bi bi-gear-wide-connected", "ic-red"),
+        ("/planning-home",    "Planning",        "Job cards, route cards and material requirements",     "bi bi-calendar2-week-fill", "ic-purple"),
+        ("/inventory-home",   "Inventory",       "Stock, warehouse and material tracking",               "bi bi-box-seam-fill",       "ic-teal"),
+        ("/qc-home",          "Inspection / QC", "Final inspection, GRN checks and defect tracking",     "bi bi-patch-check-fill",    "ic-lime"),
+        ("/maintenance-home", "Maintenance",     "Machines, calibration and breakdown management",       "bi bi-tools",               "ic-orange"),
+        ("/hr-home",          "Human Resource",  "Employees, leave and attendance management",           "bi bi-people-fill",         "ic-pink"),
+        ("/accounts-home",    "Cash Flow",       "Payments, receipts and bank transactions",             "bi bi-cash-stack",          "ic-green"),
+        ("/reports-home",     "Reports",         "Business analytics, sales track and DC reports",       "bi bi-bar-chart-fill",      "ic-blue"),
+    };
+}

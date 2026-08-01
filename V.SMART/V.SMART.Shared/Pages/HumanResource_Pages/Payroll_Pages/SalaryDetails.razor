@@ -1,0 +1,327 @@
+﻿@page "/salary/details/{RowId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService.IPayrollService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.SalaryViewModel
+
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ISalaryService _salaryService
+@inject ReportService reportService
+@inject ISalaryHeadPrintSettingService SalaryHeadPrintSettingService
+
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." class="img-fluid" style="max-height: 100px;" />
+    </div>
+}
+else
+{
+    <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+        <!-- Company Details Section -->
+        <div class="row align-items-center mb-4 g-4">
+            <div class="col-12 col-lg-3 text-center">
+                @if (!string.IsNullOrEmpty(company?.LogoUrl))
+                {
+                    <img src="@company.LogoUrl" alt="Company Logo" class="img-fluid rounded-3" style="max-height:120px;" />
+                }
+            </div>
+            <div class="col-12 col-lg-9 text-lg-start text-center">
+                <h2 class="text-primary fw-bold mb-1">@company?.CompanyName</h2>
+                <p class="text-muted mb-1">@company?.RegisteredAddress</p>
+                <p class="text-muted mb-0"><strong>GST No:</strong> @(company?.GSTIN ?? "N/A")</p>
+            </div>
+        </div>
+        <div class="row g-3 mb-4">
+            <!-- Employee Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Employee Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>@GetLabel("Employee Name")</strong></td>
+                                    <td>@(Staffs.StaffName ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Salary Month")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.SalMonth.ToString() : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Salary Year")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.SalYear.ToString() : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Salary Date")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.SalDate.ToString("dd-MM-yyyy") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Department")</strong></td>
+                                    <td>@(SalaryVMs?.Dept ?? "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Basic Sumarry Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Basic Summary Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Basic")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedBasic.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("DA")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedDA.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Others")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.Others.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Miscellaneous")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.Miscellaneous.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Attendance Bonus")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.AttBonus.ToString("0.00") : "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!--Total Earnings Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Total Earnings Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Earned HRA")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedHRA.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Earned LTA")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedLTA.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("EarnedEA")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedEA.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Earned MR")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedMR.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Earned TA")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedTA.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Earned Special Allowance")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedSplAllow.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Earned OT")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedOT.ToString("0.00") : "N/A")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!--Total Deductions Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Total Deductions Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("TDS")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.TDS.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Fines")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.Fines.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Damage Loss")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.DamageLoss.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Loan Amount Deduction")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.LoanAmtDed.ToString("0.00") : "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Society")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.Society.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Salary Advance")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.SalAdvance.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("Insurance")"</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.Insurance.ToString("0.00") : "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("PF")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedPF.ToString("0.00") : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("ESI")</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedESI.ToString("0.00") : "N/A")</td>
+                                </tr>
+                               @*  <tr>
+                                    <td class="text-secondary"><strong>@GetLabel("PT")"</strong></td>
+                                    <td>@(SalaryVMs != null ? SalaryVMs.EarnedP.ToString("0.00") : "N/A")</td>
+                                </tr> *@
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+ 
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="/salaryList" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left-circle"></i> Back To List
+            </a>
+            <a href="@($"/salary/update/{RowId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+            @* <button class="btn btn-outline-success" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print
+            </button> *@
+            <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+
+    </div>
+
+}
+
+@code
+{
+    protected override string ScreenName => "Salary";
+
+    [Parameter]
+    public int RowId { get; set; }
+    private bool isProcessing { get; set; } = true;
+
+    private Staff Staffs { get; set; } = new();
+    private SalaryVM SalaryVMs { get; set; } = new SalaryVM();
+    string? pdfBase64;
+    private Companydetails company { get; set; } = new Companydetails();
+
+    private List<SalaryHeadPrintSetting> SalaryHeadSettings = new();
+
+    private int Decimalplaces { get; set; } = 2;
+
+    // int ScreenCode = 0;
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            company = await _salaryService.GetCompanyDetailsAsync();
+            SalaryHeadSettings = await SalaryHeadPrintSettingService.GetAllSalaryPrintHeadSettingsAsync();
+            await LoadSalaryDetails();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Faild in OnInitializedAsync Salary");
+        }
+    }
+
+    private async Task LoadSalaryDetails()
+    {
+        if (RowId > 0)
+        {
+            var sal = await _salaryService.GetSalaryByRowIdAsync(RowId);
+            if (sal != null)
+            {
+                SalaryVMs = sal;
+
+            }
+        }
+    }
+
+    private string GetLabel(string code)
+    {
+        var setting = SalaryHeadSettings?.FirstOrDefault(x => x.FieldName == code);
+
+        return setting?.PrintName ?? code;
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            
+            //var pdfBytes = await reportService.Generate_Report(RowId, "SalarySlip.frx", "RowId", SalaryVMs.SalaryCancel, "Salary", "Sp_Print_Salary");
+            var pdfBytes = await reportService.GenerateSalarySlipReport(RowId, "SalarySlip.frx", "RowId", SalaryVMs.SalaryCancel, "Salary", "Sp_Print_Salary");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Salary");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in Salary.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

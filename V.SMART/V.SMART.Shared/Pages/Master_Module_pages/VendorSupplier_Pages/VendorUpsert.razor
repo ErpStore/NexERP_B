@@ -1,0 +1,1315 @@
+﻿@page "/vendor/create"
+@page "/vendor/update/{VendorCode:int}"
+@using V.SMART.Shared.Data.Master.General
+@using V.SMART.Shared.Data.Master.General_Module
+@using System.Text.RegularExpressions
+
+@inherits BaseUserRightsComponent
+@inject CurrentUserService _userService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _JS
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@VendorHeaderText"
+                            TitleIcon="bi bi-person-badge me-1"
+                            Breadcrumbs="@vendorBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="Vendor" OnValidSubmit="UpsertVendor">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                        <!-- Checkboxes -->
+                        <div class="row g-3 mb-3">
+
+                            @if (Vendor != null && Vendor.VendorCode > 0 && !string.IsNullOrWhiteSpace(Vendor.VendorName))
+                            {
+                                <CorrespondenceStatus ReferenceType="Vendors"
+                                                      ReferenceId="@Vendor.VendorCode"
+                                                      ReferenceTypeName="@Vendor.VendorName" />
+                            }
+
+                            <div class="col-12 ps-3">
+                                <div class="col-12 d-flex flex-wrap gap-3 ps-2">
+                                    <div class="form-check me-3">
+                                        <InputCheckbox @bind-Value="Vendor.IsitPurch" id="Purchase" class="form-check-input " />
+                                        <label class="form-check-label text-primary " for="Purchase">Purchase</label>
+                                    </div>
+
+                                    <div class="form-check me-3">
+                                        <InputCheckbox @bind-Value="Vendor.IsitSubCon" id="SubContract" class="form-check-input" />
+                                        <label class="form-check-label text-primary " for="SubContract">SubContract</label>
+                                    </div>
+
+                                    <div class="form-check me-3">
+                                        <InputCheckbox @bind-Value="Vendor.Inactive" id="Inactive" class="form-check-input" />
+                                        <label class="form-check-label text-danger " for="Inactive">Inactive</label>
+                                    </div>
+                                    <div class="form-check me-3">
+                                        <InputCheckbox @bind-Value="Vendor.RejectionRetract" id="Rejection" class="form-check-input" />
+                                        <label class="form-check-label text-danger " for="Rejection">Rejection-Retract</label>
+                                    </div>
+
+                                    <div class="form-check me-3">
+                                        <InputCheckbox @bind-Value="Vendor.TaxValidate" id="Taxation" class="form-check-input" />
+                                        <label class="form-check-label text-success " for="Taxation">Taxation Validation Not Required?</label>
+                                    </div>
+                                    <div class="form-check me-3">
+                                        <InputCheckbox @bind-Value="Vendor.IsAllowAccRejRew" id="RejectSCN" class="form-check-input" />
+                                        <label class="form-check-label text-success " for="RejectSCN">SCN Full Qty(AQ+RQ+RQ) Required to Invoice? </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Vendor.VendorName" id="VendorName" class="form-control" placeholder="Vendor/Supplier Name" CssClass="form-control" maxlength="100" />
+                                    <label for="VendorName">Vendor/Supplier Name</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.VendorName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="Vendor.VendorAddress" id="Address" class="form-control" placeholder="Vendor Address" maxlength="250" style="height: 50px;" />
+                                    <label for="Address">Vendor Address</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.VendorAddress)" />
+                            </div>
+
+                            <!-- Pin, GST, PAN -->
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.PinCode" id="Pincode" class="form-control" placeholder="PIN Code" maxlength="6"
+                                               oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                                    <label for="PinCode">PINCode</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.PinCode)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <select id="BusiType"
+                                            class="form-select"
+                                            value="@Vendor.BusiType"
+                                            @onchange="OnBusinessTypeChanged">
+                                        <option value="">Select Business Type</option>
+                                        @foreach (var business in BusinessTypes)
+                                        {
+                                            <option value="@business.Name">@business.Name</option>
+                                        }
+                                    </select>
+                                    <label for="BusiType">Business Type</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.BusiType)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.GSTNo" @oninput="OnVATChanged" id="GSTNo" class="form-control" placeholder="GSTNo" maxlength="15" />
+                                    <label for="GSTNo">GSTNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.GSTNo)" />
+                            </div>
+
+
+
+
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.PANNo" id="PANNo" class="form-control" placeholder="PANNo" readonly maxlength="10" />
+                                    <label for="PANNo">PANNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.PANNo)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+
+                                    <select class="form-select"
+                                            value="@Vendor.StateCode"
+                                            @onchange="OnStateChanged">
+                                        <option value="">--Select State--</option>
+                                        @foreach (var sta in States)
+                                        {
+                                            <option value="@sta.StateCode">@sta.StateCode - @sta.StateName</option>
+                                        }
+                                    </select>
+
+
+                                    <label for="stateSelect">State</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.StateName)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <input class="form-control" @bind="Vendor.StateCode" readonly />
+                                    <label for="stateSelect">StateCode</label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="Vendor.Distance" id="Distance" class="form-control" placeholder="Distance" />
+                                    <label for="Distance">Distance</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.Distance)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.Location" id="Location" class="form-control" placeholder="Location" maxlength="100" />
+                                    <label for="Location">Location</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.Location)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.Email" id="Email" class="form-control" placeholder="Email" maxlength="100" />
+                                    <label for="Email">Email</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.Email)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.CustomerCode" id="CustomerCode" class="form-control" placeholder="CustomerCode" maxlength="15" />
+                                    <label for="CustomerCode">CustomerCode</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.CustomerCode)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.TANNo" id="TANNo" class="form-control" placeholder="TANNo" maxlength="50" />
+                                    <label for="TANNo">TANNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.TANNo)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.CINNo" id="CINNo" class="form-control" placeholder="CINNo" maxlength="50" />
+                                    <label for="CINNo">CINNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.CINNo)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-value="Vendor.Country" id="Country" class="form-control" placeholder="Country" maxlength="100" />
+                                    <label for="Country">Country</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.Country)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.Remarks" id="Remarks" class="form-control" placeholder="Remarks" maxlength="500" />
+                                    <label for="Remarks">Remarks</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.Remarks)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.Scope" id="Scope" class="form-control" placeholder="Scope" maxlength="250" />
+                                    <label for="Scope">Scope</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.Scope)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="Vendor.TermsAndCondition" id="TermsAndCondition" class="form-control" placeholder="Terms And Conditions" maxlength="500" />
+                                    <label for="TermsAndCondition">Terms And Conditions</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.TermsAndCondition)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputSelect id="currencySelect" class="form-select" @bind-Value="Vendor.CurrId">
+                                        <option value="">Select Currency</option>
+                                        @foreach (var curr in Currencies)
+                                        {
+                                            <option value="@curr.CurrId">@curr.CurrName</option>
+                                        }
+                                    </InputSelect>
+                                    <label for="currencySelect">Currency</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.CurrId)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Vendor.ContactNo"
+                                               id="ContactNo"
+                                               class="form-control"
+                                               placeholder="Contact No"
+                                               maxlength="15"
+                                               oninput="this.value = this.value.replace(/[^0-9+]/g, '')" />
+                                    <label for="ContactNo">Contact No</label>
+                                </div>
+                                <ValidationMessage For="@(() => Vendor.ContactNo)" />
+                            </div>
+
+                        </div>
+
+                        <div class="row g-3 mt-1">
+                            <ul class="nav nav-tabs">
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "contacts" ? "active" : (IsNoTabActive ? "tab-contacts" : ""))"
+                                       @onclick="@(() => SetTab("contacts"))">Add Contacts</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "consignee" ? "active" : (IsNoTabActive ? "tab-consignee" : ""))"
+                                       @onclick="@(() => SetTab("consignee"))">Add Consignee</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "tds" ? "active" : (IsNoTabActive ? "tab-tds" : ""))"
+                                       @onclick="@(() => SetTab("tds"))">TDS</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "bank" ? "active" : (IsNoTabActive ? "tab-bank" : ""))"
+                                       @onclick="@(() => SetTab("bank"))">BANK Details</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "more" ? "active" : (IsNoTabActive ? "tab-more" : ""))"
+                                       @onclick="@(() => SetTab("more"))">More Details</a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="tab-content mt-3">
+                            @if (activeTab == "contacts")
+                            {
+                                <!-- Contacts Table -->
+                                <div class="container-fluid my-4">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">Vendor Contact Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="table-responsive">
+                                                    <table class="table table-bordered table-sm align-middle text-center" style="table-layout: fixed; width: 100%;">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">Contact Person</th>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">Contact No</th>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">Email</th>
+                                                                <th style="width: 80px;font-size: 12px;background-color: #1f7fb9; color: white;">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var contact in Contacts)
+                                                            {
+                                                                <tr>
+                                                                    <td>
+                                                                        <InputText class="form-control" @bind-Value="contact.ContactPerson" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => contact.ContactPerson)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control" @bind-Value="contact.ContactNo" maxlength="15"
+                                                                                   oninput="this.value = this.value.replace(/[^0-9+]/g, '')" />
+                                                                        <ValidationMessage For="@(() => contact.ContactNo)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control" @bind-Value="contact.Email" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => contact.Email)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => RemoveContact(contact))">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <div class="row mt-1">
+                                                    <div class="col-md-3 d-flex align-items-center " style="height: 50px;">
+                                                        <button type="button" class="btn" style="font-size: 12px; background-color:Purple;color:white" @onclick="AddContact">
+                                                            <i class="bi bi-plus-circle"></i> Add Row
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else if (activeTab == "consignee")
+                            {
+                                <!-- Consignee Table -->
+                                <div class="container-fluid my-4">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">Consignee Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+
+                                                <div class="table-responsive">
+                                                    <table class="table table-bordered table-sm align-middle text-center" style="table-layout: fixed; width: 100%;">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th style="width: 190px;font-size: 12px;background-color: #1f7fb9; color: white;">Alternate Vendor/Supplier</th>
+                                                                <th style="width: 180px;font-size: 12px;background-color: #1f7fb9; color: white;">Address</th>
+                                                                <th style="width: 180px;font-size: 12px;background-color: #1f7fb9; color: white;">Address-2</th>
+                                                                <th style="width: 100px;font-size: 12px;background-color: #1f7fb9; color: white;">PinCode</th>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">GSTNo</th>
+                                                                <th style="width: 130px;font-size: 12px;background-color: #1f7fb9; color: white;">PANNo</th>
+                                                                <th style="width: 200px;font-size: 12px;background-color: #1f7fb9; color: white;">Email</th>
+                                                                <th style="width: 150px;font-size: 12px;background-color: #1f7fb9; color: white;">Contact Person</th>
+                                                                <th style="width: 130px;font-size: 12px;background-color: #1f7fb9; color: white;">Contact No</th>
+                                                                <th style="width: 150px;font-size: 12px;background-color: #1f7fb9; color: white;">State</th>
+                                                                <th style="width: 120px;font-size: 12px;background-color: #1f7fb9; color: white;">City</th>
+                                                                <th style="width: 120px;font-size: 12px;background-color: #1f7fb9; color: white;">Country</th>
+                                                                <th style="width: 80px; font-size: 12px;background-color: #1f7fb9; color: white;">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var VendInd in Indirects)
+                                                            {
+                                                                <tr>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.AltVendorName" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => VendInd.Email)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.AltVendorAddr1" maxlength="250" />
+                                                                        <ValidationMessage For="@(() => VendInd.AltVendorAddr1)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.AltVendorAddr2" IsFrozen="true" maxlength="250" />
+                                                                        <ValidationMessage For="@(() => VendInd.AltVendorAddr2)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.PinCode"
+                                                                                   oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="6" />
+                                                                        <ValidationMessage For="@(() => VendInd.PinCode)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm"
+                                                                                   @bind-Value="VendInd.GSTNo"
+                                                                                   @oninput="@(e => OnGstChanged(e, VendInd))" maxlength="15" /><ValidationMessage For="@(() => VendInd.GSTNo)" />
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm"
+                                                                                   @bind-Value="VendInd.PANNo" /><ValidationMessage For="@(() => VendInd.PANNo)" readonly />
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.Email" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => VendInd.Email)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.ContactPerson" maxlength="50" />
+                                                                        <ValidationMessage For="@(() => VendInd.ContactPerson)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.ContactNo" maxlength="15"
+                                                                                   oninput="this.value = this.value.replace(/[^0-9+]/g, '')" />
+                                                                        <ValidationMessage For="@(() => VendInd.ContactNo)" />
+                                                                    </td>
+
+                                                                    <td>
+
+
+                                                                        <select id="SateSelect" @bind="VendInd.StateName" class="form-select">
+
+                                                                            <option value="">Select State</option>
+                                                                            @foreach (var sta in States)
+                                                                            {
+                                                                                <option value="@sta.StateName">@sta.StateName</option>
+
+                                                                            }
+                                                                        </select>
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.City" maxlength="50" />
+                                                                        <ValidationMessage For="@(() => VendInd.City)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="VendInd.Country" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => VendInd.Country)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => RemoveVendorIndirect(VendInd))">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                <div class="row mt-1">
+                                                    <div class="col-md-3 d-flex align-items-center " style="height: 50px;">
+                                                        <button type="button" class="btn" style="font-size: 12px; background-color:Purple;color:white" @onclick="AddVendorIndirect">
+                                                            <i class="bi bi-plus-circle"></i> Add Row
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else if (activeTab == "tds")
+                            {
+
+                                <div class="container-fluid my-4">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">TDS Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="Vendor.TDSExmptdAmt" id="TDSExmptdAmt" class="form-control" placeholder="TDS Exempted Amount (Yearly)" onkeypress="return isNumericWithDot(event)" />
+                                                        <label for="TDSExmptdAmt">TDS Exempted Amount (Yearly)</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.TDSExmptdAmt)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="Vendor.TDSDeductper" id="TDSDeductper" class="form-control" placeholder="TDS Deduction (%)" onkeypress="return isNumericWithDot(event)" />
+                                                        <label for="TDSDeductper">TDS Deduction (%)</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.TDSDeductper)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="Vendor.TDSBillval" id="TDSBillval" class="form-control" placeholder="Maximum Amount per Single Invoice" onkeypress="return isNumericWithDot(event)" />
+                                                        <label for="TDSBillval">Maximum Amount per Single Invoice</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.TDSBillval)" />
+                                                </div>
+                                            </div>
+                                            <div class="row g-3 mt-3">
+                                                <div class="col-md-6">
+                                                    <div class="form-check">
+                                                        <InputCheckbox @bind-Value="Vendor.TdsDeduct" id="TDSAutoDeduct" class="form-check-input" />
+                                                        <label class="form-check-label text-primary" for="TDSAutoDeduct">Auto TDS Deduction</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else if (activeTab == "bank")
+                            {
+                                <!-- Bank Details -->
+                                <div class="container-fluid my-4">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">BANK Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.BankName" id="BankName" class="form-control" placeholder="BANK Name" maxlength="100" />
+                                                        <label for="BankName">BANK Name</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.BankName)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.BankAccountNo" id="BankAccountNo" class="form-control" placeholder="BANK Account No." maxlength="20" />
+                                                        <label for="BankAccountNo">BANK Account No.</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.BankAccountNo)" />
+                                                </div>
+                                            </div>
+                                            <div class="row g-3 mt-3">
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.BankIFSCCode" id="BankIFSCCode" class="form-control" placeholder="BANK IFSC CODE" maxlength="11" />
+                                                        <label for="BankIFSCCode">BANK IFSC CODE</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.BankIFSCCode)" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.BankBranchName" id="BankBranchName" class="form-control" placeholder="BANK Branch Name" maxlength="100" />
+                                                        <label for="BankBranchName">BANK Branch Name</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.BankBranchName)" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else if (activeTab == "more")
+                            {
+                                <div class="container-fluid my-4">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">More Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.YearOfEstd" id="YearOfEstd" class="form-control" placeholder="Year of Establishment" maxlength="50" />
+                                                        <label for="YearOfEstd">Year of Establishment</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.YearOfEstd)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="Vendor.NoofEmployee" id="NoofEmployee" class="form-control" placeholder="No Of Employee" onkeypress="return isNumericWithDot(event)" />
+                                                        <label for="NoofEmployee">No Of Employee</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.NoofEmployee)" />
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <div class="form-check">
+                                                        <InputCheckbox @bind-Value="Vendor.SSI" id="SSI" class="form-check-input" />
+                                                        <label class="form-check-label text-primary" for="SSI">SSI</label>
+                                                    </div>
+                                                </div>
+
+
+                                            </div>
+                                            <div class="row g-3 mt-2">
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.PreviousYearTurnover" id="PreviousYearTurnover" class="form-control" placeholder="Level Of Quality" maxlength="50" />
+                                                        <label for="PreviousYearTurnover">Level Of Quality</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.PreviousYearTurnover)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.ProdMfg" id="ProdMfg" class="form-control" placeholder="Price Level" maxlength="50" />
+                                                        <label for="ProdMfg">Price Level</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.ProdMfg)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputTextArea @bind-Value="Vendor.MajorCust" id="MajorCust" class="form-control" placeholder="Description for Inactive Vendor/Supplier" maxlength="50" />
+                                                        <label for="MajorCust">Description for Inactive Vendor/Supplier</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.MajorCust)" />
+                                                </div>
+
+                                            </div>
+
+                                            <div class="row g-3 mt-2">
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.MfgFacility" id="MfgFacility" class="form-control" placeholder="Availability of any QMS certificate,if so the certificate details." />
+                                                        <label for="MfgFacility">
+                                                            Availability of any QMS certificate,if so the certificate details.
+                                                        </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.MfgFacility)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.InspectionFacility" id="InspectionFacility" class="form-control" placeholder="Whether persons are possessing level competency for performing particular activity" />
+                                                        <label for="InspectionFacility">
+                                                            Whether persons are
+                                                            possessing level competency
+                                                            for performing particular activity
+                                                        </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.InspectionFacility)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.AnyQualSysFoll" id="AnyQualSysFoll" class="form-control" placeholder="List of machineries and availablity of maintenance mechanisum" />
+                                                        <label for="AnyQualSysFoll">
+                                                            List of machineries and
+                                                            availablity of maintenance
+                                                            mechanisum
+                                                        </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.AnyQualSysFoll)" />
+                                                </div>
+
+                                            </div>
+                                            <div class="row g-3 mt-2">
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputText @bind-Value="Vendor.AnyProdApprvl" id="AnyProdApprvl" class="form-control" placeholder="List of measuring devices and calibration report" />
+                                                        <label for="AnyProdApprvl">List of measuring devices and calibration report </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.AnyProdApprvl)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <select class="form-select" @bind="Vendor.CouldMeetQuantityReq" placeholder="Could meet Qty. of Request">
+                                                            <option value="">--Select--</option>
+                                                            <option value="Yes">Yes</option>
+                                                            <option value="No">No</option>
+
+                                                        </select>
+                                                        <label for="CouldMeetQuantityReq">Could meet Qty. of Request</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.CouldMeetQuantityReq)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <select class="form-select" @bind="Vendor.CompnyType" placeholder="Company Type">
+                                                            <option value="">--Select--</option>
+                                                            <option value="Yes">Yes</option>
+                                                            <option value="No">No</option>
+
+                                                        </select>
+                                                        <label for="CompnyType">Company Type</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.CompnyType)" />
+                                                </div>
+
+                                            </div>
+                                            <div class="row g-3 mt-2">
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <select class="form-select" @bind="Vendor.ManintngDocs" placeholder="Are they capable of maintaining required documents?">
+                                                            <option value="">--Select--</option>
+                                                            <option value="Yes">Yes</option>
+                                                            <option value="No">No</option>
+
+                                                        </select>
+                                                        <label for="ManintngDocs">
+                                                            Are they capable of maintaining required documents ?
+                                                        </label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.ManintngDocs)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <select class="form-select" @bind="Vendor.FAIMaintained" placeholder="Whether FAI is Maintained">
+                                                            <option value="">--Select--</option>
+                                                            <option value="Yes">Yes</option>
+                                                            <option value="No">No</option>
+
+                                                        </select>
+                                                        <label for="FAIMaintained">Whether FAI is Maintained</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.FAIMaintained)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <select class="form-select" @bind="Vendor.FODMaintained" placeholder="Whether FOD is Adhered">
+                                                            <option value="">--Select--</option>
+                                                            <option value="Yes">Yes</option>
+                                                            <option value="No">No</option>
+
+                                                        </select>
+                                                        <label for="FODMaintained">Whether FOD is Adhered</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Vendor.FODMaintained)" />
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Buttons -->
+                        @if (Vendor.VendorCode > 0)
+                        {
+                            <div class="row g-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Vendor.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="CreatedDate" value="@Vendor.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Vendor.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="ModifiedDate" value="@Vendor.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+
+                        <div class="row mt-4">
+
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-md-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(VendorCode == 0 || VendorCode == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            @if (!isModelVisible)
+                            {
+                                <div class="col-md-3">
+                                    <SmartBackButton Url="@($"/vendor?currentPage={currentPage}")" />
+                                </div>
+
+                            }
+
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+
+
+    }
+}
+
+@code
+{
+    protected override string ScreenName => "Vendor";
+
+    [Parameter]
+    public int? VendorCode { get; set; }
+
+    [Parameter]
+    public bool isModelVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private bool isProcessing = true;
+    private Vendor Vendor { get; set; } = new Vendor();
+
+    private List<State> States { get; set; } = new();
+    private List<VendorInDirect> Indirects { get; set; } = new();
+    private List<VendorContact> Contacts { get; set; } = new();
+    private List<Currency> Currencies { get; set; } = new List<Currency>();
+    private List<VendorInDirect> _originalIndirects;
+    private List<VendorContact> _originalContacts;
+
+    private string activeTab = "";
+    private void SetTab(string tab) => activeTab = tab;
+    private bool IsNoTabActive => string.IsNullOrEmpty(activeTab);
+
+    private List<PageHeader.BreadcrumbItem> vendorBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "General" },
+        new PageHeader.BreadcrumbItem { Text = "Vendor/Supplier", IsLast = true }
+    };
+
+    private string VendorHeaderText => VendorCode == 0 || VendorCode == null
+        ? "Create Vendor/Supplier"
+        : "Update Vendor/Supplier";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadStates();
+            await LoadCurrencies();
+            await LoadVendorSupplierData();
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred during the execution of the Vendor.OnInitializedAsync() Method");
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task LoadStates()
+    {
+        try
+        {
+            var existing = await _unitOfWork.States.GetAllAsync();
+            if (existing != null)
+            {
+                States = existing.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Vendor LoadState() Method");
+        }
+    }
+
+    private async Task LoadCurrencies()
+    {
+        try
+        {
+            var existing = await _unitOfWork.Currencyis.GetAllAsync();
+            if (existing != null)
+            {
+                Currencies = existing.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer LoadCurrency() Method");
+        }
+    }
+
+    private async Task LoadVendorSupplierData()
+    {
+        try
+        {
+            if (VendorCode > 0)
+            {
+                var existing = await _unitOfWork.Vendors.GetAsync(VendorCode.Value);
+                if (existing != null)
+                {
+                    Vendor = existing;
+
+                    var indirects = await _unitOfWork.VendorInDirects.FindAsync(x => x.VendorCode == Vendor.VendorCode);
+                    Indirects = indirects?.ToList() ?? new();
+
+                    var contacts = await _unitOfWork.VendorContacts.FindAsync(x => x.VendorCode == Vendor.VendorCode);
+                    Contacts = contacts?.ToList() ?? new();
+
+                    _originalIndirects = Indirects.ToList();
+                    _originalContacts = Contacts.ToList();
+                }
+            }
+
+            if (!Indirects.Any())
+            {
+                Indirects.Add(new VendorInDirect());
+            }
+            if (!Contacts.Any())
+            {
+                Contacts.Add(new VendorContact());
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Vendor.LoadVendorData() Method");
+        }
+    }
+
+    private async Task UpsertVendor()
+    {
+        isProcessing = true;
+        using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            // --- Validation ---
+            bool isDuplicate = await _unitOfWork.Vendors.ExistsByNameAsync("VendorName", Vendor.VendorName?.Trim(), "VendorCode", Vendor.VendorCode == 0 ? null : Vendor.VendorCode);
+            if (isDuplicate)
+            {
+                await _JS.ToastrError("Vendor Name already exists.");
+                isProcessing = false;
+                return;
+            }
+
+            var errors = new List<string>();
+
+            if (!Vendor.IsitPurch && !Vendor.IsitSubCon)
+            {
+                errors.Add("Please select the checkbox whether it is Subcontract or Purchase type.");
+            }
+            else if (Vendor.IsitSubCon)
+            {
+                double dist = 0;
+                double.TryParse(Vendor.Distance.ToString(), out dist);
+                if (dist == 0)
+                {
+                    errors.Add("Please enter Distance.");
+                }
+            }
+
+            string busiType = Vendor.BusiType?.ToString()?.Trim();
+            if (busiType == "Imports" || busiType == "Exports")
+            {
+                if (!string.Equals(Vendor.GSTNo, "URP", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add("For Imports/Exports, GST No must be 'URP'.");
+                }
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(Vendor.GSTNo))
+                {
+                    errors.Add("Please enter GST No.");
+                }
+                else if (Vendor.GSTNo.Length != 15)
+                {
+                    errors.Add("GST No must be 15 characters.");
+                }
+                else if (!Regex.IsMatch(Vendor.GSTNo, @"^(URP|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})$"))
+                {
+                    errors.Add("Invalid GST No format.");
+                }
+
+                if (string.IsNullOrWhiteSpace(Vendor.PANNo))
+                {
+                    errors.Add("Please enter PAN No.");
+                }
+                else if (!Regex.IsMatch(Vendor.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
+                {
+                    errors.Add("Invalid PAN No format.");
+                }
+            }
+
+            var matchedState = States.FirstOrDefault(s => s.StateCode == Vendor.StateCode);
+            if (Vendor.StateCode == 0 || matchedState == null)
+            {
+                errors.Add("Please select a valid State.");
+            }
+            else
+            {
+                Vendor.StateName = matchedState.StateName;
+            }
+
+            if (errors.Any())
+            {
+                foreach (var err in errors)
+                {
+                    await _JS.ToastrError(err);
+                }
+                isProcessing = false;
+                return;
+            }
+
+            if (Vendor.OpenBal.HasValue)
+            {
+                Vendor.OpenBalPndg = Vendor.OpenBal;
+                Vendor.OpenBalDate = DateTime.Now;
+            }
+            else
+            {
+                Vendor.OpenBalPndg = null;
+                Vendor.OpenBalDate = null;
+            }
+
+            var currentUsername = await _userService.GetUsernameAsync();
+
+            if (Vendor.VendorCode == 0)
+            {
+                Vendor.CreatedBy = currentUsername;
+                Vendor.CreatedDate = DateTime.Now;
+
+                await _unitOfWork.Vendors.CreateAsync(Vendor);
+                await _unitOfWork.SaveAsync();
+
+                foreach (var indirect in Indirects.Where(i => !string.IsNullOrWhiteSpace(i.AltVendorName)))
+                {
+                    indirect.VendorCode = Vendor.VendorCode;
+                    await _unitOfWork.VendorInDirects.CreateAsync(indirect);
+                }
+
+                foreach (var contact in Contacts.Where(c => !string.IsNullOrWhiteSpace(c.ContactPerson)))
+                {
+                    contact.VendorCode = Vendor.VendorCode;
+                    await _unitOfWork.VendorContacts.CreateAsync(contact);
+                }
+
+                await _unitOfWork.SaveAsync();
+                await transaction.CommitAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: currentUsername,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Vendor",
+                    action: $"Vendor Created: {Vendor.VendorName}",
+                    additionalInfo: $"VendorName: {Vendor.VendorName}");
+
+                await _JS.ToastrSuccess("Vendor Created Successfully");
+            }
+            else
+            {
+                var currentIndirectIds = Indirects.Where(i => i.AltVendorCode != 0).Select(i => i.AltVendorCode).ToHashSet();
+                var indirectsToDelete = _originalIndirects
+                                        .Where(original => !currentIndirectIds.Contains(original.AltVendorCode))
+                                        .ToList();
+
+                foreach (var indirectToDelete in indirectsToDelete)
+                {
+                    await _unitOfWork.VendorInDirects.DeleteAsync(indirectToDelete.AltVendorCode);
+                }
+
+                var currentContactIds = Contacts.Where(c => c.Id != 0).Select(c => c.Id).ToHashSet();
+                var contactsToDelete = _originalContacts
+                                        .Where(original => !currentContactIds.Contains(original.Id))
+                                        .ToList();
+
+                foreach (var contactToDelete in contactsToDelete)
+                {
+                    await _unitOfWork.VendorContacts.DeleteAsync(contactToDelete.Id);
+                }
+
+                Vendor.ModifiedBy = currentUsername;
+                Vendor.ModifiedDate = DateTime.Now;
+                await _unitOfWork.Vendors.UpdateAsync(Vendor);
+
+                foreach (var indirect in Indirects.Where(i => !string.IsNullOrWhiteSpace(i.AltVendorName)))
+                {
+                    indirect.VendorCode = Vendor.VendorCode;
+
+                    if (indirect.AltVendorCode == 0)
+                    {
+                        await _unitOfWork.VendorInDirects.CreateAsync(indirect);
+                    }
+                    else
+                    {
+                        await _unitOfWork.VendorInDirects.UpdateAsync(indirect);
+                    }
+                }
+
+                foreach (var contact in Contacts.Where(c => !string.IsNullOrWhiteSpace(c.ContactPerson)))
+                {
+                    contact.VendorCode = Vendor.VendorCode;
+                    if (contact.Id == 0)
+                    {
+                        await _unitOfWork.VendorContacts.CreateAsync(contact);
+                    }
+                    else
+                    {
+                        await _unitOfWork.VendorContacts.UpdateAsync(contact);
+                    }
+                }
+
+                await _unitOfWork.SaveAsync();
+                await transaction.CommitAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: currentUsername,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Vendor/Supplier",
+                    action: $"Vendor/Supplier Modified: {Vendor.VendorName}",
+                    additionalInfo: $"VendorName: {Vendor.VendorName}");
+
+                await _JS.ToastrSuccess("Vendor Updated Successfully");
+            }
+
+            // Discard popup Clear
+            await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/vendor");
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            await _JS.ToastrError("An error occurred while saving the vendor.");
+            await LoggingService.LogDeveloperError(ex, "An error occurred during the execution of the Vendor.UpsertVendor() Method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // --- Event Handlers ---
+
+    private async Task OnBusinessTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e?.Value is null) return;
+
+            var value = e.Value.ToString();
+            Vendor.BusiType = value; // Direct assignment is fine here
+
+            if (value == "Imports" || value == "Exports")
+            {
+                Vendor.GSTNo = "URP";
+                var urpState = States.FirstOrDefault(s => s.StateCode == 99);
+                if (urpState != null)
+                {
+                    Vendor.StateCode = 99;
+                    Vendor.StateName = urpState.StateName;
+                    Vendor.PANNo = string.Empty; // Clear PAN for URP
+                }
+            }
+            else
+            {
+
+                if (string.Equals(Vendor.GSTNo, "URP", StringComparison.OrdinalIgnoreCase) || Vendor.GSTNo?.Length < 15)
+                {
+                    Vendor.GSTNo = string.Empty;
+                }
+                Vendor.PANNo = string.Empty; // Clear PAN
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred during the execution of the Vendor.OnBusinessTypeChanged() event");
+        }
+    }
+
+    private List<(int Id, string Name)> BusinessTypes = new()
+    {
+        (1, "Local"),
+        (2, "InterState"),
+        (3, "Imports"),
+        (4, "Exports")
+    };
+
+    private async Task OnVATChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value is string vatValue)
+            {
+                vatValue = vatValue.ToUpper();
+                Vendor.GSTNo = vatValue;
+
+                if (!string.IsNullOrEmpty(vatValue) && vatValue.Length == 15)
+                {
+
+                    Vendor.PANNo = vatValue.Substring(2, 10);
+                }
+                else
+                {
+                    Vendor.PANNo = string.Empty;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred during the execution of the Vendor.OnVATChanged() event");
+        }
+    }
+
+    private async Task OnStateChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int statecode))
+            {
+                var stateItem = States.FirstOrDefault(s => s.StateCode == statecode);
+                if (stateItem != null)
+                {
+                    Vendor.StateCode = stateItem.StateCode;
+                    Vendor.StateName = stateItem.StateName;
+                }
+            }
+            else
+            {
+                Vendor.StateCode = 0;
+                Vendor.StateName = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred during the execution of the Vendor.OnStateChanged() event");
+        }
+    }
+
+    private async Task AddContact()
+    {
+        try
+        {
+            if (Contacts.Any() && string.IsNullOrWhiteSpace(Contacts.Last().ContactPerson))
+            {
+                await _JS.ToastrWarning("Please fill the current row before adding a new one.");
+                return;
+            }
+            Contacts.Add(new VendorContact());
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred during the execution of the Vendor.AddContact() event");
+        }
+    }
+
+    private void RemoveContact(VendorContact contact)
+    {
+        Contacts.Remove(contact);
+    }
+
+    private async Task AddVendorIndirect()
+    {
+        try
+        {
+            if (Indirects.Any() && string.IsNullOrWhiteSpace(Indirects.Last().AltVendorName))
+            {
+                await _JS.ToastrWarning("Please fill the current row before adding a new one.");
+                return;
+            }
+            Indirects.Add(new VendorInDirect());
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred during the execution of the Vendor.AddVendorIndirect() event");
+        }
+    }
+
+    private void RemoveVendorIndirect(VendorInDirect indirect)
+    {
+        Indirects.Remove(indirect);
+    }
+
+    private async Task OnGstChanged(ChangeEventArgs e, VendorInDirect vendorIndirect) // Renamed CustInd to vendorIndirect for clarity
+    {
+        try
+        {
+            var gst = e.Value?.ToString();
+            vendorIndirect.GSTNo = gst?.Trim(); // Handle null for gst
+
+            if (!string.IsNullOrWhiteSpace(gst) && gst.Length == 15)
+            {
+                vendorIndirect.PANNo = gst.Substring(2, 10);
+            }
+            else
+            {
+                vendorIndirect.PANNo = string.Empty; // Clear PAN if GST is invalid
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Vendor Consignee GST OnGstChanged event");
+        }
+    }
+}
+

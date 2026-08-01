@@ -1,0 +1,539 @@
+﻿@* RolItemDetailModel.razor *@
+@using V.SMART.Shared.ViewModels.MasterViewModel.InventoryViewModel
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService
+@using MudBlazor
+
+@inject ISCNGenService _scnGenService
+@inject IToolCribIssueService tcIssueService
+@inject IMaterialReqService materialReqService
+@inject ILoggingService _logs
+@inject IJSRuntime _js
+
+<div class="modal fade @(IsVisible ? "show" : "")" tabindex="-1"
+     role="dialog"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false"
+     style="display:@(IsVisible ? "block" : "none"); background-color: rgba(0,0,0,0.5);">
+
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl mx-auto" role="document">
+
+        <div class="modal-content">
+
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">@Title</h5>
+                <button type="button" class="btn-close" @onclick="Close"></button>
+            </div>
+
+            <div class="modal-body p-2 d-flex flex-column">
+
+                
+
+               
+                <div class="row g-3 align-items-center mb-2">
+
+                    <!-- Stores -->
+                    <div class="col-12 col-md-4">
+                        <div class="row align-items-center">
+                            <label class="col-4 col-sm-3 col-form-label text-dark">
+                                <small>Stores</small>
+                            </label>
+
+                            <div class="col-8 col-sm-9">
+                                <select class="form-select"
+                                        id="StoreId"
+                                        @onchange="OnStoreChanged">
+                                    <option value="0">-- Select Stores --</option>
+
+                                    @if (Stores != null && Stores.Any())
+                                    {
+                                        @foreach (var store in Stores)
+                                        {
+                                            <option value="@store.StoreId">
+                                                @store.StoreName
+                                            </option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Category -->
+                    <div class="col-12 col-md-4">
+                        <div class="row align-items-center">
+                            <label class="col-4 col-sm-3 col-form-label text-dark">
+                                <small>Category</small>
+                            </label>
+
+                            <div class="col-8 col-sm-9">
+                                <select class="form-select"
+                                        id="CategoryCode"
+                                        @onchange="OnCategoryChanged">
+                                    <option value="0">-- Select Category --</option>
+
+                                    @if (categories != null && categories.Any())
+                                    {
+                                        @foreach (var category in categories)
+                                        {
+                                            <option value="@category.CategoryCode">
+                                                @category.CategoryName
+                                            </option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ROL Checkbox -->
+                    <div class="col-12 col-md-4">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="chkAllItems"
+                                   @bind="ShowOnlyROMItems"
+                                   @bind:after="OnShowOnlyROLItemsChanged" />
+
+                            <label class="form-check-label" for="chkAllItems">
+                                Show Only ROL Items
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+                <input type="text" class="form-control mb-2" placeholder="Search..."
+                       @bind="SearchTerm" @bind:event="oninput" />
+                
+                @if (HeaderContent is not null)
+                {
+                    <div class="p-2 border-bottom">
+                        @HeaderContent
+                    </div>
+                }
+
+                <!-- Table wrapper for both horizontal and vertical scroll -->
+                <div class="table-responsive" style="max-height:60vh;">
+                    <table class="table table-bordered table-hover mb-0" style="min-width:800px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th class="text-center" style="width:50px;">
+                                    <input type="checkbox" checked="@IsAllSelected" @onchange="ToggleSelectAll" />
+                                </th>
+                                @foreach (var col in Columns.Where(c => HiddenColumns == null || !HiddenColumns.Contains(c)))
+                                {
+                                    <th style="min-width:120px;">@col</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (FilteredData != null && FilteredData.Any())
+                            {
+                                @foreach (var row in FilteredData)
+                                {
+                                    <tr>
+                                        <td class="text-center">
+                                            <input type="checkbox" checked="@row.Selected"
+                                                   @onchange="e => OnRowSelectionChanged(row, e)" />
+                                        </td>
+                                        @foreach (var field in ColumnFields.Where(f =>
+                                        {
+                                            var index = ColumnFields.IndexOf(f);
+                                            return HiddenColumns == null || !HiddenColumns.Contains(Columns[index]);
+                                        }))
+                                        {
+                                            <td style="@GetCellStyle(row.Data, field)">
+                                                @(row.Data.ContainsKey(field) ? row.Data[field] : "")
+                                            </td>
+                                           
+
+                                        }
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+
+                                <tr>
+                                    <td colspan="@((Columns?.Count(c => HiddenColumns == null || !HiddenColumns.Contains(c)) ?? 0) + 1)">
+                                        <div class="d-flex justify-content-center align-items-center py-3 text-muted">
+                                            No data found.
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="ConfirmSelection">Update</button>
+                <button class="btn btn-secondary" @onclick="Close">Close</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "ROL";
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    [Parameter] public List<string> Columns { get; set; } = new();
+    [Parameter] public List<string> ColumnFields { get; set; } = new();
+    [Parameter] public List<string>? HiddenColumns { get; set; }
+
+    [Parameter] public List<Dictionary<string, object>>? Data { get; set; }
+    [Parameter] public List<Dictionary<string, object>>? AllData { get; set; }
+
+    [Parameter] public EventCallback<List<Dictionary<string, object>>> OnSelectedItems { get; set; }
+
+    [Parameter] public RenderFragment? HeaderContent { get; set; }
+
+    private List<DictionaryRow> WrappedData { get; set; } = new();
+    private string SearchTerm { get; set; } = string.Empty;
+
+    private int selectionCounter = 0;
+
+    private List<Category> categories = new();
+    private IEnumerable<Category> _categories = new List<Category>();
+
+    private IEnumerable<Store> Stores = new List<Store>();
+    private string SelectedCategory = "";
+    private string SelectedStore = "";
+    private List<Dictionary<string, object>>? ItemData;
+
+    private bool ShowOnlyROMItems = false;
+    private int storeId = 0;
+    private int categorycode = 0;
+
+
+
+
+    private IEnumerable<DictionaryRow> FilteredData =>
+         WrappedData.Where(r =>
+         {
+             // Category Filter
+             bool categoryMatch =
+             string.IsNullOrWhiteSpace(SelectedCategory) ||
+             SelectedCategory == "0" ||
+             (r.Data.ContainsKey("Category") &&
+              r.Data["Category"]?.ToString() == SelectedCategory);
+
+             // Search Filter
+             bool searchMatch =
+             string.IsNullOrWhiteSpace(SearchTerm) ||
+             ColumnFields.Any(f =>
+                 r.Data.ContainsKey(f) &&
+                 r.Data[f]?.ToString()?.Contains(
+                     SearchTerm,
+                     StringComparison.OrdinalIgnoreCase) == true);
+
+             return categoryMatch && searchMatch;
+         });
+
+
+
+    protected  override async void OnParametersSet()
+    {
+
+        try
+        {
+            if (Data != null)
+            {
+                Stores = await _scnGenService.GetAllActiveStoresAsync();
+                categories = await tcIssueService.GetAllCategoriesAsync();
+
+                WrappedData = Data.Select(d => new DictionaryRow
+                {
+                    Data = d,
+                    Selected = d.ContainsKey("Selected") && d["Selected"] is bool b && b
+                }).ToList();
+
+
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnParametersSet failed.");
+            await _js.ToastrError("Error fetching OnParametersSet details.");
+        }
+
+       
+
+
+    }
+
+    private void Close()
+    {
+        IsVisible = false;
+        IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task ConfirmSelection()
+    {
+        try
+        {
+            if (WrappedData != null)
+            {
+                var selectedItems = WrappedData
+                    .Where(w => w.Selected)
+                    .OrderBy(w => w.SelectionOrder)
+                    .Select(w => w.Data)
+                    .ToList();
+
+                if (selectedItems == null)
+                    throw new InvalidOperationException("Please select  Dc from the list."); ;
+
+                await OnSelectedItems.InvokeAsync(selectedItems);
+            }
+
+            Close();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ConfirmSelection failed.");
+            await _js.ToastrError("Error fetching ConfirmSelection details.");
+        }
+    }
+
+    private class DictionaryRow
+    {
+        public Dictionary<string, object> Data { get; set; } = new();
+        public bool Selected { get; set; } = false;
+        public int? SelectionOrder { get; set; }
+    }
+
+    // ------------------ Select All logic (Filtered Rows Only) ------------------
+    //private bool IsAllSelected => FilteredData.Any() && FilteredData.All(r => r.Selected);
+    private bool IsAllSelected;
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool value = (bool)e.Value;
+        foreach (var row in FilteredData)
+        {
+            row.Selected = value;
+            if (value)
+            {
+                selectionCounter++;
+                row.SelectionOrder = selectionCounter;
+            }
+            else
+            {
+                row.SelectionOrder = null;
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void OnRowSelectionChanged(DictionaryRow row, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        row.Selected = isChecked;
+
+        if (isChecked)
+        {
+            selectionCounter++;
+            row.SelectionOrder = selectionCounter;  // 👈 assign order
+        }
+        else
+        {
+            row.SelectionOrder = null; // 👈 remove order if unchecked
+        }
+
+        StateHasChanged();
+    }
+
+    private string GetCellStyle(Dictionary<string, object> data, string field)
+    {
+        bool isNew = data.ContainsKey("IsNewItem") && (bool)data["IsNewItem"];
+        bool isQtyChanged = data.ContainsKey("IsQtyChanged") && (bool)data["IsQtyChanged"];
+
+        if (field == "ItemCode" && isNew)
+            return "background-color:yellow; font-weight:bold;";
+
+        if (field == "UtilQty" && isQtyChanged)
+            return "background-color:#ff7b7b; font-weight:bold;";
+
+        // PO Balance Qty
+        if (field == "POBalQty" &&
+            data.TryGetValue("POBalQty", out var value) &&
+            decimal.TryParse(value?.ToString(), out var poBalQty) &&
+            poBalQty > 0)
+        {
+            return "background-color: #d1e7dd; color: #0f5132; font-weight: bold;";
+        }
+
+
+        return "";
+    }
+
+
+    private async Task OnCategoryChanged(ChangeEventArgs e)
+    {
+        try
+        {
+
+            int.TryParse(e.Value?.ToString(), out categorycode);
+
+            var category = categories
+          .FirstOrDefault(x => x.CategoryCode == categorycode);
+
+            SelectedCategory = category?.CategoryName ?? "";
+
+            
+            ShowData();
+            
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnCategoryChanged failed.");
+            await _js.ToastrError("Error fetching OnCategoryChanged details.");
+        }
+    }
+    private async Task OnStoreChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            int.TryParse(e.Value?.ToString(), out  storeId);
+            categories = await tcIssueService.GetAllCategoriesAsync();
+            AllData = await materialReqService.GetRolitemDetailAsync();
+
+            
+
+            ShowData();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnStoreChanged failed.");
+            await _js.ToastrError("Error fetching OnStoreChanged details.");
+        }
+    }
+
+    private async Task OnShowOnlyROLItemsChanged()
+    {
+        try
+        {
+            ShowData();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnShowOnlyROLItemsChanged failed.");
+            await _js.ToastrError("Error fetching OnShowOnlyROLItemsChanged details.");
+        }
+       
+
+        await Task.CompletedTask;
+    }
+    public async Task ShowData()
+    {
+       try
+        {
+            var result = AllData;
+            if (ShowOnlyROMItems)
+            {
+
+
+                result = result
+               .Where(x =>
+                   Convert.ToDecimal(x["StockQty"]) <
+                   Convert.ToDecimal(x["ROL"]))
+               .ToList();
+
+                if (storeId != 0 && categorycode != 0)
+                {
+                    result = result
+                        .Where(x =>
+                            Convert.ToInt32(x["StoreId"]) == storeId &&
+                            Convert.ToInt32(x["CategoryCode"]) == categorycode)
+                        .ToList();
+                }
+                else if (storeId == 0 && categorycode != 0)
+                {
+                    result = result
+                        .Where(x =>
+                            Convert.ToInt32(x["CategoryCode"]) == categorycode)
+                        .ToList();
+                }
+                else if (storeId != 0 && categorycode == 0)
+                {
+                    result = result
+                        .Where(x =>
+                            Convert.ToInt32(x["StoreId"]) == storeId)
+                        .ToList();
+                }
+                else
+                {
+                    result = result
+                        .GroupBy(x => Convert.ToInt32(x["Itemid"]))
+                        .Select(g => g.First())
+                        .ToList();
+                }
+
+            }
+            else
+            {
+                if (storeId != 0 && categorycode != 0)
+                {
+                    result = result
+                        .Where(x =>
+                            Convert.ToInt32(x["StoreId"]) == storeId &&
+                            Convert.ToInt32(x["CategoryCode"]) == categorycode)
+                        .ToList();
+                }
+                else if (storeId == 0 && categorycode != 0)
+                {
+                    // result = result
+                    //     .Where(x =>
+                    //         Convert.ToInt32(x["CategoryCode"]) == categorycode)
+                    //     .ToList();
+                    result = result?
+                    .Where(x => Convert.ToInt32(x["CategoryCode"]) == categorycode)
+                    .ToList() ?? new List<Dictionary<string, object>>();
+                }
+                else if (storeId != 0 && categorycode == 0)
+                {
+                    result = result
+                        .Where(x =>
+                            Convert.ToInt32(x["StoreId"]) == storeId)
+                        .ToList();
+                }
+                else
+                {
+                    result = result
+
+
+                        .ToList();
+                }
+            }
+
+            WrappedData = result.Select(d => new DictionaryRow
+            {
+                Data = d,
+                Selected = false
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ShowData failed.");
+            await _js.ToastrError("Error fetching ShowData details.");
+        }
+        
+    }
+
+   
+}
+

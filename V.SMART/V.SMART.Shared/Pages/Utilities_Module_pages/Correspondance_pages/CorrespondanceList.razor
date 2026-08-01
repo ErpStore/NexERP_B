@@ -1,0 +1,336 @@
+﻿@page "/correspondenceList"
+@using V.SMART.Shared.Data.Utilities.Correspondence
+
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService CurrentUserService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject IFileOpener fileOpener
+@inject IFileUploadService fileUpload
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Correspondence?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+     <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Card Header -->
+            <PageHeader 
+                TitleText="Correspondence List"
+                TitleIcon="bi bi-people-fill"
+                Breadcrumbs="@correspondenceBreadcrumbs" />
+
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-12 col-md-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <input type="text"
+                                    class="form-control border-start-0"
+                                    placeholder="Search by File Name or Screen Name..." 
+                                    value="@corresNameFilter"
+                                    @oninput="OnSearchChanged" />
+                        </div>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm" 
+                            @onchange="OnPageSizeChanged"
+                            title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-md-2 ms-md-auto text-end">
+                            <a href="/correspondence/Upload"
+                                class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                title="Create a new Correspondence">
+                                <i class="bi bi-plus-square me-1"></i> Add New Correspondence
+                            </a>
+                        </div>
+                    }
+                </div>
+
+                @if (correspondences.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid class="table table-striped table-bordered align-middle text-wrap"
+                                   Items="correspondences.AsQueryable()"
+                                   ItemKey="@(c => c.Id)"
+                                   Pagination="paginationState">
+
+                            <PropertyColumn Title="File Name" Property="@(c => c.FileName)" Sortable="true" />
+                            <PropertyColumn Title="File Size" Property="@(c => c.FileSize)" Sortable="true" />
+                            <PropertyColumn Title="File Extension" Property="@(c => c.FileType)" Sortable="true" />
+                            <PropertyColumn Title="Screen Name" Property="@(c => c.ReferenceType)" Sortable="true" />
+                            <PropertyColumn Title="Linked Reference Name" Property="@(c => c.ReferenceTypeName)" Sortable="true" />
+                            <PropertyColumn Title="Remarks" Property="@(c => c.Remarks)" Sortable="true" />
+                           @*  <PropertyColumn Title="Created By" Property="@(c => c.UploadedBy)" Sortable="true" />
+                            <PropertyColumn Title="Created Date" Property="@(c => c.UploadedOn)" Format="dd/MM/yyyy hh:mm tt" Sortable="true" /> *@
+
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"correspondence/update/{c.Id}")" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (!string.IsNullOrEmpty(c.FilePath))
+                                    {
+                                        <button class="btn btn-sm btn-outline-success"
+                                                @onclick="() => OpenFile(c.FilePath)"
+                                                title="Open File">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDelete(c.Id)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </QuickGrid>
+                    </div>
+
+                    <div class="card-footer bg-white border-0 mt-3">
+                        <Paginator State="paginationState" />
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center mt-4 text-muted">No correspondences available.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Correspondences";
+
+    private bool isProcessing = true;
+    private int CorresId = 0;
+    private IEnumerable<Correspondence> correspondences = new List<Correspondence>();
+    private string? corresNameFilter;
+    private PaginationState paginationState = new() { ItemsPerPage = 5 };
+    private Timer? debounceTimer;
+
+    private bool _isRendered;
+
+    private List<PageHeader.BreadcrumbItem> correspondenceBreadcrumbs = new()
+    {
+        
+        new PageHeader.BreadcrumbItem { Text = "Utilities" },
+        new PageHeader.BreadcrumbItem { Text = "Correspondence", IsLast = true }
+    };
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        _isRendered = true;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await loadCorrespondances();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync for Correspondence List");
+        }
+    }
+
+    private async Task loadCorrespondances()
+    {
+        try
+        {
+            var allCorres = await _unitOfWork.Correspondances.GetAllAsync();
+
+            if (string.IsNullOrWhiteSpace(corresNameFilter))
+            {
+                correspondences = allCorres;
+            }
+            else
+            {
+                string keyword = corresNameFilter.Trim().ToLower();
+                correspondences = allCorres.Where(c =>
+                    (!string.IsNullOrEmpty(c.FileName) && c.FileName.ToLower().Contains(keyword)) ||
+                    (!string.IsNullOrEmpty(c.ReferenceType) && c.ReferenceType.ToLower().Contains(keyword))
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in loadCorrespondances()");
+            await _js.ToastrError("Failed to load correspondences.");
+        }
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            corresNameFilter = e.Value?.ToString();
+
+            debounceTimer?.Dispose();
+            debounceTimer = new Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await loadCorrespondances();
+                    StateHasChanged();
+                });
+            }, null, 300, Timeout.Infinite);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnSearchChanged()");
+            await _js.ToastrError("Search failed.");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (e.Value is not null && int.TryParse(e.Value.ToString(), out int pageSize))
+        {
+            paginationState.ItemsPerPage = pageSize;
+            await loadCorrespondances();
+        }
+    }
+
+    private async Task HandleDelete(int id)
+    {
+        try
+        {
+            CorresId = id;
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in HandleDelete()");
+            await _js.ToastrError("Error preparing to delete correspondence.");
+        }
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || CorresId == 0)
+            {
+                CorresId = 0;
+                return;
+            }
+
+            isProcessing = true;
+
+            var corres = await _unitOfWork.Correspondances.GetAsync(CorresId);
+
+            if (corres == null)
+            {
+                await _js.ToastrError("Correspondence not found.");
+                isProcessing = false;
+                CorresId = 0;
+                return;
+            }
+
+            string fileName = string.IsNullOrWhiteSpace(corres.FileName) ? "File" : corres.FileName;
+
+            if (!string.IsNullOrEmpty(corres.FilePath))
+            {
+                await fileUpload.DeleteFileAsync(corres.FilePath);
+            }
+
+            var deleted = await _unitOfWork.Correspondances.DeleteAsync(CorresId);
+
+            if (deleted)
+            {
+                await _unitOfWork.SaveAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: await CurrentUserService.GetUsernameAsync(),
+                    Machine: CurrentUserService.MachineName,
+                    IP_Address: CurrentUserService.IpAddress,
+                    screen: "Correspondence",
+                    action: $"Deleted correspondence: {fileName}",
+                    additionalInfo: $"Filename: {fileName}");
+
+                await _js.ToastrSuccess($"'{fileName}' has been deleted successfully.");
+            }
+            else
+            {
+                await _js.ToastrError($"Unable to delete '{fileName}'. Please try again.");
+            }
+
+            await loadCorrespondances();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in confirmDelete_Click()");
+            await _js.ToastrError("An error occurred while deleting the correspondence.");
+        }
+        finally
+        {
+            isProcessing = false;
+            CorresId = 0;
+        }
+    }
+
+
+    private async Task OpenFile(string filePath)
+    {
+        bool success = await fileOpener.OpenAsync(filePath);
+
+        if (_isRendered) // only allow JSInterop after render
+        {
+            if (success)
+                await _js.ToastrSuccess("File opened successfully");
+            else
+                await _js.ToastrError("Failed to open file");
+        }
+    }
+
+    public void Dispose()
+    {
+        debounceTimer?.Dispose();
+    }
+}

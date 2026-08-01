@@ -1,0 +1,182 @@
+﻿@page "/hr-home"
+@inject NavigationManager Nav
+@inject ThemeStateService ThemeStateService
+
+<PageTitle>Human Resource — ERP Suite</PageTitle>
+
+<div class="erp-wrapper @(isDark ? "dark" : "light")">
+
+    <!-- Ambient Orbs -->
+    <div class="erp-orb erp-orb-1"></div>
+    <div class="erp-orb erp-orb-2"></div>
+    <div class="erp-orb erp-orb-3"></div>
+
+    <!-- Breadcrumb -->
+    <nav class="erp-breadcrumb mb-4">
+
+        <a class="erp-bc-link" @onclick='() => Nav.NavigateTo("/")'>
+            <i class="bi bi-house-fill me-1"></i>Home
+        </a>
+
+        <span class="erp-bc-sep">
+            <i class="bi bi-chevron-right"></i>
+        </span>
+
+        <span class="erp-bc-active">
+            Human Resource
+        </span>
+
+    </nav>
+
+    <!-- Hero -->
+    <div class="erp-page-header mb-4">
+        <div class="erp-page-header-left">
+
+            <div class="erp-page-icon erp-icon-pink">
+                <i class="bi bi-people-fill"></i>
+            </div>
+
+            <div>
+                <h1 class="erp-page-title">
+                    Human Resource
+                </h1>
+
+                <p class="erp-page-sub mb-0">
+                    Employee Leave · Attendance · HR Management
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- HR MODULES -->
+    <div class="row g-4">
+
+        <div class="col-12">
+            <div class="erp-group-divider">
+                <span>HR Operations</span>
+            </div>
+        </div>
+
+        @foreach (var item in _links)
+        {
+            <div class="col-12 col-sm-6 col-xl-3">
+
+                <div class="erp-module-card position-relative"
+                     @onclick='() => Nav.NavigateTo("/" + item.CardHref)'>
+
+                    <!-- ADD BUTTON -->
+                    @if (!string.IsNullOrWhiteSpace(item.ButtonHref))
+                    {
+                        <button class="erp-card-top-btn"
+                                @onclick:stopPropagation="true"
+                                @onclick='() => Nav.NavigateTo("/" + item.ButtonHref)'>
+
+                            <i class="bi bi-plus-circle-fill me-1"></i>
+                            Add
+
+                        </button>
+                    }
+
+
+                    <!-- ICON -->
+                    <div class="erp-module-icon @item.Color">
+                        <i class="@item.Icon"></i>
+                    </div>
+
+                    <div class="erp-module-shine"></div>
+
+                    <!-- TITLE -->
+                    <h5 class="erp-module-title">
+                        @item.Label
+                    </h5>
+
+                    <!-- DESCRIPTION -->
+                    <p class="erp-module-desc">
+                        @item.Desc
+                    </p>
+
+                    <!-- ARROW -->
+                    <div class="erp-module-arrow">
+                        <i class="bi bi-arrow-right-short"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        }
+
+    </div>
+
+</div>
+
+@code {
+
+    private bool isDark;
+
+    protected override void OnInitialized()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        ThemeStateService.OnChange += ThemeChanged;
+    }
+
+    private void ThemeChanged()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ThemeStateService.OnChange -= ThemeChanged;
+    }
+
+    private readonly (
+        string CardHref,
+        string ButtonHref,
+        string Label,
+        string Desc,
+        string Icon,
+        string Color
+    )[] _links =
+    {
+        (
+            "leaveApplication",
+            "leaveApplication/create",
+            "Leave Application",
+            "Apply and manage employee leave requests",
+            "bi bi-calendar2-check-fill",
+            "ic-pink"
+        ),
+
+        (
+           "attendanceList",
+            "attendance/create",
+            "Attendance",
+            "Record and manage employee attendance",
+            "bi bi-calendar2-check-fill",
+            "ic-pink"
+        ),
+        (
+            "salaryList",
+            "salary/create",
+            "Salary",
+            "Process and manage employee salaries",
+            "bi bi-cash-stack",
+            "ic-pink"
+        ),
+        (
+           "staffLoanList",
+            "staffLoan/create",
+            "Staff Loan",
+            "Create and manage employee loan records",
+            "bi bi-cash-coin",
+            "ic-pink"
+        ),
+    };
+}
+
+
+
+
+

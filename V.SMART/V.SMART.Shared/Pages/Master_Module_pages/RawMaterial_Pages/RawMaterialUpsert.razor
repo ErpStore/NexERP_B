@@ -1,0 +1,234 @@
+﻿@page "/rawMaterial/create"
+@page "/rawMaterial/update/{RmId:int}"
+@using V.SMART.Shared.Data.Master.Inventory
+@using V.SMART.Shared.ViewModels.MasterViewModel.InventoryViewModel
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@inject IRawMaterialService rmService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@RawMaterialTitle"
+                            TitleIcon="bi bi-box"
+                            Breadcrumbs="@rawMaterialBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="RawmaterialVMs" OnValidSubmit="UpsertRawMaterial">
+
+                        <DataAnnotationsValidator />
+
+                        <div class="row g-3">
+
+                            @if (RawmaterialVMs != null && RawmaterialVMs.RMId > 0 && !string.IsNullOrWhiteSpace(RawmaterialVMs.RMName))
+                            {
+                                <CorrespondenceStatus ReferenceType="Raw-Material"
+                                                      ReferenceId="@RawmaterialVMs.RMId"
+                                                      ReferenceTypeName="@RawmaterialVMs.RMName" />
+                            }
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="RawmaterialVMs.RMName" class="form-control" id="RawMaterial" placeholder="RawMaterial Name" CssClass="form-control" @oninput="OnRawMaterialChanged" />
+                                    <label for="RawMaterial">Material Name</label>
+                                    <ValidationMessage for="@(() => RawmaterialVMs.RMName)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="RawmaterialVMs.Specification" class="form-control" id="Specification" placeholder="RawMaterial Specification" CssClass="form-control" />
+                                    <label for="Specification">Material Specification</label>
+                                    <ValidationMessage for="@(() => RawmaterialVMs.Specification)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="RawmaterialVMs.Grade" class="form-control" id="Grade" placeholder="Grade" CssClass="form-control" />
+                                    <label for="Grade">Grade</label>
+                                    <ValidationMessage for="@(() => RawmaterialVMs.Grade)" />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="RawmaterialVMs.Density"
+                                                 id="Density"
+                                                 class="form-control"
+                                                 placeholder="Density" />
+                                    <label for="Density">Density (g/cm3)</label>
+                                </div>
+                                <ValidationMessage For="@(() => RawmaterialVMs.Density)" />
+                            </div>
+
+                            <div class="row g-3 mt-2">
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="RawmaterialVMs.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="CreatedDate" value="@RawmaterialVMs.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="RawmaterialVMs.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="ModifiedDate" value="@RawmaterialVMs.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(RmId == 0 || RmId == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/rawMaterialList" />
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    //User Rights
+    protected override string ScreenName => "Raw Material";
+
+    [Parameter]
+    public int? RmId { get; set; }
+
+    private bool isProcessing = true;
+
+    private RawMaterialVM RawmaterialVMs { get; set; } = new RawMaterialVM();
+
+    private List<PageHeader.BreadcrumbItem> rawMaterialBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory Master" },
+        new PageHeader.BreadcrumbItem { Text = "Material Master", IsLast = true }
+    };
+
+    private string RawMaterialTitle => (RmId == 0 || RmId == null) ? "Create Raw Material" : "Update Raw Material";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadRm();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnInitializedAsync() Method for RawMaterial");
+        }
+    }
+
+    private void OnRawMaterialChanged(ChangeEventArgs e)
+    {
+        RawmaterialVMs.RMName = e.Value?.ToString()?.ToUpperInvariant() ?? string.Empty;
+    }
+
+    private async Task LoadRm()
+    {
+        try
+        {
+            if (RmId > 0)
+            {
+                var existing = await rmService.GetRawMaterialByIdAsync(RmId.Value);
+                if (existing != null)
+                {
+                    RawmaterialVMs = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LoadRm() Method for Raw Material");
+        }
+    }
+
+    private async Task UpsertRawMaterial()
+    {
+        try
+        {
+            isProcessing = true;
+
+            bool isDuplicate = await rmService.IsDuplicateRawMaterialAsync(RawmaterialVMs.RMName);
+
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Raw-Material name already exists.");
+                return;
+            }
+
+            bool isNew = RawmaterialVMs.RMId == 0;
+
+            await rmService.UpsertRMAsync(RawmaterialVMs);
+
+            await _js.ToastrSuccess(isNew ? "Raw-Material created successfully" : "Raw-Material updated successfully");
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/rawMaterialList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,"An error occurred while handling the UpsertRawMaterial() Method for RawMaterial");
+            await _js.ToastrError("Something went wrong. Contact support.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}
+

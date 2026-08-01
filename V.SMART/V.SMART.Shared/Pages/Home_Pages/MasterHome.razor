@@ -1,0 +1,100 @@
+﻿@page "/master-home"
+@inject NavigationManager Nav
+@inject ThemeStateService ThemeStateService
+
+<PageTitle>Master — ERP Suite</PageTitle>
+
+<div class="erp-wrapper @(isDark ? "dark" : "light")">
+
+    <div class="erp-orb erp-orb-1"></div>
+    <div class="erp-orb erp-orb-2"></div>
+    <div class="erp-orb erp-orb-3"></div>
+
+    <nav class="erp-breadcrumb mb-4">
+        <a class="erp-bc-link" @onclick='() => Nav.NavigateTo("/")'><i class="bi bi-house-fill me-1"></i>Home</a>
+        <span class="erp-bc-sep"><i class="bi bi-chevron-right"></i></span>
+        <span class="erp-bc-active">Master</span>
+    </nav>
+
+    <div class="erp-page-header mb-4">
+        <div class="erp-page-header-left">
+            <div class="erp-page-icon erp-icon-cyan"><i class="bi bi-database-fill"></i></div>
+            <div>
+                <h1 class="erp-page-title">Master Configuration</h1>
+                <p class="erp-page-sub mb-0">Admin, Inventory, General, Account, HR and Settings masters</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        @foreach (var card in _cards)
+        {
+            var href = card.Href;
+            var title = card.Title;
+            var desc = card.Desc;
+            var icon = card.Icon;
+            var ic = card.Ic;
+            var preview = card.Preview;
+
+            <div class="col-12 col-sm-6 col-xl-4">
+                <div class="erp-sub-card" @onclick='() => Nav.NavigateTo(href)'>
+                    <div class="erp-module-icon @ic"><i class="@icon"></i></div>
+                    <div class="erp-module-shine"></div>
+                    <h5 class="erp-module-title">@title</h5>
+                    <p class="erp-module-desc">@desc</p>
+                    <ul class="erp-preview-list">
+                        @foreach (var p in preview)
+                        {
+                            <li>@p</li>
+                        }
+                    </ul>
+                    <div class="erp-module-arrow"><i class="bi bi-arrow-right-short"></i></div>
+                </div>
+            </div>
+        }
+
+    </div>
+</div>
+
+@code {
+    private bool isDark;
+
+    protected override void OnInitialized()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        ThemeStateService.OnChange += ThemeChanged;
+    }
+
+    private void ThemeChanged()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => ThemeStateService.OnChange -= ThemeChanged;
+
+    private readonly (string Href, string Title, string Desc, string Icon, string Ic, string[] Preview)[] _cards =
+    {
+        ("/admin-master",    "Admin Master",    "User accounts, rights and authority management",           "bi bi-shield-shaded",      "ic-indigo",
+            new[] { "User Master", "User Rights Master", "Authority Manage Master" }),
+
+        ("/inventory-master","Inventory Master","Categories, materials, BOM and cost estimation",           "bi bi-boxes",              "ic-teal",
+            new[] { "Category / UOM / Stores", "Material & Item Master", "BOM & Process Master" }),
+
+        ("/general-master",  "General Master",  "Customer, vendor, machine and terms configuration",       "bi bi-sliders",            "ic-purple",
+            new[] { "Customer & Vendor Master", "Machine Master", "States & Contract Review" }),
+
+        ("/account-master",  "Account Master",  "Expense, income, bank, currency and cost centre",         "bi bi-bank2",              "ic-amber",
+            new[] { "Expense & Income Master", "Bank & Currency Master", "Cost Centre & Project Type" }),
+
+        ("/hr-master",       "HR Master",       "Employees, holidays, leave and shift allocation",         "bi bi-person-lines-fill",  "ic-pink",
+            new[] { "Employee & Holiday Master", "Leave & Allocation Master", "Shift Allocation Master" }),
+
+        ("/settings-master", "Settings Master", "Screen management and general application settings",      "bi bi-gear-fill",          "ic-slate",
+            new[] { "Screen Manage Master", "General Setting Master", "My Company Details" }),
+
+        ("/assemblycosting-master", "Assembly Costing Master", "Manage assembly structures, component costing and labour configuration",  "bi bi-cash-stack",          "ic-slate",
+            new[] { "Assembly Labour", "Labour Cost Management", "Cost Estimation" }),
+    };
+}

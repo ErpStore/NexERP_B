@@ -1,0 +1,3352 @@
+﻿@page "/routeCard/create"
+@page "/routeCard/update/{RCId:int}"
+
+@using V.SMART.Shared.Data.Planning.AssyJobOrder
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.PlanningViewModel.JobOrderViewModel
+@using V.SMART.Shared.ViewModels.PlanningViewModel.RouteCardViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject IRouteCardService rcService
+@inject ILoggingService LoggingService
+@inject BarcodeService barcodeService
+@inject ReportService reportService
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@ReasonForSkipCancelBom"
+         OnReasonChanged="(value) => ReasonForSkipCancelBom = value">
+</BsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+        refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+    @if (ActiveModal == "ProcessLog")
+    {
+        <ProcessLogDetails RcSubId=@rowToViewLogs.RCSubId isModelVisible="true" />
+    }
+</MasterModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            
+            <!-- Cancelled Watermark -->
+            @if (RouteCardVMs.RcStatus == 3)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+
+            <PageHeader TitleText="@(RouteCardVMs.RCId > 0 ? "Update Route Card" : "Create Route Card")"
+                TitleIcon="bi bi-tag"
+                Breadcrumbs="@RCFormBreadcrumbs" />
+            
+            <div class="card-body bg-light">
+                <EditForm Model="RouteCardVMs" OnValidSubmit="UpsertRouteCard">
+                    <ObjectGraphDataAnnotationsValidator  />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+
+                        <div class="col-12 col-md-6">
+                            <div class="card shadow-sm border-0 h-100">
+                                <div class="card-body d-flex justify-content-around align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="ManufacturingSwitch"
+                                               checked="@RouteCardVMs.MfgOrLab"
+                                               @onchange="(e) => OnManufacturingToggle(e)" />
+                                        <label class="form-check-label fw-semibold @(RouteCardVMs.MfgOrLab ? "text-success" : "")"
+                                               for="ManufacturingSwitch">
+                                            <i class="bi bi-gear-fill me-1"></i> Manufacturing
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="LabourSwitch"
+                                               checked="@(!RouteCardVMs.MfgOrLab)"
+                                               @onchange="(e) => OnLabourToggle(e)" />
+                                        <label class="form-check-label fw-semibold @(!RouteCardVMs.MfgOrLab ? "text-danger" : "")"
+                                               for="LabourSwitch">
+                                            <i class="bi bi-people-fill me-1"></i> Labour
+                                        </label>
+                                    </div>
+                                </div>
+                                <ValidationMessage For="@(() => RouteCardVMs.MfgOrLab)" />
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-3 d-flex justify-content-end align-items-center">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="ManualJobSwitch"
+                                       checked="@RouteCardVMs.IsManual"
+                                       disabled="@(RouteCardVMs.RouteCardSubVMs != null &&
+                                                    RouteCardVMs.RouteCardSubVMs.Any(x => x.ProcessId > 0))"
+                                       @onchange="(e) => OnManualJObToggle(e)" />
+
+                                <label class="form-check-label fw-semibold @(RouteCardVMs.IsManual ? "text-primary" : "")"
+                                       for="ManualJobSwitch">
+                                    <i class="bi bi-folder2-open me-1"></i> Manual
+                                </label>
+                            </div>
+
+                            <ValidationMessage For="@(() => RouteCardVMs.IsManual)" />
+                        </div>
+
+                        <div class="col-12 col-md-3 d-flex justify-content-end align-items-center">
+                            @if (RouteCardVMs.RCId > 0 && !string.IsNullOrWhiteSpace(RouteCardVMs.RCNo))
+                            {
+                                <CorrespondenceStatus ReferenceType=@ScreenName
+                                                      ReferenceId="@RouteCardVMs.RCId"
+                                                      ReferenceTypeName="@RouteCardVMs.RCNo" />
+                            }
+                        </div>
+
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <div class="col-12 col-lg-6 mb-3 d-flex">
+                            <div class="card shadow-sm border-0 rounded-3 w-100 h-100">
+
+                                <div class="card-header d-flex justify-content-between align-items-center
+                                            fw-semibold text-primary py-2"
+                                        style="background-color:#EAF3FF;">
+                                    <div>
+                                        <i class="bi bi-upc-scan me-2"></i> Barcode & QR Code
+                                    </div>
+
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button"
+                                                class="btn @(RouteCardVMs.RcType == 1 ? "btn-warning" : "btn-outline-primary")"
+                                                title="Pre-allocated process from Item routing"
+                                                disabled="@IsRcTypeLocked"
+                                                @onclick="OnAutoRcClick">
+                                            Auto RC
+                                        </button>
+
+                                        <button type="button"
+                                                class="btn @(RouteCardVMs.RcType == 2 ? "btn-danger" : "btn-outline-primary")"
+                                                title="Manually define sequence, process, machine and supplier"
+                                                disabled="@IsRcTypeLocked"
+                                                @onclick="OnManualRcClick">
+                                            Manual RC
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="card-body bg-light rounded-bottom-3 h-100">
+                                    <div class="d-flex flex-column flex-md-row
+                                                justify-content-center justify-content-md-around
+                                                align-items-center gap-4 h-100">
+                                            
+                                        @if (!string.IsNullOrWhiteSpace(RouteCardVMs.BarCodeBase64))
+                                        {
+                                            <div class="text-center">
+                                                <p class="mb-1 small text-muted">Barcode</p>
+                                                <img src="@RouteCardVMs.BarCodeBase64"
+                                                        class="bg-white p-2 border rounded"
+                                                        style="width:250px; height:auto;" />
+                                            </div>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(RouteCardVMs.QrCodeBase64))
+                                        {
+                                            <div class="text-center">
+                                                <p class="mb-1 small text-muted">QR Code</p>
+                                                <img src="@RouteCardVMs.QrCodeBase64"
+                                                        class="bg-white p-2 border rounded"
+                                                        style="width:100px; height:100px; object-fit:contain;" />
+                                            </div>
+                                        }
+
+                                        @if (string.IsNullOrWhiteSpace(RouteCardVMs.BarCodeBase64) && string.IsNullOrWhiteSpace(RouteCardVMs.QrCodeBase64))
+                                        {
+                                            <p class="text-muted small mb-0">
+                                                Barcode and QR will be generated after saving Route Card
+                                            </p>
+                                        }
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6 mb-3 d-flex">
+                            <div class="card shadow-sm border-0 rounded-3 w-100 h-100">
+
+                                <div class="card-header fw-semibold text-primary py-2 d-flex justify-content-between align-items-center"
+                                     style="background-color:#EAF3FF;">
+
+                                    <div>
+                                        <i class="bi bi-card-checklist me-2"></i> Route Card Details
+                                    </div>
+
+                                    @if (RouteCardVMs.RCId > 0)
+                                    {
+                                        <button type="button" class="btn btn-sm rounded-3 
+                                                @(RouteCardVMs.RcStatus != 3 ? "btn-danger" : "btn-success")"
+                                                @onclick="Cancel">
+
+                                            @if (RouteCardVMs.RcStatus != 3)
+                                            {
+                                                <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                            }
+                                        </button>
+                                    }
+                                </div>
+
+
+                                <div class="card-body">
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Route Card No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                            placeholder="Job No."
+                                                            maxlength="30"
+                                                            @bind-Value="@RouteCardVMs.RCNo"
+                                                            readonly />
+                                                <span class="input-group-text rounded-3">@RouteCardVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => RouteCardVMs.RCNo)" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Route Card Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                        @bind-Value="@RouteCardVMs.RCDate" />
+                                            <ValidationMessage For="@(() => RouteCardVMs.RCDate)" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Cost Center</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3"
+                                                        @bind="RouteCardVMs.ProjectNo" 
+                                                        readonly />
+                                            <ValidationMessage For="@(() => RouteCardVMs.ProjectNo)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        @if (!RouteCardVMs.IsManual)
+                        {
+                            <!-- =================== Customer Information =================== -->
+                            <div class="col-12 col-lg-6 mb-3 d-flex">
+                                <div class="card shadow-sm border-0 rounded-3 h-100 w-100 d-flex flex-column">
+                                    <div class="card-header fw-semibold text-primary py-2" style="background-color:#EAF3FF;">
+                                        <i class="bi bi-person-badge me-2"></i> Customer Information
+                                    </div>
+
+                                    <div class="card-body">
+
+                                        <!-- Customer Autocomplete -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>M/S.*</small>
+                                            </label>
+                                            
+                                            <div class="col-12 col-sm-9">
+                                                @if(RouteCardVMs.RCId == 0)
+                                                {
+                                                    <MudAutocomplete T="CustomerVM"
+                                                        Value="RouteCardVMs.SelectedCustomer"
+                                                        ValueChanged="@(async c => await OnCustomerChanged(c))"
+                                                        ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                        SearchFunc="SearchCustomers"
+                                                        Dense="true"
+                                                        Variant="Variant.Outlined"
+                                                        Placeholder="Search Customer"
+                                                        Class="w-100"
+                                                        MaxItems="50"
+                                                        Clearable="true"
+                                                        Required="true"/>
+                                                }
+                                                else
+                                                {
+                                                    <input type="text" class="form-select form-select-sm rounded-3"
+                                                        @bind="RouteCardVMs.CustName"  readonly/>
+                                                }
+                                            </div>
+                                        </div>
+
+                                         @if (RouteCardVMs.CustId.HasValue || RouteCardVMs.CustId > 0)
+                                         {
+                                            <div class="mb-2 row">
+                                                <label class="col-sm-3 col-form-label text-dark"><small>Item Type</small></label>
+                                                <div class="col-sm-9 d-flex align-items-center">
+                                                    <!-- Assembly -->
+                                                    <div class="form-check me-4">
+                                                        <input type="radio" class="form-check-input"
+                                                                value="ASSY"
+                                                                checked="@("ASSY" == RouteCardVMs.SelectedItemType)"
+                                                                disabled="@(RouteCardVMs.RCId > 0)"
+                                                                @onchange='() => OnItemTypeChanged("ASSY")'
+                                                                />
+                                                        <label class="form-check-label">Assembly</label>
+                                                    </div>
+
+                                                    <!-- Component -->
+                                                    <div class="form-check">
+                                                        <input type="radio" class="form-check-input"
+                                                                value="COMP"
+                                                                checked="@("COMP" == RouteCardVMs.SelectedItemType)"
+                                                                disabled="@(RouteCardVMs.RCId > 0)"
+                                                                @onchange='() => OnItemTypeChanged("COMP")' />
+                                                        <label class="form-check-label">Component</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                         }
+
+
+                                        @if(RouteCardVMs.SelectedItemType=="ASSY")
+                                        {
+                                            @if (PendingRcRelease?.Any() == true 
+                                                && RouteCardVMs?.RCId == 0 
+                                                && RouteCardVMs?.SelectedItemType?.Any() == true)
+                                            {
+                                                <div class="mb-2 row">
+                                                    <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                        <small>Rc Release No*</small>
+                                                    </label>
+
+                                                    <div class="col-12 col-sm-9">
+                                                        <select class="form-select form-select-sm rounded-3"
+                                                                value="@RouteCardVMs.RefRcReleseId"
+                                                                @onchange="OnRcReleaseChanged">
+                                                            <option value="">--- Select Rc Release ---</option>
+                                                            @foreach (var rcRelease in PendingRcRelease)
+                                                            {
+                                                                <option value="@rcRelease.RouteCardReleaseId">@rcRelease.RcReleaseNo</option>
+                                                            }
+                                                        </select>
+
+                                                        <ValidationMessage For="@(() => RouteCardVMs.RefRcReleseId)" />
+                                                    </div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="mb-2 row">
+                                                    <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                        <small>Rc Release No*</small>
+                                                    </label>
+
+                                                    <div class="col-12 col-sm-9">
+                                                        <input type="text" class="form-select form-select-sm rounded-3"
+                                                            @bind="RouteCardVMs.RefRcReleaseNo"  readonly/>
+                                                    </div>
+                                                </div>
+                                            }
+
+                                        }
+                                        else if(RouteCardVMs.SelectedItemType=="COMP")
+                                        {
+                                            
+                                             <!-- Customer PO -->
+                                            @if (CustomerPendingPOs?.Any() == true 
+                                                && RouteCardVMs?.RCId == 0 
+                                                && RouteCardVMs?.SelectedItemType?.Any() == true)
+                                            {
+                                                <div class="mb-2 row">
+                                                    <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                        <small>PO No*</small>
+                                                    </label>
+
+                                                    <div class="col-12 col-sm-9">
+                                                        <select class="form-select form-select-sm rounded-3"
+                                                                value="@RouteCardVMs.RefPoId"
+                                                                @onchange="OnPoChanged">
+                                                            <option value="">--- Select PO ---</option>
+                                                            @foreach (var po in CustomerPendingPOs)
+                                                            {
+                                                                <option value="@po.PoId">@po.PONo</option>
+                                                            }
+                                                        </select>
+
+                                                        <ValidationMessage For="@(() => RouteCardVMs.RefPoId)" />
+                                                    </div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="mb-2 row">
+                                                    <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                        <small>PO No*</small>
+                                                    </label>
+
+                                                    <div class="col-12 col-sm-9">
+                                                        <input type="text" class="form-select form-select-sm rounded-3"
+                                                            @bind="RouteCardVMs.RefPoNo"  readonly/>
+                                                    </div>
+                                                </div>
+                                            }
+                                        }
+
+
+
+
+                                       
+
+                                        @if (RouteCardVMs.RefPoId != null || RouteCardVMs.RefRcReleseId != null)
+                                        {
+                                            <!-- Load Assembly/SubAssy/Component Items -->
+                                            @if(!string.IsNullOrEmpty(RouteCardVMs.SelectedItemType))
+                                            {
+                                                @if (RouteCardVMs.SelectedItemType == "ASSY")
+                                                {
+                                                    <div class="mb-2 row">
+                                                        <label class="col-sm-3 col-form-label"><small>Assembly</small></label>
+                                                        <div class="col-sm-9">
+                                                            @if(RouteCardVMs.RCId == 0 && RouteCardVMs.AssyItemVMs.Count > 0)
+                                                            {
+                                                                <select class="form-select form-select-sm"
+                                                                        value="@RouteCardVMs.AssyId"
+                                                                        @onchange="OnAssemblyChanged">
+                                                                    <option value="">-- Select Assembly --</option>
+
+                                                                    @foreach (var item in RouteCardVMs.AssyItemVMs)
+                                                                    {
+                                                                        <option value="@item.ItemId">@item.ItemCode</option>
+                                                                    }
+                                                                </select>
+                                                            }
+                                                            else
+                                                            {
+                                                                <input type="text" class="form-select form-select-sm rounded-3"
+                                                                        @bind="RouteCardVMs.AssyCode" readonly />
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                   
+                                                }
+
+                                                <div class="mb-2 row">
+                                                    <label class="col-sm-3 col-form-label"><small>Component</small></label>
+                                                    <div class="col-sm-9">
+                                                        @if(RouteCardVMs.RCId == 0)
+                                                        {
+                                                            <select class="form-select form-select-sm"
+                                                                    value="@RouteCardVMs.CompItemId"
+                                                                    @onchange="OnComponentChanged">
+                                                                <option value="">-- Select Component --</option>
+                                                                @foreach (var item in RouteCardVMs.CompItemVMs)
+                                                                {
+                                                                    <option value="@item.ItemId">@item.ItemCode</option>
+                                                                }
+                                                            </select>
+                                                        }
+                                                        else
+                                                        {
+                                                            <input type="text" class="form-select form-select-sm rounded-3"
+                                                                    @bind="RouteCardVMs.CompItemCode" readonly />
+                                                        }
+                                                    </div>
+                                                </div>
+
+                                                @if (RouteCardVMs.CompItemId > 0)
+                                                {
+                                                    <div class="mb-2 row">
+                                                        <label class="col-sm-3 col-form-label"><small>Route Card Qty.</small></label>
+
+                                                        <div class="col-sm-9">
+                                                            <input type="number"
+                                                                class="form-control form-control-sm"
+                                                                placeholder="Qty"
+                                                                step="any"
+                                                                title="Enter Quantity"
+                                                                @bind="RouteCardVMs.RcQty"
+                                                                @bind:event="oninput"
+                                                                @onchange="@(e => OnRcQtyChanged(e, RouteCardVMs))" />
+                                                            <ValidationMessage For="@(() => RouteCardVMs.RcQty)" />
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <!-- =================== Component details =================== -->
+                            <div class="col-12 col-lg-6 mb-3 d-flex">
+                                <div class="card shadow-sm border-0 rounded-3 h-100 w-100 d-flex flex-column">
+                                    <div class="card-header fw-semibold text-primary py-2" style="background-color:#EAF3FF;">
+                                        <i class="bi bi-person-badge me-2"></i> Component Details
+                                    </div>
+
+                                    <div class="card-body">
+
+                                        <div class="mb-2 row">
+                                            <label class="col-sm-3 col-form-label"><small>Component</small></label>
+                                            <div class="col-sm-9">
+                                                @if(RouteCardVMs.RCId == 0)
+                                                {
+                                                    <MudAutocomplete T="ItemVM"
+                                                            Value="RouteCardVMs.SelectedComponent"
+                                                            ValueChanged="@(async item => await OnItemChanged(RouteCardVMs, item))"
+                                                            ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                            SearchFunc="SearchItems"
+                                                            Dense="true"
+                                                            Variant="Variant.Outlined"
+                                                            Placeholder="Search Item Code"
+                                                            Title="Search Atleast 3 Letters in Item-Code"
+                                                            Class="w-100 autocomplete-sm"
+                                                            MaxItems="50" />
+                                                    <ValidationMessage For="@(() => RouteCardVMs.CompItemId)" />
+                                                }
+                                                else
+                                                {
+                                                    <input type="text" class="form-select form-select-sm rounded-3"
+                                                            @bind="RouteCardVMs.CompItemCode" readonly />
+                                                }
+                                            </div>
+                                        </div>
+
+                                        @if (RouteCardVMs.CompItemId > 0)
+                                        {
+                                            <div class="mb-2 row">
+                                                <label class="col-sm-3 col-form-label"><small>Route Card Qty.</small></label>
+
+                                                <div class="col-sm-9">
+                                                    <input type="number"
+                                                            class="form-control form-control-sm"
+                                                            placeholder="Qty"
+                                                            step="any"
+                                                            title="Enter Quantity"
+                                                            @bind="RouteCardVMs.RcQty"
+                                                            @bind:event="oninput"
+                                                            @onchange="@(e => OnManualRcQtyChanged(e, RouteCardVMs))" />
+                                                    <ValidationMessage For="@(() => RouteCardVMs.RcQty)" />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+
+                        <!-- =================== Raw Material =================== -->
+                        @if(RouteCardVMs.CompItemId > 0)
+                        {
+                            <div class="col-12 col-lg-6 mb-3 d-flex">
+                                <div class="card shadow-sm border-0 rounded-3 h-100 w-100 d-flex flex-column">
+                                    <div class="card-header fw-semibold text-primary py-2" style="background-color:#EAF3FF;">
+                                        <i class="bi bi-box-seam me-2"></i> Raw Material Details
+                                    </div>
+
+                                    <div class="card-body">
+                                        <table class="table table-bordered table-sm align-middle">
+                                            <tbody>
+
+                                                <tr>
+                                                    <td class="col-sm-3"><small>Raw Material</small></td>
+                                                    <td class="col-sm-9">
+
+                                                        @if(RouteCardVMs.RCId == 0)
+                                                        {
+                                                            <select class="form-select form-select-sm"
+                                                                    value="@RouteCardVMs.RMId"
+                                                                    @onchange="OnRMChanged">
+                                                                <option value="">-- Select Raw Material --</option>
+                                                                @foreach (var item in RouteCardVMs.RMItemVMs)
+                                                                {
+                                                                    <option value="@item.ItemId">@item.ItemCode</option>
+                                                                }
+                                                            </select>
+                                                        }
+                                                        else
+                                                        {
+                                                            <input type="text" class="form-select form-select-sm rounded-3"
+                                                                @bind="RouteCardVMs.RMCode" readonly />
+                                                        }
+
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td><small>RM Req Qty.</small></td>
+                                                    <td><input type="number" class="form-control form-control-sm" @bind="RouteCardVMs.RMReqQty" readonly /></td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td><small>RM Stock Qty.</small></td>
+                                                    <td><input type="number"
+                                                           class="form-control form-control-sm text-danger fw-bold"
+                                                           @bind="RouteCardVMs.RMStockQty"
+                                                           readonly />
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td><small>Weight/Piece</small></td>
+                                                    <td><input type="number" class="form-control form-control-sm" @bind="RouteCardVMs.RMWeight" readonly /></td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td><small>Batch No</small></td>
+                                                    <td><input type="text" class="form-control form-control-sm" @bind="RouteCardVMs.RMBatchNo" readonly /></td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td><small>Main Remarks</small></td>
+                                                    <td>
+                                                        <InputTextArea
+                                                            class="form-control form-control-sm rounded-3"
+                                                            rows="1"
+                                                            @bind-Value="RouteCardVMs.MainRemarks">
+                                                        </InputTextArea>
+                                                        <ValidationMessage For="@(() => RouteCardVMs.MainRemarks)" />
+                                                    </td>
+                                                </tr>
+
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- =================== Item Details =================== -->
+
+                    <div class="col-12">
+                        <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                               
+                            <div class="card-header bg-primary-subtle text-dark">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                    <!-- Title -->
+                                    <span class="fw-bold fs-6">Process Details</span>
+                                </div>
+                            </div>
+
+                            <div class="card-body p-2">
+
+                                <div class="table-responsive" style="overflow-x:auto;">
+                                    <table class="table table-bordered table-sm align-middle text-center mb-0" 
+                                            style="table-layout: fixed; min-width: 1800px;">
+
+                                        <thead class="custom-blue">
+                                            <tr>
+                                                <th style="width:80px;">Sl.No</th>
+                                                <th style="width:100px">Same Seq.</th>
+                                                <th style="width:80px;">Seq No.</th>
+                                                <th style="width:200px;">Process</th>
+                                                <th style="width:110px;">Total Qty</th>
+                                                <th style="width:110px;">Issued Qty</th>
+
+                                                <th style="width:110px;">Acc Qty</th>
+                                                <th style="width:110px;">Rej Qty</th>
+                                                <th style="width:110px;">Rew Qty</th>
+
+                                                <th style="width:180px;">Alloc. Machine</th>
+                                                <th style="width:180px;">Alloc. Vendor</th>
+
+                                                <th style="width:120px;">Cycle Time</th>
+                                                <th style="width:120px;">Setting Time</th>
+
+                                                <th style="width:120px;">Process Skip</th>
+                                                <th style="width:80px;">BOM</th>
+                                                <th style="width:120px;">Inspection</th>
+                                                <th style="width:150px;">Final Process</th>
+
+                                                <th style="width:150px;">Process Cost</th>
+
+                                                <th style="width:140px;">Status</th>
+                                                <th style="width:90px;">Actions</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody class="custom-size">
+
+                                            @for (int i = 0; i < RouteCardVMs.RouteCardSubVMs.Count; i++)
+                                            {
+                                               var sub = RouteCardVMs.RouteCardSubVMs[i];
+
+                                                bool isManualEditable = IsManualEditable(RouteCardVMs, sub);
+                                                bool isRowLocked = IsRowLocked(RouteCardVMs, RouteCardVMs.RouteCardSubVMs, i);
+
+                                                <tr @key="sub">
+
+                                                    <td>@sub.SlNo</td>
+
+                                                    <td class="text-center">
+                                                        @if (RouteCardVMs.RcType == 2)
+                                                        {
+                                                            <div class="form-check form-switch d-flex justify-content-center">
+                                                                <InputCheckbox class="form-check-input border border-2 shadow-lg
+                                                                                      focus-ring focus-ring-primary p-2 fs-4 rounded-pill"
+                                                                               @bind-Value="sub.UseSameSeq"
+                                                                               @bind-Value:event="onchange"
+                                                                               ValueChanged="@(value => OnUseSameSubProcessChanged(sub, value))"
+                                                                               disabled="@(sub.SeqNo == 1 || isRowLocked)" />
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>@(sub.UseSameSeq ? "Yes" : "No")</span>
+                                                        }
+                                                    </td>
+
+                                                    <td>@sub.SeqNo</td>
+
+                                                   <td class="align-middle">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <!-- LEFT : Process -->
+                                                            <div class="flex-grow-1">
+                                                                @if (isManualEditable)
+                                                                {
+                                                                    <select class="form-select form-select-sm rounded-3"
+                                                                            value="@sub.ProcessId"
+                                                                            @onchange="e => OnProcessChanged(e, sub)">
+                                                                        <option value="">-- Select Process --</option>
+                                                                        @foreach (var process in ProcessList)
+                                                                        {
+                                                                            <option value="@process.ProcessId">@process.ProcessName</option>
+                                                                        }
+                                                                    </select>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span class="fw-semibold">@sub.ProcessName</span>
+                                                                }
+
+                                                                <ValidationMessage For="@(() => sub.ProcessId)" class="text-danger small" />
+                                                            </div>
+
+                                                            <!-- RIGHT : Eye Button -->
+                                                            <div class="d-flex justify-content-center align-items-center">
+                                                                <span class="d-inline-flex align-items-center justify-content-center
+                                                                                bg-primary bg-opacity-10 text-primary rounded-3"
+                                                                        style="width:32px;height:32px; cursor:pointer;"
+                                                                        title="View Process Log"
+                                                                        @onclick="() => OpenProcessLog(sub)">
+                                                                    <i class="bi bi-eye-fill"></i>
+                                                                </span>
+                                                            </div>
+
+                                                        </div>
+                                                    </td>
+
+
+                                                    <td class="@((sub.TotalQty == 0 ? "text-dark" : "text-primary")) fw-bold">
+                                                        @sub.TotalQty
+                                                    </td>
+
+                                                    <td class="@((sub.IssuedQty == 0 ? "text-dark" : "text-primary")) fw-bold">
+                                                        @sub.IssuedQty
+                                                    </td>
+
+                                                    <td class="@((sub.AccQty == 0 ? "text-dark" : "text-success")) fw-bold">
+                                                        @sub.AccQty
+                                                    </td>
+
+                                                    <td class="@((sub.RejQty == 0 ? "text-dark" : "text-danger")) fw-bold">
+                                                        @sub.RejQty
+                                                    </td>
+
+                                                    <td class="@((sub.RewQty == 0 ? "text-dark" : "text-warning")) fw-bold">
+                                                        @sub.RewQty
+                                                    </td>
+
+                                                    <td>
+                                                        @if (isManualEditable && !isRowLocked)
+                                                        {
+                                                            <select class="form-select form-select-sm rounded-3"
+                                                                    value="@sub.MachineId"
+                                                                    @onchange="e => OnMachineChanged(e, sub)">
+                                                                <option value="">-- Select Machine --</option>
+                                                                @foreach (var machine in MachineList)
+                                                                {
+                                                                    <option value="@machine.MachineId">@machine.MachineName</option>
+                                                                }
+                                                            </select>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>@sub.MachineName</span>
+                                                        }
+                                                    </td>
+
+                                                    <td>
+                                                        @if (isManualEditable && !isRowLocked)
+                                                        {
+                                                            <select class="form-select form-select-sm rounded-3"
+                                                                    value="@sub.VendorId"
+                                                                    @onchange="e => OnVendorChanged(e, sub)">
+                                                                <option value="">-- Select Vendor --</option>
+                                                                @foreach (var vendor in VendorList)
+                                                                {
+                                                                    <option value="@vendor.VendorCode">@vendor.VendorName</option>
+                                                                }
+                                                            </select>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>@sub.VendorName</span>
+                                                        }
+                                                    </td>
+
+                                                    <td>
+                                                        @if (isManualEditable && !isRowLocked)
+                                                        {
+                                                            <InputText class="form-control form-control-sm"
+                                                                       @bind-Value="sub.CycleTimeText" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>@sub.CycleTime?.ToString(@"hh\:mm")</span>
+                                                        }
+                                                    </td>
+
+                                                    <td>
+                                                        @if (isManualEditable && !isRowLocked)
+                                                        {
+                                                            <InputText class="form-control form-control-sm"
+                                                                       @bind-Value="sub.SettingTimeText" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>@sub.SettingTime?.ToString(@"hh\:mm")</span>
+                                                        }
+                                                    </td>
+
+                                                    <td class="text-center align-middle">
+                                                        <div class="form-check form-switch d-flex justify-content-center">
+                                                            <InputCheckbox
+                                                                @bind-Value="sub.IsProcessSkip"
+                                                                @bind-Value:event="onchange"
+                                                                ValueChanged="@(async (value) => { if(RouteCardVMs.RCId > 0) await OnProcessSkipChanged(sub); })"
+                                                                class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill"
+                                                                disabled="@isRowLocked" />
+                                                        </div>
+                                                    </td>
+
+                                                    <td class="text-center align-middle">
+                                                        <div class="form-check form-switch d-flex justify-content-center">
+                                                            <InputCheckbox
+                                                                @bind-Value="sub.IsBOM"
+                                                                @bind-Value:event="onchange"
+                                                                ValueChanged="@(async (value) => { if(RouteCardVMs.RCId > 0) await OnBOMTrackChangedChanged(sub); })"
+                                                                class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill"
+                                                                disabled="@isRowLocked" />
+                                                        </div>
+                                                    </td>
+
+                                                    <td class="text-center align-middle">
+                                                        <div class="form-check form-switch d-flex justify-content-center">
+                                                            <InputCheckbox
+                                                                @bind-Value="sub.IsInspection"
+                                                                @bind-Value:event="onchange"
+                                                                ValueChanged="@(async (value) => { if(RouteCardVMs.RCId > 0) await OnQualityReqChanged(sub); })"
+                                                                class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill"
+                                                                disabled="@isRowLocked" />
+                                                        </div>
+                                                    </td>
+
+                                                    <td class="text-center">
+                                                        <div class="form-check d-flex justify-content-center">
+                                                            <InputCheckbox
+                                                                @bind-Value="sub.IsFinalProcess"
+                                                                class="form-check-input border border-3 p-2"
+                                                                style="transform: scale(1);"
+                                                                disabled="@(!isManualEditable || isRowLocked)" />
+                                                        </div>
+                                                    </td>
+
+                                                    <td>
+                                                        @if (isManualEditable && !isRowLocked)
+                                                        {
+                                                            <input type="number" class="form-control form-control-sm text-end"
+                                                                   min="0" step="any" @bind="sub.ProcessCost" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="float-end">@sub.ProcessCost</span>
+                                                        }
+                                                    </td>
+
+                                                    <td class="text-center">
+                                                        @switch (sub.ProcessStatus)
+                                                        {
+                                                            case 0:
+                                                                <span class="badge bg-secondary">Pending</span>
+                                                                break;
+                                                            case 1:
+                                                                <span class="badge bg-info text-dark">In Progress</span>
+                                                                break;
+                                                            case 2:
+                                                                <span class="badge bg-warning text-dark">Partial</span>
+                                                                break;
+                                                            default:
+                                                                <span class="badge bg-success">Completed</span>
+                                                                break;
+                                                        }
+                                                    </td>
+
+                                                    <td class="text-end">
+                                                        @if (isManualEditable && !isRowLocked)
+                                                        {
+                                                            <button type="button" class="btn btn-success btn-sm" @onclick="async () => await SaveRow(sub)">
+                                                                <i class="bi bi-check-lg"></i>
+                                                            </button>
+                                                            <button type="button" class="btn btn-secondary btn-sm" @onclick="async () => await CancelEdit(sub, RouteCardVMs)">
+                                                                <i class="bi bi-x-lg"></i>
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <button type="button" class="btn btn-primary btn-sm" @onclick="async () => await EditRowAsync(sub)" disabled="@isRowLocked">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </button>
+                                                            <button type="button" class="btn btn-danger btn-sm" @onclick="async () => await RemoveRow(sub)" disabled="@isRowLocked">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        }
+                                                    </td>
+
+                                                </tr>
+                                            }
+                                            </tbody>
+
+                                    </table>
+                                </div>
+
+                                @if(RouteCardVMs.RcType == 2)
+                                {
+                                    <div class="mt-2 text-start">
+                                        <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                            <i class="bi bi-plus-circle me-1"></i> Add Item
+                                        </button>
+                                    </div>
+                                }
+
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-3 mb-2">
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if(RouteCardVMs.RcStatus != 3)
+                                {
+                                    <div class="col-6 col-md-3 mt-3">
+                                        <button type="submit"
+                                                class="btn btn-primary w-100 rounded-3"
+                                                disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i>
+                                            @(RouteCardVMs.RCId > 0 ? "Update" : "Create")
+                                        </button>
+                                    </div>
+                                }
+                            }
+
+                            <div class="col-12 col-md-3">
+                                <SmartBackButton Url="/routeCardList" />
+                            </div>
+
+                            @if (CanCreate || CanEdit && RCId > 0)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+
+                        </div>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+} 
+
+@code
+{
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Route Card";
+
+    [Parameter] 
+    public int? RCId { get; set; }
+
+    private bool isProcessing = true;
+     private string? pdfBase64;
+
+    private RouteCardVM RouteCardVMs { get; set; } = new();
+    private RouteCardSubVM? rowToDelete;
+    private RouteCardSubVM? rowToSkip;
+    private RouteCardSubVM? rowToBOM;
+    private RouteCardSubVM? rowToQuality;
+
+    private RouteCardSubVM? rowToViewLogs;
+
+    private bool IsRcTypeLocked => RouteCardVMs?.RouteCardSubVMs?.Any(x => x.ProcessId.HasValue && x.ProcessId > 0) == true;
+
+    private List<Machine> MachineList = new();
+    private List<Process> ProcessList = new();
+    private List<VendorVM> VendorList = new();
+
+
+    private List<MfgPoVM> CustomerPendingPOs = new();
+    private List<RouteCardReleaseVM> PendingRcRelease = new();
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+
+    public string? ReasonForSkipCancelBom { get; set; }
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<PageHeader.BreadcrumbItem> RCFormBreadcrumbs = new()
+    {
+        new() { Text = "Planning" },
+        new() { Text = "Route Card", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    #endregion
+
+
+    #region  Row Lock Logic
+
+    public bool IsManualEditable(RouteCardVM main, RouteCardSubVM sub)
+    {
+        return sub.IsEditable && main.RcType == 2;
+    }
+
+    public bool IsProcessLocked(RouteCardSubVM sub)
+    {
+        return (sub.IssuedQty + sub.AccQty + sub.RejQty + sub.RewQty) > 0
+               || sub.ProcessStatus >= 1;
+    }
+
+    public bool IsNextProcessStarted(List<RouteCardSubVM> list, int index)
+    {
+        if (index >= list.Count - 1)
+            return false;
+
+        var next = list[index + 1];
+
+        return (next.IssuedQty > 0)
+            || (next.AccQty > 0)
+            || (next.RejQty > 0)
+            || (next.RewQty > 0)
+            || (next.WipQty > 0);
+    }
+
+    public bool IsRowLocked(RouteCardVM main, List<RouteCardSubVM> list, int index)
+    {
+        var sub = list[index];
+
+        return IsProcessLocked(sub) || IsNextProcessStarted(list, index);
+    }
+
+    #endregion
+
+    #region Toggles
+
+    private void OnManufacturingToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        RouteCardVMs.MfgOrLab = isChecked;
+
+        // Selected Items
+        RouteCardVMs.CompItemId = null;
+        RouteCardVMs.AssyId = null;
+        RouteCardVMs.SubAssyId = null;
+        RouteCardVMs.SubAssyId2 = null;
+        RouteCardVMs.SubAssyId3 = null;
+
+        // Collections
+        RouteCardVMs.CompItemVMs = new();
+        RouteCardVMs.AssyItemVMs = new();
+        RouteCardVMs.SubAssyItemVMs = new();
+        RouteCardVMs.SubAssyItemVM2s = new();
+        RouteCardVMs.SubAssyItemVM3s = new();
+        RouteCardVMs.RouteCardSubVMs = new();
+
+        CustomerPendingPOs = new();
+        PendingRcRelease = new();
+        RouteCardVMs.SelectedCustomer = null;
+    }
+
+    private void OnLabourToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        RouteCardVMs.MfgOrLab = !isChecked;
+
+        // Selected Items
+        RouteCardVMs.CompItemId = null;
+        RouteCardVMs.AssyId = null;
+        RouteCardVMs.SubAssyId = null;
+        RouteCardVMs.SubAssyId2 = null;
+        RouteCardVMs.SubAssyId3 = null;
+
+        // Collections
+        RouteCardVMs.CompItemVMs = new();
+        RouteCardVMs.AssyItemVMs = new();
+        RouteCardVMs.SubAssyItemVMs = new();
+        RouteCardVMs.SubAssyItemVM2s = new();
+        RouteCardVMs.SubAssyItemVM3s = new();
+        RouteCardVMs.RouteCardSubVMs = new();
+
+        CustomerPendingPOs = new();
+        PendingRcRelease = new();
+
+        RouteCardVMs.SelectedCustomer = null;
+    }
+
+    private async Task OnManualJObToggle(ChangeEventArgs e)
+    {
+        bool newValue = e.Value is bool b && b;
+        RouteCardVMs.IsManual = newValue;
+        StateHasChanged();
+    }
+
+    #endregion
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        isProcessing = true;
+
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied", true);
+                return;
+            }
+
+            if (RCId.HasValue)
+            {
+                await LoadExistingRouteCard(RCId.Value);
+            }
+            else
+            {
+                bool IsManual = await rcService.GetScreenPermissionsAsync();
+
+                if(!IsManual)
+                {
+                    RouteCardVMs.RcType = 1;
+                }
+                else
+                {
+                    RouteCardVMs.RcType = 2;
+                    await LoadProcessVendorAndMachineAsync();
+                }
+
+                RouteCardVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+                var RcNo = await rcService.GetPreviewRcNoAsync(RouteCardVMs.Suffix);
+                RouteCardVMs.RCNo = RcNo.ToString("D3");
+
+                string fullRC = $"{RouteCardVMs.RCNo}{RouteCardVMs.Suffix}";
+
+                RouteCardVMs.BarCodeImage = barcodeService.GenerateBarcodeBytes(fullRC);
+                RouteCardVMs.QrCodeImage = barcodeService.GenerateQrBytes(fullRC);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadProcessVendorAndMachineAsync()
+    {
+        try
+        {
+            ProcessList = (await rcService.GetAllProcessesAsync()).ToList();
+            MachineList = await rcService.GetAllMachinesAsync();
+            VendorList = await rcService.GetAllVendorsAsync();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadProcessVendorAndMachineAsync failed.");
+        }
+
+    }
+
+
+    private async Task LoadExistingRouteCard(int rcId)
+    {
+        try
+        {
+            RouteCardVMs = await rcService.GetRouteCardByRCIdAsync(rcId);
+
+            if (RouteCardVMs == null)
+            {
+                await _js.ToastrWarning("Route Card not found.");
+                return;
+            }
+
+            string fullRC = $"{RouteCardVMs.RCNo}{RouteCardVMs.Suffix}";
+            RouteCardVMs.BarCodeImage = barcodeService.GenerateBarcodeBytes(fullRC);
+            RouteCardVMs.QrCodeImage = barcodeService.GenerateQrBytes(fullRC);
+
+            RouteCardVMs.SelectedCustomer = 
+                await rcService.GetCustomerByIdAsync(RouteCardVMs.CustId.GetValueOrDefault());
+
+            if (RouteCardVMs.SelectedCustomer != null)
+                await ApplyCustomerSelectionAsync(RouteCardVMs.SelectedCustomer);
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing Route Card");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingRouteCard failed for RCId: {rcId}");
+        }
+    }
+
+
+    #endregion
+
+    #region Toggle Manual And Auto RC
+
+    private async Task OnAutoRcClick()
+    {
+        RouteCardVMs.RcType = 1;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnManualRcClick()
+    {
+        try
+        {
+            isProcessing = true;
+
+            RouteCardVMs.RcType = 2;
+            await LoadProcessVendorAndMachineAsync();
+        }
+        catch(Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnManualRcClick failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    #endregion
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(RouteCardSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ProcessId == null || row.ProcessId == 0)
+                errors.Add("Please select a Process.");
+
+            if (row.ProcessCost == null || row.ProcessCost <= 0)
+                errors.Add("Process Cost must be greater than 0.");
+
+            if (!row.CycleTime.HasValue || row.CycleTime.Value.TotalSeconds <= 0)
+                errors.Add("Cycle Time must be greater than 0.");
+
+            if ((row.MachineId == null || row.MachineId <= 0) &&
+                (row.VendorId == null || row.VendorId <= 0))
+                errors.Add("Please select either Machine or Vendor for this Process.");
+
+            if (errors.Any())
+            {
+                await _js.ToastrInfo(string.Join("<br>", errors));
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = RouteCardVMs.RouteCardSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!RouteCardVMs.RMId.HasValue || RouteCardVMs.RMId <= 0)
+            {
+                await _js.ToastrWarning("Please select Raw Material first.");
+                return;
+            }
+
+            if (!await ValidateLastRowAsync())
+                return;
+
+            int? nextSeqNo = RouteCardVMs.RouteCardSubVMs.Any()
+                ? RouteCardVMs.RouteCardSubVMs.Max(x => x.SeqNo) + 1
+                : 1;
+
+            var newRow = new RouteCardSubVM
+            {
+                RCId = RouteCardVMs.RCId,
+                IsEditable = true,
+                SeqNo = nextSeqNo,
+                GroupKey = Guid.NewGuid().ToString()
+            };
+
+            if (nextSeqNo == 1)
+            {
+                newRow.ItemIdIn  = RouteCardVMs.CompItemId;
+                newRow.ItemIdOut = RouteCardVMs.RMId;
+            }
+            else
+            {
+                newRow.ItemIdIn  = RouteCardVMs.CompItemId;
+                newRow.ItemIdOut = RouteCardVMs.CompItemId;
+            }
+
+            RouteCardVMs.RouteCardSubVMs.Add(newRow);
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "Route-Card Sub Process Add failed.");
+        }
+    }
+
+    private async Task SaveRow(RouteCardSubVM row)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(row))
+            {
+                row.IsEditable = true;
+                return;
+            }
+
+            if (string.IsNullOrEmpty(row.GroupKey))
+                row.GroupKey = Guid.NewGuid().ToString();
+
+            row.IsEditable = false;
+
+            if (!RouteCardVMs.RouteCardSubVMs.Any(x => x.IsEditable))
+            {
+                RouteCardVMs.RouteCardSubVMs.Add(new RouteCardSubVM
+                {
+                    RCId = RouteCardVMs.RCId,
+                    IsEditable = true,
+                    GroupKey = Guid.NewGuid().ToString()
+                });
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for RcSubId: {row?.RCSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(RouteCardSubVM row)
+    {
+        try
+        {
+            row.IsEditable = true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for RcSubId: {row?.RCSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(RouteCardSubVM row, RouteCardVM routeCardVm)
+    {
+        try
+        {
+            if (row == null || routeCardVm == null) return;
+
+            bool isInvalid = (row.ProcessId == null || row.ProcessId <= 0);
+
+            if (isInvalid)
+            {
+                routeCardVm.RouteCardSubVMs.Remove(row);
+                await ResetSlno();
+            }
+            else
+            {
+                row.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for RcSubId: {row?.RCSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(RouteCardSubVM row)
+    {
+        try
+        {
+            if (RouteCardVMs.RouteCardSubVMs.Count == 1 && row.RCSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row is required.");
+                return;
+            }
+
+            if(row.RCSubId > 0)
+            {
+                await _js.ToastrWarning("Deletion not allowed. Already allocated processes can only be skipped, not removed.");
+                return;
+            }
+
+            rowToDelete = row;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteProcessRow_Click";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for RcSubId: {row?.RCSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in RouteCardVMs.RouteCardSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+
+            await RecalculateSubProcess();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region isManual JobOrder Toggle 
+
+    private async Task OnManualRCToggle(ChangeEventArgs e)
+    {
+        bool newValue = e.Value is bool b && b;
+        RouteCardVMs.IsManual = newValue;
+
+        if(RouteCardVMs.IsManual)
+        {
+            RouteCardVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            var RcNo= await rcService.GetPreviewRcNoAsync(RouteCardVMs.Suffix);
+            RouteCardVMs.RCNo = RcNo.ToString("D3");
+        }
+        else
+        {
+            RouteCardVMs.AssyId = null;
+            RouteCardVMs.Suffix = "";
+            RouteCardVMs.RCNo = "";
+        }
+        StateHasChanged();
+    }
+
+    #endregion 
+
+    #region Customer data
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3) 
+            return Enumerable.Empty<CustomerVM>();
+
+        try
+        {
+            var results = await rcService.SearchCustomersAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<CustomerVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search customers. Please try again.");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+            await ApplyCustomerSelectionAsync(customer);
+            if (customer.CustId > 0 && RouteCardVMs.MfgOrLab)
+            {
+                CustomerPendingPOs = await rcService.GetPendingPOsByCustomerAsync(customer.CustId,"Sales");
+            }
+            else if (customer.CustId > 0 && !RouteCardVMs.MfgOrLab)
+            {
+                CustomerPendingPOs = await rcService.GetPendingPOsByCustomerAsync(customer.CustId,"Labour");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting");
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+            RouteCardVMs.SelectedCustomer = customer;
+            RouteCardVMs.CustId = customer?.CustId ?? 0;
+            RouteCardVMs.CustName = customer?.CustName;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {customer?.CustId}");
+            await _js.ToastrError("Failed to apply customer selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Route Card Operations
+
+    private async Task UpsertRouteCard()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (RouteCardVMs.RcType == 2 && !RouteCardVMs.RouteCardSubVMs.Any(x => x.IsFinalProcess))
+            {
+                await _js.ToastrWarning("Final Process selection is required when creating a Manual Route Card. Please select a Final Process to continue.");
+                return;
+            }
+
+            if (! RouteCardVMs.RouteCardSubVMs.Any())
+            {
+                await _js.ToastrError("Cannot save a RouteCard without valid items.");
+                return;
+            }
+
+            if(RouteCardVMs.IsManual)
+            {
+
+                if(RouteCardVMs.RcQty<=0)
+                {
+                    await _js.ToastrError("Please enter Valid RouteCard Quantity");
+                    return;
+                }
+      
+            }
+
+            foreach (var line in  RouteCardVMs.RouteCardSubVMs)
+            {
+                bool isValid = await ValidateRouteCardLineAsync(line);
+                if (!isValid) return;
+            }
+
+            var isNewRC = RouteCardVMs.RCId == 0;
+
+            try
+            {
+                await rcService.UpsertRouteCardAsync(RouteCardVMs);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewRC)
+                await _js.ToastrSuccess("Route Card saved successfully.");
+            else
+                await _js.ToastrSuccess("Route Card updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/routeCardList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertRouteCard failed.");
+            await _js.ToastrError("Error saving Route Card.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateRouteCardLineAsync(RouteCardSubVM line)
+    {
+        try
+        {
+            if (line.ProcessId == 0)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidateRouteCardLineAsync failed.");
+            await _js.ToastrError("Error Validate Route Card Order Item line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+    #region Modal Handlers
+
+    private async Task Cancel()
+    {
+        try
+        {
+
+            // if (IsSomeItemsTransMade)
+            // {
+            //     await _js.ToastrError("Some items have transactions made. You cannot cancel the complete Job Order.");
+            //     return;
+            // }
+
+            // var jobOrder = await jobOrderService.GetJobOrderByJobIdAsync(JobOrderVMs.JobId);
+            // if (jobOrder == null)
+            // {
+            //     await _js.ToastrError("Job Order not found.");
+            //     return;
+            // }
+
+            // bool isPoExists = await jobOrderService
+            //     .IsPoExists(jobOrder.RefPoId.GetValueOrDefault(), jobOrder.AssyId);
+
+
+            // if (isPoExists)
+            // {
+
+            //     var poItemWOBalQty = await jobOrderService.GetMfgPoWOBalQtyByRefPoSubId(jobOrder.RefPoSubId.Value);
+
+            //     if (poItemWOBalQty < jobOrder.JobOrderQty && jobOrder.Cancel)
+            //     {
+            //         await _js.ToastrError("Cannot Revert this Job Order. Another Job Order has already consumed the PO Work Order Balance Qty.");
+            //         return;
+            //     }
+
+            //     var subJobs = await jobOrderService
+            //         .GetReferenceJobListByParentJobId(jobOrder.JobId, jobOrder.RefPoSubId.Value);
+
+            //     if (subJobs != null && subJobs.Any())
+            //     {
+            //         foreach (var subJob in subJobs)
+            //         {
+            //             bool exists = await jobOrderService
+            //                 .HasProductionIssueForJobAsync(subJob.AssyId.Value, subJob.JobId);
+
+            //             if (exists)
+            //             {
+            //                 await _js.ToastrWarning(
+            //                     "You cannot cancel this Assembly Item.\n" +
+            //                     "Some Sub-Assembly Job Orders have already been issued to Production.");
+            //                 return;
+            //             }
+
+            //             if (subJob.JobOrderQty != subJob.JobBalQty)
+            //             {
+            //                 await _js.ToastrError("Cannot Cancel/revert. Some Sub-Assembly transactions are already made!");
+            //                 return;
+            //             }
+
+            //         }
+            //     }
+
+            //     if (!JobOrderVMs.Cancel)
+            //     {
+            //         ModalTitle = "Are you sure you want to cancel this Assembly Job Order? " +
+            //                      "Cancelling will also cancel all linked Sub-Assembly Job Orders.";
+
+            //         btnColor = "btn-danger";
+            //         btnText = "Yes! Cancel";
+            //         confirmation = "Cancel";
+            //         showCancelReasonBox = true;
+            //     }
+            //     else
+            //     {
+            //         ModalTitle = "Are you sure you want to revert this Assembly Job Order? " +
+            //                      "Reverting will also revert all linked Sub-Assembly Job Orders.";
+
+            //         btnColor = "btn-success";
+            //         btnText = "Yes! Revert";
+            //         confirmation = "Revert";
+            //         showCancelReasonBox = false;
+            //     }
+            // }
+            // else
+            // {
+            //     if (JobOrderVMs.Cancel == true)
+            //     {
+            //         if (jobOrder.JobOrderQty != jobOrder.JobBalQty)
+            //         {
+            //             await _js.ToastrError("Cannot revert. Some transactions have been made!");
+            //             return;
+            //         }
+
+            //         if (jobOrder.ParentJobId > 0)
+            //         {
+            //             var parentOrder = await jobOrderService.GetJobOrderByJobIdAsync(jobOrder.ParentJobId.Value);
+
+            //             if (parentOrder != null && parentOrder.Cancel == true)
+            //             {
+            //                 await _js.ToastrError("Cannot revert this ony Sub-Assembly. when Assembly Job Order is cancelled state.");
+            //                 return;
+            //             }
+            //         }
+
+            //         ModalTitle = "Are you sure you want to revert this Job Order?";
+            //         btnColor = "btn-success";
+            //         btnText = "Yes! Revert";
+            //         confirmation = "Revert";
+            //         showCancelReasonBox = false;
+            //     }
+            //     else
+            //     {
+            //         ModalTitle = "Are you sure you want to cancel this Job Order?";
+            //         btnColor = "btn-danger";
+            //         btnText = "Yes! Cancel";
+            //         confirmation = "Cancel";
+            //         showCancelReasonBox = true;
+            //     }
+            // }
+
+            // await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing cancellation.");
+            await LoggingService.LogDeveloperError(ex, "Error in Cancel()");
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await rcService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region PO Change
+
+    private async Task OnPoChanged(ChangeEventArgs e)
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            if (RouteCardVMs.CustId.GetValueOrDefault() <= 0)
+            {
+                await _js.ToastrWarning("Please select a Customer.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(RouteCardVMs.SelectedItemType))
+            {
+                await _js.ToastrWarning("Item Type selection is required.");
+                return;
+            }
+
+            if (!int.TryParse(e.Value?.ToString(), out int poId))
+            {
+                await _js.ToastrWarning("Please select a Customer PO Number.");
+                return;
+            }
+
+            RouteCardVMs.RefPoId = poId;
+
+            if (RouteCardVMs.SelectedItemType == "ASSY")
+            {
+                await LoadAssemblyItemsAsync();
+            }
+            else if (RouteCardVMs.SelectedItemType == "COMP")
+            {
+                await LoadComponentItemsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while processing PO change event");
+            await _js.ToastrError("Failed to load PO-related details.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Route card Release Change
+
+    private async Task OnRcReleaseChanged(ChangeEventArgs e)
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            if (RouteCardVMs.CustId.GetValueOrDefault() <= 0)
+            {
+                await _js.ToastrWarning("Please select a Customer.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(RouteCardVMs.SelectedItemType))
+            {
+                await _js.ToastrWarning("Item Type selection is required.");
+                return;
+            }
+
+            if (!int.TryParse(e.Value?.ToString(), out int rcReleaseId))
+            {
+                await _js.ToastrWarning("Please select a Customer PO Number.");
+                return;
+            }
+
+            RouteCardVMs.RefRcReleseId = rcReleaseId;
+
+            await LoadAssemblyItemsAsync();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while processing PO change event");
+            await _js.ToastrError("Failed to load PO-related details.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+    #endregion
+
+
+    #region Item Type Change
+
+    private async Task OnItemTypeChanged(string value)
+    {
+        try
+        {
+            RouteCardVMs.SelectedItemType = value;
+
+            RouteCardVMs.CompItemVMs = new();
+
+            if (value == "ASSY")
+            {
+                PendingRcRelease = await rcService.GetPendingAssyRcReleasesByCustomerAsync(RouteCardVMs.CustId.Value);
+
+                RouteCardVMs.CompItemId = null;
+                RouteCardVMs.CompItemVMs = new();
+
+                //await LoadAssemblyItemsAsync();
+            }
+            else
+            {
+                RouteCardVMs.AssyId = null;
+                RouteCardVMs.SubAssyId = null;
+                RouteCardVMs.SubAssyId2 = null;
+                RouteCardVMs.SubAssyId3 = null;
+
+                RouteCardVMs.AssyItemVMs = new();
+                RouteCardVMs.SubAssyItemVMs = new();
+                RouteCardVMs.SubAssyItemVM2s = new();
+                RouteCardVMs.SubAssyItemVM3s = new();
+
+                if (RouteCardVMs.MfgOrLab)
+                {
+                    CustomerPendingPOs = await rcService.GetPendingPOsByCustomerAsync(RouteCardVMs.CustId.Value,"Sales");
+                }
+                else
+                {
+                     CustomerPendingPOs = await rcService.GetPendingPOsByCustomerAsync(RouteCardVMs.CustId.Value,"Labour");
+                }
+
+
+                //await LoadComponentItemsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading item types.");
+            await _js.ToastrError("Failed to load related items.");
+        }
+    }
+
+    #endregion
+
+
+    #region Load Assy / Component Items
+
+    private async Task LoadAssemblyItemsAsync()
+    {
+        try
+        {
+            if (RouteCardVMs.RefRcReleseId is null)
+            {
+                RouteCardVMs.AssyItemVMs = new();
+                await _js.ToastrWarning("No Rc Release selected.");
+                return;
+            }
+
+            RouteCardVMs.AssyItemVMs = await rcService.GetAssemblyItemsByRcRelease(RouteCardVMs.RefRcReleseId.Value);
+
+            if (RouteCardVMs.AssyItemVMs.Count > 1)
+            {
+                await _js.ToastrSuccess("Assemblies loaded successfully.");
+            }
+            else if (RouteCardVMs.AssyItemVMs.Count == 0)
+            {
+                await _js.ToastrWarning("No assembly items exist.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Failed to load assembly items.");
+            await _js.ToastrError("Unable to load assembly items.");
+        }
+    }
+
+    private async Task LoadComponentItemsAsync()
+    {
+        try
+        {
+            if (RouteCardVMs.RefPoId is null)
+            {
+                RouteCardVMs.CompItemVMs = new();
+                return;
+            }
+            RouteCardVMs.CompItemVMs = await rcService.GetComponentItemsByPO(RouteCardVMs.RefPoId.Value);
+
+            if (RouteCardVMs.CompItemVMs.Count > 1)
+            {
+                await _js.ToastrSuccess("Components loaded successfully.");
+            }
+            else if (RouteCardVMs.CompItemVMs.Count == 0)
+            {
+                await _js.ToastrWarning("No component items exist.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Failed to load component items.");
+            await _js.ToastrError("Unable to load component items.");
+        }
+    }
+
+    private async Task OnAssemblyChanged(ChangeEventArgs e)
+    {
+        RouteCardVMs.CompItemVMs = new();
+
+        if (int.TryParse(e.Value?.ToString(), out int assyId))
+        {
+            RouteCardVMs.AssyId = assyId;
+
+            RouteCardVMs.CompItemVMs = await rcService.GetComponentsByParentAsync(assyId, RouteCardVMs.RefRcReleseId.Value);
+
+        }
+        else
+        {
+            RouteCardVMs.AssyId = null;
+            RouteCardVMs.CompItemVMs = new();
+        }
+    }
+
+    private async Task OnSubAssy1Changed(ChangeEventArgs e)
+    {
+        RouteCardVMs.CompItemVMs = new();
+
+        if (int.TryParse(e.Value?.ToString(), out int subAssyId))
+        {
+            RouteCardVMs.SubAssyId = subAssyId;
+
+            RouteCardVMs.SubAssyItemVM2s = await rcService.GetSubAssyByParentAsync(subAssyId);
+
+            RouteCardVMs.SubAssyId2 = null;
+            RouteCardVMs.SubAssyId3 = null;
+
+            RouteCardVMs.CompItemVMs = await rcService.GetComponentsByParentAsync(subAssyId, RouteCardVMs.RefPoId.Value);
+        }
+        else
+        {
+            RouteCardVMs.SubAssyId = null;
+            RouteCardVMs.SubAssyItemVM2s = new();
+        }
+    }
+
+    private async Task OnSubAssy2Changed(ChangeEventArgs e)
+    {
+        RouteCardVMs.CompItemVMs = new();
+
+        if (int.TryParse(e.Value?.ToString(), out int subAssyId2))
+        {
+            RouteCardVMs.SubAssyId2 = subAssyId2;
+
+            RouteCardVMs.SubAssyItemVM3s = await rcService.GetSubAssyByParentAsync(subAssyId2);
+            RouteCardVMs.SubAssyId3 = null;
+
+            RouteCardVMs.CompItemVMs = await rcService.GetComponentsByParentAsync(subAssyId2, RouteCardVMs.RefPoId.Value);
+        }
+    }
+
+    private async Task OnSubAssy3Changed(ChangeEventArgs e)
+    {
+        RouteCardVMs.CompItemVMs = new();
+
+        if (int.TryParse(e.Value?.ToString(), out int subAssyId3))
+        {
+            RouteCardVMs.SubAssyId3 = subAssyId3;
+
+            RouteCardVMs.CompItemVMs = await rcService.GetComponentsByParentAsync(subAssyId3, RouteCardVMs.RefPoId.Value);
+        }
+    }
+
+    #endregion
+
+
+    #region Component Changed
+
+    private async Task OnComponentChanged(ChangeEventArgs e)
+    {
+        if (e.Value == null || string.IsNullOrWhiteSpace(e.Value.ToString()))
+        {
+            RouteCardVMs.CompItemId = 0;
+
+            RouteCardVMs.RcQty = 0;
+
+            RouteCardVMs.RMId = null;
+            RouteCardVMs.RMItemVMs = new List<ItemVM>();
+            RouteCardVMs.RMReqQty = 0;
+            RouteCardVMs.RMStockQty = 0;
+            RouteCardVMs.RMWeight = 0;
+            RouteCardVMs.RMBatchNo = string.Empty;
+
+            StateHasChanged();
+            return;
+        }
+
+        RouteCardVMs.CompItemId = Convert.ToInt32(e.Value);
+
+        if (RouteCardVMs.SelectedItemType == "COMP")
+        {
+            var mfgPoSub = await rcService.GetPOQtyAndRCBalQtyByPoIdAndItemId(
+                                RouteCardVMs.RefPoId.Value,
+                                RouteCardVMs.CompItemId.Value);
+
+            if (mfgPoSub != null)
+            {
+                RouteCardVMs.RcQty = mfgPoSub.RouteCardBalQty;
+            }
+            else
+            {
+                RouteCardVMs.RcQty = 0;
+            }
+        }
+        else if (RouteCardVMs.SelectedItemType == "ASSY")
+        {
+            var remainingQty = await rcService.GetRemainingQtyByAssyPoCompTrack(
+                        RouteCardVMs.RefRcReleseId.Value,
+                        RouteCardVMs.AssyId.Value,
+                        RouteCardVMs.CompItemId.Value);
+
+            RouteCardVMs.RcQty = remainingQty;
+        }
+
+        RouteCardVMs.RMItemVMs = await rcService.GetRawMaterialByCompItemId(RouteCardVMs.CompItemId.Value);
+
+        if (RouteCardVMs.RMItemVMs != null && RouteCardVMs.RMItemVMs.Count == 1)
+        {
+            var rm = RouteCardVMs.RMItemVMs.First();
+            RouteCardVMs.RMId = rm.ItemId;
+
+            await LoadRawMaterialDetails(rm.ItemId);
+        }
+        else
+        {
+            RouteCardVMs.RMId = null;
+            RouteCardVMs.RMReqQty = 0;
+            RouteCardVMs.RMStockQty = 0;
+            RouteCardVMs.RMWeight = 0;
+            RouteCardVMs.RMBatchNo = string.Empty;
+        }
+        StateHasChanged();
+    }
+
+    #endregion
+
+
+    #region RCQty Changed
+
+    private async Task OnRcQtyChanged(ChangeEventArgs e, RouteCardVM RouteCardVMs)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty))
+            {
+                await _js.ToastrWarning("Invalid quantity entered.");
+                return;
+            }
+
+            if (newQty < 0)
+            {
+                RouteCardVMs.RcQty = 0;
+                await _js.ToastrWarning("RC Qty cannot be negative.");
+                return;
+            }
+
+            RouteCardVMs.RcQty = newQty;
+            RouteCardVMs.RMReqQty = newQty * RouteCardVMs.RMWeight;
+
+            decimal alreadyTransactedQty = 0;
+            var seq1 = RouteCardVMs.RouteCardSubVMs.FirstOrDefault(x => x.SeqNo == 1);
+
+            if (seq1 != null)
+                alreadyTransactedQty = seq1.IssuedQty;
+
+            decimal? balanceQty;
+
+            if (RouteCardVMs.SelectedItemType == "COMP")
+            {
+                balanceQty = await rcService.GetMfgPoRCBalQtyByRefPoIdAndItemId(
+                    RouteCardVMs.RefPoId.Value,
+                    RouteCardVMs.CompItemId.Value);
+            }
+            else
+            {
+                balanceQty = await rcService.GetRemainingQtyByAssyPoCompTrack(
+                    RouteCardVMs.RefRcReleseId.Value,
+                    RouteCardVMs.AssyId.Value,
+                    RouteCardVMs.CompItemId.Value);
+            }
+            balanceQty ??= 0;
+
+            if (RouteCardVMs.RCId == 0)
+            {
+                if (newQty > balanceQty)
+                {
+                    RouteCardVMs.RcQty = balanceQty.Value;
+                    RouteCardVMs.RMReqQty = RouteCardVMs.RcQty * RouteCardVMs.RMWeight;
+
+                    await _js.ToastrWarning($"RC Qty cannot exceed {balanceQty} (PO Balance)");
+                }
+
+                UpdateSubRows();
+                return;
+            }
+
+            var originalRcQty = await rcService.GetExistingRCQtyByRoutecard(RouteCardVMs.RCId);
+
+            decimal maxAllowedQty = originalRcQty.GetValueOrDefault() + balanceQty.Value;
+
+            if (newQty < alreadyTransactedQty)
+            {
+                RouteCardVMs.RcQty = alreadyTransactedQty;
+                RouteCardVMs.RMReqQty = alreadyTransactedQty * RouteCardVMs.RMWeight;
+
+                await _js.ToastrWarning($"RC Qty cannot be less than already processed Qty: {alreadyTransactedQty}");
+            }
+
+            if (newQty > maxAllowedQty)
+            {
+                RouteCardVMs.RcQty = maxAllowedQty;
+                RouteCardVMs.RMReqQty = RouteCardVMs.RcQty * RouteCardVMs.RMWeight;
+
+                await _js.ToastrWarning($"RC Qty cannot exceed allowed max: {maxAllowedQty} (Existing RC + PO Balance)");
+            }
+
+            UpdateSubRows();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error in OnRCQtyChanged for Item: {RouteCardVMs?.CompItemCode}");
+            await _js.ToastrError("Something went wrong while updating RC Quantity.");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateSubRows()
+    {
+        foreach (var row in RouteCardVMs.RouteCardSubVMs)
+        {
+            row.TotalQty = RouteCardVMs.RcQty;
+            row.BalQty = row.TotalQty - (row.IssuedQty + row.AccQty + row.RejQty + row.RewQty);
+
+            if (row.BalQty < 0)
+                row.BalQty = 0;
+        }
+    }
+
+    private async Task OnManualRcQtyChanged(ChangeEventArgs e, RouteCardVM RouteCardVMs)
+    {
+        try
+        {
+            if (!decimal.TryParse(Convert.ToString(e.Value), out decimal newQty))
+            {
+                await _js.ToastrWarning("Invalid quantity entered.");
+                return;
+            }
+
+            if (newQty < 0)
+            {
+                newQty = 0;
+                await _js.ToastrWarning("RC Quantity cannot be negative.");
+            }
+
+            // Assign once
+            RouteCardVMs.RcQty = newQty;
+            RouteCardVMs.RMReqQty = RouteCardVMs.RcQty * RouteCardVMs.RMWeight;
+
+            // New RC
+            if (RouteCardVMs.RCId == 0)
+            {
+                foreach (var row in RouteCardVMs.RouteCardSubVMs ?? Enumerable.Empty<RouteCardSubVM>())
+                {
+                    row.TotalQty = RouteCardVMs.RcQty;
+                    row.BalQty = Math.Max(0, row.TotalQty.GetValueOrDefault() - row.IssuedQty);
+                }
+                return;
+            }
+
+            // Already processed validation
+            var seq1 = RouteCardVMs.RouteCardSubVMs?
+                            .FirstOrDefault(x => x.SeqNo == 1);
+
+            var alreadyProcessedQty = seq1?.IssuedQty ?? 0;
+
+            if (newQty < alreadyProcessedQty)
+            {
+                RouteCardVMs.RcQty = alreadyProcessedQty;
+                RouteCardVMs.RMReqQty = alreadyProcessedQty * RouteCardVMs.RMWeight;
+
+                foreach (var row in RouteCardVMs.RouteCardSubVMs ?? Enumerable.Empty<RouteCardSubVM>())
+                {
+                    row.TotalQty = RouteCardVMs.RcQty;
+                    row.BalQty = Math.Max(0, row.TotalQty.GetValueOrDefault() - row.IssuedQty);
+                }
+
+                await _js.ToastrWarning($"RC Qty cannot be lower than already processed qty: {alreadyProcessedQty}");
+                return;
+            }
+
+            // Existing RC normal update
+            foreach (var row in RouteCardVMs.RouteCardSubVMs ?? Enumerable.Empty<RouteCardSubVM>())
+            {
+                row.TotalQty = RouteCardVMs.RcQty;
+                row.BalQty = Math.Max(0, row.TotalQty.GetValueOrDefault() - row.IssuedQty);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,$"Error in OnManualRcQtyChanged for Item: {RouteCardVMs?.CompItemCode}");
+            await _js.ToastrError("Something went wrong while updating RC Quantity.");
+        }
+    }
+
+
+    #endregion
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await rcService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+
+    private async Task OnItemChanged(RouteCardVM routeCardVM, ItemVM? item)
+    {
+        try
+        {
+            if (item == null)
+            {
+                routeCardVM.SelectedComponent = null;
+                routeCardVM.CompItemId = null;
+                routeCardVM.CompItemCode = null;
+
+                routeCardVM.RcQty = 0;
+
+                routeCardVM.RMId = null;
+                routeCardVM.RMItemVMs = new List<ItemVM>();
+                routeCardVM.RMReqQty = 0;
+                routeCardVM.RMStockQty = 0;
+                routeCardVM.RMWeight = 0;
+                routeCardVM.RMBatchNo = string.Empty;
+
+                StateHasChanged();
+                return;
+            }
+
+            routeCardVM.SelectedComponent = item;
+            routeCardVM.CompItemId = item.ItemId;
+            routeCardVM.CompItemCode = item.ItemCode;
+
+            routeCardVM.RMItemVMs = await rcService.GetRawMaterialByCompItemId(routeCardVM.CompItemId.Value);
+
+            if (routeCardVM.RMItemVMs != null && routeCardVM.RMItemVMs.Count == 1)
+            {
+                var rm = routeCardVM.RMItemVMs.First();
+                routeCardVM.RMId = rm.ItemId;
+
+                await LoadRawMaterialDetails(rm.ItemId);
+            }
+            else
+            {
+                routeCardVM.RMId = null;
+                routeCardVM.RMReqQty = 0;
+                routeCardVM.RMStockQty = 0;
+                routeCardVM.RMWeight = 0;
+                routeCardVM.RMBatchNo = string.Empty;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+
+            await _js.ToastrError("Failed to load component details. Please try again.");
+        }
+    }
+
+
+
+    #region Raw-Material Changed
+
+    private async Task OnRMChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            int rmId = Convert.ToInt32(e.Value);
+            RouteCardVMs.RMId = rmId;
+
+            if (rmId == 0)
+            {
+                RouteCardVMs.RMReqQty = 0;
+                RouteCardVMs.RMStockQty = 0;
+                RouteCardVMs.RMWeight = 0;
+                RouteCardVMs.RMBatchNo = string.Empty;
+                RouteCardVMs.MainRemarks = string.Empty;
+                return;
+            }
+
+            await LoadRawMaterialDetails(rmId);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error in OnRMChanged for RM Id: {RouteCardVMs?.RMId}");
+            await _js.ToastrError("Something went wrong while loading raw material details.");
+        }
+    }
+
+    private async Task LoadRawMaterialDetails(int rmId)
+    {
+        try
+        {
+            if (!RouteCardVMs.CompItemId.HasValue || RouteCardVMs.CompItemId.Value == 0)
+            {
+                await _js.ToastrWarning("Please select the Component Item first.");
+                return;
+            }
+
+            var details = await rcService.GetRMDetails(rmId, RouteCardVMs.CompItemId.Value, RouteCardVMs.RcQty);
+
+            if (details != null)
+            {
+                RouteCardVMs.RMReqQty   = details.RequiredQty;
+                RouteCardVMs.RMStockQty = details.StockQty;
+                RouteCardVMs.RMWeight   = details.Weight;
+                RouteCardVMs.RMBatchNo  = details.BatchNo;
+                RouteCardVMs.MainRemarks = details.Remarks;
+            }
+            else
+            {
+                RouteCardVMs.RMReqQty = 0;
+                RouteCardVMs.RMStockQty = 0;
+                RouteCardVMs.RMWeight = 0;
+                RouteCardVMs.RMBatchNo = string.Empty;
+                RouteCardVMs.MainRemarks = string.Empty;
+            }
+
+            if(RouteCardVMs.RcType == 1)
+            {
+                await LoadProcessFlowList(RouteCardVMs.CompItemId.Value, rmId);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                $"Error in LoadRawMaterialDetails for RM Id: {rmId}");
+
+            await _js.ToastrError("Failed to load raw material details. Please try again.");
+        }
+    }
+
+    private async Task LoadProcessFlowList(int compItemId, int rmId)
+    {
+        try
+        {
+            var flowList = await rcService.GetProcessFlowAsync(compItemId, rmId);
+
+            if (flowList == null || !flowList.Any())
+            {
+                RouteCardVMs.RouteCardSubVMs = new List<RouteCardSubVM>();
+                return;
+            }
+
+            int finalSlNo = flowList.Max(x => x.SlNo);
+
+            RouteCardVMs.RouteCardSubVMs = flowList
+                .OrderBy(x => x.SlNo)
+                .Select(p =>
+                {
+                    bool isFirstProcess = p.SubProcess == 1;
+
+                    return new RouteCardSubVM
+                    {
+                        RCSubId = 0,
+                        RCId = RouteCardVMs.RCId,
+
+                        SlNo = p.SlNo,
+                        SeqNo = p.SubProcess,
+
+                        ProcessId = p.ProcId,
+                        ProcessName = p.Process?.ProcessName,
+
+                        ItemIdOut = isFirstProcess ? p.RMId : p.CompItemId,
+                        ItemCodeOut = isFirstProcess ? p.RawMaterialItem?.ItemCode : p.ComponentItem?.ItemCode,
+
+                        ItemIdIn = p.CompItemId,
+                        ItemCodeIn = p.ComponentItem?.ItemCode,
+
+                        TotalQty = RouteCardVMs.RcQty,
+                        BalQty = RouteCardVMs.RcQty,
+                        AccQty = 0,
+                        RejQty = 0,
+                        RewQty = 0,
+                        NextProcessQty = 0,
+
+                        MachineId = p.MachId,
+                        MachineName = p.Machine?.MachineName,
+
+                        VendorId = p.VendorCode,
+                        VendorName = p.Vendor?.VendorName,
+
+                        CycleTime = p.CycleTime,
+                        SettingTime = p.SettingTime,
+                        ProcessCost = p.UnitPrice,
+
+                        IsBOM = p.BOM,
+                        IsInspection = p.Inspection,
+                        IsProcessSkip = p.ProcessSkip,
+
+                        IsFinalProcess = (p.SlNo == finalSlNo),
+                        ProcessStatus = 0
+                    };
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,$"Error in LoadProcessFlowList for CompItemId: {compItemId}, RMId: {rmId}");
+            await _js.ToastrError("Failed to load process flow. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region SameSeqNo Validation
+
+    private async Task OnUseSameSubProcessChanged(RouteCardSubVM row, bool value)
+    {
+        try
+        {
+            if (row.SeqNo == 1)
+            {
+                row.UseSameSeq = false;
+                return;
+            }
+
+            row.UseSameSeq = value;
+
+            if (!value)
+            {
+                row.GroupKey = Guid.NewGuid().ToString();
+            }
+            else
+            {
+                var ordered = RouteCardVMs.RouteCardSubVMs
+                    .OrderBy(x => x.SlNo)
+                    .ToList();
+
+                int idx = ordered.IndexOf(row);
+
+                if (idx > 0)
+                {
+                    var prev = ordered[idx - 1];
+
+                    if (prev.SeqNo == 1)
+                    {
+                        row.UseSameSeq = false;
+                        row.GroupKey = Guid.NewGuid().ToString();
+                        return;
+                    }
+
+                    row.GroupKey = prev.GroupKey;
+                }
+            }
+
+            await RecalculateSubProcess();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Toggle SubProcess Error");
+            await _js.ToastrError("Error updating SubProcess grouping.");
+        }
+    }
+
+    private async Task RecalculateSubProcess()
+    {
+        try
+        {
+            var list = RouteCardVMs.RouteCardSubVMs;
+            if (list == null || list.Count == 0)
+                return;
+
+            var ordered = list.OrderBy(x => x.SlNo).ToList();
+
+            string lastGroupKey = null;
+            int subProcessCounter = 0;
+
+            foreach (var row in ordered)
+            {
+                if (subProcessCounter == 0)
+                {
+                    subProcessCounter = 1;
+                    row.SeqNo = 1;
+                    row.UseSameSeq = false;
+                    row.GroupKey ??= Guid.NewGuid().ToString();
+                }
+                else if (row.GroupKey != lastGroupKey)
+                {
+                    subProcessCounter++;
+                    row.SeqNo = subProcessCounter;
+                    row.UseSameSeq = false;
+                }
+                else
+                {
+                    row.SeqNo = subProcessCounter;
+                    row.UseSameSeq = true;
+                }
+
+                lastGroupKey = row.GroupKey;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Recalc Seq No. Error");
+            await _js.ToastrError("Error recalculating Seq No.");
+        }
+    }
+
+    #endregion 
+
+
+    #region Process selection Changed
+
+    private async Task OnProcessChanged(ChangeEventArgs e, RouteCardSubVM subVM)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out var selectedProcId))
+            {
+                subVM.ProcessId = selectedProcId;
+                subVM.ProcessName = ProcessList.FirstOrDefault(p => p.ProcessId == selectedProcId)?.ProcessName;
+
+                subVM.TotalQty = RouteCardVMs.RcQty;
+                subVM.BalQty = RouteCardVMs.RcQty;
+
+                var previousRec = RouteCardVMs.RouteCardSubVMs
+                    .Where(x => x.SlNo < subVM.SlNo)
+                    .OrderByDescending(x => x.SlNo)
+                    .FirstOrDefault();
+
+                if (previousRec != null)
+                {
+                    subVM.MachineId = previousRec.MachineId;
+                    subVM.MachineName = previousRec.MachineName;
+
+                    subVM.VendorId = previousRec.VendorId;
+                    subVM.VendorName = previousRec.VendorName;
+
+                    subVM.CycleTime = previousRec.CycleTime;
+                    subVM.SettingTime = previousRec.SettingTime;
+
+                    subVM.ProcessCost = previousRec.ProcessCost;
+                }
+            }
+            else
+            {
+                subVM.ProcessId = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnProcessChanged");
+            await _js.ToastrError("An error occurred while changing the process.");
+        }
+    }
+
+    #endregion 
+
+    private async Task OnMachineChanged(ChangeEventArgs e, RouteCardSubVM subVM)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out var selectedMachineId))
+            {
+                subVM.MachineId = selectedMachineId;
+                subVM.MachineName = MachineList.FirstOrDefault(p => p.MachineId == selectedMachineId)?.MachineName;
+
+                subVM.VendorId = null;
+                subVM.VendorName = null;
+            }
+            else
+            {
+                subVM.MachineId = null;
+                subVM.MachineName = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnMachineChanged");
+            await _js.ToastrError("An error occurred while selecting the machine.");
+        }
+    }
+
+    private async Task OnVendorChanged(ChangeEventArgs e, RouteCardSubVM subVM)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out var selectedVendorId))
+            {
+                subVM.VendorId = selectedVendorId;
+                subVM.VendorName = VendorList.FirstOrDefault(p => p.VendorCode == selectedVendorId)?.VendorName;
+
+                subVM.MachineId = null;
+                subVM.MachineName = null;
+            }
+            else
+            {
+                subVM.VendorId = null;
+                subVM.VendorName = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnVendorChanged");
+            await _js.ToastrError("An error occurred while selecting the vendor.");
+        }
+    }
+
+    #region Log Details
+
+    private async Task OpenProcessLog(RouteCardSubVM sub)
+    {
+        try
+        {
+            if (sub == null)
+                return;
+
+            rowToViewLogs = sub;
+
+            ModalTitle = $"View Process Logs for: {sub.ProcessName}";
+            btnColor = "btn-info";
+            btnText = "View Logs";
+            confirmation = "showLogs";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,$"OpenProcessLog failed for RcSubId: {sub.RCSubId}");
+            await _js.ToastrError("Error while opening process logs.");
+        }
+    }
+
+    #endregion
+
+    #region BS-Model Conformation
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "ProcessLog" => "View Log Details",
+
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "ProcessLog")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type in DcSubConOutgoingUpsert: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal in DcSubConOutgoingUpsert. Please try again.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "showLogs":
+                    if(rowToViewLogs != null)
+                        await OpenModal("ProcessLog");
+                    break;
+
+                case "confirmDeleteProcessRow_Click":
+                    if(rowToDelete != null)
+                        await confirmDeleteRow_Click();
+                    break;
+
+                case "ProcessSkip":
+                    if(rowToSkip != null)
+                        await ConfirmRowSkip_Click();
+                    break;
+
+                case "BOMAllocate":
+                    if(rowToBOM != null)
+                        await ConfirmBOMAllocate_Click();
+                    break;
+
+                case "QualityCheck":
+                    if(rowToQuality != null)
+                        await ConfirmQualityCheck_Click();
+                    break;
+
+                default:
+                        await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action in DcSubConOutgoingUpsert: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action in DcSubConOutgoingUpsert. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click()
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (rowToDelete.RCSubId == 0)
+            {
+                RouteCardVMs.RouteCardSubVMs.Remove(rowToDelete);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                if (!RouteCardVMs.RouteCardSubVMs.Any())
+                    RouteCardVMs.RouteCardSubVMs = new List<RouteCardSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for RcId:{RouteCardVMs.RCId} ");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+             rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnProcessSkipChanged(RouteCardSubVM subVM)
+    {
+        try
+        {
+            if ((subVM.TotalQty ?? 0) != (subVM.BalQty ?? 0))
+            {
+                await _js.ToastrError("Process cannot be skipped — some transactions have been made on it.");
+                return;
+            }
+
+            if(subVM.SeqNo == 1)
+            {
+                await _js.ToastrError("You cannot skip the first process because it is mandatory.");
+                return;
+            }
+
+            if (subVM.ProcessId.HasValue)
+            {
+                if (!subVM.IsProcessSkip)
+                {
+                    ModalTitle = "Are you sure you want to Skip this Process?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Skip";
+                    confirmation = "ProcessSkip";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Process?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ProcessSkip";
+                    showCancelReasonBox = false;
+                }
+                rowToSkip = subVM;
+
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("Process is missing or invalid.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Item.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Item Cancel in PO Sales");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnBOMTrackChangedChanged(RouteCardSubVM subVM)
+    {
+        try
+        {
+            if (subVM == null)
+            {
+                await _js.ToastrError("Invalid process selection.");
+                return;
+            }
+
+            if ((subVM.TotalQty ?? 0) != (subVM.BalQty ?? 0))
+            {
+                await _js.ToastrError("BOM cannot be allocated to this process because some quantity has already been processed.");
+                return;
+            }
+
+            if (!subVM.IsBOM)
+            {
+                ModalTitle = "Are you sure you want to allocate BOM to this process?";
+                btnColor = "btn-primary";
+                btnText = "Yes, Allocate BOM";
+                confirmation = "BOMAllocate";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                ModalTitle = "Do you want to revert the BOM allocation for this process?";
+                btnColor = "btn-warning";
+                btnText = "Yes, Revert BOM";
+                confirmation = "BOMAllocate";
+                showCancelReasonBox = false;
+            }
+
+            rowToBOM = subVM;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while updating the BOM allocation. Please try again.");
+            await LoggingService.LogDeveloperError(ex, "Error in OnBOMTrackChangedChanged for BOM allocation.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnQualityReqChanged(RouteCardSubVM subVM)
+    {
+        try
+        {
+            if (subVM == null)
+            {
+                await _js.ToastrError("Invalid process selection.");
+                return;
+            }
+
+            if ((subVM.TotalQty ?? 0) != (subVM.BalQty ?? 0))
+            {
+                await _js.ToastrError("Quality Check cannot be enabled for this process because some quantity has already been processed.");
+                return;
+            }
+
+            if (!subVM.IsInspection)
+            {
+                ModalTitle = "Enable Quality Check for this process?";
+                btnColor = "btn-primary";
+                btnText = "Yes, Enable Quality Check";
+                confirmation = "QualityCheck";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                ModalTitle = "Do you want to disable Quality Check for this process?";
+                btnColor = "btn-warning";
+                btnText = "Yes, Disable Quality Check";
+                confirmation = "QualityCheck";
+                showCancelReasonBox = false;
+            }
+
+            rowToQuality = subVM;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while updating the Quality Check settings. Please try again.");
+            await LoggingService.LogDeveloperError(ex, "Error in OnQualityReqChanged for Quality Check allocation");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task ConfirmRowSkip_Click()
+    {
+        if (rowToSkip == null) return;
+
+        try
+        {
+            isProcessing = true;
+
+            bool previousStatus = rowToSkip.IsProcessSkip;
+
+            rowToSkip.IsProcessSkip = !rowToSkip.IsProcessSkip;
+
+            rowToSkip.ProcessSkipReason = rowToSkip.IsProcessSkip ? ReasonForSkipCancelBom : null;
+
+            await rcService.UpsertRouteCardSubAsync(rowToSkip);
+
+            string actionText = rowToSkip.IsProcessSkip ? $"Process Skipped for Process Name: {rowToSkip.ProcessName}"
+                : $"Process Reverted for Process Name: {rowToSkip.ProcessName}";
+
+            string reasonText = rowToSkip.IsProcessSkip ? $"Reason: {ReasonForSkipCancelBom}" : $"Revert - Reason cleared";
+
+            await LoggingService.LogUserAction(
+                await _userService.GetUsernameAsync(),
+                _userService.MachineName,
+                _userService.IpAddress,
+                screen: "Route Card",
+                action: actionText,
+                additionalInfo: reasonText
+            );
+
+            ReasonForSkipCancelBom = null;
+
+            RouteCardVMs.RouteCardSubVMs =
+                await rcService.GetRouteCardSubsByRCIdAsync(RouteCardVMs.RCId);
+
+            await ResetSlno();
+
+            string toastMessage = rowToSkip.IsProcessSkip ? "Process skipped successfully." : "Process reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+
+            rowToSkip = null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            int? failedId = rowToSkip?.RCSubId;
+
+            ReasonForSkipCancelBom = null;
+
+            await _js.ToastrError("An error occurred while updating the process skip status.");
+            await LoggingService.LogDeveloperError(ex,$"Process Skip/Revert failed for RCSubId: {failedId}");
+            rowToSkip = null;
+        }
+        finally
+        {
+            rowToSkip = null;
+            ReasonForSkipCancelBom = null;
+            isProcessing = false;
+        }
+    }
+
+    private async Task ConfirmBOMAllocate_Click()
+    {
+        if (rowToBOM == null) return;
+
+        try
+        {
+            isProcessing = true;
+
+            bool previousStatus = rowToBOM.IsBOM;
+
+            rowToBOM.IsBOM = !rowToBOM.IsBOM;
+
+            await rcService.UpsertRouteCardSubAsync(rowToBOM);
+
+            string logAction = rowToBOM.IsBOM ? $"BOM Allocated for Process Name: {rowToBOM.ProcessName}" : $"BOM Allocation Reverted for Process Name: {rowToBOM.ProcessName}";
+
+            await LoggingService.LogUserAction(
+                await _userService.GetUsernameAsync(),
+                _userService.MachineName,
+                _userService.IpAddress,
+                screen: "Route Card",
+                action: logAction,
+                additionalInfo: ""
+            );
+
+            RouteCardVMs.RouteCardSubVMs =
+                await rcService.GetRouteCardSubsByRCIdAsync(RouteCardVMs.RCId);
+
+            await ResetSlno();
+            await LoadExistingRouteCard(RCId.Value);
+
+            string toastMessage = rowToBOM.IsBOM ? "BOM allocated successfully." : "BOM allocation reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+
+            rowToBOM = null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            int? failedId = rowToBOM?.RCSubId;
+
+            await _js.ToastrError("An error occurred while updating the BOM allocation status.");
+            await LoggingService.LogDeveloperError(ex,$"BOM Allocation failed for RCSubId: {failedId}");
+
+            rowToBOM = null;
+            ReasonForSkipCancelBom = null;
+        }
+        finally
+        {
+            rowToBOM = null;
+            ReasonForSkipCancelBom = null;
+            isProcessing = false;
+        }
+    }
+
+    private async Task ConfirmQualityCheck_Click()
+    {
+        if (rowToQuality == null) return;
+
+        try
+        {
+            isProcessing = true;
+
+            bool previousStatus = rowToQuality.IsInspection;
+
+            rowToQuality.IsInspection = !rowToQuality.IsInspection;
+
+            await rcService.UpsertRouteCardSubAsync(rowToQuality);
+
+            string statusText = rowToQuality.IsInspection ? "Quality Check Completed" : "Quality Check Reverted";
+
+            await LoggingService.LogUserAction(
+                await _userService.GetUsernameAsync(),
+                _userService.MachineName,
+                _userService.IpAddress,
+                screen: "Route Card",
+                action: $"{statusText} for Process Name: {rowToQuality.ProcessName}",
+                additionalInfo: ""
+            );
+
+            RouteCardVMs.RouteCardSubVMs =
+                await rcService.GetRouteCardSubsByRCIdAsync(RouteCardVMs.RCId);
+
+            await ResetSlno();
+
+            string toastMessage = rowToQuality.IsInspection ? "Quality Check completed successfully." : "Quality Check reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+
+            rowToQuality = null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            int? failedId = rowToQuality?.RCSubId;
+
+            await _js.ToastrError("An error occurred while updating the Quality Check.");
+
+            await LoggingService.LogDeveloperError(ex,$"Quality Check failed for RCSubId: {failedId}");
+
+            rowToQuality = null;
+        }
+        finally
+        {
+            rowToBOM = null;
+            ReasonForSkipCancelBom = null;
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            bool Cancel = false;
+
+            if (RouteCardVMs.RcStatus == 3)
+            {
+                Cancel = true;
+            }
+
+            var pdfBytes = await reportService.Generate_Report(RCId.GetValueOrDefault(), "RouteCard.frx", "RcId", Cancel, ScreenName, "Sp_Print_RouteCard");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Route Card");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Route Card");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

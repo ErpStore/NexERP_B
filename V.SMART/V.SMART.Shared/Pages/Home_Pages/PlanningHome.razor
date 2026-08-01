@@ -1,0 +1,202 @@
+﻿@page "/planning-home"
+@inject NavigationManager Nav
+@inject ThemeStateService ThemeStateService
+
+<PageTitle>Planning — ERP Suite</PageTitle>
+
+<div class="erp-wrapper @(isDark ? "dark" : "light")">
+
+    <!-- Ambient Orbs -->
+    <div class="erp-orb erp-orb-1"></div>
+    <div class="erp-orb erp-orb-2"></div>
+    <div class="erp-orb erp-orb-3"></div>
+
+    <!-- Breadcrumb -->
+    <nav class="erp-breadcrumb mb-4">
+
+        <a class="erp-bc-link" @onclick='() => Nav.NavigateTo("/")'>
+            <i class="bi bi-house-fill me-1"></i>Home
+        </a>
+
+        <span class="erp-bc-sep">
+            <i class="bi bi-chevron-right"></i>
+        </span>
+
+        <span class="erp-bc-active">
+            Planning
+        </span>
+
+    </nav>
+
+    <!-- Hero -->
+    <div class="erp-page-header mb-4">
+        <div class="erp-page-header-left">
+
+            <div class="erp-page-icon erp-icon-purple">
+                <i class="bi bi-calendar2-week-fill"></i>
+            </div>
+
+            <div>
+                <h1 class="erp-page-title">
+                    Planning
+                </h1>
+
+                <p class="erp-page-sub mb-0">
+                    Job Cards · Route Cards · Material & Assembly Requirement Planning
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- PLANNING MODULES -->
+    <div class="row g-4">
+
+        <div class="col-12">
+            <div class="erp-group-divider">
+                <span>Planning & Analysis</span>
+            </div>
+        </div>
+
+        @foreach (var item in _links)
+        {
+            <div class="col-12 col-sm-6 col-xl-4">
+
+                <div class="erp-module-card position-relative"
+                     @onclick='() => Nav.NavigateTo("/" + item.CardHref)'>
+
+                    <!-- TOP RIGHT BUTTON -->
+                    <button class="erp-card-top-btn"
+                            @onclick:stopPropagation="true"
+                            @onclick='() => Nav.NavigateTo("/" + item.ButtonHref)'>
+                        <i class="bi bi-plus-circle-fill me-1"></i>
+                        Add
+
+                    </button>
+
+                    <!-- ICON -->
+                    <div class="erp-module-icon @item.Color">
+                        <i class="@item.Icon"></i>
+                    </div>
+
+                    <div class="erp-module-shine"></div>
+
+                    <!-- TITLE -->
+                    <h5 class="erp-module-title">
+                        @item.Label
+                    </h5>
+
+                    <!-- DESCRIPTION -->
+                    <p class="erp-module-desc">
+                        @item.Desc
+                    </p>
+
+                    <!-- ARROW -->
+                    <div class="erp-module-arrow">
+                        <i class="bi bi-arrow-right-short"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        }
+
+    </div>
+
+</div>
+
+@code {
+
+    private bool isDark;
+
+    protected override void OnInitialized()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        ThemeStateService.OnChange += ThemeChanged;
+    }
+
+    private void ThemeChanged()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ThemeStateService.OnChange -= ThemeChanged;
+    }
+
+    private readonly (
+        string CardHref,
+        string ButtonHref,
+        string Label,
+        string Desc,
+        string Icon,
+        string Color
+    )[] _links =
+    {
+        (
+            "approval",
+            "",
+            "Authorisation",
+            "Manage planning approvals and workflow authorisation",
+            "bi bi-shield-check",
+            "ic-purple"
+        ),
+
+        (
+            "jobOrderList",
+            "jobOrder/create",
+            "Job Card",
+            "Create and monitor production job cards",
+            "bi bi-journal-text",
+            "ic-indigo"
+        ),
+
+        (
+            "rcReleaseList",
+            "rcRelease/create",
+            "Route Card Release",
+            "Release route cards for production processing",
+            "bi bi-send-check-fill",
+            "ic-cyan"
+        ),
+
+        (
+            "routeCardList",
+            "routeCard/create",
+            "Route Card",
+            "Track production routing and operation stages",
+            "bi bi-diagram-3-fill",
+            "ic-green"
+        ),
+
+        (
+            "materialReqAnalysis",
+            "",
+            "Material Requirement Analysis",
+            "Analyze material demand and shortages",
+            "bi bi-bar-chart-line-fill",
+            "ic-orange"
+        ),
+
+        (
+            "assemblyReqAnalysis",
+            "",
+            "Assembly Requirement Analysis",
+            "Review assembly planning and requirements",
+            "bi bi-boxes",
+            "ic-pink"
+        ),
+        (
+            "estimationList",
+            "",
+            "Estimation",
+            "Prepare cost estimates, material planning and pricing",
+            "bi bi-calculator",
+            "ic-blue"
+        ),
+
+      
+    };
+}

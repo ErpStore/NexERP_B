@@ -1,0 +1,2678 @@
+﻿@page "/labourTrack"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel.LabourTrackViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ILabourTrackReportService labourTrackReportService
+@inject IExcelTemplateService excelTemplateService
+
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Sales Quotation List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@LabTrackBreadcrumbs" />
+
+
+
+
+
+
+            <!-- FILTER SECTION -->
+            <div class="bg-white rounded-3 shadow-sm p-3 p-md-4">
+
+
+                <!-- ================= Export Section ================= -->
+                <div class="card border mb-4">
+                    @* <div class="card-header bg-light"> *@
+                    <div class="card-header" style="background-color:#f5e6d3;">
+                        <strong>Export Details</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+
+                            <div class="col-md-3">
+                                <label class="form-label">From Date</label>
+                                <input type="date" class="form-control" @bind="FromDate" />
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">To Date</label>
+                                <input type="date" class="form-control" @bind="ToDate" />
+                            </div>
+
+                        
+
+                            <div class="col-md-3">
+                                <button class="btn btn-success w-75"
+                                        style="background-color: #4da3ff; color: white;"
+                                        @onclick="ExportRCData">
+                                    <i class="bi bi-download me-1"></i>
+                                    Load SalesTrack Data
+                                </button>
+                            </div>
+
+
+                        
+
+
+                        </div>
+                    </div>
+                </div>
+
+
+
+
+                <div class="row g-3 align-items-end">
+
+                    <div class="card-header d-flex justify-content-between align-items-center" style="background-color:#f5e6d3;">
+                         <strong>Filter By Customer</strong>
+
+
+                        <div class="col-md-1"></div> <!-- SPACE -->
+
+                        <div class="col-md-2 d-flex align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input custom-checkbox"
+                                       type="checkbox"
+                                       id="detailViewCheck"
+                                       @bind="IsDetailView"
+                                       @onclick="OnDetailViewChanged" />
+
+                                <label class="form-check-label ms-2"
+                                       for="detailViewCheck">
+                                    Detail View
+                                </label>
+                            </div>
+                        </div>
+
+                        <style>
+                            .custom-checkbox {
+                                width: 18px;
+                                height: 18px;
+                                cursor: pointer;
+                                accent-color: blue; /* ✅ Checkbox color blue */
+                            }
+                        </style>
+
+
+
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+
+                            <InputText type="text"
+                                       class="form-control"
+                                       style="max-width: 1000px; border: 1px solid #0d6efd; outline: none;"
+                                       placeholder="Min 3 letters..."
+                                       @bind-Value="searchText"
+                                       @oninput="e => searchText = e.Value?.ToString()"
+                                       onfocus="this.style.boxShadow='0 0 0 0.2rem rgba(13,110,253,.25)'"
+                                       onblur="this.style.boxShadow='none'" />
+                        </div>
+
+
+                        <!-- Column Settings -->
+                        <div class="col-6 col-md-2">
+                            <ColumnMenu Columns="Columns"
+                                        ScreenName="@ScreenName"
+                                        UserId="@UserName"
+                                        MaxVisible=int.MaxValue
+                                        OnChanged="HandleColumnChange" />
+                        </div>
+
+                    </div>
+                    
+
+                    <!-- Customer -->
+                    <div class="col-md-2">
+                        <label class="mb-1">
+                            <i class="bi bi-person"></i> Customer
+                        </label>
+
+                        <MudBlazor.MudAutocomplete T="CustomerVM"
+                                                   Value="SelectedCustomer"
+                                                   ValueChanged="OnCustomerChanged"
+                                                   ToStringFunc="@( (CustomerVM c) => c?.CustName ?? string.Empty )"
+                                                   SearchFunc="SearchCustomers"
+                                                   Variant="MudBlazor.Variant.Outlined"
+                                                   Dense="true"
+                                                   Clearable="true"
+                                                   Class="w-100 small-autocomplete" />
+                    </div>
+
+                    <style>
+                        .small-autocomplete .mud-input-root {
+                            height: 100px;
+                        }
+
+                        .small-autocomplete input {
+                            padding: 10px 12px !important;
+                            font-size: 14px;
+                        }
+                    </style>
+
+
+
+                    <div class="col-md-2">
+                        @*  <label class="form-label">Document Type</label> *@
+                        <label><i class="bi bi-file-earmark-text"></i> Document Type</label>
+                        <select class="form-select" style=" style="height: 50px;" @onchange="OnDocTypeChanged">
+
+
+
+                            <option value="">-- Select Document Type --</option>
+                            @if (SelectedCustomerId == null & AvailableDocTypes == null)
+                            {
+                                <!-- Show all document types when no customer is selected -->
+                                <option value="Enquiry">Enquiry</option>
+                                <option value="Quotation">Quotation</option>
+                                <option value="PO">PO</option>
+                                <option value="MaterialReq">MaterialReq</option>
+                                <option value="JobOrder">Job Order</option>
+                                <option value="RouteCard">Route Card</option>
+                                <option value="DC">DC</option>
+                                <option value="Invoice">Invoice</option>
+                            }
+
+                        
+                                      @if (AvailableDocTypes != null && AvailableDocTypes.Any())
+                                      {
+                                       @foreach (var docType in AvailableDocTypes)
+                                      {
+                                       <option value="@docType">@docType</option>
+                                      }
+                            }
+                        </select>
+                    </div>
+
+
+
+                    <div class="col-md-2">
+                        <label><i class="bi bi-hash"></i> Select Number</label>
+
+                        <select class="form-select"
+                                value="@SelectedPoId"
+                                @onchange="OnDocNoChanged">
+
+                            <option value="">-- Select Number --</option>
+
+                            @if (FilteredList?.Any() == true)
+                            {
+                                @foreach (var doc in FilteredList
+                                                        .Where(x => !string.IsNullOrEmpty(GetNumberByType(x)))
+                                                        .GroupBy(x => GetNumberByType(x))
+                                                        .Select(g => g.First()))
+                                {
+                                    <option value="@GetIdByType(doc)">
+                                        @GetNumberByType(doc)
+                                    </option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    
+
+
+ 
+
+
+
+                    
+
+                    <div class="col-md-2">
+                        <label><i class="bi bi-box-seam"></i> Items</label>
+                        <MudBlazor.MudAutocomplete T="LabourTrackSummaryVM"
+                                                   Value="SelectedItem"
+                                                   ValueChanged="OnItemChanged"
+                                                   SearchFunc="SearchItems"
+                                                   ToStringFunc="@(i => i == null ? string.Empty : $"{i.ItemCode} - {i.ItemName}")"
+                                                   Variant="MudBlazor.Variant.Outlined"
+                                                   Dense="true"
+                                                   Clearable="true"
+                                                   Class="w-100 small-autocomplete" />
+                    </div>
+
+                    
+
+                  
+
+                    <div class="col-md-1"></div> <!-- SPACE -->
+
+                    <!-- Print Button -->
+                    <div class="col-md-2">
+                        <button class="btn btn-outline-primary btn-sm shadow-sm w-100 w-md-auto"
+                                @onclick="OnPrintPendingTrack">
+                            <i class="bi bi-printer me-1"></i> Print
+                        </button>
+                    </div>
+                </div>
+            </div>
+       
+
+            <div class="card-body p-4">
+
+           
+
+                <!-- ================= Grid Section ================= -->
+                @if (LabourTrackSummaryVMs != null && LabourTrackSummaryVMs.Any())
+                {
+                    <div class="grid-wrapper">
+
+                        <style>
+                            .grid-wrapper {
+                                width: 100%;
+                                max-width: 100%;
+                                max-height: 650px;
+                                overflow: auto;
+                                position: relative;
+                                border: 1px solid #dcdcdc;
+                                border-radius: 8px;
+                                background: #ffffff;
+                                scroll-behavior: smooth;
+                                outline: none;
+                            }
+
+                                /* Keyboard focus for navigation */
+                                .grid-wrapper:focus {
+                                    border-color: #0d6efd;
+                                    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+                                }
+
+                            /* Main grid container */
+                            .custom-grid {
+                                min-width: 2400px; /* Adjust based on total columns */
+                                width: max-content;
+                                white-space: nowrap;
+                            }
+
+                                .custom-grid table {
+                                    width: max-content;
+                                    min-width: 100%;
+                                    border-collapse: collapse;
+                                    table-layout: auto;
+                                }
+
+                                /* ===============================
+                                       Sticky Header
+                                    =============================== */
+
+                                .custom-grid thead th {
+                                    position: sticky;
+                                    top: 0;
+                                    z-index: 30;
+                                    background: #ffffff;
+                                    border-bottom: 1px solid #dee2e6;
+                                    padding: 12px 16px;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    text-align: left;
+                                    white-space: nowrap;
+                                }
+
+                                    /* ===============================
+                                       Sticky First Column
+                                    =============================== */
+
+                                    .custom-grid thead th:first-child,
+                                    .custom-grid tbody td:first-child {
+                                        position: sticky;
+                                        left: 0;
+                                        z-index: 25;
+                                        background: #ffffff;
+                                        border-right: 1px solid #dee2e6;
+                                    }
+
+                                    .custom-grid thead th:first-child {
+                                        z-index: 35;
+                                    }
+
+                                /* ===============================
+                                       Table Cells
+                                    =============================== */
+
+                                .custom-grid tbody td {
+                                    padding: 10px 16px;
+                                    font-size: 14px;
+                                    color: #212529;
+                                    border-bottom: 1px solid #f1f3f5;
+                                    white-space: nowrap;
+                                    vertical-align: middle;
+                                }
+
+                                /* Row hover */
+                                .custom-grid tbody tr:hover {
+                                    background-color: #f8f9fa;
+                                }
+
+                                /* Zebra rows (optional enterprise style) */
+                                .custom-grid tbody tr:nth-child(even) {
+                                    background-color: #fcfcfc;
+                                }
+
+                            /* ===============================
+                                       Scrollbar Styling
+                                    =============================== */
+
+                            .grid-wrapper::-webkit-scrollbar {
+                                width: 10px;
+                                height: 10px;
+                            }
+
+                            .grid-wrapper::-webkit-scrollbar-track {
+                                background: #f1f1f1;
+                                border-radius: 10px;
+                            }
+
+                            .grid-wrapper::-webkit-scrollbar-thumb {
+                                background: #bdbdbd;
+                                border-radius: 10px;
+                            }
+
+                                .grid-wrapper::-webkit-scrollbar-thumb:hover {
+                                    background: #8d8d8d;
+                                }
+
+                            /* ===============================
+                                       Optional Scroll Shadow Effect
+                                    =============================== */
+
+                            .grid-wrapper::after {
+                                content: "";
+                                position: sticky;
+                                right: 0;
+                                top: 0;
+                                width: 12px;
+                                height: 100%;
+                                pointer-events: none;
+                            }
+                       
+                        </style>
+
+                        <QuickGrid TItem="LabourTrackSummaryVM"
+                                   Items="LabourTrackSummaryVMss.AsQueryable()"
+                                   Class="table table-bordered table-striped">
+
+
+
+
+                            @* CUSTOMER MODE *@
+                            @if (CurrentMode == GridMode.Customer)
+                            {
+                                @if (Show("CustName"))
+                                {
+                                <PropertyColumn Title="Customer Name" Property="@(x => x.CustName)" />
+                                }
+                                @if (Show("ItemName"))
+                                {
+                                <PropertyColumn Title="Item Code" Property="@(x => x.ItemCode)" />
+                                }
+                                @if (Show("ItemName"))
+                                {
+                                <PropertyColumn Title="Item Description" Property="@(x => x.ItemName)" />
+                                }
+                                @if (Show("CategoryCode"))
+                                {
+                                    <PropertyColumn Title="Category code" Property="@(x => x.CategoryCode)" />
+                                }
+                                @if (Show("PONo"))
+                                {
+                                   <PropertyColumn Title="PO No" Property="@(x => x.PONo)" />
+                                }
+                                @if (Show("PODate"))
+                                {
+                                <PropertyColumn Title="PO Date" Property="@(x => x.PODate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("PoQty"))
+                                {
+                                <PropertyColumn Title="PO Qty" Property="@(x => x.PoQty)" />
+                                }
+                                @if (Show("PoBalQty"))
+                                {
+                                <PropertyColumn Title="PO BQty" Property="@(x => x.PoBalQty)" />
+                                }
+                                @if (Show("POStatus"))
+                                {
+                                    <TemplateColumn Title="PO Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.PONo) && x.PoBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.POStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">Completed</span>
+                                        }
+                                        else if (x.POStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("GRNNo"))
+                                {
+                                <PropertyColumn Title="GRN No" Property="@(x => x.GRNNo)" />
+                                }
+                                @if (Show("GRNDate"))
+                                {
+                                <PropertyColumn Title="GRN Date" Property="@(x => x.GRNDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("RefDcNo"))
+                                {
+                                <PropertyColumn Title="Ref DcNo" Property="@(x => x.RefDcNo)" />
+                                }
+                                @if (Show("GrnQty"))
+                                {
+                                <PropertyColumn Title="GRN Qty" Property="@(x => x.GrnQty)" />
+                                }
+                                @if (Show("GrnBqty"))
+                                {
+                                <PropertyColumn Title="GRN BQty" Property="@(x => x.GrnBqty)" />
+                                }
+
+                                <TemplateColumn Title="GRN Trans Type" Context="x">
+                                    <CellTemplate Context="x">
+                                        <span style="color:@(x.TransType == "In" ? "green" : "red"); font-weight:bold">
+                                            @x.TransType
+                                        </span>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                                @if (Show("GRNStatus"))
+                                {
+                                    <TemplateColumn Title="GRN Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.GRNNo) && x.GrnBqty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+
+                                        else if (x.GRNStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.GRNStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("SCNNo"))
+                                {
+                                <PropertyColumn Title="SCN No" Property="@(x => x.SCNNo)" />
+                                }
+                                @if (Show("SCNDate"))
+                                {
+                                <PropertyColumn Title="SCN Date" Property="@(x => x.SCNDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("ScnQty"))
+                                {
+                                <PropertyColumn Title="SCN Qty" Property="@(x => x.ScnQty)" />
+                                }
+                                @if (Show("ScnBqty"))
+                                {
+                                <PropertyColumn Title="SCN BQty" Property="@(x => x.ScnBqty)" />
+                                }
+                                @if (Show("SCNStatus"))
+                                {
+                                    <TemplateColumn Title="SCN Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.SCNNo) && x.ScnBqty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.SCNStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.SCNStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+                                @if (Show("DCNo"))
+                                {
+
+                                <PropertyColumn Title="DC No" Property="@(x => x.DCNo)" />
+                                }
+                                @if (Show("DCDate"))
+                                {
+                                    <PropertyColumn Title="DC Date" Property="@(x => x.DCDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("DcQty"))
+                                {
+                                <PropertyColumn Title="DC Qty" Property="@(x => x.DcQty)" />
+                                }
+                                @if (Show("DCBQty"))
+                                {
+                                <PropertyColumn Title="DC BQty" Property="@(x => x.DCBQty)" />
+                                }
+                                @if (Show("DCStatus"))
+                                {
+                                    <TemplateColumn Title="DC Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.DCNo) && x.DCBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.DCStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.DCStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+
+
+
+                                @if (Show("InvNo"))
+                                {
+                                <PropertyColumn Title="Invoice No" Property="@(x => x.InvNo)" />
+                                }
+                                @if (Show("InvDate"))
+                                {
+                                <PropertyColumn Title="Invoice Date" Property="@(x => x.InvDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("Invqty"))
+                                {
+                                <PropertyColumn Title="Invoice Qty" Property="@(x => x.Invqty)" />
+                                }
+                                @if (Show("InvBQty"))
+                                {
+                                <PropertyColumn Title="Invoice BQty" Property="@(x => x.InvBQty)" />
+                                }
+                                @if (Show("InvStatus"))
+                                {
+                                    <TemplateColumn Title="Invoice Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.InvNo) && x.InvBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.InvStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.InvStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+                                <FooterTemplate>
+                                    <div style="text-align:right; color:green; font-weight:bold;">
+                                    Total Invoice Value: @totalInvoiceValue.ToString("N2")
+                                   </div>
+                                 </FooterTemplate>
+                                 
+
+                            }
+
+                            @* PO MODE *@
+                            else if (CurrentMode == GridMode.Po)
+                            {
+                                 @if (Show("CustName"))
+                                {
+                                <PropertyColumn Title="Customer Name" Property="@(x => x.CustName)" />
+                                }
+                                @if (Show("ItemName"))
+                                {
+                                <PropertyColumn Title="Item Code" Property="@(x => x.ItemCode)" />
+                                }
+                                @if (Show("ItemName"))
+                                {
+                                <PropertyColumn Title="Item Description" Property="@(x => x.ItemName)" />
+                                }
+                                @if (Show("CategoryCode"))
+                                {
+                                    <PropertyColumn Title="Category code" Property="@(x => x.CategoryCode)" />
+                                }
+                                @if (Show("PONo"))
+                                {
+                                   <PropertyColumn Title="PO No" Property="@(x => x.PONo)" />
+                                }
+                                @if (Show("PODate"))
+                                {
+                                <PropertyColumn Title="PO Date" Property="@(x => x.PODate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("PoQty"))
+                                {
+                                <PropertyColumn Title="PO Qty" Property="@(x => x.PoQty)" />
+                                }
+                                @if (Show("PoBalQty"))
+                                {
+                                <PropertyColumn Title="PO BQty" Property="@(x => x.PoBalQty)" />
+                                }
+                                @if (Show("POStatus"))
+                                {
+                                    <TemplateColumn Title="PO Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.PONo) && x.PoBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.POStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">Completed</span>
+                                        }
+                                        else if (x.POStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("GRNNo"))
+                                {
+                                <PropertyColumn Title="GRN No" Property="@(x => x.GRNNo)" />
+                                }
+                                @if (Show("GRNDate"))
+                                {
+                                <PropertyColumn Title="GRN Date" Property="@(x => x.GRNDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("RefDcNo"))
+                                {
+                                <PropertyColumn Title="Ref DcNo" Property="@(x => x.RefDcNo)" />
+                                }
+                                @if (Show("GrnQty"))
+                                {
+                                <PropertyColumn Title="GRN Qty" Property="@(x => x.GrnQty)" />
+                                }
+                                @if (Show("GrnBqty"))
+                                {
+                                <PropertyColumn Title="GRN BQty" Property="@(x => x.GrnBqty)" />
+                                }
+
+                                <TemplateColumn Title="GRN Trans Type" Context="x">
+                                    <CellTemplate Context="x">
+                                        <span style="color:@(x.TransType == "In" ? "green" : "red"); font-weight:bold">
+                                            @x.TransType
+                                        </span>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                                @if (Show("GRNStatus"))
+                                {
+                                    <TemplateColumn Title="GRN Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.GRNNo) && x.GrnBqty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+
+                                        else if (x.GRNStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.GRNStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("SCNNo"))
+                                {
+                                <PropertyColumn Title="SCN No" Property="@(x => x.SCNNo)" />
+                                }
+                                @if (Show("SCNDate"))
+                                {
+                                <PropertyColumn Title="SCN Date" Property="@(x => x.SCNDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("ScnQty"))
+                                {
+                                <PropertyColumn Title="SCN Qty" Property="@(x => x.ScnQty)" />
+                                }
+                                @if (Show("ScnBqty"))
+                                {
+                                <PropertyColumn Title="SCN BQty" Property="@(x => x.ScnBqty)" />
+                                }
+                                @if (Show("SCNStatus"))
+                                {
+                                    <TemplateColumn Title="SCN Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.SCNNo) && x.ScnBqty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.SCNStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.SCNStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+                                @if (Show("DCNo"))
+                                {
+
+                                <PropertyColumn Title="DC No" Property="@(x => x.DCNo)" />
+                                }
+                                @if (Show("DCDate"))
+                                {
+                                    <PropertyColumn Title="DC Date" Property="@(x => x.DCDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("DcQty"))
+                                {
+                                <PropertyColumn Title="DC Qty" Property="@(x => x.DcQty)" />
+                                }
+                                @if (Show("DCBQty"))
+                                {
+                                <PropertyColumn Title="DC BQty" Property="@(x => x.DCBQty)" />
+                                }
+                                @if (Show("DCStatus"))
+                                {
+                                    <TemplateColumn Title="DC Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.DCNo) && x.DCBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.DCStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.DCStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+
+
+
+                                @if (Show("InvNo"))
+                                {
+                                <PropertyColumn Title="Invoice No" Property="@(x => x.InvNo)" />
+                                }
+                                @if (Show("InvDate"))
+                                {
+                                <PropertyColumn Title="Invoice Date" Property="@(x => x.InvDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("Invqty"))
+                                {
+                                <PropertyColumn Title="Invoice Qty" Property="@(x => x.Invqty)" />
+                                }
+                                @if (Show("InvBQty"))
+                                {
+                                <PropertyColumn Title="Invoice BQty" Property="@(x => x.InvBQty)" />
+                                }
+                                @if (Show("InvStatus"))
+                                {
+                                    <TemplateColumn Title="Invoice Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.InvNo) && x.InvBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.InvStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.InvStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+                                <FooterTemplate>
+                                    <div style="text-align:right; color:green; font-weight:bold;">
+                                    Total Invoice Value: @totalInvoiceValue.ToString("N2")
+                                   </div>
+                                 </FooterTemplate>
+                                 
+
+                            }
+
+                            @* ITEM MODE *@
+                            else if (CurrentMode == GridMode.Item)
+                            {
+                                 @if (Show("CustName"))
+                                {
+                                <PropertyColumn Title="Customer Name" Property="@(x => x.CustName)" />
+                                }
+                                @if (Show("ItemName"))
+                                {
+                                <PropertyColumn Title="Item Code" Property="@(x => x.ItemCode)" />
+                                }
+                                @if (Show("ItemName"))
+                                {
+                                <PropertyColumn Title="Item Description" Property="@(x => x.ItemName)" />
+                                }
+                                @if (Show("CategoryCode"))
+                                {
+                                    <PropertyColumn Title="Category code" Property="@(x => x.CategoryCode)" />
+                                }
+                                @if (Show("PONo"))
+                                {
+                                   <PropertyColumn Title="PO No" Property="@(x => x.PONo)" />
+                                }
+                                @if (Show("PODate"))
+                                {
+                                <PropertyColumn Title="PO Date" Property="@(x => x.PODate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("PoQty"))
+                                {
+                                <PropertyColumn Title="PO Qty" Property="@(x => x.PoQty)" />
+                                }
+                                @if (Show("PoBalQty"))
+                                {
+                                <PropertyColumn Title="PO BQty" Property="@(x => x.PoBalQty)" />
+                                }
+                                @if (Show("POStatus"))
+                                {
+                                    <TemplateColumn Title="PO Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.PONo) && x.PoBalQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.POStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success rounded-pill px-3">Completed</span>
+                                        }
+                                        else if (x.POStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger rounded-pill px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("GRNNo"))
+                                {
+                                <PropertyColumn Title="GRN No" Property="@(x => x.GRNNo)" />
+                                }
+                                @if (Show("GRNDate"))
+                                {
+                                <PropertyColumn Title="GRN Date" Property="@(x => x.GRNDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("RefDcNo"))
+                                {
+                                <PropertyColumn Title="Ref DcNo" Property="@(x => x.RefDcNo)" />
+                                }
+                                @if (Show("GrnQty"))
+                                {
+                                <PropertyColumn Title="GRN Qty" Property="@(x => x.GrnQty)" />
+                                }
+                                @if (Show("GrnBqty"))
+                                {
+                                <PropertyColumn Title="GRN BQty" Property="@(x => x.GrnBqty)" />
+                                }
+
+                                <TemplateColumn Title="GRN Trans Type" Context="x">
+                                    <CellTemplate Context="x">
+                                        <span style="color:@(x.TransType == "In" ? "green" : "red"); font-weight:bold">
+                                            @x.TransType
+                                        </span>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                                @if (Show("GRNStatus"))
+                                {
+                                    <TemplateColumn Title="GRN Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.GRNNo) && x.GrnBqty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+
+                                        else if (x.GRNStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.GRNStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+                                @if (Show("SCNNo"))
+                                {
+                                <PropertyColumn Title="SCN No" Property="@(x => x.SCNNo)" />
+                                }
+                                @if (Show("SCNDate"))
+                                {
+                                <PropertyColumn Title="SCN Date" Property="@(x => x.SCNDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("ScnQty"))
+                                {
+                                <PropertyColumn Title="SCN Qty" Property="@(x => x.ScnQty)" />
+                                }
+                                @if (Show("ScnBqty"))
+                                {
+                                <PropertyColumn Title="SCN BQty" Property="@(x => x.ScnBqty)" />
+                                }
+                                @if (Show("SCNStatus"))
+                                {
+                                    <TemplateColumn Title="SCN Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.SCNNo) && x.ScnBqty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.SCNStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.SCNStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+                                @if (Show("DCNo"))
+                                {
+
+                                <PropertyColumn Title="DC No" Property="@(x => x.DCNo)" />
+                                }
+                                @if (Show("DCDate"))
+                                {
+                                    <PropertyColumn Title="DC Date" Property="@(x => x.DCDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("DcQty"))
+                                {
+                                <PropertyColumn Title="DC Qty" Property="@(x => x.DcQty)" />
+                                }
+                                @if (Show("DCBQty"))
+                                {
+                                <PropertyColumn Title="DC BQty" Property="@(x => x.DCBQty)" />
+                                }
+                                @if (Show("DCStatus"))
+                                {
+                                    <TemplateColumn Title="DC Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.DCNo) && x.DCBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.DCStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.DCStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+
+
+
+
+                                @if (Show("InvNo"))
+                                {
+                                <PropertyColumn Title="Invoice No" Property="@(x => x.InvNo)" />
+                                }
+                                @if (Show("InvDate"))
+                                {
+                                <PropertyColumn Title="Invoice Date" Property="@(x => x.InvDate)" Format="dd/MM/yyyy" />
+                                }
+                                @if (Show("Invqty"))
+                                {
+                                <PropertyColumn Title="Invoice Qty" Property="@(x => x.Invqty)" />
+                                }
+                                @if (Show("InvBQty"))
+                                {
+                                <PropertyColumn Title="Invoice BQty" Property="@(x => x.InvBQty)" />
+                                }
+                                @if (Show("InvStatus"))
+                                {
+                                    <TemplateColumn Title="Invoice Status" Context="x">
+                                        @if (string.IsNullOrEmpty(x.InvNo) && x.InvBQty == null)
+                                        {
+                                            <span>-</span>   @* or leave empty *@
+                                        }
+                                        else if (x.InvStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success px-3">Completed</span>
+                                        }
+                                        else if (x.InvStatus == "Cancelled")
+                                        {
+                                            <span class="badge bg-danger px-3">Cancelled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark px-3">Pending</span>
+                                        }
+
+                                    </TemplateColumn>
+                                }
+                                <FooterTemplate>
+                                    <div style="text-align:right; color:green; font-weight:bold;">
+                                    Total Invoice Value: @totalInvoiceValue.ToString("N2")
+                                   </div>
+                                 </FooterTemplate>
+                                 
+                                  
+                            }
+                            @* FULL MODE *@
+                            else
+                            {
+
+                            }
+
+                        </QuickGrid>
+
+                    </div>
+
+                }
+                else
+                {
+                    <div class="text-center mt-3">
+                        <p>No Data Available</p>
+                    </div>
+                }
+
+
+
+            </div>
+        </div>
+    </div>
+
+    
+
+}
+
+
+
+@code {
+
+    #region === Screen Configuration ===
+
+    protected override string ScreenName => "Labour Track Report";
+
+    private bool isProcessing = true;
+    private bool preferencesLoaded = false;
+    private string? UserName;
+    private decimal totalInvoiceValue { get; set; }
+    private int? SelectedCustomerId;
+    private List<string> AvailableDocTypes = new();
+
+    public List<LabourTrackSummaryVM> AllData { get; set; } = new();
+
+    private List<LabourTrackSummaryVM> LabourTrackSummaryVMs = new();
+    private List<LabourTrackSummaryVM> TempLabourTrackSummaryVMs = new();
+
+    // List of documents to populate second dropdown
+    private List<LabourTrackSummaryVM> FilteredList { get; set; } = new List<LabourTrackSummaryVM>();
+
+    List<LabourTrackSummaryVM> list;
+
+    List<LabourTrackSummaryVM> allDocs;
+
+    private List<LabourTrackSummaryVM> PoList = new();
+
+    private List<CustomerVM> CustomerList = new();
+
+    private int? SelectedPoId;
+
+    private List<LabourTrackSummaryVM> ItemList = new();
+
+    private string SelectedItemCode;
+
+    private GridMode CurrentMode = GridMode.Full;
+
+    private bool IsDetailView = false;
+
+
+
+    private DateTime? FromDate;
+    private DateTime? ToDate;
+
+    private string searchText;
+
+     private CustomerVM AllCustomer = new CustomerVM
+    {
+        CustId = 0,
+        CustName = "All"
+    };
+
+
+
+
+    public List<GridColumn> Columns { get; set; } = new();
+
+    private List<PageHeader.BreadcrumbItem> LabTrackBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Track Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Labour Track", IsLast = true }
+    };
+  
+
+    #endregion
+
+    #region === Variables ===
+
+    private CustomerVM? SelectedCustomer;
+    private LabourTrackSummaryVM? SelectedItem;
+
+    private string? SelectedDocType;
+    private string? SelectedDocNo;
+
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the SalesEnquiryList HandleColumnChange() Method");
+        }
+    }
+
+    private List<string> DocumentTypes = new()
+    {
+        "PO",
+        "GRN",
+        "DC Out",
+        "Invoice"
+    };
+
+    public enum GridMode
+    {
+        Full,
+        Customer,
+        Po,
+        Item
+    }
+
+    private List<string> DocumentNumbers = new();
+
+    #endregion
+
+    #region === Initialization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await InitializeColumns(IsHidden);
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            totalInvoiceValue = await labourTrackReportService
+            .GetTotalInvoiceValue(FromDate, ToDate,SelectedCustomerId);
+            
+            // Load filtered data from service
+            var data = await labourTrackReportService.GetLabourTrackSummaryAsync(
+                SelectedCustomer?.CustId,
+                null,
+                null,
+                SelectedItem?.ItemId,
+                FromDate, 
+                ToDate
+            );
+            AllData = data.ToList();
+
+
+            // Ensure SalesTrackVMs has data before filtering
+            LabourTrackSummaryVMs = AllData?.ToList() ?? new List<LabourTrackSummaryVM>();
+
+            // Load customer list only for customers having
+            // PO / DC / Invoice / Enquiry / Quotation / MaterialReq / RC / Job
+            var allList = LabourTrackSummaryVMs
+                .Where(x =>
+                    x.CustId != null &&
+                    (
+                            x.PoId != null ||      // PO exists
+                            x.DCId != null ||      // DC exists
+                            x.GRNId != null ||
+                            x.SCNId != null ||
+                            x.InvId != null      // Invoice exists
+                    ))
+                .GroupBy(x => x.CustId)
+                .Select(g => new CustomerVM
+                {
+                    CustId = g.Key ?? 0,
+                    CustName = g.First().CustName
+                })
+                .OrderBy(x => x.CustName)
+                .Take(50)
+                .ToList();
+
+            // Always insert "All" option at top
+            allList.Insert(0, AllCustomer);
+
+            CustomerList = allList;
+
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Labour Track Init");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+   
+
+    private async Task OnDetailViewChanged()
+    {
+        if (IsDetailView)
+        {
+            // Show all data
+            LabourTrackSummaryVMs = AllData.ToList();
+            CurrentMode = GridMode.Item;
+        }
+        else
+        {
+            // Show filtered data based on PO Date, DC Date, GRN Date, SCN Date, Invoice Date
+            LabourTrackSummaryVMs = AllData
+                .Where(x =>
+                    (!FromDate.HasValue ||
+                        (x.PODate >= FromDate.Value ||
+                         x.DCDate >= FromDate.Value ||
+                         x.GRNDate >= FromDate.Value ||
+                         x.SCNDate >= FromDate.Value ||
+                         x.InvDate >= FromDate.Value)) &&
+
+                    (!ToDate.HasValue ||
+                        (x.PODate <= ToDate.Value ||
+                         x.DCDate <= ToDate.Value ||
+                         x.GRNDate <= ToDate.Value ||
+                         x.SCNDate <= ToDate.Value ||
+                         x.InvDate <= ToDate.Value))
+                )
+                .ToList();
+
+            CurrentMode = GridMode.Item;
+        }
+
+        StateHasChanged();
+    }
+
+    #endregion
+
+
+    #region ===  Columns ===
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // =========================
+                // CUSTOMER DETAILS
+                // =========================
+                new() { Title = "Customer ID", Field = "CustId", IsVisible = false },
+                new() { Title = "Customer Name", Field = "CustName", IsVisible = true },
+
+                new() { Title = "Item Code", Field = "ItemCode", IsVisible = true },
+                new() { Title = "Item Description", Field = "ItemName", IsVisible = true },
+                new() { Title = "Category code", Field = "CategoryCode", IsVisible = true },
+
+                    // =========================
+                // PURCHASE ORDER (PO)
+                // =========================
+                new() { Title = "PO ID", Field = "PoId", IsVisible = false },
+                new() { Title = "PO No", Field = "PONo", IsVisible = true },
+                new() { Title = "PO Date", Field = "PODate", IsVisible = true },
+                new() { Title = "PO Qty", Field = "PoQty", IsVisible = true },
+                new() { Title = "PO BQty", Field = "PoBalQty", IsVisible = true },
+                new() { Title = "PO Status", Field = "POStatus", IsVisible = true },
+
+                // =========================
+                // GRN (Goods Received Note)
+                // =========================
+                new() { Title = "GRN ID", Field = "GRNId", IsVisible = false },
+                new() { Title = "GRN No", Field = "GRNNo", IsVisible = true },
+                new() { Title = "GRN Date", Field = "GRNDate", IsVisible = true },
+                new() { Title = "Ref DcNo", Field = "RefDcNo", IsVisible = true },
+                new() { Title = "GRN Qty", Field = "GrnQty", IsVisible = true },
+                new() { Title = "GRN BQty", Field = "GrnBqty", IsVisible = true },
+                new() { Title = "GRN Status", Field = "GRNStatus", IsVisible = true },
+
+                // =========================
+                // SCN (Store Credit Note)
+                // =========================
+                new() { Title = "SCN ID", Field = "SCNId", IsVisible = false },
+                new() { Title = "SCN No", Field = "SCNNo", IsVisible = true },
+                new() { Title = "SCN Date", Field = "SCNDate", IsVisible = true },
+                new() { Title = "SCN Qty", Field = "ScnQty", IsVisible = true },
+                new() { Title = "SCN BQty", Field = "ScnBqty", IsVisible = true },
+                new() { Title = "SCN Status", Field = "SCNStatus", IsVisible = true },
+
+                // =========================
+                // DC (Delivery Challan)
+                // =========================
+                new() { Title = "DC ID", Field = "DCId", IsVisible = false },
+                new() { Title = "DC No", Field = "DCNo", IsVisible = true },
+                new() { Title = "DC Date", Field = "DCDate", IsVisible = true },
+                new() { Title = "DC Qty", Field = "DcQty", IsVisible = true },
+                new() { Title = "DC BQty", Field = "DCBQty", IsVisible = true },
+                new() { Title = "DC Status", Field = "DCStatus", IsVisible = true },
+
+                // =========================
+                // INVOICE
+                // =========================
+                new() { Title = "Invoice ID", Field = "InvId", IsVisible = false },
+                new() { Title = "Invoice No", Field = "InvNo", IsVisible = true },
+                new() { Title = "Invoice Date", Field = "InvDate", IsVisible = true },
+                new() { Title = "Invoice Qty", Field = "Invqty", IsVisible = true },
+                new() { Title = "Invoice BQty", Field = "InvBQty", IsVisible = true },
+                new() { Title = "Invoice Status", Field = "InvStatus", IsVisible = true },
+                  
+            };
+
+            if (!Hidden)
+            {
+                // Optional future columns
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in InitializeColumns()");
+        }
+    }
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for Sales Quoatation List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+ 
+
+
+
+
+    #region Load Reports
+
+    private async Task LoadLabourTrackSummaryReport()
+    {
+        try
+        {
+            var data = await labourTrackReportService.GetLabourTrackSummaryAsync(
+                SelectedCustomer?.CustId,
+                null,   // 🔥 don't filter here
+                null,
+                SelectedItem?.ItemId
+            );
+
+            TempLabourTrackSummaryVMs = data.ToList();      // ✅ original
+            LabourTrackSummaryVMs = data.ToList();          // ✅ display
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading Labour Track Summary Report");
+            await _JS.ToastrError("Failed to load Labour Track Summary Report.");
+        }
+    }
+
+    #endregion
+
+
+
+    private string GetDocType(LabourTrackSummaryVM doc)
+    {
+        return doc?.DocType ?? "";
+    }
+
+
+    private string GetNumberByType(LabourTrackSummaryVM doc)
+    {
+        return SelectedDocType switch
+        {
+            "Labour DC" => doc.DCNo,
+            "Labour GRN" => doc.GRNNo,
+            "Labour SCN" => doc.SCNNo,
+            "Labour PO" => doc.PONo,
+            "Labour Invoice" => doc.InvNo,
+            _ => ""
+        };
+    }
+
+
+    private IEnumerable<LabourTrackSummaryVM> LabourTrackSummaryVMss
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText) || searchText.Length < 3)
+                return LabourTrackSummaryVMs;
+
+            return LabourTrackSummaryVMs.Where(x =>
+                (x.CustName ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.ItemCode ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.ItemName ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.PONo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.GRNNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.SCNNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.DCNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.InvNo ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase) 
+            );
+        }
+    }
+    // private async Task View()
+    // {
+
+    //     await LoadAllData();
+    //     //await _JS.ToastrSuccess("Data Loaded Successfully");
+    // }
+
+    private async Task ExportRCData()
+    {
+
+        await LoadAllData();
+        await OnPrintPendingTrack();
+        await _JS.ToastrSuccess("RC Data Loaded Successfully");
+    }
+
+
+
+    private async Task LoadAllData()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Today's date
+            //  ToDate = DateTime.Today;
+
+            // One month back from today
+            // FromDate = DateTime.Today.AddMonths(-1);
+
+
+
+
+            // AllData = await PopendingService.ExportDataAsync();
+            // AllData = await PopendingService.ExportDataAsync((DateTime?)null, (DateTime?)null, (int?)null);
+            // Load filtered data from service
+            var data = await labourTrackReportService.GetLabourTrackSummaryAsync(
+                SelectedCustomer?.CustId,
+                null,
+                null,
+                SelectedItem?.ItemId,
+                FromDate, 
+                ToDate
+            );
+
+            AllData = data.ToList();
+            LabourTrackSummaryVMs = data.ToList();
+            FilteredList = data.ToList();
+
+            // Set the grid mode to full (or Customer, depending on UI)
+            // CurrentMode = GridMode.Full;
+
+            // Optionally, if you want to export right after loading:
+            //await OnPrintPendingTrack();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading PO Pending");
+            await _JS.ToastrError("Failed to load data.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    private int GetIdByType(LabourTrackSummaryVM doc)
+    {
+        return (SelectedDocType ?? string.Empty) switch
+        {
+            "Labour DC" => doc.DCId ?? 0,
+            "Labour GRN" => doc.GRNId ?? 0,
+            "Labour SCN" => doc.SCNId ?? 0,
+            "Labour PO" => doc.PoId ?? 0,
+            "Labour Invoice" => doc.InvId ?? 0,
+            _ => 0
+        };
+    }
+
+    #region === Actions ===
+
+    private async Task LoadReport()
+    {
+        LabourTrackSummaryVMs = await labourTrackReportService.GetLabourTrackSummaryAsync(
+            SelectedCustomer?.CustId,
+            SelectedDocType,
+            SelectedDocNo,
+            SelectedItem?.ItemId
+        );
+    }
+
+    private void ClearFilters()
+    {
+        SelectedCustomer = null;
+        SelectedItem = null;
+        SelectedDocType = null;
+        SelectedDocNo = null;
+
+        DocumentNumbers.Clear();
+    }
+
+    #endregion
+    private bool Show(string field)
+    {
+        return Columns?.Any(x => x.Field == field && x.IsVisible) ?? false;
+    }
+
+
+
+    #endregion
+
+    #region === Customer Search ===
+
+    // private async Task<IEnumerable<LabourTrackSummaryVM>> SearchCustomers(string value, CancellationToken token)
+    // {
+    //     if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+    //         return Enumerable.Empty<LabourTrackSummaryVM>();
+
+    //     try
+    //     {
+    //         var results = await labourTrackReportService.SearchCustomersAsync(value);
+
+    //              var list = results?
+    //              .Select(x => new LabourTrackSummaryVM
+    //              {
+    //                  CustId = x.CustId,
+    //                  CustName = x.CustName
+    //              })
+    //              .Take(50)
+    //              .ToList()
+    //              ?? new List<LabourTrackSummaryVM>();
+
+    //         // 🔥 Always insert "All" at top
+    //         list.Insert(0, AllCustomer);
+
+    //         return list;
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         await LoggingService.LogDeveloperError(ex, $"Customer search failed: {value}");
+    //         await _JS.ToastrError("Customer search failed");
+    //         return Enumerable.Empty<LabourTrackSummaryVM>();
+    //     }
+    // }
+
+    // private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    // {
+    //     try
+    //     {
+    //         List<CustomerVM> list;
+
+    //         // Click without typing → show only customers having PO / DC / Invoice
+    //         if (string.IsNullOrWhiteSpace(value))
+    //         {
+    //             list = AllData?
+    //                 .Where(x =>
+    //                     x.CustId != null &&
+    //                     (
+    //                         x.PoId != null ||      // PO exists
+    //                         x.DCId != null ||      // DC exists
+    //                         x.GRNId != null ||
+    //                         x.SCNId != null ||
+    //                         x.InvId !=null// Invoice exists
+    //                     ))
+    //                 .GroupBy(x => x.CustId)
+    //                 .Select(g => new CustomerVM
+    //                 {
+    //                     CustId = g.First().CustId ?? 0,
+    //                     CustName = g.First().CustName
+    //                 })
+    //                 .Take(50)
+    //                 .ToList()
+    //                 ?? new List<CustomerVM>();
+    //         }
+    //         else
+    //         {
+    //             // Search while typing
+    //             var results = await labourTrackReportService.SearchCustomersAsync(value);
+
+    //             list = results?
+    //                 .Where(c => LabourTrackSummaryVMs.Any(x =>
+    //                 x.CustId == c.CustId &&
+    //                 (
+    //                         x.PoId != null ||      // PO exists
+    //                         x.DCId != null ||      // DC exists
+    //                         x.GRNId != null ||
+    //                         x.SCNId != null ||
+    //                         x.InvId != null
+    //                     )))
+    //                 .GroupBy(x => x.CustId)
+    //                 .Select(g => new CustomerVM
+    //                 {
+    //                     CustId = g.First().CustId,
+    //                     CustName = g.First().CustName
+    //                 })
+    //                 .Take(50)
+    //                 .ToList()
+    //                 ?? new List<CustomerVM>();
+
+    //         }
+
+    //         // Always insert "All" at top
+    //         list.Insert(0, AllCustomer);
+
+    //         return list;
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         await LoggingService.LogDeveloperError(ex, $"Customer search failed: {value}");
+    //         await _JS.ToastrError("Customer search failed");
+
+    //         return Enumerable.Empty<CustomerVM>();
+    //     }
+    // }
+
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        try
+        {
+            bool IsInRange(DateTime? date) =>
+                (!FromDate.HasValue || (date.HasValue && date.Value.Date >= FromDate.Value.Date)) &&
+                (!ToDate.HasValue || (date.HasValue && date.Value.Date <= ToDate.Value.Date));
+
+            // Filter only records within selected date range
+            var filteredData = AllData?
+                .Where(x =>
+                    IsInRange(x.PODate) ||
+                    IsInRange(x.DCDate) ||
+                    IsInRange(x.GRNDate) ||
+                    IsInRange(x.SCNDate) ||
+                    IsInRange(x.InvDate))
+                .ToList()
+                ?? new List<LabourTrackSummaryVM>();
+
+            List<CustomerVM> list;
+
+            // Click without typing → show only customers having PO / DC / GRN / SCN / Invoice
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                list = filteredData
+                    .Where(x =>
+                        x.CustId != null &&
+                        (
+                            x.PoId != null ||
+                            x.DCId != null ||
+                            x.GRNId != null ||
+                            x.SCNId != null ||
+                            x.InvId != null
+                        ))
+                    .GroupBy(x => x.CustId)
+                    .Select(g => new CustomerVM
+                    {
+                        CustId = g.Key ?? 0,
+                        CustName = g.First().CustName
+                    })
+                    .OrderBy(x => x.CustName)
+                    .Take(50)
+                    .ToList();
+            }
+            else
+            {
+                // Search while typing
+                var results = await labourTrackReportService.SearchCustomersAsync(value);
+
+                list = results?
+                    .Where(c => filteredData.Any(x =>
+                        x.CustId == c.CustId &&
+                        (
+                            x.PoId != null ||
+                            x.DCId != null ||
+                            x.GRNId != null ||
+                            x.SCNId != null ||
+                            x.InvId != null
+                        )))
+                    .GroupBy(x => x.CustId)
+                    .Select(g => new CustomerVM
+                    {
+                        CustId = g.First().CustId,
+                        CustName = g.First().CustName
+                    })
+                    .OrderBy(x => x.CustName)
+                    .Take(50)
+                    .ToList()
+                    ?? new List<CustomerVM>();
+            }
+
+            // Always insert "All" at top
+            list.Insert(0, AllCustomer);
+
+            return list;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                $"Customer search failed: {value}"
+            );
+
+            await _JS.ToastrError("Customer search failed");
+
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+
+    // private async Task OnCustomerChanged(CustomerVM? customer)
+    // {
+    //     try
+    //     {
+    //         SelectedCustomer = customer;
+
+    //         DocumentNumbers.Clear();
+    //         SelectedDocNo = null;
+    //         SelectedItem = null;
+
+    //         // Reset if "All" or null
+    //         if (SelectedCustomer == null || SelectedCustomer.CustId == 0)
+    //         {
+    //             SelectedCustomer = null;
+
+    //             await LoadLabourTrackSummaryReport();
+
+    //             CurrentMode = GridMode.Customer;
+
+    //             AvailableDocTypes = labourTrackReportService
+    //                 .GetCustomerDocTypes(LabourTrackSummaryVMs);
+
+    //             return;
+    //         }
+
+    //         // Load filtered data from service
+    //         var data = await labourTrackReportService.GetLabourTrackSummaryAsync(
+    //             SelectedCustomer?.CustId,
+    //             null,
+    //             null,
+    //             SelectedItem?.ItemId,
+    //             FromDate, 
+    //             ToDate
+    //         );
+
+    //         LabourTrackSummaryVMs = data.ToList();
+
+    //         FilteredList = data.ToList();
+
+    //         CurrentMode = GridMode.Customer;
+
+    //         // Doc types based on filtered data
+    //         AvailableDocTypes = labourTrackReportService
+    //             .GetCustomerDocTypes(data,FromDate,ToDate);
+
+
+
+    //         StateHasChanged();
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+    //         await _JS.ToastrError("Failed to load data for selected customer.");
+    //     }
+    // }
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+            SelectedCustomer = customer;
+
+            DocumentNumbers.Clear();
+            SelectedDocNo = null;
+            SelectedItem = null;
+
+            // ✅ Common Date Filter
+            bool IsInRange(DateTime? date) =>
+                (!FromDate.HasValue || (date.HasValue && date.Value.Date >= FromDate.Value.Date)) &&
+                (!ToDate.HasValue || (date.HasValue && date.Value.Date <= ToDate.Value.Date));
+
+            // ✅ Reset (All customers)
+            if (SelectedCustomer == null || SelectedCustomer.CustId == 0)
+             {
+            //     LabourTrackSummaryVMs = AllData.ToList();
+
+                var allFiltered = AllData
+                    .Where(x =>
+                        IsInRange(x.PODate) ||
+                        IsInRange(x.DCDate) ||
+                        IsInRange(x.GRNDate) ||
+                        IsInRange(x.SCNDate) ||
+                        IsInRange(x.InvDate)
+                    )
+                    .ToList();
+
+                LabourTrackSummaryVMs = allFiltered;
+                FilteredList = allFiltered;
+                //FilteredList = AllData.ToList();
+
+                AvailableDocTypes = labourTrackReportService
+                    .GetCustomerDocTypes(AllData, FromDate, ToDate);
+
+                CurrentMode = GridMode.Customer;
+                StateHasChanged();
+                return;
+            }
+            
+            // Get single customer id (example: first customer)
+            SelectedCustomerId = LabourTrackSummaryVMs
+                .Select(x => x.CustId)
+                .FirstOrDefault();
+
+            totalInvoiceValue = await labourTrackReportService
+           .GetTotalInvoiceValue(FromDate, ToDate,SelectedCustomerId);
+
+            // // ✅ Filter locally (NO API CALL)
+            // var data = AllData
+            //     .Where(x => x.CustId == SelectedCustomer.CustId)
+            //     .ToList();
+
+
+
+            var filterCustomer = AllData
+           .Where(x => x.CustId == SelectedCustomer.CustId &&
+            (
+            IsInRange(x.PODate) ||
+            IsInRange(x.DCDate) ||
+            IsInRange(x.GRNDate) ||
+            IsInRange(x.SCNDate) ||
+            IsInRange(x.InvDate) 
+            ))
+           .ToList();
+
+            LabourTrackSummaryVMs = filterCustomer;
+            FilteredList = filterCustomer;
+
+            // ✅ DocTypes from filtered data
+            AvailableDocTypes = labourTrackReportService
+                .GetCustomerDocTypes(filterCustomer, FromDate, ToDate);
+
+            CurrentMode = GridMode.Customer;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _JS.ToastrError("Failed to load data for selected customer.");
+        }
+    }
+    #endregion
+
+    #region === Item Search ===
+
+ 
+    
+    
+    
+
+  
+    
+    
+    
+// private async Task OnDocTypeChanged(ChangeEventArgs e)
+//     {
+//         try
+//         {
+//             SelectedDocType = e.Value?.ToString();
+
+//             SelectedDocNo = null;
+//             SelectedItem = null;
+
+//             // 🔥 Source data should be current filtered list (customer-based)
+//             var source = FilteredList?.Any() == true
+//                 ? FilteredList
+//                 : TempLabourTrackSummaryVMs;
+
+//             // ✅ Reset if empty
+//             if (string.IsNullOrEmpty(SelectedDocType))
+//             {
+//                 LabourTrackSummaryVMs = source.ToList();
+//                 DocumentNumbers.Clear();
+//                 StateHasChanged();
+//                 return;
+//             }
+
+//             // ✅ Filter grid based on DocType
+//             // LabourTrackSummaryVMs = SelectedDocType switch
+//             // {
+//             //     "Labour DC" => source.Where(x => !string.IsNullOrEmpty(x.DCNo)).ToList(),
+//             //     "Labour GRN" => source.Where(x => !string.IsNullOrEmpty(x.GRNNo)).ToList(),
+//             //     "Labour SCN" => source.Where(x => !string.IsNullOrEmpty(x.SCNNo)).ToList(),
+//             //     "Labour PO" => source.Where(x => !string.IsNullOrEmpty(x.PONo)).ToList(),
+//             //     "Labour Invoice" => source.Where(x => !string.IsNullOrEmpty(x.InvNo)).ToList(),
+//             //     _ => source.ToList()
+//             // };
+
+           
+
+//             LabourTrackSummaryVMs = SelectedDocType switch
+//             {
+//                 "Labour DC" => source.Where(x => !string.IsNullOrEmpty(x.DCNo)).ToList(),
+
+//                 "Labour GRN" => source.Where(x => !string.IsNullOrEmpty(x.GRNNo)).ToList(),
+
+//                 "Labour SCN" => source.Where(x => !string.IsNullOrEmpty(x.SCNNo)).ToList(),
+
+//                 "Labour PO" => source.Where(x => !string.IsNullOrEmpty(x.PONo)).ToList(),
+
+//                 "Labour Invoice" => source.Where(x => !string.IsNullOrEmpty(x.InvNo)).ToList(),
+
+//                 _ => source.ToList()
+//             };
+
+//             // ✅ Get document numbers from filtered data
+//             DocumentNumbers = await labourTrackReportService
+//                .GetDocumentNumbersAsync(LabourTrackSummaryVMs, SelectedDocType, FromDate, ToDate);
+
+
+//             CurrentMode = GridMode.Customer;
+
+//             StateHasChanged();
+
+//             // CurrentMode = GridMode.Customer;
+//             // StateHasChanged();
+//         }
+//         catch (Exception ex)
+//         {
+//             await LoggingService.LogDeveloperError(ex, "Error in OnDocTypeChanged");
+//             await _JS.ToastrError("Failed to process document type.");
+//         }
+//     }
+
+
+    private async Task OnDocTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            SelectedDocType = e.Value?.ToString();
+
+            SelectedDocNo = null;
+            SelectedItem = null;
+
+            // Source data should be current filtered list (customer-based)
+            var source = FilteredList?.Any() == true
+                ? FilteredList
+                : TempLabourTrackSummaryVMs;
+
+            // Reset if empty
+            if (string.IsNullOrEmpty(SelectedDocType))
+            {
+                LabourTrackSummaryVMs = source.ToList();
+                DocumentNumbers.Clear();
+                StateHasChanged();
+                return;
+            }
+
+            // Filter by DocType + corresponding Date field
+            LabourTrackSummaryVMs = SelectedDocType switch
+            {
+                "Labour PO" => source
+                    .Where(x =>
+                        !string.IsNullOrEmpty(x.PONo) &&
+                        (!FromDate.HasValue || x.PODate >= FromDate.Value) &&
+                        (!ToDate.HasValue || x.PODate <= ToDate.Value))
+                    .ToList(),
+
+                "Labour DC" => source
+                    .Where(x =>
+                        !string.IsNullOrEmpty(x.DCNo) &&
+                        (!FromDate.HasValue || x.DCDate >= FromDate.Value) &&
+                        (!ToDate.HasValue || x.DCDate <= ToDate.Value))
+                    .ToList(),
+
+                "Labour GRN" => source
+                    .Where(x =>
+                        !string.IsNullOrEmpty(x.GRNNo) &&
+                        (!FromDate.HasValue || x.GRNDate >= FromDate.Value) &&
+                        (!ToDate.HasValue || x.GRNDate <= ToDate.Value))
+                    .ToList(),
+
+                "Labour SCN" => source
+                    .Where(x =>
+                        !string.IsNullOrEmpty(x.SCNNo) &&
+                        (!FromDate.HasValue || x.SCNDate >= FromDate.Value) &&
+                        (!ToDate.HasValue || x.SCNDate <= ToDate.Value))
+                    .ToList(),
+
+                "Labour Invoice" => source
+                    .Where(x =>
+                        !string.IsNullOrEmpty(x.InvNo) &&
+                        (!FromDate.HasValue || x.InvDate >= FromDate.Value) &&
+                        (!ToDate.HasValue || x.InvDate <= ToDate.Value))
+                    .ToList(),
+
+                _ => source.ToList()
+            };
+
+            // Load document numbers from filtered data
+            DocumentNumbers = await labourTrackReportService
+                .GetDocumentNumbersAsync(
+                    LabourTrackSummaryVMs,
+                    SelectedDocType,
+                    FromDate,
+                    ToDate);
+
+            CurrentMode = GridMode.Customer;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnDocTypeChanged");
+            await _JS.ToastrError("Failed to process document type.");
+        }
+    }
+
+
+    #endregion
+
+    private async Task OnDocNoChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int value) && FilteredList != null)
+            {
+                SelectedItemCode = null;
+                SelectedPoId = value;
+                CurrentMode = GridMode.Po;
+
+                // ✅ Dynamic filtering based on docType
+                LabourTrackSummaryVMs = SelectedDocType switch
+                {
+                    "Labour PO" => FilteredList.Where(x => x.PoId == value).ToList(),
+                    "Labour GRN" => FilteredList.Where(x => x.GRNId == value).ToList(),
+                    "Labour SCN" => FilteredList.Where(x => x.SCNId == value).ToList(),
+                    "Labour DC" => FilteredList.Where(x => x.DCId == value).ToList(),
+                    "Labour Invoice" => FilteredList.Where(x => x.InvId == value).ToList(),
+                    _ => new List<LabourTrackSummaryVM>()
+                };
+               
+                CurrentMode = GridMode.Po;
+
+                ItemList = LabourTrackSummaryVMs
+                     .Where(x => x.ItemId != null)
+                     .GroupBy(x => x.ItemId)
+                     .Select(g => g.First())
+                    .ToList();
+
+            }
+
+            else
+            {
+                // SelectedItemCode = null;
+                // LabourTrackSummaryVMs = LabourTrackSummaryVMs?.ToList();
+                // StateHasChanged();
+                SelectedPoId = null;
+                SelectedItemCode = null;
+
+                var source = FilteredList ?? TempLabourTrackSummaryVMs;
+
+                // ✅ Reload previous grid (DocType-based filter)
+                LabourTrackSummaryVMs = source
+                    .Where(x =>
+                        (string.IsNullOrEmpty(SelectedDocType) || MatchDocType(x))
+                    )
+                    .ToList();
+
+                // ✅ Rebuild Item list
+                ItemList = LabourTrackSummaryVMs
+                    .Where(x => x.ItemId != null)
+                    .GroupBy(x => x.ItemId)
+                    .Select(g => g.First())
+                    .ToList();
+
+                CurrentMode = GridMode.Customer;
+
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnDocNoChanged");
+            await _JS.ToastrError("Failed to filter document number.");
+        }
+    }
+
+// private async Task OnItemChanged(LabourTrackSummaryVM item)
+// {
+//     try
+//     {
+//         SelectedItem = item;
+//         SelectedItemCode = item?.ItemCode;
+
+//             var source = ItemList ?? new List<LabourTrackSummaryVM>();
+
+//         if (!string.IsNullOrEmpty(SelectedItemCode))
+//         {
+//             // CurrentMode = GridMode.Item;
+
+//             // LabourTrackSummaryVMs = source
+//             //     .Where(x => x.ItemCode == SelectedItemCode)
+//             //     .ToList();
+//                 CurrentMode = GridMode.Item;
+
+//                 LabourTrackSummaryVMs = ApplyFilters(source);
+//         }
+//         else
+//         {
+//                 LabourTrackSummaryVMs = LabourTrackSummaryVMs.ToList();
+//         }
+
+//         StateHasChanged(); // refresh UI
+//     }
+//     catch (Exception ex)
+//     {
+//         await LoggingService.LogDeveloperError(ex, "Error in OnItemChanged");
+//         await _JS.ToastrError("Failed to filter items.");
+//     }
+// }
+
+    private async Task OnItemChanged(LabourTrackSummaryVM? item)
+    {
+        try
+        {
+            SelectedItem = item;
+            SelectedItemCode = item?.ItemCode;
+
+            // Source comes from PO mode data
+            var source = LabourTrackSummaryVMs ?? new List<LabourTrackSummaryVM>();
+
+            // First click on Item dropdown (without selecting item)
+            // → load only records having PO / DC / GRN / SCN / Invoice
+            if (item == null || string.IsNullOrWhiteSpace(SelectedItemCode))
+            {
+                CurrentMode = GridMode.Item;
+
+                LabourTrackSummaryVMs = source
+                    .Where(x =>
+                        x.PoId != null ||   // PO
+                        x.DCId != null ||   // DC
+                        x.GRNId != null ||  // GRN
+                        x.SCNId != null ||  // SCN
+                        x.InvId != null     // Invoice
+                    )
+                    .ToList();
+
+                StateHasChanged();
+                return;
+            }
+
+            // After selecting specific item
+            // → filter by ItemCode + PO/DC/GRN/SCN/Invoice
+            CurrentMode = GridMode.Item;
+
+            LabourTrackSummaryVMs = source
+                .Where(x =>
+                    x.ItemCode == SelectedItemCode &&
+                    (
+                        x.PoId != null ||
+                        x.DCId != null ||
+                        x.GRNId != null ||
+                        x.SCNId != null ||
+                        x.InvId != null
+                    ))
+                .ToList();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error in OnItemChanged"
+            );
+
+            await _JS.ToastrError("Failed to filter items.");
+        }
+    }
+
+    private List<LabourTrackSummaryVM> ApplyFilters(List<LabourTrackSummaryVM> source)
+    {
+        return source
+            .Where(x =>
+                (string.IsNullOrEmpty(SelectedDocType) || MatchDocType(x)) &&
+                (string.IsNullOrEmpty(SelectedDocNo) || GetDocNo(x) == SelectedDocNo) &&
+                (string.IsNullOrEmpty(SelectedItemCode) || x.ItemCode == SelectedItemCode)
+            )
+            .ToList();
+    }
+
+    private string GetDocNo(LabourTrackSummaryVM x)
+    {
+        return SelectedDocType switch
+        {
+            "Labour DC" => x.DCNo,
+            "Labour GRN" => x.GRNNo,
+            "Labour SCN" => x.SCNNo,
+            "Labour PO" => x.PONo,
+            "Labour Invoice" => x.InvNo,
+            _ => null
+        };
+    }
+    private bool MatchDocType(LabourTrackSummaryVM x)
+    {
+        return SelectedDocType switch
+        {
+            "Labour DC" => !string.IsNullOrEmpty(x.DCNo),
+            "Labour GRN" => !string.IsNullOrEmpty(x.GRNNo),
+            "Labour SCN" => !string.IsNullOrEmpty(x.SCNNo),
+            "Labour PO" => !string.IsNullOrEmpty(x.PONo),
+            "Labour Invoice" => !string.IsNullOrEmpty(x.InvNo),
+            _ => true
+        };
+    }
+
+    // private async Task<IEnumerable<LabourTrackSummaryVM>> SearchItems(string value, CancellationToken token)
+    //  {
+    //     if (string.IsNullOrWhiteSpace(value) || value.Length < 2)
+    //         return Enumerable.Empty<LabourTrackSummaryVM>();
+    //     CurrentMode = GridMode.Item;
+    //     try
+    //     {
+    //         var results = await labourTrackReportService.SearchItemsAsync(value);
+    //           return results?
+    //          .Select(x => new LabourTrackSummaryVM
+    //          {
+    //              ItemId = x.ItemId,
+    //              ItemCode = x.ItemCode
+    //          })
+    //          .Take(50)
+    //          ?? Enumerable.Empty<LabourTrackSummaryVM>();
+
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         await LoggingService.LogDeveloperError(ex, $"Item search failed: {value}");
+    //         return Enumerable.Empty<LabourTrackSummaryVM>();
+    //     }
+    // }
+
+
+    private async Task<IEnumerable<LabourTrackSummaryVM>> SearchItems(string value, CancellationToken token)
+    {
+        try
+        {
+            CurrentMode = GridMode.Item;
+
+            // Base source → only records having PO / DC / GRN / SCN / Invoice
+            var source = ItemList ?? new List<LabourTrackSummaryVM>();
+
+            // Click without typing → load items based on PO/DC/GRN/SCN/Invoice only
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return source
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x.ItemCode) &&
+                        (
+                            x.PoId != null ||   // PO
+                            x.DCId != null ||   // DC
+                            x.GRNId != null ||  // GRN
+                            x.SCNId != null ||  // SCN
+                            x.InvId != null     // Invoice
+                        ))
+                    .GroupBy(x => x.ItemCode)
+                    .Select(g => new LabourTrackSummaryVM
+                    {
+                        ItemId = g.First().ItemId,
+                        ItemCode = g.First().ItemCode,
+                        ItemName = g.First().ItemName
+                    })
+                    .OrderBy(x => x.ItemCode)
+                    .Take(50)
+                    .ToList();
+            }
+
+            // Search while typing
+            var results = await labourTrackReportService.SearchItemsAsync(value);
+
+            return results?
+                .Where(c => source.Any(x =>
+                    x.ItemCode == c.ItemCode &&
+                    (
+                        x.PoId != null ||
+                        x.DCId != null ||
+                        x.GRNId != null ||
+                        x.SCNId != null ||
+                        x.InvId != null
+                    )))
+                .GroupBy(x => x.ItemCode)
+                .Select(g => new LabourTrackSummaryVM
+                {
+                    ItemId = g.First().ItemId,
+                    ItemCode = g.First().ItemCode,
+                    ItemName = g.First().ItemName
+                })
+                .OrderBy(x => x.ItemCode)
+                .Take(50)
+                .ToList()
+                ?? Enumerable.Empty<LabourTrackSummaryVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                $"Item search failed: {value}"
+            );
+
+            return Enumerable.Empty<LabourTrackSummaryVM>();
+        }
+    }
+
+
+     
+     private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (LabourTrackSummaryVMs == null || !LabourTrackSummaryVMs.Any())
+            {
+                await _JS.ToastrError("No records available to export.");
+                return;
+            }
+
+            string[] headers;
+            IEnumerable<object> exportData = null;
+
+            // ✅ CUSTOMER MODE
+            if (CurrentMode == GridMode.Customer)
+            {
+                headers = new[]
+              {
+                    "Customer Name","Item Code","Item Description","Category Code",
+                    "PO No","PO Date","PO Qty","PO BQty","PO Status",
+                    "GRN No","GRN Date","Ref DcNo","GRN Qty","GRN BQty","GRN Status",
+                    "SCN No","SCN Date","SCN Qty","SCN BQty","SCN Status",
+                    "DC No","DC Date","DC Qty","DC BQty","DC Status",
+                    "Invoice No","Invoice Date","Invoice Qty","Invoice BQty","Invoice Status"
+                };
+
+                exportData = LabourTrackSummaryVMs.Select(x => new
+                {
+                    x.CustName,
+                    x.ItemCode,
+                    x.ItemName,
+                    x.CategoryCode,
+
+                    x.PONo,
+                    x.PODate,
+                    x.PoQty,
+                    x.PoBalQty,
+                    x.POStatus,
+
+                    x.GRNNo,
+                    x.GRNDate,
+                    x.RefDcNo,
+                    x.GrnQty,
+                    x.GrnBqty,
+                    x.GRNStatus,
+
+                    x.SCNNo,
+                    x.SCNDate,
+                    x.ScnQty,
+                    x.ScnBqty,
+                    x.SCNStatus,
+
+                    x.DCNo,
+                    x.DCDate,
+                    x.DcQty,
+                    x.DCBQty,
+                    x.DCStatus,
+
+                    x.InvNo,
+                    x.InvDate,
+                    x.Invqty,
+                    x.InvBQty,
+                    x.InvStatus
+                }).ToList();
+            }
+
+            // ✅ PO MODE
+            else if (CurrentMode == GridMode.Po)
+            {
+                headers = new[]
+                {
+                    "Customer Name","Item Code","Item Description","Category Code",
+                    "PO No","PO Date","PO Qty","PO BQty","PO Status",
+                    "GRN No","GRN Date","Ref DcNo","GRN Qty","GRN BQty","GRN Status",
+                    "SCN No","SCN Date","SCN Qty","SCN BQty","SCN Status",
+                    "DC No","DC Date","DC Qty","DC BQty","DC Status",
+                    "Invoice No","Invoice Date","Invoice Qty","Invoice BQty","Invoice Status"
+                };
+
+                exportData = LabourTrackSummaryVMs.Select(x => new
+                {
+                    x.CustName,
+                    x.ItemCode,
+                    x.ItemName,
+                    x.CategoryCode,
+
+                    x.PONo,
+                    x.PODate,
+                    x.PoQty,
+                    x.PoBalQty,
+                    x.POStatus,
+
+                    x.GRNNo,
+                    x.GRNDate,
+                    x.RefDcNo,
+                    x.GrnQty,
+                    x.GrnBqty,
+                    x.GRNStatus,
+
+                    x.SCNNo,
+                    x.SCNDate,
+                    x.ScnQty,
+                    x.ScnBqty,
+                    x.SCNStatus,
+
+                    x.DCNo,
+                    x.DCDate,
+                    x.DcQty,
+                    x.DCBQty,
+                    x.DCStatus,
+
+                    x.InvNo,
+                    x.InvDate,
+                    x.Invqty,
+                    x.InvBQty,
+                    x.InvStatus
+                }).ToList();
+            }
+
+            // ✅ ITEM MODE
+            else
+            {
+                headers = new[]
+                {
+                    "Customer Name","Item Code","Item Description","Category Code",
+                    "PO No","PO Date","PO Qty","PO BQty","PO Status",
+                    "GRN No","GRN Date","Ref DcNo","GRN Qty","GRN BQty","GRN Status",
+                    "SCN No","SCN Date","SCN Qty","SCN BQty","SCN Status",
+                    "DC No","DC Date","DC Qty","DC BQty","DC Status",
+                    "Invoice No","Invoice Date","Invoice Qty","Invoice BQty","Invoice Status"
+                };
+
+                exportData = LabourTrackSummaryVMs.Select(x => new
+                {
+                    x.CustName,
+                    x.ItemCode,
+                    x.ItemName,
+                    x.CategoryCode,
+
+                    x.PONo,
+                    x.PODate,
+                    x.PoQty,
+                    x.PoBalQty,
+                    x.POStatus,
+
+                    x.GRNNo,
+                    x.GRNDate,
+                    x.RefDcNo,
+                    x.GrnQty,
+                    x.GrnBqty,
+                    x.GRNStatus,
+
+                    x.SCNNo,
+                    x.SCNDate,
+                    x.ScnQty,
+                    x.ScnBqty,
+                    x.SCNStatus,
+
+                    x.DCNo,
+                    x.DCDate,
+                    x.DcQty,
+                    x.DCBQty,
+                    x.DCStatus,
+
+                    x.InvNo,
+                    x.InvDate,
+                    x.Invqty,
+                    x.InvBQty,
+                    x.InvStatus
+                }).ToList();
+            }
+            // ✅ Generate Excel
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Labour Track",
+                headers: headers,
+                sampleData: exportData
+            );
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync(
+                "downloadExcelFile",
+                base64,
+                "LabourTrack.xlsx"
+            );
+
+            await _JS.ToastrSuccess("Pending Track exported successfully.");
+        }
+        catch (Exception ex)
+        {
+           // await _logs.LogDeveloperError(ex, "OnPrintPendingTrack failed.");
+            await _JS.ToastrError("Failed to export pending Track.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+     }
+
+
+}

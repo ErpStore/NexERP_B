@@ -1,0 +1,2271 @@
+﻿@page "/costcalculator"
+@inherits BaseUserRightsComponent
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.MasterService.InventoryService
+@using V.SMART.Shared.ViewModels.InventoryViewModel
+@using MudBlazor
+
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IAssemblyDefLabourService _assyDefService
+@inject IExcelTemplateService excelTemplateService
+@inject ICostingService _costingService  // Add this service injection
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white z-3 loading-overlay">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="ms-3 h5 text-primary">Processing...</p>
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="BOM Labour Cost"
+                        TitleIcon="bi bi-diagram-3-fill"
+                        Breadcrumbs="@bomBreadcrumbs" />
+
+            <div class="card-body">
+                <div class="accordion" id="bomAccordion">
+                    <div class="accordion-item border-0">
+                        <h2 class="accordion-header" id="headingAssembly">
+                            <button class="accordion-button fw-semibold" type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#collapseAssembly"
+                                    aria-expanded="true"
+                                    aria-controls="collapseAssembly">
+                                <i class="bi bi-box-seam me-2"></i> Assembly Details
+                            </button>
+                        </h2>
+
+                        <div id="collapseAssembly"
+                             class="accordion-collapse collapse show"
+                             aria-labelledby="headingAssembly"
+                             data-bs-parent="#bomAccordion">
+                            <div class="accordion-body bg-light rounded-3">
+                                @if (assemblyDef != null)
+                                {
+                                    <EditForm Model="@bomRows" OnValidSubmit="UpsertBOMLabourCost">
+                                        <ObjectGraphDataAnnotationsValidator />
+                                        <ValidationSummary />
+                                       <div class="row mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold">Work Type</label>
+                                                <InputSelect class="form-select" @bind-Value="SelectedWorkType">
+                                                    <option value="@WorkType.Assembly">Assembly</option>
+                                                    <option value="@WorkType.Trading">Trading</option>
+                                                    <option value="@WorkType.JobWork">Job Work</option>
+                                                </InputSelect>
+                                            </div>
+                                         </div>
+
+                                        <div class="row mb-3 align-items-center">
+                                            <label class="col-12 form-label fw-semibold">
+                                               @(SelectedWorkType == WorkType.Assembly
+                                                      ? "Search Assembly Item"
+                                                      : SelectedWorkType == WorkType.Trading
+                                                      ? "Search Component Item"
+                                                      : "Search Labour Item")
+                                            </label>
+
+                                            <div class="col-md-6">
+                                                <MudAutocomplete T="ItemVM"
+                                                                 Value="assemblyDef.SelectedAssyItemVMs"
+                                                                 ValueChanged="@(async item =>
+                                                                          {
+                                                                     if (SelectedWorkType == WorkType.Assembly)
+                                                                         await OnAssemblyChanged(item);
+                                                                     else if (SelectedWorkType == WorkType.Trading)
+                                                                         await OnComponentChanged(item);
+                                                                     else if (SelectedWorkType == WorkType.JobWork)
+                                                                         await OnLabourItemChanged(item);
+                                                                 })"
+                                                                   ToStringFunc="@(item => item?.ItemCode?.Trim() ?? string.Empty)"
+                                                                   SearchFunc="@(SelectedWorkType == WorkType.Assembly
+                                                                                                 ? SearchAssySubAssyItems
+                                                                                                 : SelectedWorkType == WorkType.Trading
+                                                                                                     ? SearchOnlyComponentItems
+                                                                                                     : SearchOnlyLabourItems)"
+                                                         Dense="true"
+                                                         Variant="Variant.Outlined"
+                                                         Placeholder="@(SelectedWorkType == WorkType.Assembly
+                                                                                         ? "Search Assembly Item"
+                                                                                         : SelectedWorkType == WorkType.Trading
+                                                                                             ? "Search Component Item"
+                                                                                             : "Search Labour Item")"
+                                                         Class="w-100 autocomplete-sm"
+                                                         MaxItems="50"
+                                                         OnBlur="@(e => TrimAutocompleteValue())" />
+                                                <ValidationMessage For="@(() => assemblyDef.AssmblyID)" />
+                                            </div>
+                                            <div class="col-md-6">
+                                                        <input class="form-control"
+                                                               value="@(assemblyDef.SelectedAssyItemVMs?.ItemName ?? "")"
+                                                               readonly />
+                                            </div>
+
+                                     
+                                        </div>
+
+                                        <!-- Cost Summary Cards -->
+                                        @if (assemblyDef.AssmblyID > 0 && !assemblyDef.IsComponent)
+                                        {
+                                            <div class="row mb-4">
+                                                <div class="col-md-3">
+                                                    <div class="card bg-primary text-white">
+                                                        <div class="card-body">
+                                                            <h6 class="card-title">Total Material Cost</h6>
+                                                            <h4 class="mb-0">@string.Format("{0:N2}", totalMaterialCost)</h4>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="card bg-success text-white">
+                                                        <div class="card-body">
+                                                            <h6 class="card-title">Total Labor Cost</h6>
+                                                            <h4 class="mb-0">@string.Format("{0:N2}", totalLaborCost)</h4>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="card bg-warning text-white">
+                                                        <div class="card-body">
+                                                            <h6 class="card-title">Grand Total</h6>
+                                                            <h4 class="mb-0">@string.Format("{0:N2}", FinalGrandTotal)</h4>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+
+                                        <!-- Component Table -->
+                                        <div class="table-responsive mt-3" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
+                                            <table class="table table-bordered table-sm align-middle text-center mb-0"
+                                                   style="table-layout: fixed; min-width: 990px;">
+                                                <thead class="custom-blue sticky-top" style="z-index: 2;">
+                                                    <tr>
+                                                        <th style="width: 60px;">Sl No.</th>
+                                                        <th style="width: 140px;">Item Code</th>
+                                                        <th style="width: 200px;">Item Name</th>
+                                                        <th style="width: 80px;">UOM</th>
+                                                        <th style="width: 100px;">Utility Qty</th>
+                                                        <!-- Cost Columns -->
+                                                        <th style="width: 100px;">Unit Cost</th>
+                                                        <th style="width: 100px;">Material Cost</th>
+                                                        @* <th style="width: 100px;">Total Cost</th> *@
+
+                                                        <th style="width: 120px;">Customer Material</th>
+                                                        @* <th style="width: 200px;">Remarks</th> *@
+                                                        <th style="width: 90px;">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="custom-size">
+                                                    @if (bomRows?.Any() == true)
+                                                    {
+                                                        @foreach (var row in bomRows)
+                                                        {
+                                                            <tr @ondblclick="() => OnRowDoubleClick(row)">
+                                                                <td>@row.SlNo</td>
+                                                                <td>
+                                                                    @if (row.IsEditable)
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                         Value="row.SelectedItemVMs"
+                                                                                         ValueChanged="@(async item => await OnItemChanged(row, item))"
+                                                                                         ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                         SearchFunc="@(SelectedWorkType == WorkType.Assembly
+                                                                                                 ? SearchAssySubAssyItems
+                                                                                                 : SelectedWorkType == WorkType.Trading
+                                                                                                     ? SearchOnlyComponentItems
+                                                                                                     : SearchOnlyLabourItems)"
+                                                                                         Dense="true"
+                                                                                         Variant="Variant.Outlined"
+                                                                                         Placeholder="Search Item"
+                                                                                         Class="w-100 autocomplete-sm"
+                                                                                         MaxItems="50" />
+                                                                                         <ValidationMessage For="@(() => row.ItemId)" />
+                                                                                                        }
+                                                                    else
+                                                                    {
+
+                                                                        <span>@row.PartItemCode</span>
+                                                                    }
+                                                                </td>
+                                                                <td class="text-start">@row.PartItemName</td>
+                                                                <td>@row.UOM</td>
+                                                                <td>
+                                                                    @if (row.IsEditable)
+                                                                    {
+                                                                        <input type="number"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Utility Qty"
+                                                                               title="Enter Utility Qty"
+                                                                               step="any"
+                                                                               @bind="row.UtilQty"
+                                                                               @bind:event="oninput"
+                                                                               @onchange="@(async (e) => await OnUtilQtyChanged(e, row))" />
+                                                                       
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @row.UtilQty
+                                                                    }
+                                                                </td>
+
+                                                                <!-- Cost Cells -->
+                                                                <td class="text-end">@string.Format("{0:N2}", row.UnitPrice)</td>
+                                                                <td class="text-end">@string.Format("{0:N2}", row.MaterialCost)</td>
+                                                               
+                                                                <InputCheckbox @bind-Value="row.IsLabourMaterial"
+                                                                               class="form-check-input border border-2 shadow-lg p-2 fs-4 rounded-pill"
+                                                                               disabled="@(row.SelectedItemVMs?.IsLabourItem == true)"
+                                                                               title="@(row.SelectedItemVMs?.IsLabourItem == true
+                                                                                                       ? "Already Labour, cannot change"
+                                                                                                       : "If checked, consider as Labour Material")" />
+
+
+                                                                <td class="text-end">
+                                                                    @if (row.IsEditable)
+                                                                    {
+                                                                        <button type="button" class="btn btn-success btn-sm me-1"
+                                                                                title="Save" @onclick="async () => await SaveRow(row)">
+                                                                            <i class="bi bi-check-lg"></i>
+                                                                        </button>
+                                                                      
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <button type="button" class="btn btn-primary btn-sm me-1"
+                                                                                title="Edit" @onclick="async () => await EditRowAsync(row)">
+                                                                            <i class="bi bi-pencil"></i>
+                                                                        </button>
+                                                                      
+                                                                    }
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <tr>
+                                                            <td colspan="14" class="text-center text-muted">No records found.</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                                <!-- Table Footer with Totals -->
+                                                @if (bomRows?.Any() == true && !assemblyDef.IsComponent)
+                                                {
+                                                    <tfoot class="table-secondary fw-bold">
+                                                        <tr>
+                                                            <td colspan="6" class="text-end">Total Cost:</td>
+                                                                  <td class="text-end">@string.Format("{0:N2}", bomRows.Sum(r => r.MaterialCost ?? 0))</td>
+                                                          
+                                                            <td colspan="2"></td>
+                                                        </tr>
+                                                    </tfoot>
+                                                }
+                                            </table>
+                                        </div>
+
+                                        <!-- Footer Controls -->
+                                        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                                           
+                                            
+                                            @if (assemblyDef.AssmblyID > 0 && !assemblyDef.IsComponent)
+                                            {
+                                                <button type="button" class="btn btn-info btn-sm" @onclick="RefreshCostCalculations">
+                                                    <i class="bi bi-arrow-repeat me-1"></i> Refresh Costs
+                                                </button>
+                                            }
+                                        </div>
+                                   
+                                          <!-- ADDITIONAL CHARGES CARD -->
+                                                   
+                                             <div class="row mt-4 justify-content-end">
+                                                <div class="col-12 col-lg-9 col-xl-8">
+                                                  <div class="card shadow-sm border-0 rounded-4">
+
+                                                            <!-- HEADER -->
+                                                            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                                                                <h6 class="fw-bold mb-0">
+                                                                    <i class="bi bi-cash-coin text-primary me-2"></i>
+                                                                    Additional Charges
+                                                                </h6>
+                                                                @if(IsAddCharges)
+                                                                {
+                                                                       <button type="button" class="btn btn-sm btn-success"
+                                                                            @onclick="AddNewCharge">
+                                                                                <i class="bi bi-plus-circle me-1"></i>
+                                                                                Add Charge
+                                                                        </button>
+
+                                                                }
+                                                             
+                                                            </div>
+
+                                                            <div class="card-body">
+                                                                    <div class="mb-3">
+                                                                        <div class="row mb-1">
+                                                                            <div class="col-6 text-muted">Material Charges</div>
+                                                                            <div class="col-6 text-end fw-semibold">
+                                                                                ₹ @MaterialCost.ToString("0.00")
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="row mb-1">
+                                                                            <div class="col-6 text-muted">Labour Charges</div>
+                                                                            <div class="col-6 text-end fw-semibold">
+                                                                                ₹ @LabourCost.ToString("0.00")
+                                                                            </div>
+                                                                        </div>
+                                                                        <hr class="my-2" />
+                                                                    </div>
+
+
+                                                               @foreach (var charge in AssemblyChargeVMs)
+                                                                {
+                                                                    <div class="row align-items-center mb-2 py-2 border-bottom gx-2">
+
+                                                                        <!-- Name -->
+                                                                        <div class="col-3">
+                                                                            <div class="d-flex align-items-center">
+                                                                                <input class="form-control form-control-sm"
+                                                                                       @bind="charge.Name"
+                                                                                       placeholder="Enter Charge Name"
+                                                                                       disabled="@charge.IsDefault" />
+
+                                                                            </div>
+                                                                        </div>
+                                                                        @if(IsAddCharges)
+                                                                            {
+                                                                                 <!-- Labour (Rounded Clean Checkbox) -->
+                                                                                    <div class="col-1 text-center">
+                                                                                        <div class="form-check d-flex justify-content-center">
+                                                                                            <input type="checkbox"
+                                                                                                   class="form-check-input labour-check"
+                                                                                                   @bind="charge.IsLabour"
+                                                                                                   disabled="@charge.IsDefault" />
+                                                                                        </div>
+                                                                                    </div>
+                                                                            }
+                                                               
+
+                                                                        <!-- ₹ / % Toggle -->
+                                                                        <div class="col-2">
+                                                                            <div class="btn-group btn-group-sm w-100">
+                                                                                <button type="button"
+                                                                                        class="btn @(charge.IsAmount ? "btn-primary" : "btn-outline-primary")"
+                                                                                       
+                                                                                        @onclick="() => SetChargeType(charge, true)">
+                                                                                    ₹
+                                                                                </button>
+                                                                                <button type="button"
+                                                                                        class="btn @(!charge.IsAmount ? "btn-primary" : "btn-outline-primary")"
+                                                                                       
+                                                                                        @onclick="() => SetChargeType(charge, false)">
+                                                                                    %
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <!-- Value -->
+                                                        <div class="col-2">
+                                                        @if (charge.IsAmount)
+                                                        {
+                                                            <input type="number"
+                                                                   class="form-control form-control-sm text-end" step="any"
+                                                                   @bind="charge.Amount"
+                                                                   @bind:event="oninput"
+                                                                   @bind:after="RecalculateAllCharges" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <input type="number" class="form-control form-control-sm text-end" step="any"
+                                                                   @bind="charge.Percent"
+                                                                   @bind:event="oninput"
+                                                                   @bind:after="RecalculateAllCharges" />
+                                                        }
+                                                                </div>
+
+                                                                <!-- Calculated -->
+                                                              <div class="col-3 text-end">
+                                                                <div class="form-control form-control-sm text-end bg-light fw-semibold"
+                                                                     style="pointer-events:none;">
+                                                                    @($"{(charge.CalculatedAmount ?? 0m):0.00}")
+                                                                </div>
+                                                            </div>
+                                                                @if (IsAddCharges)
+                                                                {
+                                                                    <!-- Delete -->
+                                                                    <div class="col-1 text-center">
+                                                                        @if (!charge.IsDefault)
+                                                                        {
+                                                                            <button type="button"
+                                                                            class="btn btn-sm btn-outline-danger"
+                                                                            @onclick="() => RemoveCharge(charge)">
+                                                                                <i class="bi bi-trash"></i>
+                                                                            </button>
+                                                                        }
+                                                                    </div>
+                                                                }
+                                                           
+                                                            </div>
+                                                        }
+                                                            <div class="mt-4 p-3 rounded-4 bg-light border">
+                                                                        <div class="d-flex justify-content-between fs-5 fw-bold">
+                                                                            <span>Final Grand Total</span>
+                                                                            <span class="text-success">
+                                                                                ₹ @FinalGrandTotal.ToString("0.00")
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                         <div class="row mb-2">
+                                            @if (CanCreate || CanEdit)
+                                            {
+                                                <div class="col-6 col-md-3 mt-3">
+                                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                                        <i class="bi bi-floppy2-fill me-1"></i> @(IsAssyExistsinAssydef ? "Update" : "Create")
+                                                    </button>
+                                                </div>
+
+                                                @* @if (IsAssyExistsinAssydef)
+                                                {
+                                                    <div class="col-6 col-md-3 mt-3">
+                                                        <button type="button" class="btn btn-outline-secondary w-100"
+                                                                @onclick="OnPrintBOMModifyTrackWithCharges">
+                                                            <i class="bi bi-printer-fill me-1"></i> Print
+                                                        </button>
+                                                    </div>
+                                                    
+                                                  
+                                                } *@
+
+                                            }
+                                        
+                                        </div>
+                                    </EditForm>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+}
+
+
+@code {
+    [Parameter] public int? AssmblyID { get; set; }
+
+    protected override string ScreenName => "BOMLabourCost";
+
+    private bool isProcessing = true;
+
+    // private AssemblyDefVM assemblyDef = new();
+    // private List<AssemblyDefVM> bomRows = new();
+
+    // private AssemblyDefVM? rowToDelete = null;
+    // private AssemblyDefVM? rowToCancel = null;
+    // private AssemblyDefVM? rowToView = null;
+    private AssemblyDefLabourVM assemblyDef = new();
+    private List<AssemblyDefLabourVM> bomRows = new();
+
+    private AssemblyDefLabourVM? rowToDelete = null;
+    private AssemblyDefLabourVM? rowToCancel = null;
+    private AssemblyDefLabourVM? rowToView = null;
+    private bool IsAssyExistsinAssydef { get; set; } = false;
+    private bool IsAddCharges { get; set; } = false;
+
+    private IEnumerable<Process> process = Enumerable.Empty<Process>();
+
+    private bool IsAllSelected => bomRows != null && bomRows.All(r => r.IsSelected);
+
+    // Cost summary properties
+    private decimal totalMaterialCost = 0;
+    private decimal totalLaborCost = 0;
+    private decimal totalOverheadCost = 0;
+    private decimal grandTotalCost = 0;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+
+    private List<AssemblyChargeVM> AssemblyChargeVMs = new();
+
+    private List<PageHeader.BreadcrumbItem> bomBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "BOM Labour Cost", IsLast = true }
+    };
+
+    // public WorkType SelectedWorkType { get; set; } = WorkType.Assembly;
+
+    private void TrimAutocompleteValue()
+    {
+        if (assemblyDef?.SelectedAssyItemVMs?.ItemCode != null)
+        {
+            assemblyDef.SelectedAssyItemVMs.ItemCode = assemblyDef.SelectedAssyItemVMs.ItemCode.Trim();
+        }
+    }
+
+    private async Task SelectAll(int rowId)
+    {
+        await _js.InvokeVoidAsync("selectInputText", $"ReqQty-{rowId}");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            IsAddCharges= await _costingService.IsAdditionalChargesEnabledAsync();
+            if (AssmblyID > 0)
+            {
+                var Assy = await _assyDefService.GetAssyByAssemblyIdAsync(AssmblyID.Value);
+
+                assemblyDef.AssmblyID = AssmblyID;
+                assemblyDef.AssemblyItemCode = Assy.AssemblyItemCode;
+                assemblyDef.AssemblyItemName = Assy.AssemblyItemName;
+                assemblyDef.SelectedAssyItemVMs = await _assyDefService.GetItemByItemIdAsync(AssmblyID);
+
+                assemblyDef.IsComponent = Assy.IsComponent;
+
+                await LoadSelectedProcessAsync(assemblyDef.AssmblyID.Value);
+
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(AssmblyID.Value);
+
+                // Calculate costs for each row
+                await CalculateRowCosts();
+
+                IsAssyExistsinAssydef = await _assyDefService.IsAssyExistsInAssyDefAsync(assemblyDef.AssmblyID.Value);
+
+            }
+            else
+            {
+                assemblyDef = new AssemblyDefLabourVM();
+                bomRows.Clear();
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error on OnInitializedAsync ");
+        }
+    }
+
+    #region Cost Calculation Methods
+
+    private async Task CalculateRowCosts()
+    {
+        try
+        {
+            if (bomRows == null || !bomRows.Any())
+                return;
+
+            foreach (var row in bomRows)
+            {
+                if (row.ItemId is not > 0)
+                    continue;
+
+                var costing = await _assyDefService.GetItemByItemIdAsync(row.ItemId.Value);
+                if (costing == null)
+                    continue;
+
+                decimal price = row.IsLabourMaterial
+                    ? costing.LabourPrice 
+                    : costing.Rate;
+
+                decimal quantity = row.UtilQty ?? 1m;
+
+                row.UnitPrice = price;
+                row.MaterialCost = price * quantity;
+                row.TotalCost = row.MaterialCost;
+            }
+
+            await CalculateSummaryTotals();
+            RecalculateAllCharges();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error calculating row costs");
+        }
+    }
+    private void RecalculateAllCharges()
+    {
+        decimal handlingCharges = 0m;
+
+        foreach (var charge in AssemblyChargeVMs)
+        {
+            if (charge.IsAmount)
+            {
+                charge.CalculatedAmount = charge.Amount ?? 0m;
+            }
+            else
+            {
+                decimal percent = charge.Percent ?? 0m;
+
+                if (charge.IsLabour)
+                {
+                    charge.CalculatedAmount =
+                        Math.Round((LabourCost * percent) / 100m, 2);
+                }
+                else
+                {
+                    charge.CalculatedAmount =
+                        Math.Round((MaterialCost * percent) / 100m, 2);
+                }
+            }
+
+            if (charge.Name == "Handling Charges")
+                handlingCharges += charge.CalculatedAmount ?? 0m;
+        }
+
+        var gst = AssemblyChargeVMs
+            .FirstOrDefault(x => x.Name == "GST Material Cost");
+
+        if (gst != null && !gst.IsAmount)
+        {
+            decimal gstPercent = gst.Percent ?? 0m;
+            decimal gstBase = MaterialCost + handlingCharges;
+
+            gst.CalculatedAmount =
+                Math.Round((gstBase * gstPercent) / 100m, 2);
+        }
+    }
+    private async Task CalculateSummaryTotals()
+    {
+        try
+        {
+            if (bomRows == null || !bomRows.Any() || assemblyDef.IsComponent)
+            {
+                totalMaterialCost = 0;
+                totalLaborCost = 0;
+                totalOverheadCost = 0;
+                grandTotalCost = 0;
+                return;
+            }
+
+
+            totalMaterialCost = bomRows ?
+                    .Where(x => !x.IsLabourMaterial)
+                    .Sum(x => x.MaterialCost ?? 0) ?? 0;
+
+            totalLaborCost = bomRows ?
+                    .Where(x => x.IsLabourMaterial)
+                    .Sum(x => x.MaterialCost ?? 0) ?? 0;
+
+            grandTotalCost = bomRows.Sum(r => r.TotalCost ?? 0);
+            RecalculateAllCharges();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error calculating summary totals");
+        }
+    }
+
+    private async Task RefreshCostCalculations()
+    {
+        try
+        {
+            isProcessing = true;
+            await CalculateRowCosts();
+            RecalculateAllCharges();
+            await _js.ToastrSuccess("Cost calculations refreshed successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error refreshing cost calculations");
+            await _js.ToastrError("Failed to refresh cost calculations.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Assembly and Item Handlers
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool isChecked = e?.Value is bool b && b;
+        foreach (var row in bomRows)
+            row.IsSelected = isChecked;
+    }
+
+    private void OnRowSelected(AssemblyDefVM row, object? value)
+    {
+        if (value is bool isChecked)
+            row.IsSelected = isChecked;
+    }
+
+    private async Task OnAssemblyChanged(ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                assemblyDef.AssmblyID = item.ItemId;
+                assemblyDef.AssemblyItemCode = item.ItemCode;
+                assemblyDef.AssemblyItemName = item.ItemName;
+                assemblyDef.SelectedAssyItemVMs = item;
+                bomRows.Clear();
+                AssemblyChargeVMs.Clear();
+                bomRows = await _costingService.GetAssemblyDefByAssemblyIdAsync(item.ItemId);
+                var productionCharges = await _costingService.GetAssemblyChargesByAssemblyIdAsync(item.ItemId);
+
+                AssemblyChargeVMs.Clear();
+
+
+                await  OnItemChanged(item, WorkType.Assembly);
+                await CalculateRowCosts();
+                await ResetSlno();
+
+                IsAssyExistsinAssydef = await _assyDefService.IsAssyExistsInAssyDefAsync(assemblyDef.AssmblyID.Value);
+                // await AddRow();
+            }
+            else
+            {
+                assemblyDef.AssmblyID = null;
+                assemblyDef.AssemblyItemCode = null;
+                assemblyDef.AssemblyItemName = null;
+                assemblyDef.SelectedAssyItemVMs = null;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error on OnAssemblyChanged");
+            await _js.ToastrError("Failed to process assembly selection. Please try again.");
+        }
+    }
+
+
+    private async Task OnComponentChanged(ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                assemblyDef.AssmblyID = item.ItemId;
+                assemblyDef.AssemblyItemCode = item.ItemCode;
+                assemblyDef.AssemblyItemName = item.ItemName;
+                assemblyDef.SelectedAssyItemVMs = item;
+                bomRows.Clear();
+                AssemblyChargeVMs.Clear();
+                AddSelectedItemToBOM(item);
+
+                var productionCharges = await _costingService.GetAssemblyChargesByAssemblyIdAsync(item.ItemId);
+
+                AssemblyChargeVMs.Clear();
+
+                await  OnItemChanged(item, WorkType.Trading);
+
+                await CalculateRowCosts();
+                await ResetSlno();
+
+
+                IsAssyExistsinAssydef = await _assyDefService.GetItemByItemIdAsync(assemblyDef.AssmblyID.Value) !=null;
+
+
+            }
+            else
+            {
+                assemblyDef.AssmblyID = null;
+                assemblyDef.AssemblyItemCode = null;
+                assemblyDef.AssemblyItemName = null;
+                assemblyDef.SelectedAssyItemVMs = null;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnComponentChanged");
+            await _js.ToastrError("Failed to process component selection. Please try again.");
+        }
+    }
+
+    private async Task OnLabourItemChanged(ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                assemblyDef.AssmblyID = item.ItemId;
+                assemblyDef.AssemblyItemCode = item.ItemCode;
+                assemblyDef.AssemblyItemName = item.ItemName;
+                assemblyDef.SelectedAssyItemVMs = item;
+                bomRows.Clear();
+                AssemblyChargeVMs.Clear();
+                AddSelectedItemToBOM(item);
+
+                var productionCharges = await _costingService.GetAssemblyChargesByAssemblyIdAsync(item.ItemId);
+
+                AssemblyChargeVMs.Clear();
+
+
+                await  OnItemChanged(item, WorkType.JobWork);
+
+                await CalculateRowCosts();
+                await ResetSlno();
+
+                IsAssyExistsinAssydef =
+                    await _assyDefService.GetItemByItemIdAsync(assemblyDef.AssmblyID.Value) != null;
+
+
+            }
+            else
+            {
+                assemblyDef.AssmblyID = null;
+                assemblyDef.AssemblyItemCode = null;
+                assemblyDef.AssemblyItemName = null;
+                assemblyDef.SelectedAssyItemVMs = null;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnComponentChanged");
+            await _js.ToastrError("Failed to process component selection. Please try again.");
+        }
+    }
+
+    private void AddSelectedItemToBOM(ItemVM item)
+    {
+        if (bomRows == null)
+            bomRows = new List<AssemblyDefLabourVM>();
+
+        // Check if already exists
+        if (bomRows.Any(r => r.ItemId == item.ItemId)) 
+            bomRows.Clear();
+
+        var row = new AssemblyDefLabourVM
+    {
+        SlNo = bomRows.Count + 1,
+        AssmblyID=item.ItemId,
+        ItemId = item.ItemId,
+        SelectedItemVMs = item,
+        PartItemCode = item.ItemCode,
+        PartItemName = item.ItemName,
+        UOM = item.MeasureUnit,
+        UtilQty = 1,
+        BalQty=1,
+        UnitPrice = item.Rate,
+        MaterialCost = 1 * item.Rate,
+        IsEditable = false,
+        IsLabourMaterial = item.IsLabourItem
+    };
+
+        // Append to BOM table
+        bomRows.Add(row);
+    }
+    private async Task<IEnumerable<ItemVM>> SearchSubAssyAndItemsAsync(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _assyDefService.SearchSubAssyAndItemsAsync(value);
+
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task<IEnumerable<ItemVM>> SearchOnlyComponentItems(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _assyDefService.SearchOnlyComponentItems(value);
+
+            token.ThrowIfCancellationRequested();
+
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+    private async Task<IEnumerable<ItemVM>> SearchOnlyLabourItems(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+
+            var results = await _assyDefService.SearchOnlyLabourItems(value);
+
+            token.ThrowIfCancellationRequested();
+
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task<IEnumerable<ItemVM>> SearchAssySubAssyItems(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        assemblyDef.AssemblyItemCode = value;
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            AssemblyChargeVMs.Clear();
+            bomRows.Clear();
+            var results = await _assyDefService.SearchAssyAndSubAssyItemsAsync(value);
+
+            token.ThrowIfCancellationRequested();
+
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchAssySubAssyItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task<IEnumerable<ItemVM>> SearchBOMAssinedComponentItems(string value, CancellationToken token)
+    {
+        value = value?.Trim();
+        assemblyDef.AssemblyItemCode = value;
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+
+            var results = await _assyDefService.SearchBOMAssinedComponentItems(value);
+
+            token.ThrowIfCancellationRequested();
+
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchBOMAssinedComponentItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+
+    private async Task OnItemChanged(AssemblyDefLabourVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItemVMs = item;
+                subitem.ItemId = item.ItemId;
+                subitem.PartItemCode = item.ItemCode;
+                subitem.PartItemName = item.ItemName;
+                subitem.UOM = item.MeasureUnit;
+                subitem.UnitPrice = item.Rate;
+
+                // Recalculate row costs
+                await RecalculateRowCosts(subitem);
+            }
+            else
+            {
+                subitem.SelectedItemVMs = null;
+                subitem.ItemId = null;
+                subitem.PartItemCode = null;
+                subitem.PartItemName = null;
+                subitem.UOM = null;
+                subitem.UnitPrice = 0;
+                subitem.MaterialCost = 0;
+                subitem.LaborCost = 0;
+                subitem.TotalCost = 0;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(AssemblyDefLabourVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null || row.ItemId <= 0)
+                errors.Add("Please select an Item.");
+
+            if (row.UtilQty <= 0)
+                errors.Add("Utilization quantity must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await _logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = bomRows.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await _logs.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            var newRow = new AssemblyDefLabourVM
+            {
+                Id = 0,
+                IsEditable = true,
+                SlNo = bomRows.Count + 1,
+                AssmblyID = assemblyDef.AssmblyID,
+                IsComponent = assemblyDef.IsComponent,
+                Cancel = false,
+                UnitPrice = 0,
+                MaterialCost = 0,
+                LaborCost = 0,
+                TotalCost = 0
+            };
+
+            bomRows.Add(newRow);
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await _logs.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(AssemblyDefLabourVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            // Recalculate costs before saving
+            await RecalculateRowCosts(item);
+
+            item.IsEditable = false;
+
+            if (!bomRows.Any())
+                // bomRows.Add(item);
+
+                await ResetSlno();
+            await CalculateSummaryTotals();
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SaveRow failed for Row Id: {item?.Id}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(AssemblyDefLabourVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItemVMs == null && item.ItemId.HasValue && item.ItemId.Value > 0)
+            {
+                try
+                {
+                    item.SelectedItemVMs = await _assyDefService.GetItemByItemIdAsync(item.ItemId.Value);
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"EditRowAsync failed for Row Id: {item?.Id}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(AssemblyDefLabourVM? item)
+    {
+        try
+        {
+            if (item == null) return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId == null || item.ItemId <= 0) ||
+                (item.UtilQty <= 0 && (item.ReqQty <= 0 || item.BalQty <= 0));
+
+            if (isEmptyOrInvalid)
+            {
+                if (item.Id == 0)
+                {
+                    bomRows.Remove(item);
+                    await ResetSlno();
+                }
+                else
+                {
+                    item.IsEditable = false;
+                }
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+
+            await CalculateSummaryTotals();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CancelEdit failed for Row Id: {item?.Id}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(AssemblyDefLabourVM item)
+    {
+        try
+        {
+            if (bomRows.Count == 1 && item.Id > 0)
+            {
+                await _js.ToastrWarning("At least one row item is required.");
+                return;
+            }
+
+            if (item.Id > 0 && (item.UtilQty != item.BalQty))
+            {
+                await _js.ToastrWarning("This row cannot be deleted because transactions exist for it.");
+                return;
+            }
+
+            if (item.Id == 0)
+            {
+                bomRows.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+                if (!bomRows.Any()) bomRows = new List<AssemblyDefLabourVM>();
+
+                await ResetSlno();
+                await CalculateSummaryTotals();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"RemoveRow failed for Row Id: {item?.Id}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ConfirmDeleteRow()
+    {
+        if (rowToDelete == null) return;
+
+        try
+        {
+            bomRows.Remove(rowToDelete);
+            rowToDelete = null;
+            await ResetSlno();
+            await CalculateSummaryTotals();
+            await _js.ToastrSuccess("Row deleted successfully.");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ConfirmDeleteRow failed.");
+            await _js.ToastrError("Failed to delete the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in bomRows)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+    #region UtilityQty
+
+    private async Task OnUtilQtyChanged(ChangeEventArgs e, AssemblyDefLabourVM assyVM)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty))
+                return;
+
+            if (assyVM.Id == 0)
+            {
+                assyVM.UtilQty = newQty;
+                assyVM.BalQty = newQty;
+            }
+            else
+            {
+                var original = await _assyDefService.GetUtiliyQtyById(assyVM.Id);
+                var alreadyTransacted = original.UtilQty - original.BalQty;
+
+                if (newQty < alreadyTransacted)
+                {
+                    assyVM.UtilQty = alreadyTransacted;
+                    assyVM.BalQty = 0;
+                    await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} as it is already transacted.");
+                }
+                else
+                {
+                    var difference = newQty - original.UtilQty;
+                    assyVM.UtilQty = newQty;
+                    assyVM.BalQty = original.BalQty + difference;
+                }
+            }
+
+            // Recalculate costs when quantity changes
+            await RecalculateRowCosts(assyVM);
+            await CalculateSummaryTotals();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnUtilQtyChanged");
+            await _js.ToastrError("Unexpected error while updating Utility Qty.");
+        }
+    }
+
+    private async Task RecalculateRowCosts(AssemblyDefLabourVM row)
+    {
+        try
+        {
+            if (row.ItemId.HasValue && row.ItemId > 0)
+            {
+                var costing = await _assyDefService.GetItemByItemIdAsync(row.ItemId.Value);
+
+                decimal price = costing.IsLabourItem
+                    ? costing.LabourPrice 
+                    : costing.Rate;
+
+                decimal quantity = row.UtilQty ?? 1m;
+
+                row.UnitPrice = price;
+                row.MaterialCost = price * quantity;
+                row.TotalCost = row.MaterialCost;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error recalculating costs for row {row.Id}");
+        }
+    }
+
+    #endregion
+
+    #region Bom Operations/ Update or Insert
+
+    private async Task UpsertBOMLabourCost()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (!bomRows.Any())
+            {
+                await _js.ToastrError("Cannot save a BOM without valid items.");
+                return;
+            }
+            // Recalculate all costs before saving
+            await CalculateRowCosts();
+
+            foreach (var line in bomRows)
+            {
+                bool isValid = await ValidateBOMLineAsync(line);
+                if (!isValid) return;
+            }
+
+           
+            await  _costingService.UpdateBOMOnlyAsync(assemblyDef, bomRows,AssemblyChargeVMs);
+            await _js.ToastrSuccess("BOM updated successfully.");
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "UpsertBOM failed.");
+            await _js.ToastrError("Error saving BOM.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateBOMLineAsync(AssemblyDefLabourVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.UtilQty.HasValue || line.UtilQty <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemId}: Utilized Quantity must be greater than 0.");
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ValidateBOMLineAsync failed.");
+            await _js.ToastrError("Error Validate BOM LineAsync BOM line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+    #region Item cancel
+
+    private async Task OnItemCancelChanged(AssemblyDefLabourVM subitem)
+    {
+        try
+        {
+            if ((subitem.UtilQty ?? 0) != (subitem.BalQty ?? 0))
+            {
+                await _js.ToastrError("Item cannot be cancelled — some transactions have been made on it.");
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.Cancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                }
+                rowToCancel = subitem;
+
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Item.Cancel method");
+            await _logs.LogDeveloperError(ex, "Error in Item Cancel in BOM");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelItem(AssemblyDefLabourVM rowToCancel)
+    {
+        if (rowToCancel == null) return;
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            rowToCancel.Cancel = !rowToCancel.Cancel;
+
+            await _assyDefService.UpdateItemCancelAsync(rowToCancel);
+
+            var action = rowToCancel.Cancel
+                ? $"Item Cancelled Assembly Code: {rowToCancel.AssemblyItemCode}  canceled Child Item :{rowToCancel.PartItemCode}"
+                : $"Item Reverted Assembly Cade : {rowToCancel.AssemblyItemCode} canceled Child Item :{rowToCancel.PartItemCode}";
+
+            await _logs.LogUserAction(
+                UserName: username,
+                Machine: machine,
+                IP_Address: ip,
+                screen: "Bill of Material",
+                action: action,
+                additionalInfo: $"Assembly Code: {rowToCancel.AssemblyItemCode} And child Item Code:{rowToCancel.PartItemCode}"
+            );
+
+            if (rowToCancel.AssmblyID.HasValue)
+            {
+                bomRows = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(rowToCancel.AssmblyID.Value);
+                await CalculateRowCosts();
+            }
+            else
+            {
+                bomRows = new List<AssemblyDefLabourVM>();
+            }
+
+
+            await ResetSlno();
+
+            var toastMessage = rowToCancel.Cancel
+                ? "Item cancelled successfully."
+                : "Item has been reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+            rowToCancel = null;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            rowToCancel = null;
+            await _js.ToastrError("An error occurred while cancelling/reverting the Item.");
+            await _logs.LogDeveloperError(ex, $"Item Cancel/Reverse failed for Assembly/Part Code: {rowToCancel.AssemblyItemCode}");
+        }
+        finally
+        {
+            rowToCancel = null;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Modal handlers
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "ItemCancel":
+                    await CancelItem(rowToCancel);
+                    break;
+
+                case "Confirm_View":
+                    await confirmViewRow_Click(true);
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.PartItemCode;
+
+            if (rowToDelete.Id > 0)
+            {
+                await _assyDefService.DeleteAndResequenceAsync(rowToDelete);
+                bomRows.Remove(rowToDelete);
+                await ResetSlno();
+                await CalculateSummaryTotals();
+                StateHasChanged();
+            }
+            else
+            {
+                bomRows.Remove(rowToDelete);
+
+                if (!bomRows.Any())
+                {
+                    bomRows.Add(new AssemblyDefLabourVM
+                    {
+                        AssmblyID = assemblyDef.AssmblyID,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    await ResetSlno();
+                }
+                await CalculateSummaryTotals();
+            }
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error confirming deletion for Assembly Child Item: {rowToDelete.PartItemCode}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Row Double click
+
+    private async Task OnRowDoubleClick(AssemblyDefLabourVM row)
+    {
+
+        try
+        {
+            if (!string.Equals(row.CategoryName, "Assembly", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(row.CategoryName, "Sub-Assembly", StringComparison.OrdinalIgnoreCase))
+            {
+                await _js.ToastrInfo("The selected item does not belong to the Assembly or Sub-Assembly category.");
+                return;
+            }
+
+            if (row.ItemId.HasValue)
+            {
+                ModalTitle = "Are you sure you want to view this Assembly/Sub-Assembly??";
+                btnColor = "btn-primary";
+                btnText = "Yes! View";
+                confirmation = "Confirm_View";
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+            rowToView = row;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the OnRowDoubleClick method");
+            await _logs.LogDeveloperError(ex, "Error in OnRowDoubleClick in BOM");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task confirmViewRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToView == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            if (!rowToView.ItemId.HasValue)
+            {
+                await _js.ToastrWarning("Item Code is missing for the selected row.");
+                return;
+            }
+
+            var subAssembly = await _assyDefService.GetAssemblyDefByAssemblyIdAsync(rowToView.ItemId.Value);
+
+            if (subAssembly != null && subAssembly.Any())
+            {
+                var mainAssembly = subAssembly.First(); // take the first assembly as main
+
+                assemblyDef.AssmblyID = mainAssembly.AssmblyID;
+                assemblyDef.AssemblyItemCode = mainAssembly.AssemblyItemCode;
+                assemblyDef.AssemblyItemName = mainAssembly.AssemblyItemName;
+
+                assemblyDef.SelectedAssyItemVMs = await _assyDefService.GetItemByItemIdAsync(mainAssembly.AssmblyID);
+                bomRows = subAssembly;
+                await CalculateRowCosts();
+            }
+            else
+            {
+                var item = await _assyDefService.GetItemByItemIdAsync(rowToView.ItemId);
+                await OnAssemblyChanged(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error confirming View for Assembly/Sub-Assembly Item: {assemblyDef?.AssemblyItemCode}");
+            await _js.ToastrError("An error occurred during rowDoubleClick. Please try again.");
+        }
+        finally
+        {
+            rowToView = null;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+
+    #region Load process
+
+    private async Task LoadSelectedProcessAsync(int itemId)
+    {
+        try
+        {
+            process = (await _assyDefService.LoadSelectedProcessAsync(itemId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error loading process flow chart.");
+            await _js.ToastrError("Failed to load process");
+        }
+    }
+
+    #endregion
+
+    #region Print Reports
+    private async Task OnPrintBOMModifyTrackWithCharges()
+    {
+        if (assemblyDef.AssmblyID == null || assemblyDef.AssmblyID <= 0)
+        {
+            await _js.ToastrError("Please select a valid Assembly.");
+            return;
+        }
+
+        var bomData = await _costingService.GetAssemblyModifyTrackByAssyId(assemblyDef.AssmblyID.Value);
+        var chargesData = await _costingService.GetAssemblyChargesByAssemblyIdAsync(assemblyDef.AssmblyID.Value);
+        var assemblyprice = await _assyDefService.GetItemByItemIdAsync(assemblyDef.AssmblyID.Value);
+
+        if (!bomData.Any() && !chargesData.Any())
+        {
+            await _js.ToastrWarning("No data found.");
+            return;
+        }
+
+        using var workbook = new ClosedXML.Excel.XLWorkbook();
+        var ws = workbook.Worksheets.Add("BOM Cost Estimation");
+
+        int currentRow = 1;
+
+        // ==================== BOM MODIFY TRACK ====================
+        if (bomData.Any())
+        {
+            // Headers
+            ws.Cell(currentRow, 1).Value = "SlNo";
+            ws.Cell(currentRow, 2).Value = "ItemCode";
+            ws.Cell(currentRow, 3).Value = "ItemName";
+            ws.Cell(currentRow, 4).Value = "MeasureUnit";
+            ws.Cell(currentRow, 5).Value = "UtilityQty";
+            ws.Cell(currentRow, 6).Value = "UnitCost";
+            ws.Cell(currentRow, 7).Value = "MaterialCost";
+            ws.Cell(currentRow, 8).Value = "CreatedBy";
+            ws.Cell(currentRow, 9).Value = "CreatedDate";
+
+            currentRow++;
+
+            // Data
+            foreach (var item in bomData)
+            {
+                ws.Cell(currentRow, 1).Value = item.SlNo;
+                ws.Cell(currentRow, 2).Value = item.PartItemCode;
+                ws.Cell(currentRow, 3).Value = item.PartItemName;
+                ws.Cell(currentRow, 4).Value = item.UOM;
+                ws.Cell(currentRow, 5).Value = item.UtilQty;
+                ws.Cell(currentRow, 6).Value = item.UnitPrice;
+                ws.Cell(currentRow, 7).Value = item.MaterialCost;
+                ws.Cell(currentRow, 8).Value = item.CreatedBy;
+                ws.Cell(currentRow, 9).Value = item.CreatedDate.ToString("dd/MM/yyyy");
+                currentRow++;
+            }
+        }
+
+        // ==================== GAP ROW ====================
+        currentRow += 2; // leave 1 empty row
+
+        // ==================== ASSEMBLY CHARGES ====================
+        if (chargesData.Any())
+        {
+            // Headers
+            ws.Cell(currentRow, 7).Value = "Charge Name";
+            ws.Cell(currentRow, 8).Value = "Percentage";
+            ws.Cell(currentRow, 9).Value = "Amount";
+            currentRow++;
+
+            // Data
+            foreach (var charge in chargesData)
+            {
+                ws.Cell(currentRow, 7).Value = charge.Name;
+                ws.Cell(currentRow, 8).Value = charge.Percent;
+                ws.Cell(currentRow, 9).Value = charge.CalculatedAmount;
+                currentRow++;
+            }
+        }
+        currentRow += 1;
+        ws.Cell(currentRow, 8).Value = "Grand Total";
+        ws.Cell(currentRow, 9).Value = assemblyprice.AssemblyPrice;
+
+        // ==================== SAVE AND DOWNLOAD ====================
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+        var base64 = Convert.ToBase64String(ms.ToArray());
+        await _js.InvokeVoidAsync("downloadExcelFile", base64, "BOMCostEstimation.xlsx");
+    }
+
+
+    private async Task OnPrintCostBreakdown()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (assemblyDef.AssmblyID == null || assemblyDef.AssmblyID <= 0)
+            {
+                await _js.ToastrError("Please select a valid Assembly before printing the Cost Breakdown report.");
+                return;
+            }
+
+            var headers = new[]
+            {
+                "Sl No",
+                "Item Code",
+                "Item Name",
+                "UOM",
+                "Quantity",
+                "Unit Cost",
+                "Material Cost",
+                "Labor Cost",
+                "Overhead Cost",
+                "Total Cost",
+                "Cost % of Total"
+            };
+
+            var costBreakdown = bomRows.Select((r, index) => new
+            {
+                SlNo = index + 1,
+                r.PartItemCode,
+                r.PartItemName,
+                r.UOM,
+                Quantity = r.UtilQty,
+                r.UnitPrice,
+                r.MaterialCost,
+                r.LaborCost,
+                r.TotalCost,
+                CostPercentage = grandTotalCost > 0 ? Math.Round((r.TotalCost ?? 0) / grandTotalCost * 100, 2) : 0
+            }).ToList();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "BOM Cost Breakdown",
+                headers: headers,
+                sampleData: costBreakdown
+            );
+
+            var base64 = Convert.ToBase64String(fileBytes);
+            await _js.InvokeVoidAsync("downloadExcelFile", base64, "BOMCostBreakdown.xlsx");
+
+            await _js.ToastrSuccess("Cost Breakdown printed successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPrintCostBreakdown failed.");
+            await _js.ToastrError("Failed to print Cost Breakdown.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #endregion
+
+
+
+    private decimal BaseCost =>
+        bomRows?.Sum(x => x.TotalCost ?? 0) ?? 0;
+
+    private decimal ExtraChargesTotal =>
+        AssemblyChargeVMs.Sum(x => x.CalculatedAmount ?? 0m);
+
+    // private decimal FinalGrandTotal =>
+    //     BaseCost + ExtraChargesTotal;
+
+    private decimal MaterialCost =>
+        bomRows?
+            .Where(x => !x.IsLabourMaterial)
+            .Sum(x => x.MaterialCost ?? 0) ?? 0;
+
+    private decimal LabourCost =>
+        bomRows?
+            .Where(x => x.IsLabourMaterial)
+            .Sum(x => x.MaterialCost ?? 0) ?? 0;
+
+
+    private decimal FinalGrandTotal =>
+        MaterialCost + LabourCost + ExtraChargesTotal;
+
+
+
+
+    private async Task  SetChargeType(AssemblyChargeVM charge, bool isAmount)
+    {
+        try
+        {
+            charge.IsAmount = isAmount;
+            charge.Amount = 0;
+            charge.Percent = 0;
+            charge.CalculatedAmount = 0;
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "SetChargeType failed.");
+            await _js.ToastrError("Failed to SetChargeType.");
+        }
+
+
+    }
+    private async Task OnLabourChanged(AssemblyChargeVM charge, bool value)
+    {
+        charge.IsLabour = value;
+
+        // 🔔 Show message to user
+        if (value)
+        {
+            await _js.ToastrInfo("This charge will be calculated based on Labour Cost.");
+        }
+        else
+        {
+            await _js.ToastrInfo("This charge will be calculated based on Material Cost.");
+        }
+
+        await RecalculateCharge(charge);
+    }
+
+    private async Task RecalculateCharge(AssemblyChargeVM charge)
+    {
+        try
+        {
+            if (charge.IsAmount)
+            {
+                charge.CalculatedAmount = charge.Amount;
+            }
+            else
+            {
+                if (charge.IsLabour)
+                {
+                    charge.CalculatedAmount =
+                   (LabourCost * charge.Percent) / 100;
+                }
+                else
+                {
+                    // Material charges (MaterialCost + Handling Charges)
+                    decimal materialBase = 0;
+
+                    if(charge.Name== "GST Material Cost")
+                    {
+                        materialBase = GetMaterialBase();
+                    }
+                    else
+                    {
+                        materialBase = MaterialCost;
+                    }
+
+
+                    charge.CalculatedAmount = (materialBase * charge.Percent) / 100;
+
+                    // charge.CalculatedAmount =
+                    //   (MaterialCost * charge.Percent) / 100;
+                }
+
+            }
+
+            // await CalculateRowCosts();
+            // foreach (var charges in AssemblyChargeVMs)
+            // {
+            //     await RecalculateCharge(charges);
+            // }
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "RecalculateCharge failed.");
+            await _js.ToastrError("Failed to RecalculateCharge.");
+        }
+
+    }
+    private decimal GetMaterialBase()
+    {
+        // Sum all material charges that are not GST, like Handling Charges
+        decimal handlingCharges = AssemblyChargeVMs?
+            .Where(c => c.Name == "Handling Charges")
+            .Sum(c => c.CalculatedAmount)??0m;
+
+        // MaterialCost + Handling Charges
+        return MaterialCost + handlingCharges;
+    }
+    private async Task OnItemChanged(ItemVM? item, WorkType type)
+    {
+        try
+        {
+            if (item == null)
+            {
+                assemblyDef.AssmblyID = null;
+                assemblyDef.AssemblyItemCode = null;
+                assemblyDef.AssemblyItemName = null;
+                assemblyDef.SelectedAssyItemVMs = null;
+                AssemblyChargeVMs.Clear();
+            }
+            else
+            {
+                assemblyDef.AssmblyID = item.ItemId;
+                assemblyDef.AssemblyItemCode = item.ItemCode;
+                assemblyDef.AssemblyItemName = item.ItemName;
+                assemblyDef.SelectedAssyItemVMs = item;
+
+                if (type != WorkType.JobWork && type !=WorkType.Trading)
+                {
+                    bomRows = await _costingService.GetAssemblyDefByAssemblyIdAsync(item.ItemId);
+
+                }
+                else
+                {
+                    IsAssyExistsinAssydef = true;
+                }
+                var productionCharges = await _costingService.GetAssemblyChargesByAssemblyIdAsync(item.ItemId);
+
+                LoadChargesWithSaved(
+                    productionCharges?.Select(x => new AssemblyChargeVM
+                    {
+                        AssemblyExtraChargeId = x.AssemblyExtraChargeId,
+                        AssmblyID = x.AssmblyID,
+                        Name = x.Name,
+                        IsAmount = x.IsAmount,
+                        Amount = x.Amount,
+                        Percent = x.Percent,
+                        IsLabour = x.IsLabour,
+                        CalculatedAmount = x.CalculatedAmount,
+                        IsDefault=x.IsDefault
+
+                    }).ToList(),
+                    type,item.ItemId
+                );
+          
+                await CalculateRowCosts();
+                  
+                await ResetSlno();
+                foreach (var charge in AssemblyChargeVMs)
+                {
+                    await RecalculateCharge(charge);
+                }
+
+
+                if (type != WorkType.JobWork)
+                    IsAssyExistsinAssydef = await _assyDefService.IsAssyExistsInAssyDefAsync(assemblyDef.AssmblyID.Value);
+
+
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error in OnItemChanged ({type})");
+            await _js.ToastrError("Failed to process selection. Please try again.");
+        }
+    }
+    // Load defaults + merge saved charges
+ private async Task LoadChargesWithSaved(
+    List<AssemblyChargeVM>? savedCharges,
+    WorkType type,
+    int? itemid)
+{
+    var savedDict = savedCharges?.ToDictionary(s => s.Name);
+
+    var itemDetails = await _assyDefService.GetItemByItemIdAsync(itemid);
+
+    decimal tax = 0;
+    decimal handlingCharges = 0;
+
+    if (itemDetails != null)
+    {
+        tax = itemDetails.CGST + itemDetails.SGST + itemDetails.IGST;
+        handlingCharges = itemDetails.HandlingCharges ;
+    }
+
+    AssemblyChargeVM[] defaultCharges = type switch
+    {
+        WorkType.Assembly => new[]
+        {
+            new AssemblyChargeVM { Name = "GST Labour Cost", IsAmount = false, IsLabour = true, Percent = tax, IsDefault=true },
+            new AssemblyChargeVM { Name = "Handling Charges", IsAmount = false, Percent = handlingCharges,IsDefault=true  },
+            new AssemblyChargeVM { Name = "GST Material Cost", IsAmount = false, Percent = tax,IsDefault=true  }
+        },
+        WorkType.Trading => new[]
+        {
+            new AssemblyChargeVM { Name = "Handling Charges", IsAmount = false, Percent = handlingCharges,IsDefault=true  },
+            new AssemblyChargeVM { Name = "GST Material Cost", IsAmount = false, Percent = tax ,IsDefault=true }
+        },
+        WorkType.JobWork => new[]
+        {
+            new AssemblyChargeVM { Name = "GST Labour Cost", IsLabour = true, IsAmount = false, Percent = tax, IsDefault=true }
+        },
+        _ => Array.Empty<AssemblyChargeVM>()
+    };
+
+    // 🔥 If list is null, initialize it
+    if (AssemblyChargeVMs == null)
+        AssemblyChargeVMs = new List<AssemblyChargeVM>();
+
+    // 🔥 Add defaults only if not already existing
+   foreach (var def in defaultCharges)
+{
+    var existing = AssemblyChargeVMs
+        .FirstOrDefault(x => x.Name == def.Name);
+
+    if (existing == null)
+    {
+        var saved = savedDict?.GetValueOrDefault(def.Name);
+
+        AssemblyChargeVMs.Add(new AssemblyChargeVM
+        {
+            Name = def.Name,
+            IsLabour = saved?.IsLabour ?? def.IsLabour,
+            IsAmount = saved?.IsAmount ?? def.IsAmount,
+            AssemblyExtraChargeId = saved?.AssemblyExtraChargeId ?? 0,
+            AssmblyID = saved?.AssmblyID ?? 0,
+            Amount = saved?.Amount ?? def.Amount,
+            Percent = saved?.Percent ?? def.Percent,
+            CalculatedAmount = saved?.CalculatedAmount ?? 0,
+            IsDefault = saved?.IsDefault ?? def.IsDefault
+        });
+    }
+}
+
+    // 🔥 Also add saved charges that are NOT part of defaults (custom added)
+    if (savedCharges != null)
+    {
+        foreach (var saved in savedCharges)
+        {
+            if (!AssemblyChargeVMs.Any(x => x.Name == saved.Name))
+            {
+                AssemblyChargeVMs.Add(saved);
+            }
+        }
+    }
+}
+private async Task OnWorkTypeChanged(WorkType selected)
+{
+    SelectedWorkType = selected;
+
+    AssemblyChargeVMs.Clear();
+    bomRows.Clear();
+
+    assemblyDef.AssmblyID = null;
+    assemblyDef.AssemblyItemCode = null;
+    assemblyDef.AssemblyItemName = null;
+    assemblyDef.SelectedAssyItemVMs = null;
+
+    // Directly load charges
+  await  LoadChargesWithSaved(null, SelectedWorkType,0);
+
+    await InvokeAsync(StateHasChanged);
+}
+private WorkType _selectedWorkType;
+public WorkType SelectedWorkType
+{
+    get => _selectedWorkType;
+    set
+    {
+        if (_selectedWorkType != value)
+        {
+            _selectedWorkType = value;
+            _ = OnWorkTypeChanged(value); // call your async logic
+        }
+    }
+}
+
+private void RemoveCharge(AssemblyChargeVM charge)
+{
+    if (!charge.IsDefault)
+        AssemblyChargeVMs.Remove(charge);
+}
+    // WorkType enum
+    public enum WorkType
+    {
+        Assembly,
+        Trading,
+        JobWork
+    }
+    private void AddNewCharge()
+    {
+        int nextId = AssemblyChargeVMs.Any()
+            ? AssemblyChargeVMs.Max(x => x.AssemblyExtraChargeId) + 1
+            : 1;
+
+        AssemblyChargeVMs.Add(new AssemblyChargeVM
+        {
+            AssemblyExtraChargeId = nextId,
+            Name = "",
+            IsAmount = false,
+            Amount = 0,
+            Percent = 0,
+            IsLabour = false,
+            CalculatedAmount = 0
+        });
+    }
+}

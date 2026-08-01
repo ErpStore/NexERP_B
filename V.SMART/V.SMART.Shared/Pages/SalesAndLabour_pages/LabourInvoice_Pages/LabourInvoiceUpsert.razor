@@ -1,0 +1,3603 @@
+﻿@page "/LabourInvoice/create"
+@page "/LabourInvoice/create/{CustId:int}"
+@page "/LabourInvoice/update/{LabInvId:int}"
+
+@using MudBlazor
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IEInvoiceAPI
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.LabourInvoiceVM
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject ILabourInvoiceService _LabourInvoiceService
+@inject ILoggingService LoggingService
+@inject ICostingService _CostingService
+
+@inject IEinvoiceDatabaseService _einvoiceService
+@inject ReportService reportService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+
+</BsModal>
+<DetailsModal Title="Dc Details"
+              Columns="@DcColumns"
+              ColumnFields="@DcFields"
+              HiddenColumns="@DcHiddenColumns"
+              Data="@DcData"
+              IsVisible="@IsDcModalVisible"
+              IsVisibleChanged="@((val) => IsDcModalVisible = val)"
+              OnSelectedItems="OnDcSelectedAsync">
+</DetailsModal>
+
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Customer")
+    {
+        <CustomerUpsert isCustModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if(ActiveModal == "Terms")
+    {
+        <TermsUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+    else if (ActiveModal == "TDS")
+    {
+     <TDSEntryModal isDcListDetailsModelVisible=true CustId=@LabourInvoiceVM.CustId Customer=@LabourInvoiceVM.CustName DcType="LabourDc" OnClose="CloseModal" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+  position: sticky;
+  right: 0;
+  background-color: #f8f9fa;
+  z-index: 10;
+}
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Cancelled Watermark -->
+            @if ((LabourInvoiceVM?.InvCancel ?? false))
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+            else if (LabourInvoiceVM.ShortClose)
+            {
+                <div class="cancelWatermark">SHORT CLOSED</div>
+            }
+
+            <PageHeader TitleText="@(LabourInvoiceVM.LabInvId > 0 ? "Update Labour Invoice" : "Create Labour Invoice")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@LabourInvoiceFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="LabourInvoiceVM" OnValidSubmit="UpsertLabourInvoice">
+                    <ObjectGraphDataAnnotationsValidator  />
+                    <ValidationSummary />
+
+                     <div class="row g-3 mb-2 align-items-center">
+                         <!-- Correspondence Status -->
+                         @if (LabourInvoiceVM.LabInvId > 0 && !string.IsNullOrWhiteSpace(LabourInvoiceVM.LabInvNo))
+                            {
+                                <CorrespondenceStatus ReferenceType="Labour-Invoice"
+                                                        ReferenceId="@LabourInvoiceVM.LabInvId"
+                                                        ReferenceTypeName="@LabourInvoiceVM.LabInvNo" />
+                            }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <!-- =================== Customer Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Customer Information</span>
+                                    <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Customer")'>
+                                        <i class="bi bi-person-add me-1"></i> Add Customer
+                                    </button>
+                                </div>
+
+                                <div class="card-body">
+                                    <!-- Customer Autocomplete -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="CustomerVM"
+                                                                 Value="SelectedCustomer"
+                                                                 ValueChanged="@(async c => await OnCustomerChanged(c))"
+                                                                 ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                                 SearchFunc="SearchCustomers"
+                                                                 Dense="true"
+                                                                 Variant="Variant.Outlined"
+                                                                 Placeholder="Search Customer"
+                                                                 Title="Search atleast 3 letters in Customer"
+                                                                 Class="w-100 autocomplete-sm"
+                                                                 MaxItems="50"
+                                                                 Clearable="true"
+                                                                 ResetValueOnEmptyText="true"
+                                                                 Required="true"
+                                                                 AvoidSubmit="true" 
+                                                                 Disabled="@IsSomeItemsTransMade"/>
+                                        </div>
+                                    </div>
+
+                                    <!-- Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1" readonly>@LabourInvoiceVM?.CustAddress</textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- Phone -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Phone No</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@LabourInvoiceVM?.ContactNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <!-- GSTIN -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GSTIN</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@LabourInvoiceVM?.GSTNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <!-- Contact Person -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Contact Person</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                             <select class="form-select form-select-sm rounded-3 w-100"
+                                                        @bind="@LabourInvoiceVM.KindOfAttention">
+                                                    <option disabled value="">Select Contact Person</option>
+                                                    @foreach (var cp in contactPersons)
+                                                    {
+                                                        <option value="@cp.ContactPersonName">@cp.ContactPersonName</option>
+                                                    }
+                                            </select>
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.KindOfAttention)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Shipping Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Shipping Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="form-check form-switch d-flex align-items-center">
+                                                <input class="form-check-input" type="checkbox" id="SameAsShipping"
+                                                       checked="@LabourInvoiceVM.IsSameAsShipping"
+                                                       @onchange="OnShippingChange" />
+                                                <label class="form-check-label ms-2 fw-semibold"
+                                                       for="SameAsShipping">Same as Shipping</label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    @if (!LabourInvoiceVM.IsSameAsShipping)
+                                    {
+                                        <!-- Shipping To -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Shipping To</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select value="@LabourInvoiceVM.ShipAddrsId"
+                                                        class="form-select form-select-sm rounded-3 w-100"
+                                                        @onchange="OnConsigneeChangedAsync">
+                                                    <option value="">Select Shipping Address</option>
+                                                    @foreach (var consine in consineeAddress)
+                                                    {
+                                                        <option value="@consine.AltCustId">@consine.AltCustName</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        @if (LabourInvoiceVM.ShipAddrsId > 0)
+                                        {
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Address</small>
+                                                </label>
+                                                <div class="col-12 col-lg-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@LabourInvoiceVM.ShippingAddress" readonly />
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Contact No</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@LabourInvoiceVM.ShippingContactNo" readonly />
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>GSTIN</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@LabourInvoiceVM.ShippingGstin" readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+
+                                    @if (IsProcessSelectRequired)
+                                    {
+
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Process</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <MudAutocomplete T="Process"
+                                                Value="SelectedProcess"
+                                                ValueChanged="@(async c => await OnProcessChanged(c))"
+                                                ToStringFunc="@(c => c?.ProcessName ?? string.Empty)"
+                                                SearchFunc="SearchProcess"
+                                                Dense="true"
+                                                Variant="Variant.Outlined"
+                                                Placeholder="Search Process"
+                                                Title="Search atleast 3 letters in Customer"
+                                                Class="w-100 autocomplete-sm"
+                                                MaxItems="50"
+                                                Clearable="true"
+                                                ResetValueOnEmptyText="true"
+                                                Required="true"
+                                                AvoidSubmit="true" 
+                                                Disabled="@IsSomeItemsTransMade"/>
+                                            </div>
+                                        </div>
+
+                                    }
+
+                                    @if(!string.IsNullOrEmpty(LabourInvoiceVM.ACKNO) && !string.IsNullOrEmpty(LabourInvoiceVM.IRNNo))
+                                    {
+                                        <div class="accordion mb-3" id="transportEinvoice">
+                                            <div class="accordion-item border-0 shadow-sm rounded-3">
+
+                                                <h2 class="accordion-header" id="headingEInvoice">
+                                                    <button class="accordion-button collapsed fw-semibold text-primary"
+                                                            type="button"
+                                                            data-bs-toggle="collapse"
+                                                            data-bs-target="#collapseEInvoice"
+                                                            aria-expanded="false"
+                                                            aria-controls="collapseEInvoice">
+                                                        <i class="bi bi-truck me-2"></i> E-Invoice Details
+                                                    </button>
+                                                </h2>
+
+                                                <div id="collapseEInvoice"
+                                                     class="accordion-collapse collapse"
+                                                     aria-labelledby="headingEInvoice"
+                                                     data-bs-parent="#transportEinvoice">
+
+                                                    <div class="accordion-body">
+
+                                                        <!-- ACK No -->
+                                                        <div class="mb-2 row">
+                                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                                <small>ACK No.</small>
+                                                            </label>
+                                                            <div class="col-12 col-sm-9">
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm rounded-3 w-100"
+                                                                       @bind="LabourInvoiceVM.ACKNO"
+                                                                       readonly />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- ACK Date -->
+                                                        <div class="mb-2 row">
+                                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                                <small>ACK Date</small>
+                                                            </label>
+                                                            <div class="col-12 col-sm-9">
+                                                                <InputDate class="form-control form-control-sm rounded-3 w-100"
+                                                                           @bind-Value="LabourInvoiceVM.ACKNODate"
+                                                                           disabled />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- IRN No -->
+                                                        <div class="mb-2 row">
+                                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                                <small>IRN No.</small>
+                                                            </label>
+                                                            <div class="col-12 col-sm-9">
+                                                                <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                                           @bind-Value="LabourInvoiceVM.IRNNo" />
+                                                                <ValidationMessage For="@(() => LabourInvoiceVM.IRNNo)" />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- QR Code -->
+                                                        <div class="mb-2 row align-items-center">
+                                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                                <small>QR Code</small>
+                                                            </label>
+
+                                                            <div class="col-12 col-sm-9">
+                                                                @if (!string.IsNullOrEmpty(LabourInvoiceVM.SignedInvoiceQrCode))
+                                                                {
+                                                                     <img src="@($"data:image/png;base64,{LabourInvoiceVM.SignedInvoiceQrCode}")"
+                                                                         class="bg-white p-2"
+                                                                         style="width:150px;height:auto;" />
+                                                                }
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    }
+
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Labour InVoice Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Labour Invoice Details</span>
+                                    @if (LabourInvoiceVM.LabInvId > 0)
+                                    {
+                                          <div class="d-flex gap-2">
+                                                <button type="button"
+                                                        class="btn btn-sm rounded-3 @(LabourInvoiceVM.InvCancel ? "btn-success" : "btn-danger")"
+                                                        @onclick="Cancel">
+
+                                                    @if (!LabourInvoiceVM.InvCancel)
+                                                    {
+                                                        <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                                    }
+                                                </button>
+                                              <!-- Short Close / Re-Open -->
+                                                <button type="button"
+                                                    class="btn btn-sm rounded-3 @(LabourInvoiceVM.ShortClose ? "btn-success" : "btn-warning")"
+                                                    @onclick="() => AskToShortCloseAsync(LabourInvoiceVM)"
+                                                    disabled="@LabourInvoiceVM.InvCancel">
+
+                                                    @if (!LabourInvoiceVM.ShortClose)
+                                                    {
+                                                        <i class="bi bi-box-seam me-1"></i>
+                                                        <span>Short Close</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                        <span>Re-Open</span>
+                                                    }
+                                                </button>
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="card-body">
+
+                                     <div class="row mb-2">
+                                        <div class="col-12 d-flex justify-content-end">
+                                            <div class="form-check d-flex align-items-center gap-2">
+                                                    <input type="checkbox"
+                                                        class="form-check-input"
+                                                        style="border:2px solid #000;"
+                                                        @bind="LabourInvoiceVM.IsManualInvNo" @onclick="()=>ToggleAutoInvNo()" readonly="@LabourInvoiceVM.LabInvId>0" />
+                                                <label class="form-check-label text-dark">
+                                                    <small>Is Manual Inv No.</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Invoice No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Invoice No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                            placeholder="Prefix"
+                                                            maxlength="10"
+                                                            @bind-Value="@LabourInvoiceVM.Prefix"
+                                                            style="flex:0 0 130px;" />
+
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                            placeholder="Invoice No."
+                                                            maxlength="30"
+                                                            @bind-Value="@LabourInvoiceVM.LabInvNo" 
+                                                            readonly="@IsInvNoReadonly" />
+
+                                                <span class="input-group-text rounded-3">@LabourInvoiceVM.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.Prefix)" />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.LabInvNo)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Invoice Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Invoice Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                        @bind-Value="@LabourInvoiceVM.LabInvDate" />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.LabInvDate)" />
+                                        </div>
+                                    </div>
+
+                                     <!-- Reference DC -->
+                                    @if(DcPendingCount >0)
+                                    {
+                                        @if (DcPendingCount > 0)
+                                        {
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Our DC</small>
+                                                </label>
+
+                                                <div class="col-12 col-sm-9 position-relative">
+                                                    <button type="button"
+                                                            class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                            @onclick="ShowDcDetails">
+                                                        <i class="bi bi-list-ul me-1"></i> DC Details
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                    
+                                    <!-- Currency -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Currency</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    value="@LabourInvoiceVM.CurrId"
+                                                    @onchange="OnCurrencyChanged"
+                                                    disabled>
+                                                @foreach (var currency in Currencies)
+                                                {
+                                                    <option value="@currency.CurrId">@currency.CurrName</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Payment Terms -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Payment Terms</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                        rows="1"
+                                                        @bind="LabourInvoiceVM.PayTerms"></textarea>
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.PayTerms)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Delivery Terms -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Delivery Terms</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                        rows="1"
+                                                        @bind="LabourInvoiceVM.DeliveryTems"></textarea>
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.DeliveryTems)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                        rows="1"
+                                                        @bind="LabourInvoiceVM.MainRemark"></textarea>
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.MainRemark)" />
+                                        </div>
+                                    </div>
+                                     @if (LabourInvoiceVM.LabInvId>0)
+                                    {
+                                         <div class="accordion mb-3" id="transportAccordion">
+                                        <div class="accordion-item border-0 shadow-sm rounded-3">
+                                            <h2 class="accordion-header" id="headingTransport">
+                                                <button class="accordion-button collapsed fw-semibold text-primary"
+                                                        type="button"
+                                                        data-bs-toggle="collapse"
+                                                        data-bs-target="#collapseTransport"
+                                                        aria-expanded="false"
+                                                        aria-controls="collapseTransport">
+                                                        TDS Details
+                                                </button>
+                                            </h2>
+                                            <div id="collapseTransport"
+                                                 class="accordion-collapse collapse"
+                                                 aria-labelledby="headingTransport"
+                                                 data-bs-parent="#transportAccordion">
+                                                <div class="accordion-body">
+
+                                                     <!-- Transport ID -->
+                                                    <div class="mb-2 row">
+                                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                            <small>TDS Amount (In ₹) </small>
+                                                        </label>
+                                                        <div class="col-12 col-sm-9">
+                                                           <div class="d-flex align-items-center">
+                                                                <input type="number" step="any"
+                                                                       class="form-control form-control-sm rounded-3"
+                                                                       @bind="LabourInvoiceVM.TDSAmount" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center mt-1">
+
+                                                    <!-- Center Button Wrapper -->
+                                                    <div class="flex-grow-1 d-flex justify-content-center">
+                                                        <button type="button" class="btn btn-sm fw-semibold"
+                                                                style="background-color:#ffca2c; color:black; border-radius:8px;" @onclick="TDS">
+                                                            <span class="me-2"> <i class="bi bi-currency-rupee"></i></span>
+                                                            <span class="me-2"> <i class="bi bi-dash-circle"></i> </span>
+                                                            Deduct TDS
+                                                        </button>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    }
+                                   
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Item Details</span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <!-- Discount Toggle -->
+                                        <div class="d-flex align-items-center">
+                                            <label class="me-2 mb-0"><small>Discount : </small></label>
+                                            <div class="btn-group btn-group-sm rounded-pill border" role="group" aria-label="Toggle Discount Rs and %">
+                                                <input type="radio" class="btn-check" name="toggleDiscount" id="discountToggleRs" 
+                                                        @onchange='() => SetDiscountMode(true)' 
+                                                        checked="@LabourInvoiceVM.IsItemWiseDiscAmtOrPerReq" />
+                                                <label class="btn btn-outline-primary rounded-start-pill" for="discountToggleRs">@LabourInvoiceVM.Symbol</label>
+
+                                                <input type="radio" class="btn-check" name="toggleDiscount" id="discountTogglePercent" 
+                                                        @onchange='() => SetDiscountMode(false)' 
+                                                        checked="@(!LabourInvoiceVM.IsItemWiseDiscAmtOrPerReq)" />
+                                                <label class="btn btn-outline-primary rounded-end-pill" for="discountTogglePercent">%</label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Add Item Button -->
+                                        <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                            <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                              
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:70px;">SAC</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                      @if(IsLabourCost)
+                                                      {
+                                                        <th style="width:100px;">Labour Cost</th>
+                                                      }
+
+                                                    <th style="width:120px;">Qty</th>
+                                                    <th style="width:120px;">Price</th>
+                                                    <th style="width:130px;">Gross Amount</th>
+
+                                                    @if (!LabourInvoiceVM.IsItemWiseDiscAmtOrPerReq)
+                                                    {
+                                                        <th style="width:110px;">Disc %</th>
+                                                        <th style="width:110px;">Disc Amt</th>
+                                                    }
+                                                    else
+                                                    {
+                                                        <th style="width:110px;">Disc Amt</th>
+                                                    }
+
+                                                    @if (SelectedCustomer?.TaxValidate == false)
+                                                    {
+                                                        @if (SelectedCustomer?.BusiType == "Local")
+                                                        {
+                                                            <th style="width:110px;">CGST %</th>
+                                                            <th style="width:110px;">SGST %</th>
+                                                        }
+                                                        else if(SelectedCustomer?.BusiType == "InterState")
+                                                        {
+                                                            <th style="width:110px;">IGST %</th>
+                                                        }
+                                                    }
+
+                                                    <th style="width:130px;">Basic Amount</th>
+                                                    <th style="width:200px;">Remarks</th>
+                                                    <th style="width:110px;">Ref DC No.</th>
+                                                    <th style="width:110px;">Ref Dc Date</th>
+                                                    <th style="width:110px;">Ref PO No.</th>
+                                                       <th style="width:110px;">LineNo</th>
+                                                        <th style="width:110px;">Ref PO Dt.</th>
+                                                       
+                                                    <th style="width:150px;">Cost-Center</th>
+
+                                                    @if (LabourInvoiceVM?.LabourInvoiceSubVM?.Any(x=>x?.CreditNos!=null && x.CreditNos.Count>0)==true)
+                                                    {
+                                                        <th style="width:150px;">CreditNote No.</th> 
+                                                        <th style="width:150px;">CreditNote Date</th>
+                                                    }
+
+                                                    @if (!LabourInvoiceVM.InvCancel && !LabourInvoiceVM.ShortClose)
+                                                    {
+                                                        <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                    }
+                                                  
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in LabourInvoiceVM.LabourInvoiceSubVM)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @if (subitem.IsEditable  && (subitem.LabInvSubId == 0 || subitem.RefDcSubId == null) && subitem.Qty == subitem.BalQty)
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                            Value="subitem.SelectedItem"
+                                                                                            ValueChanged="@(async item => await OnItemChanged(subitem, item))"
+                                                                                            ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                            SearchFunc="SearchItems"
+                                                                                            Dense="true"
+                                                                                            Variant="Variant.Outlined"
+                                                                                            Placeholder="Search Item Code"
+                                                                                            Title="Search Atleast 3 Letters in Item-Code"
+                                                                                            Class="w-100 autocomplete-sm"
+                                                                                            MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                        Size="Size.Small"
+                                                                                        Color="Color.Primary"
+                                                                                        OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                        Edge="Edge.End"
+                                                                                        Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.SACCode</td>
+                                                        <td>@subitem.MeasureUnit</td>
+
+                                                        @if(IsLabourCost)
+                                                        {
+                                                            <td>@subitem.LabourCost</td>
+                                                        }
+
+                                                        <!-- Qty -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Qty"
+                                                                           title="Enter Quantity"
+                                                                           step="any"
+                                                                           @bind="subitem.Qty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.Qty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.Qty</span>
+                                                            }
+                                                        </td>
+
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" class="form-control form-control-sm" placeholder="Price" title="Enter Unit Price"
+                                                                        step="any"
+                                                                        @bind="subitem.UnitPrice" @bind:event="oninput"
+                                                                        @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)' readonly="@pricelock"/>
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        <!-- Line Gross -->
+                                                        <td>@FormatDecimal(subitem.LineGross)</td>
+
+                                                        <!-- Discount -->
+                                                        @if (!LabourInvoiceVM.IsItemWiseDiscAmtOrPerReq)
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number" class="form-control form-control-sm" step="any" placeholder="Disc %" title="Enter Discount %"
+                                                                            @bind="subitem.LineDiscountPercent" @bind:event="oninput"
+                                                                            @bind:after='() => OnLineDiscountPercentChanged(subitem)' />
+                                                                    <ValidationMessage For="@(() => subitem.LineDiscountPercent)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @FormatDecimal(subitem.LineDiscountPercent)
+                                                                }
+                                                            </td>
+                                                            <td>@FormatDecimal(subitem.LineDiscountAmount)</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number" class="form-control form-control-sm" step="any" placeholder="Disc Amt" title="Enter Discount Amount"
+                                                                            @bind="subitem.LineDiscountAmount" @bind:event="oninput"
+                                                                            @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)' />
+                                                                    <ValidationMessage For="@(() => subitem.LineDiscountAmount)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @FormatDecimal(subitem.LineDiscountAmount)
+                                                                }
+                                                            </td>
+                                                        }
+
+                                                        <!-- Taxes -->
+                                                        @if (SelectedCustomer?.TaxValidate == false)
+                                                        {
+                                                            @if (SelectedCustomer?.BusiType == "Local")
+                                                            {
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @onchange="e => OnTaxRateChanged(e, subitem)">
+                                                                            <option value="" disabled selected>CGST %</option>
+                                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineCGSTRate)
+                                                                    }
+                                                                </td>
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @onchange="e => OnTaxRateChanged(e, subitem)">
+                                                                            <option value="" disabled selected>SGST %</option>
+                                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineSGSTRate)
+                                                                    }
+                                                                </td>
+                                                            }
+                                                            else if (SelectedCustomer?.BusiType == "InterState")
+                                                            {
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @bind="subitem.LineIGSTRate" @bind:event="oninput"
+                                                                                @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)'>
+                                                                            <option value="" disabled selected>IGST %</option>
+                                                                            @foreach (var rate in CommonConstants.IGSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineIGSTRate)
+                                                                    }
+                                                                </td>
+                                                            }
+                                                        }
+
+                                                        <!-- Basic Amount -->
+                                                        <td>@FormatDecimal(subitem.LineBasicAmount)</td>
+
+                                                        <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputText @bind-Value="subitem.Remarks" class="form-control form-control-sm" placeholder="Enter Remarks" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remarks
+                                                            }
+                                                        </td>
+
+                                                        <!-- Ref Enquiry -->
+                                                        <td>@subitem.RefDcNo</td>
+                                                        <td>@subitem.RefDcDate?.ToString("dd/MM/yyyy")</td>
+                                                         <td>@subitem.RefPoNo</td>
+                                                         <td>@subitem.LineNo</td>
+                                                         <td>@subitem.RefPoDate?.ToString("dd/MM/yyyy")</td>
+                                                         
+
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @if (subitem.IsEditable && (subitem.RefDcSubId == 0 || subitem.RefDcSubId == null) && subitem.Qty == subitem.BalQty)
+                                                            {
+                                                                <select class="form-select form-select-sm" 
+                                                                    value="@subitem.CostId"
+                                                                    @onchange="(e => OnCostCenterChanged(e, subitem))">
+                                                                    <option value="">select CostCentre</option>
+                                                                    @foreach (var cost in CostCenterVMs.Where(c =>
+                                                                        !LabourInvoiceVM.LabourInvoiceSubVM.Any(r => r != subitem && r.CostId == c.Id)))
+                                                                    {
+                                                                        <option value="@cost.Id">@cost.ProjectNo</option>
+                                                                    }
+                                                                </select>
+                                                                <ValidationMessage For="@(() => subitem.CostId)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.ProjectNo
+                                                            }
+                                                        </td>
+
+                                                        @if (LabourInvoiceVM?.LabourInvoiceSubVM?.Any(x=>x?.CreditNos!=null && x.CreditNos.Count>0)==true)
+                                                        {
+                                                            <td>@string.Join(", ", subitem.CreditNos)</td>
+                                                            <td>@string.Join(", ", subitem.CreditDates.Select(d => d.ToString("dd/MM/yyyy")))</td>
+                                                        }
+                                                        
+                                                        <!-- Action Buttons -->
+                                                        <td class="freeze-last-col text-end">
+                                                            @if (!LabourInvoiceVM.InvCancel)
+                                                            {
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <button type="button" class="btn btn-success btn-icon btn-sm" title="Save" 
+                                                                            @onclick="async () => await SaveRow(subitem)" >
+                                                                        <i class="bi bi-check-lg"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel" 
+                                                                            @onclick="async () => await CancelEdit(subitem, LabourInvoiceVM)" >
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit" 
+                                                                            @onclick="async () => await EditRowAsync(subitem)" >
+                                                                        <i class="bi bi-pencil"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete" 
+                                                                            @onclick="async () => await RemoveRow(subitem)" >
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                }
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            <!-- Totals -->
+                                            @if (LabourInvoiceVM.LabourInvoiceSubVM?.Any() == true)
+                                            {
+                                                <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="5" class="text-end fw-bold">Totals:</td>
+                                                        <td>@LabourInvoiceVM.TotalQty</td>
+                                                        <td>Avg: @FormatDecimal(LabourInvoiceVM.AvgUnitPrice)</td>
+                                                        <td>@FormatDecimal(LabourInvoiceVM.TotalLineGross)</td>
+
+                                                        @if (!LabourInvoiceVM.IsItemWiseDiscAmtOrPerReq)
+                                                        {
+                                                            <td></td>
+                                                            <td>@FormatDecimal(LabourInvoiceVM.TotalLineDiscountAmount)</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>@FormatDecimal(LabourInvoiceVM.TotalLineDiscountAmount)</td>
+                                                        }
+
+                                                        @if (SelectedCustomer?.TaxValidate == false)
+                                                        {
+                                                            @if(SelectedCustomer?.BusiType == "Local")
+                                                            {
+                                                                <td></td>
+                                                                <td></td>
+
+                                                            }
+                                                            else if(SelectedCustomer?.BusiType == "InterState")
+                                                            {
+                                                                <td></td>
+                                                            }
+                                                        }
+
+                                                        <td>@FormatDecimal(LabourInvoiceVM.TotalLineBasicAmount)</td>
+                                                        @if(LabourInvoiceVM?.LabourInvoiceSubVM?.Any(x=>x?.CreditNos!=null && x.CreditNos.Count>0)==true)
+                                                        {
+                                                            <td colspan="11"></td>
+                                                        }else
+                                                        {
+                                                            <td colspan="9"></td>
+                                                        }
+                                                        
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+                                        </table>
+                                    </div>
+
+                                    @if(!LabourInvoiceVM.InvCancel)
+                                    {
+                                       @*  <div class="mt-2 text-start">
+                                            <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                                <i class="bi bi-plus-circle me-1"></i> Add Item
+                                            </button>
+                                        </div> *@
+                                    }
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!-- ===================Other Details Terms and Conditions ===================-->
+                        <div class="col-12 col-lg-6 mb-3">
+                            <div class="card shadow-sm rounded-4 border-0">
+                                <div class="card-body">
+                                    <div class="row g-3">
+
+                                        <!-- ================= Due Date ================= -->
+                                        <div class="col-12 col-md-7">
+                                            <label class="form-label fw-semibold text-dark">
+                                                <i class="bi bi-calendar3 me-1 text-primary"></i> Due Date
+                                            </label>
+                                            <input type="date" class="form-control form-control-sm rounded-3 shadow-sm"
+                                                   @bind="LabourInvoiceVM.DueDate" />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.DueDate)" />
+                                        </div>
+
+                                        <!-- ================= Terms & Conditions ================= -->
+                                        <div class="col-12 col-md-7">
+                                            <label class="form-label fw-semibold text-dark">
+                                                <i class="bi bi-file-text me-1 text-primary"></i> Terms & Conditions
+                                            </label>
+                                            <select class="form-select form-select-sm rounded-3 shadow-sm"
+                                                    value="@LabourInvoiceVM.TermsId"
+                                                    @onchange="OnTermsChanged">
+                                                <option value="">-- Select Terms --</option>
+                                                @if (TermsList != null && TermsList.Any())
+                                                {
+                                                    @foreach (var term in TermsList)
+                                                    {
+                                                        <option value="@term.Id">@term.Title</option>
+                                                    }
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.TermsId)" />
+                                        </div>
+
+                                        <!-- ================= Create New Terms Button ================= -->
+                                        <div class="col-12 col-md-2 d-flex align-items-end">
+                                            <button type="button" class="btn btn-sm btn-success rounded-3 w-100" 
+                                                    @onclick='() => OpenModal("Terms")'>
+                                                <i class="bi bi-plus-circle me-1"></i> New Terms
+                                            </button>
+                                        </div>
+
+                                        <!-- ================= Selected Terms Display ================= -->
+                                        @if (!string.IsNullOrEmpty(LabourInvoiceVM.Details))
+                                        {
+                                            <div class="col-12">
+                                                <div class="p-3 border rounded-3 bg-light shadow-sm">
+                                                    <h6 class="fw-bold text-primary mb-1">Details</h6>
+                                                    <p class="mb-0 text-muted">@LabourInvoiceVM.Details</p>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Tax Details Section =================== -->
+                        <div class="col-12 col-lg-6">
+                            <div class="card shadow-sm rounded-4 border-0 p-3">
+
+                                <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
+                                    <i class="bi bi-receipt-cutoff me-1 text-primary"></i> Tax & Charges
+                                </h6>
+
+                                <!-- Total Gross -->
+                                <div class="row mb-2 gx-3">
+                                    <label for="TotalGross" class="col-5 col-md-4 col-form-label text-dark">
+                                        <small>Total Gross</small>
+                                    </label>
+                                    <div class="col-7 col-md-8">
+                                        <input id="TotalGross"
+                                               class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               type="number"
+                                               value="@FormatDecimal(LabourInvoiceVM.TotalGrossAmount)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Discount -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Discount</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="discountToggle" id="discountRs"
+                                                   @onchange="() => SetDiscountType(true)"
+                                                   checked="@LabourInvoiceVM.DiscAmtOrPer"
+                                                   disabled="@(LabourInvoiceVM.TotalLineDiscountAmount > 0)" />
+                                            <label class="btn btn-outline-primary" for="discountRs">
+                                                <small>@LabourInvoiceVM.Symbol</small>
+                                            </label>
+
+                                            <input type="radio" class="btn-check" name="discountToggle" id="discountPercent"
+                                                   @onchange="() => SetDiscountType(false)"
+                                                   checked="@(!LabourInvoiceVM.DiscAmtOrPer)"
+                                                   disabled="@(LabourInvoiceVM.TotalLineDiscountAmount > 0)" />
+                                            <label class="btn btn-outline-primary" for="discountPercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-3 col-md-5">
+                                        @if (LabourInvoiceVM.DiscAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number"
+                                                   @bind="LabourInvoiceVM.DiscountAmount"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)'
+                                                   disabled="@(LabourInvoiceVM.TotalLineDiscountAmount > 0)" />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.DiscountAmount)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number"
+                                                   @bind="LabourInvoiceVM.DiscountPercent"
+                                                   @bind:after="OnDiscountPercentChanged"
+                                                   disabled="@(LabourInvoiceVM.TotalLineDiscountAmount > 0)" />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.DiscountPercent)" />
+                                            <small class="text-muted d-block text-end">
+                                                Amt: @FormatDecimal(LabourInvoiceVM.DiscountAmount)
+                                            </small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- SubTotal -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>SubTotal</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               type="number" 
+                                               value="@FormatDecimal(LabourInvoiceVM.TotalBasicAmount)" 
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Freight Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Freight Charges</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end"
+                                               type="number" @bind="LabourInvoiceVM.FreightCharges"
+                                               @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)' />
+                                        <ValidationMessage For="@(() => LabourInvoiceVM.FreightCharges)" />
+                                    </div>
+                                </div>
+
+                                <!-- P & F Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>P & F Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="packingToggle" id="packingToggleRs"
+                                                   @onchange="() => SetPAndFType(true)" checked="@LabourInvoiceVM.PackingAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="packingToggleRs"><small>@LabourInvoiceVM.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="packingToggle" id="packingTogglePercent"
+                                                   @onchange="() => SetPAndFType(false)" checked="@(!LabourInvoiceVM.PackingAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="packingTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (LabourInvoiceVM.PackingAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" @bind="LabourInvoiceVM.PackingCharges"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)' />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.PackingCharges)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" @bind="LabourInvoiceVM.PackingPercent"
+                                                   @bind:after="() => OnPandFPercentChanged()" />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.PackingPercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(LabourInvoiceVM.PackingCharges) </small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Insurance Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Insurance Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="insuranceToggle" id="insuranceToggleRs"
+                                                   @onchange="() => SetInsuranceType(true)" checked="@LabourInvoiceVM.InsuranceAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="insuranceToggleRs"><small>@LabourInvoiceVM.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="insuranceToggle" id="insuranceTogglePercent"
+                                                   @onchange="() => SetInsuranceType(false)" checked="@(!LabourInvoiceVM.InsuranceAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="insuranceTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (LabourInvoiceVM.InsuranceAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" @bind="LabourInvoiceVM.InsuranceCharges"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)' />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.InsuranceCharges)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" @bind="LabourInvoiceVM.InsurancePercent"
+                                                   @bind:after="() => OnInsurancePercentChanged()" />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.InsurancePercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(LabourInvoiceVM.InsuranceCharges)</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Total Taxable -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Total Taxable</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               value="@FormatDecimal(LabourInvoiceVM.TotalTaxable)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Taxes (CGST/SGST/IGST) -->
+                                @if (SelectedCustomer?.TaxValidate == false)
+                                {
+                                    <div class="mb-2">
+                                        @if (SelectedCustomer?.BusiType == "Local")
+                                        {
+                                            <!-- CGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>CGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!LabourInvoiceVM.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="LabourInvoiceVM.CGstRate"
+                                                                @bind:after="() => OnMainTaxRateChanged(LabourInvoiceVM.CGstRate)">
+                                                            <option value="0">-- Select CGST % --</option>
+                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => LabourInvoiceVM.CGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(LabourInvoiceVM.TotalCGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+
+                                            <!-- SGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>SGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!LabourInvoiceVM.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="LabourInvoiceVM.SGstRate"
+                                                                @bind:after="() => OnMainTaxRateChanged(LabourInvoiceVM.SGstRate)">
+                                                            <option value="0">-- Select SGST % --</option>
+                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => LabourInvoiceVM.SGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(LabourInvoiceVM.TotalSGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                        else if (SelectedCustomer?.BusiType == "InterState")
+                                        {
+                                            <!-- IGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>IGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!LabourInvoiceVM.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="LabourInvoiceVM.IGstRate"
+                                                                @bind:after="() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)"
+                                                                disabled="@(SelectedCustomer?.TaxValidate == true)">
+                                                            <option value="0">-- Select IGST % --</option>
+                                                            @foreach (var rate in CommonConstants.IGSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => LabourInvoiceVM.IGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(LabourInvoiceVM.TotalIGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                <!-- TCS Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>TCS Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="tcsToggle" id="tcsToggleRs"
+                                                   @onchange="() => SetTCSType(true)" checked="@LabourInvoiceVM.TCSAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="tcsToggleRs"><small>@LabourInvoiceVM.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="tcsToggle" id="tcsTogglePercent"
+                                                   @onchange="() => SetTCSType(false)" checked="@(!LabourInvoiceVM.TCSAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="tcsTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (LabourInvoiceVM.TCSAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" @bind="LabourInvoiceVM.TCSAmount"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)' />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.TCSAmount)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" @bind="LabourInvoiceVM.TCSPercent"
+                                                   @bind:after="() => OnTCSPercentChanged()" />
+                                            <ValidationMessage For="@(() => LabourInvoiceVM.TCSPercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @LabourInvoiceVM.TCSAmount</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Other Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Other Charges</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end"
+                                               type="number" @bind="LabourInvoiceVM.OtherCharges"
+                                               @bind:after='() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)' />
+                                        <ValidationMessage For="@(() => LabourInvoiceVM.OtherCharges)" />
+                                    </div>
+                                </div>
+
+                                <!-- Round Off -->
+                                <div class="row mb-2 gx-2 align-items-center">
+                                    <div class="col-5 col-md-4 d-flex align-items-center">
+                                        <small class="me-2 text-dark">Round Off</small>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   role="switch"
+                                                   id="roundOffSwitch"
+                                                   @bind="LabourInvoiceVM.IsRoundOffEnabled"
+                                                   @bind:after="() => _calculationService.UpdateTotalsAsync(LabourInvoiceVM)" >
+                                            <label class="form-check-label" for="roundOffSwitch"></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-7 col-md-8">
+                                       <input class="form-control form-control-sm rounded-3 text-end"
+                                               value="@FormatDecimal(LabourInvoiceVM.RoundOff)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Grand Total -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label fw-bold text-dark">
+                                        <small>Grand Total</small>
+                                    </label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 fw-bold text-primary text-end bg-warning-subtle"
+                                               value="@FormatDecimal(LabourInvoiceVM.GrandTotal)"
+                                               readonly />
+                                        @if (LabourInvoiceVM.CurrId > 1)
+                                        {
+                                            <div class="mt-1 text-end">
+                                                <small class="text-muted d-block">
+                                                    Today's value: @LabourInvoiceVM.TodayVal
+                                                </small>
+                                                <small class="fw-bold text-success d-block">
+                                                    Converted Value in Rs: @((LabourInvoiceVM.GrandTotal * LabourInvoiceVM.TodayVal).ToString("0.00"))
+                                                </small>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Amount in Words -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Amount in Words</small></label>
+                                    <div class="col-7 col-md-8 pt-1">
+                                        @if (LabourInvoiceVM.CurrId > 1)
+                                        {
+                                            <small class="fw-bold text-success d-block">
+                                                Converted Value in Rs: @FormatDecimal(LabourInvoiceVM.GrandTotal * LabourInvoiceVM.TodayVal)
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <strong>@NumberToWordsHelper.ConvertNumberToWords(LabourInvoiceVM.GrandTotal)</strong>
+                                        }
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!--Action Buttons -->
+                        @if (CanCreate || CanEdit)
+                        {
+                            @if(!LabourInvoiceVM.InvCancel)
+                            {
+                                 <div class="col-4 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(LabourInvoiceVM.LabInvId > 0 ? "Update" : "Create")
+                                    </button>
+                                </div>
+                            }
+                           
+                        }
+                         @if(LabourInvoiceVM.LabInvId>0 && string.IsNullOrEmpty(LabourInvoiceVM.ACKNO) 
+                        && string.IsNullOrEmpty(LabourInvoiceVM.IRNNo) && !LabourInvoiceVM.InvCancel && !LabourInvoiceVM.ShortClose)
+                        {
+                                <div class="col-4 col-md-3 mt-3">
+                                <button type="button" class="btn  btn-success w-100 rounded-3 rounded-3" @onclick='() => ConfirmEinvoice()'>
+                                    <i class="bi bi-person-add me-1"></i> E-Invoice
+                                </button>
+                            
+                                </div>
+                        }
+
+                         @if(LabourInvoiceVM.LabInvId>0)
+                         {
+                                <div class="col-4 col-md-3 mt-3">
+                                     <button type="button" class="btn btn-warning w-100 rounded-3" @onclick='() => OpenModal("TDS")'>
+                                         <i class="bi bi-graph-down-arrow"></i> TDS
+                                     </button>
+                                </div>
+                         }
+
+
+                        <div class="col-4 col-md-3 mt-3">
+                            <SmartBackButton Url="@($"/LabourInvoiceList?currentPage={currentPage}")" />
+                        </div>
+                        @if (CanCreate || CanEdit && LabInvId > 0)
+                        {
+                            <div class="col-12 col-md-3">
+                                <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                    <i class="bi bi-printer me-1"></i>Print
+                                </button>
+                            </div>
+                        }
+                    </div>
+                   
+                </EditForm>
+            </div>
+        </div>
+    </div>
+} 
+
+
+@code {
+
+
+
+    #region Parameters & Properties
+
+    protected override string ScreenName =>"Labour Invoice";
+
+    [Parameter] public int? LabInvId { get; set; }
+    [Parameter] public int CustId { get; set; }
+
+    private bool isProcessing = true;
+    private LabInvVM LabourInvoiceVM { get; set; } = new();
+    private PoTaxDetailVM PoTaxDetailVM { get; set; } = new();
+
+    private LabInvSubVM? rowToDelete;
+    private LabInvSubVM? rowToCancel;
+
+    private bool pricelock{ get; set; } = false;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    private string? pdfBase64;
+
+
+    private int DcPendingCount = 0;
+    private CustomerVM? SelectedCustomer;
+    private List<ContactPerson> contactPersons = new();
+    private List<CustomerIndirect> consineeAddress = new();
+    private List<Currency> Currencies = new();
+    private List<CostCenterVM> CostCenterVMs = new();
+
+    private List<TermsAndConditions> TermsList = new();
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private bool IsDcModalVisible = false;
+    private List<Dictionary<string, object>>? DcData;
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<string> DcColumns = new() { "RefDcSubId","DC No.", "DC Date","ItemId", "Item Code", "Item Name","UOM", "DC Qty","Invoice Qty","CostCenterId","Project No.","Ref PO NO", "Ref PO Date","LineNo" };
+    private List<string> DcFields = new() { "RefDcSubId","DcNo","DcDate","ItemId" ,"ItemCode", "ItemName","UOM", "Qty", "BalQty","CostCenterId" ,"ProjectNo","RefPoNo","RefPoDate","LineNo"};
+    private List<string> DcHiddenColumns = new() { "RefDcSubId", "ItemId", "CostCenterId" };
+
+    private List<PageHeader.BreadcrumbItem> LabourInvoiceFormBreadcrumbs = new()
+    {
+        new() { Text = "Sales" },
+        new() { Text = "Labour-Invoice", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private bool IsLabourCost { get; set; } = false;
+    private Process SelectedProcess;
+
+    private bool IsEinvoiceCancelRequired { get; set; } = false;
+    private bool IsProcessSelectRequired { get; set; } = false;
+
+    #endregion
+
+    public bool IsInvNoReadonly =>!(LabourInvoiceVM.IsManualInvNo ?? false) || LabInvId == 0;
+    private async Task ToggleAutoInvNo()
+    {
+        if (LabourInvoiceVM.IsManualInvNo??false)
+        {
+            LabourInvoiceVM.LabInvNo = await _LabourInvoiceService.GetInvoiceNumberAsync(LabourInvoiceVM.Suffix);
+        }
+    }
+
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            pricelock = await _LabourInvoiceService.GetPriceLockStatusAsync();    
+            Currencies = await _LabourInvoiceService.GetCurrenciesAsync();
+            TermsList = await _LabourInvoiceService.GetTermsAsync();
+            DecimalPlaces = await _LabourInvoiceService.GetDecimalPlacesAsync();
+            IsLabourCost = await _CostingService.IsLabourChargesDisplayEnabledAsync();
+            IsEinvoiceCancelRequired = await _LabourInvoiceService.EinvoiceCancelOption();
+            IsProcessSelectRequired=await _LabourInvoiceService.ProcessSelectOption();
+            if (LabInvId.HasValue)
+            {
+                await LoadExistingQuote(LabInvId.Value);
+            }
+            else if (CustId > 0)
+            {
+                await InitializeNewQuote(CustId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingQuote(int LabInvId)
+    {
+        try
+        {
+            LabourInvoiceVM = await _LabourInvoiceService.GetLabourInvByLabInvIdAsync(LabInvId);
+            if (LabourInvoiceVM == null)
+            {
+                await _js.ToastrWarning("Quotation not found.");
+                return;
+            }
+
+            SelectedCustomer = await _LabourInvoiceService.GetCustomerByIdAsync(LabourInvoiceVM.CustId);
+            SelectedProcess = await _LabourInvoiceService.GetProcessByIdAsync(LabourInvoiceVM.ProcessId??0);
+            if (SelectedCustomer != null)
+                await ApplyCustomerSelectionAsync(SelectedCustomer);
+
+            if (LabourInvoiceVM.CurrId > 0)
+                await ApplyCurrencyChange(LabourInvoiceVM.CurrId);
+
+            foreach (var LabInvSub in LabourInvoiceVM.LabourInvoiceSubVM.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[LabInvSub.ItemId.Value] =
+                    await _LabourInvoiceService.GetCorrespondenceAttachmentsCountAsync(LabInvSub.ItemId.Value, "Item");
+
+                if(IsLabourCost)
+                {
+                    if (LabInvSub.UnitPrice < LabInvSub.LabourCost)
+                    {
+                        await _js.ToastrWarning( $"Unit Price ({LabInvSub.UnitPrice:0.00}) Is less than Labour Cost ({LabInvSub.LabourCost:0.00}).");
+                    }
+                    else if(LabInvSub.UnitPrice > LabInvSub.LabourCost)
+                    {
+                        await _js.ToastrWarning( $"Unit Price ({LabInvSub.UnitPrice:0.00}) Is  Greater than than Labour Cost ({LabInvSub.LabourCost:0.00})." );
+
+                    }
+
+                }
+            }
+
+            LabourInvoiceVM.SignedInvoiceQrCode =await _LabourInvoiceService.GenerateQrBase64(LabourInvoiceVM.SignedInvoiceQrCode);
+            //Check Transaction Completed flag
+            IsSomeItemsTransMade =await CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing quotation.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingQuote failed for Labinvid: {LabInvId}");
+        }
+    }
+
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        var list = LabourInvoiceVM?.LabourInvoiceSubVM;
+        if (list == null || list.Count == 0)
+            return false;
+
+        decimal totalQty = 0, totalBalQty = 0;
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            totalQty += list[i].Qty.GetValueOrDefault();
+            totalBalQty += list[i].BalQty.Value;
+        }
+
+        return totalQty != totalBalQty;
+
+        return LabourInvoiceVM.GrandTotal != LabourInvoiceVM.Balance;
+
+
+        bool InvCancel = await _LabourInvoiceService.GetLabourInvoiceByIdIsCancelAsync(LabInvId.Value);
+
+        if (!InvCancel)
+            return true; 
+
+        if (InvCancel)
+            return true; 
+
+        if (InvCancel)
+            return true; 
+
+        return false;
+    }
+
+
+    private async Task InitializeNewQuote(int custId)
+    {
+        try
+        {
+            var customer = await _LabourInvoiceService.GetCustomerByIdAsync(custId);
+            if (customer != null)
+                await ApplyCustomerSelectionAsync(customer);
+
+            LabourInvoiceVM.Prefix = await _LabourInvoiceService.GetPrefixFromDb();
+            LabourInvoiceVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            LabourInvoiceVM.LabInvNo = await _LabourInvoiceService.GetInvoiceNumberAsync(LabourInvoiceVM.Suffix);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new quotation.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewQuote failed for CustId: {custId}");
+        }
+    }
+
+    #endregion
+
+
+    #region Customer data, Currency And Tax  Handlers
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3) 
+            return Enumerable.Empty<CustomerVM>();
+
+        try
+        {
+            var results = await _LabourInvoiceService.SearchCustomersAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<CustomerVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search customers. Please try again.");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+            await ApplyCustomerSelectionAsync(customer);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnCustomerChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting");
+            contactPersons.Clear();
+            await ResetQuoteDefaults();
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+            SelectedCustomer = customer;
+            LabourInvoiceVM.CustId = customer?.CustId ?? 0;
+            LabourInvoiceVM.CustName = customer?.CustName;
+            LabourInvoiceVM.CustAddress = customer?.CustAddr;
+            LabourInvoiceVM.GSTNo = customer?.GSTNo;
+            LabourInvoiceVM.ContactNo = customer?.ContactNo;
+
+            if (customer == null)
+            {
+                contactPersons.Clear();
+                consineeAddress.Clear();
+                CostCenterVMs.Clear();
+                await ResetQuoteDefaults();
+                return;
+            }
+
+            // Load related data
+            contactPersons = await _LabourInvoiceService.GetContactPersonsAsync(customer.CustId);
+            consineeAddress = await _LabourInvoiceService.GetConsigneeAddressesAsync(customer.CustId);
+
+            var usedCostCenters = LabourInvoiceVM.LabourInvoiceSubVM
+                .Where(x => x.CostId.HasValue && (x.RefDcSubId == null || x.RefDcSubId == 0))
+                .Select(x => x.CostId.Value)
+                .ToHashSet();
+
+            CostCenterVMs = await _LabourInvoiceService.GetCostCenterDetailsByCustId(customer.CustId, usedCostCenters);
+
+            LabourInvoiceVM.KindOfAttention = contactPersons.Count == 1 ? contactPersons.First().ContactPersonName : string.Empty;
+
+            // Tax logic
+            if (!customer.TaxValidate)
+            {
+                var lastInvoice = await _LabourInvoiceService.GetLastinvoiceNoAsync(customer.CustId);
+                if (lastInvoice != null)
+                {
+                    LabourInvoiceVM.CGstRate = lastInvoice.CGstRate;
+                    LabourInvoiceVM.SGstRate = lastInvoice.SGstRate;
+                    LabourInvoiceVM.IGstRate = lastInvoice.IGstRate;
+                }
+                else
+                {
+                    if (string.Equals(customer.BusiType, "Local", StringComparison.OrdinalIgnoreCase) && customer.TaxValidate == false )
+                    {
+                        LabourInvoiceVM.CGstRate = CommonConstants.GetGST(9.000m);
+                        LabourInvoiceVM.SGstRate = CommonConstants.GetGST(9.000m);
+                        LabourInvoiceVM.IGstRate = CommonConstants.GetIGST(0.000m);
+                    }
+                    else if (string.Equals(customer.BusiType, "InterState", StringComparison.OrdinalIgnoreCase) && customer.TaxValidate == false )
+                    {
+                        LabourInvoiceVM.CGstRate = CommonConstants.GetGST(0.000m);
+                        LabourInvoiceVM.SGstRate = CommonConstants.GetGST(0.000m);
+                        LabourInvoiceVM.IGstRate = CommonConstants.GetIGST(18.000m);
+                    }
+                }
+            }
+
+            // Currency
+            LabourInvoiceVM.CurrId = (customer.CurrId.HasValue && customer.CurrId > 0) ? customer.CurrId.Value : 1;
+            await ApplyCurrencyChange(LabourInvoiceVM.CurrId);
+
+            //Pending EnquiryDetails
+            DcPendingCount = await _LabourInvoiceService.GetPendingLabourDcOutCountAsync(customer.CustId);
+
+            // Update totals
+            await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {customer?.CustId}");
+            await _js.ToastrError("Failed to apply customer selection. Please try again.");
+        }
+    }
+
+    private async Task OnCurrencyChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int selectedId))
+            await ApplyCurrencyChange(selectedId);
+    }
+
+    private async Task ApplyCurrencyChange(int currencyId)
+    {
+        var selectedCurrency = await _LabourInvoiceService.GetCurrencyByIdAsync(currencyId);
+        if (selectedCurrency == null) return;
+
+        LabourInvoiceVM.CurrName = selectedCurrency.CurrName;
+        LabourInvoiceVM.Symbol = selectedCurrency.Symbol;
+        LabourInvoiceVM.CurrId = selectedCurrency.CurrId;
+
+        if (currencyId > 1)
+            LabourInvoiceVM.TodayVal = await _LabourInvoiceService.GetLatestCurrencyValueAsync(currencyId) ?? 0m;
+    }
+
+    private async Task ResetQuoteDefaults()
+    {
+        LabourInvoiceVM.CGstRate = 0m;
+        LabourInvoiceVM.SGstRate = 0m;
+        LabourInvoiceVM.IGstRate = 0m;
+    }
+
+    private async Task OnShippingChange(ChangeEventArgs e)
+    {
+        try
+        {
+            LabourInvoiceVM.IsSameAsShipping = (bool)e.Value;
+
+            if (!LabourInvoiceVM.IsSameAsShipping && SelectedCustomer != null)
+            {
+                consineeAddress = await _LabourInvoiceService.GetConsigneeAddressesAsync(SelectedCustomer.CustId);
+            }
+            else
+            {
+                consineeAddress.Clear();
+                ResetShippingDefaults();
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                $"Error while toggling shipping address for CustId={SelectedCustomer?.CustId}");
+        }
+    }
+
+    private async Task OnConsigneeChangedAsync(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var selectedId) || selectedId == 0)
+            {
+                LabourInvoiceVM.IsSameAsShipping = true; 
+                ResetShippingDefaults();
+
+                StateHasChanged();
+                return;
+            }
+            LabourInvoiceVM.IsSameAsShipping = false; 
+
+            var selectedConsignee = consineeAddress.FirstOrDefault(c => c.AltCustId == selectedId);
+            if (selectedConsignee == null)
+                return;
+
+            LabourInvoiceVM.ShipAddrsId = selectedConsignee.AltCustId;
+            LabourInvoiceVM.ShippingAddress = string.Join(" ",
+                new[] { selectedConsignee.AltCustAddr1, selectedConsignee.AltCustAddr2 }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+            LabourInvoiceVM.ShippingGstin = selectedConsignee.GSTNo ?? string.Empty;
+            LabourInvoiceVM.ShippingContactNo = selectedConsignee.ContactNo ?? string.Empty;
+
+            await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnConsigneeChangedAsync");
+        }
+    }
+
+    private void ResetShippingDefaults()
+    {
+        LabourInvoiceVM.ShipAddrsId = null;
+        LabourInvoiceVM.ShippingName = null;
+        LabourInvoiceVM.ShippingAddress = null;
+        LabourInvoiceVM.ShippingGstin = null;
+        LabourInvoiceVM.ShippingContactNo = null;
+    }
+
+    #endregion
+
+
+    #region Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _LabourInvoiceService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(LabInvSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItem = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.SACCode = item.SACCode;
+                subitem.MeasureUnit = item.MeasureUnit;
+                subitem.LabourCost = item.AssemblyPrice;
+
+                if (LabourInvoiceVM?.CustId != null && subitem.ItemId.HasValue)
+                {
+
+
+                    decimal fetchedPrice = await _LabourInvoiceService.GetBulkLastUnitPricesItemIdAsync( subitem.ItemId ?? 0, LabourInvoiceVM.CustId,subitem.RefDcSubId ?? 0);
+
+                    if (fetchedPrice > 0)
+                    {
+                        subitem.UnitPrice = fetchedPrice;
+                    }
+                }
+                else
+                {
+                    var rates = await _LabourInvoiceService.GetBulkLastUnitPricesAsync(
+                        new List<int> { subitem.ItemId.Value },
+                        LabourInvoiceVM.CustId
+                    );
+
+                    if (rates.TryGetValue(subitem.ItemId.Value, out decimal rate))
+                    {
+                        subitem.UnitPrice = rate;
+                    }
+
+
+                }
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _LabourInvoiceService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+
+
+                    if(IsLabourCost)
+                    {
+                        if (subitem.UnitPrice < subitem.LabourCost)
+                        {
+                            _js.ToastrWarning( $"Unit Price ({subitem.UnitPrice:0.00}) Is less than Labour Cost ({subitem.LabourCost:0.00}).");
+                        }
+                        else if(subitem.UnitPrice > subitem.LabourCost)
+                        {
+                            _js.ToastrWarning( $"Unit Price ({subitem.UnitPrice:0.00}) Is  Greater than than Labour Cost ({subitem.LabourCost:0.00})." );
+
+                        }
+
+                    }
+                }
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItem = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.SACCode = null;
+                subitem.MeasureUnit = null;
+                subitem.UnitPrice = null;
+            }
+
+            await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    private bool IsItemAlreadySelected(int itemId, int? currentItemId)
+    {
+        return LabourInvoiceVM.LabourInvoiceSubVM?.Any(q => q.ItemId == itemId && q.ItemId != currentItemId) == true;
+    }
+
+    #endregion
+
+
+    #region Quantity Handlers
+
+    private async Task OnQtyChange(ChangeEventArgs e, LabInvSubVM SubVM)
+    {
+        try
+        {
+            // Common validation: Qty must be positive
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.Qty = 0;
+                SubVM.BalQty = 0;
+                SubVM.CrBalQty = 0;
+                await _js.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+
+            // NEW quote line
+            if (SubVM.LabInvSubId == 0)
+            {
+                if (SubVM.RefDcSubId > 0)
+                {
+                    var enqBalQty = await _LabourInvoiceService.GetLabourdcOutItemBalQtyFromEnqSubId(SubVM.RefDcSubId.Value);
+
+                    if (newQty <= enqBalQty)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                        SubVM.CrBalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.Qty = enqBalQty;
+                        SubVM.BalQty = enqBalQty;
+                        SubVM.CrBalQty = enqBalQty;
+                        await _js.ToastrWarning($"Qty can't be greater than Enquiry Balance Qty ({enqBalQty}).");
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty;
+                    SubVM.CrBalQty = newQty;
+                }
+            }
+            // EXISTING quote line
+            else
+            {
+                var original = await _LabourInvoiceService.GetInvoiceSubItemDetailByinvoiceSubIdAsync(SubVM.LabInvSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.Qty - original.BalQty;
+
+                // Cannot decrease below transacted quantity
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.Qty = alreadyTransacted;
+                    SubVM.BalQty = 0;
+                    SubVM.CrBalQty = 0;
+                    await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                if (SubVM.RefDcSubId > 0)
+                {
+                    var enqBalQty = await _LabourInvoiceService.GetLabourdcOutItemBalQtyFromEnqSubId(SubVM.RefDcSubId.Value);
+                    var maxAllowedQty = original.Qty + enqBalQty;
+
+                    if (newQty > maxAllowedQty)
+                    {
+                        SubVM.Qty = maxAllowedQty;
+                        SubVM.BalQty = maxAllowedQty - alreadyTransacted;
+                        SubVM.CrBalQty = SubVM.BalQty;
+                        await _js.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                    }
+                    else
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted;
+                        SubVM.CrBalQty = SubVM.BalQty;
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty - alreadyTransacted;
+                    SubVM.CrBalQty = SubVM.BalQty;
+                }
+            }
+            await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OnQtyChange failed for LabInvSubId: {SubVM?.RefDcSubId}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(LabInvSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.Qty == null || row.Qty <= 0)
+                errors.Add("Quantity must be greater than 0.");
+
+            if (row.UnitPrice == null || row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = LabourInvoiceVM.LabourInvoiceSubVM.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            LabourInvoiceVM.LabourInvoiceSubVM.Add(new LabInvSubVM
+            {
+                LabInvId  = LabourInvoiceVM.LabInvId,
+                IsEditable = true
+            });
+
+            await ResetSlno();
+            await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(LabInvSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            // Ensure at least one editable row exists for new entries
+            if (!LabourInvoiceVM.LabourInvoiceSubVM.Any(x => x.IsEditable))
+            {
+                LabourInvoiceVM.LabourInvoiceSubVM.Add(new LabInvSubVM
+                {
+                    LabInvId = LabourInvoiceVM.LabInvId,
+                    IsEditable = true
+                });
+            }
+
+            await ResetSlno();
+            await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for LabInvSubId: {item?.LabInvSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(LabInvSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItem == null && item.ItemId > 0)
+            {
+                item.SelectedItem = await _LabourInvoiceService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for LabInvSubId: {item?.LabInvSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(LabInvSubVM? item, LabInvVM? parentLabInv)
+    {
+        try
+        {
+            if(item == null || parentLabInv == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.Qty.HasValue || item.Qty.Value <= 0) ||
+                (!item.UnitPrice.HasValue || item.UnitPrice.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentLabInv.LabourInvoiceSubVM.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for LabInvSubId: {item?.LabInvSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(LabInvSubVM item)
+    {
+        try
+        {
+            if (LabourInvoiceVM.LabourInvoiceSubVM.Count == 1 && item.LabInvSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if ((item.Qty ?? 0) != (item.BalQty ?? 0))
+            {
+                await _js.ToastrWarning("This row cannot be deleted because some transactions are done.");
+                return;
+            }
+
+            bool exist = false;
+
+            exist = await _LabourInvoiceService.HasAnyItemOrInvoiceCreditNoteAsync(item.LabInvSubId);
+            if (exist)
+            {
+                await _js.ToastrWarning("Cannot delete this invoice. Credit Note already exists for this invoice or its items.");
+                return;
+            }
+
+
+
+            if (item.ItemId == 0)
+            {
+                LabourInvoiceVM.LabourInvoiceSubVM.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                if (!LabourInvoiceVM.LabourInvoiceSubVM.Any())
+                    LabourInvoiceVM.LabourInvoiceSubVM = new List<LabInvSubVM>();
+
+                await ResetSlno();
+                await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for LabInvSubId: {item?.LabInvSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in LabourInvoiceVM.LabourInvoiceSubVM)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Customer" => "Add New Customer",
+                "Item" => "Add New Item",
+                "Terms" => "Add New Terms and Conditions",
+                "Attachments" => "Attached Drawings",
+                "TDS" => "TDS Details",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Terms")
+            {
+                TermsList = await _LabourInvoiceService.GetTermsAsync();
+            }
+
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if (!LabInvId.HasValue || LabInvId == 0)
+            {
+                await _js.ToastrError("Labour Invoice cancel is not allowed before saving the enquiry.");
+                return;
+            }
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrError("Some Items Transaction Are Made!.. You Can't Cancel the Complete Labour Invoice");
+                return;
+            }
+
+            if (LabourInvoiceVM.ShortClose)
+            {
+                await _js.ToastrError("Labour Invoice  is already short closed. You can't cancel it.");
+                return;
+            }
+
+            // If ANY item is already cancelled → stop GRN cancel
+            if (LabourInvoiceVM.LabourInvoiceSubVM.Any(s => s.ItemCancel))
+            {
+                await _js.ToastrWarning("Labour Invoice cannot be cancelled — one or more items are already cancelled.");
+                return;
+            }
+
+            if (LabourInvoiceVM.GrandTotal!=LabourInvoiceVM.Balance)
+            {
+                await _js.ToastrError("Deletion not allowed. Payments have already been processed for this Labour Invoice.");
+                return;
+
+            }
+
+            bool exist = false;
+            foreach (var refId in LabourInvoiceVM.LabourInvoiceSubVM)
+            {
+                exist = await _LabourInvoiceService.HasAnyItemOrInvoiceCreditNoteAsync(refId.LabInvSubId);
+                if (exist)
+                {
+                    await _js.ToastrWarning("Cannot Cancel this invoice. Credit Note already exists for this invoice or its items.");
+                    return;
+                }
+            }
+
+            // if (!IsEinvoiceCancelRequired)
+            // {
+            //     if (!string.IsNullOrEmpty(LabourInvoiceVM.ACKNO) && !string.IsNullOrEmpty(LabourInvoiceVM.IRNNo))
+            //     {
+            //         await _js.ToastrWarning("Cannot delete this invoice. E-Invoice already exists for this invoice or its items.");
+            //         return;
+            //     }
+            // }
+
+            if(LabourInvoiceVM.InvCancel)
+            {
+                var subs = await _LabourInvoiceService.GetLabInvSubDetailsByInvIdAsync(LabourInvoiceVM.LabInvId);
+
+                if (subs == null || subs.Count == 0)
+                    return;
+
+                foreach (var sub in subs)
+                {
+                    await _LabourInvoiceService.ValidateInvoiceBalanceBeforeRevertAsync(sub);
+                }
+            }
+
+            if(IsSomeItemsTransMade)
+            {
+                await _js.ToastrError("Some Items Transaction Are Made!.. You Can't Cancel the Complete Labour Invoice");
+                return;
+            }
+
+
+            if (!LabourInvoiceVM.InvCancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this Labour Invoice?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this Labour Invoice?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+            LabourInvoiceVM = await _LabourInvoiceService.GetLabourInvByLabInvIdAsync(LabourInvoiceVM.LabInvId);
+            await _js.ToastrError( "Cannot revert Labour Invoice. Invoice quantity exceeds the available Labour DC Outgoing balance Qty.");
+            await LoggingService.LogDeveloperError(ex, "Error in  Sales Invoice Cancel() method");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Labour Invoice .Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Labour Invoice Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                case "Cancel":
+                case "Revert":
+                    await CancelInvoice();
+                    break;
+                case "ShortClose":
+                    await ShortCloseLabourInvoice();
+                    break;
+                case "ItemCancel":
+                    await CancelItem(rowToCancel);
+                    break;
+                case "TDS":
+                    await UpdateTDS();
+                    break;
+                case "EInvoice":
+                    await GenerateEInvoice();
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task CancelItem(LabInvSubVM rowToCancel)
+    {
+        if (rowToCancel == null) return;
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!rowToCancel.ItemCancel)
+            {
+                rowToCancel.ItemCancel = true;
+                rowToCancel.CancelItemReason = cancelReason;
+
+                await _LabourInvoiceService.UpdateItemCancelAndAddorRevertAsync(rowToCancel);
+                await LoggingService.LogUserAction(
+                UserName: username,
+                Machine: machine,
+                IP_Address: ip,
+                screen: "Labour SCN",
+                action: $"Cancelled Labour Invoice No:{LabourInvoiceVM.LabInvNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"SCN No: {LabourInvoiceVM.LabInvNo}");
+
+            }
+            else
+            {
+                rowToCancel.ItemCancel = false;
+                rowToCancel.CancelItemReason = string.Empty; ;
+                await _LabourInvoiceService.UpdateItemCancelAndAddorRevertAsync(rowToCancel);
+
+                await LoggingService.LogUserAction(
+                username, machine, ip,
+                screen: "Labour SCN",
+                action: $"Reverted Labour SCN No: {LabourInvoiceVM.LabInvNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"Reason: {cancelReason}");
+            }
+
+            LabourInvoiceVM.LabourInvoiceSubVM = await _LabourInvoiceService.GetLabourInvSubByInvIdAsync(LabourInvoiceVM.LabInvId);
+
+            await ResetSlno();
+
+            var toastMessage = rowToCancel.ItemCancel
+                ? "Item cancelled successfully."
+                : "Item has been reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+            rowToCancel = null;
+
+            LabourInvoiceVM = await _LabourInvoiceService.GetLabourInvByLabInvIdAsync(LabourInvoiceVM.LabInvId);
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            LabourInvoiceVM = await _LabourInvoiceService.GetLabourInvByLabInvIdAsync(LabourInvoiceVM.LabInvId);
+            await _js.ToastrError("An error occurred while CancelItem the Item.");
+            await LoggingService.LogDeveloperError(ex, "[UpdateItemCancelAndAddorRevertAsync] Validation issue");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            rowToCancel = null;
+            await _js.ToastrError("An error occurred while cancelling/reverting the Item.");
+            await LoggingService.LogDeveloperError(ex, $"Item Cancel/Reverse failed for SCNId: {LabourInvoiceVM.LabInvId}");
+        }
+        finally
+        {
+            rowToCancel = null;
+            isProcessing = false;
+        }
+    }
+    private async Task ShortCloseLabourInvoice()
+    {
+        if (LabourInvoiceVM == null)
+        {
+            await _js.ToastrError("No Labour SCN selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            LabourInvoiceVM.ShortClose = !LabourInvoiceVM.ShortClose;
+            await _LabourInvoiceService.UpsertlabourInvoiceShortCloseAsync(LabourInvoiceVM);
+
+            StateHasChanged();
+
+            string msg = LabourInvoiceVM.ShortClose
+                 ? "Labour Invoice  ShortClose Successfully!"
+                 : "Labour Invoice ReOpen Successfully!";
+            await _js.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while updating ShortClose");
+            await LoggingService.LogDeveloperError(ex, "Error in ShortClose()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelInvoice()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!LabourInvoiceVM.InvCancel)
+            {
+                LabourInvoiceVM.InvCancel = true;
+                LabourInvoiceVM.CancelDate = DateTime.Now;
+                LabourInvoiceVM.CancelReason = cancelReason;
+
+                LabourInvoiceVM.CanceledBy = username;
+
+                await _LabourInvoiceService.UpdatedCancelStatusAndAddOrRevertQty(LabourInvoiceVM);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Labour Invoice",
+                    action: $"Cancelled Labour Invoice: {LabourInvoiceVM.LabInvNo}",
+                    additionalInfo: $"Labour Invoice Id: {LabourInvoiceVM.LabInvId}"
+                );
+
+                await _js.ToastrSuccess("Labour Invoice cancelled successfully.");
+            }
+            else
+            {
+                LabourInvoiceVM.InvCancel = false;
+                LabourInvoiceVM.CancelDate = null ;
+                LabourInvoiceVM.CancelReason = string.Empty;
+
+                await _LabourInvoiceService.UpdatedCancelStatusAndAddOrRevertQty(LabourInvoiceVM);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Labour Invoice",
+                    action: $"Reverted Labour Invoice: {LabourInvoiceVM.LabInvNo}",
+                    additionalInfo: $"Labour Invoice Id: {LabourInvoiceVM.LabInvId}"
+                );
+
+                await _js.ToastrSuccess("Quotation has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"CancelInvoice failed for QuoteId: {LabourInvoiceVM.LabInvId}");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while cancelling/reverting the quotation.");
+            await LoggingService.LogDeveloperError(ex, $"CancelInvoice failed for QuoteId: {LabourInvoiceVM.LabInvId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.LabInvSubId > 0)
+            {
+                await _LabourInvoiceService.DeleteAndResequenceAsync(rowToDelete, LabourInvoiceVM);
+
+                LabourInvoiceVM.LabourInvoiceSubVM = await _LabourInvoiceService.GetLabourInvSubByInvIdAsync(LabourInvoiceVM.LabInvId);
+            }
+            else
+            {
+                LabourInvoiceVM.LabourInvoiceSubVM.Remove(rowToDelete);
+
+                if (!LabourInvoiceVM.LabourInvoiceSubVM.Any())
+                {
+                    LabourInvoiceVM.LabourInvoiceSubVM.Add(new LabInvSubVM
+                    {
+                        LabInvId = LabourInvoiceVM.LabInvId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < LabourInvoiceVM.LabourInvoiceSubVM.Count; i++)
+                        LabourInvoiceVM.LabourInvoiceSubVM[i].SlNo = i + 1;
+                }
+            }
+
+            await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for Labour Invoice Id: {LabourInvoiceVM.LabInvId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _LabourInvoiceService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+
+
+
+    #region Discount, P&F, Insurance, TCS
+
+    private void SetDiscountMode(bool isRs)
+    {
+        LabourInvoiceVM.IsItemWiseDiscAmtOrPerReq = isRs;
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+    }
+
+    private void SetDiscountType(bool isAmount)
+    {
+        LabourInvoiceVM.DiscAmtOrPer = isAmount;
+        LabourInvoiceVM.DiscountPercent = 0;
+        LabourInvoiceVM.DiscountAmount = 0;
+
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    private void SetPAndFType(bool isRs)
+    {
+        LabourInvoiceVM.PackingAmtOrPer = isRs;
+
+        LabourInvoiceVM.PackingPercent = 0;
+        LabourInvoiceVM.PackingCharges = 0;
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    private void SetInsuranceType(bool isRs)
+    {
+        LabourInvoiceVM.InsuranceAmtOrPer = isRs;
+        LabourInvoiceVM.InsurancePercent = 0;
+        LabourInvoiceVM.InsuranceCharges = 0;
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    private void SetTCSType(bool isRs)
+    {
+        LabourInvoiceVM.TCSAmtOrPer = isRs;
+        LabourInvoiceVM.TCSAmount = 0;
+        LabourInvoiceVM.TCSPercent = 0;
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    private void OnLineDiscountPercentChanged(LabInvSubVM subitem)
+    {
+        if (subitem.Qty > 0 && subitem.UnitPrice > 0)
+        {
+            var gross = subitem.Qty * subitem.UnitPrice;
+            subitem.LineDiscountAmount = (gross * subitem.LineDiscountPercent / 100m);
+            LabourInvoiceVM.DiscountPercent = 0;
+        }
+        else
+        {
+            subitem.LineDiscountAmount = 0;
+        }
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    private void OnDiscountPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    private void OnPandFPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    private void OnInsurancePercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    private void OnTCSPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+    #endregion
+
+
+    #region Tax
+
+    private async Task OnTaxRateChanged(ChangeEventArgs e, LabInvSubVM subitem)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal newRate))
+        {
+            subitem.LineCGSTRate = newRate;
+            subitem.LineSGSTRate = newRate;
+
+            await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnMainTaxRateChanged(decimal newRate)
+    {
+        LabourInvoiceVM.CGstRate = newRate;
+        LabourInvoiceVM.SGstRate = newRate;
+
+        await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+        StateHasChanged();
+    }
+
+    #endregion
+
+
+    #region CostCenter And terms
+
+    private Task OnCostCenterChanged(ChangeEventArgs e, LabInvSubVM row)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            row.CostId = selectedId;
+
+            var selectedCostCenter = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            row.ProjectNo = selectedCostCenter?.ProjectNo; // Will be null if not found
+        }
+        else
+        {
+            // No selection or invalid selection
+            row.CostId = null;
+            row.ProjectNo = null;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OnTermsChanged(ChangeEventArgs e)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            var selectedTerm = TermsList.FirstOrDefault(t => t.Id == selectedId);
+            LabourInvoiceVM.TermsId = selectedTerm?.Id ?? null;
+            LabourInvoiceVM.Details = selectedTerm?.Details ?? string.Empty;
+        }
+        else
+        {
+            LabourInvoiceVM.Details = string.Empty;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+
+    #region UpsertLabourInvoice Operations
+
+    private async Task UpsertLabourInvoice()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            LabourInvoiceVM.LabourInvoiceSubVM.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.Qty.HasValue || x.Qty == 0) &&
+                (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (!LabourInvoiceVM.LabourInvoiceSubVM.Any())
+            {
+                await _js.ToastrError("Cannot save a Labour Invoice without valid items.");
+                return;
+            }
+
+            // Validate each line
+            foreach (var line in LabourInvoiceVM.LabourInvoiceSubVM)
+            {
+                bool isValid = await ValidateLabInvLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewQuote = LabourInvoiceVM.LabInvId== 0;
+
+            try
+            {
+                await _LabourInvoiceService.UpsertLabourInvoiceAsync(LabourInvoiceVM);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewQuote)
+                await _js.ToastrSuccess("Labour Invoice saved successfully.");
+            else
+                await _js.ToastrSuccess("Labour Invoice  updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/LabourInvoiceList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertLabourInvoice failed.");
+            await _js.ToastrError("Error saving Labour Invoice.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateLabInvLineAsync(LabInvSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.Qty.HasValue || line.Qty <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemId}: Quantity must be greater than 0.");
+                return false;
+            }
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemId}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            // Qty vs Enquiry / Already Transacted validation
+            if (line.LabInvSubId == 0 && line.RefDcSubId > 0)
+            {
+                var enqBalQty = await _LabourInvoiceService.GetLabourdcOutItemBalQtyFromEnqSubId(line.RefDcSubId.Value);
+                if (line.Qty > enqBalQty)
+                {
+                    line.Qty = enqBalQty;
+                    line.BalQty = enqBalQty;
+                    line.CrBalQty = enqBalQty;
+                    await _js.ToastrWarning($"Qty cannot exceed Enquiry Balance Qty ({enqBalQty}).");
+                    return false;
+                }
+            }
+            else if (line.LabInvSubId > 0)
+            {
+                bool exist = false;
+                exist = await _LabourInvoiceService.HasAnyItemOrInvoiceCreditNoteAsync(line.LabInvSubId);
+                if (exist)
+                {
+                    await _js.ToastrWarning("Cannot modify this invoice. Credit Note already exists for this invoice or its items.");
+                    return false;
+                }
+                
+
+                var original = await _LabourInvoiceService.GetInvoiceSubItemDetailByinvoiceSubIdAsync(line.LabInvSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty ?? 0m;
+                    decimal origQty = original.Qty ?? 0m;
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.Qty < alreadyTransacted)
+                    {
+                        line.Qty = alreadyTransacted;
+                        line.BalQty = 0m;
+                        line.CrBalQty = 0m;
+                        await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = line.Qty.GetValueOrDefault() - origQty;
+                        line.BalQty = Math.Max(0m, origBalQty + difference);
+                        line.CrBalQty = line.BalQty;
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidateQuoteLineAsync failed.");
+            await _js.ToastrError("Error validating Labour Invoice line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+
+    #region Labour Dc Outgoing Selection
+
+    private async Task ShowDcDetails()
+    {
+        if (LabourInvoiceVM?.CustId != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                DcData = await _LabourInvoiceService.GetDcDetailsByCustId(LabourInvoiceVM.CustId);
+                IsDcModalVisible = true;
+            }
+            catch (Exception ex)
+
+            {
+                await LoggingService.LogDeveloperError(ex, "ShowDcDetails failed.");
+                await _js.ToastrError("Error fetching Labour Invoice details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnDcSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (LabourInvoiceVM.LabourInvoiceSubVM == null)
+            LabourInvoiceVM.LabourInvoiceSubVM = new List<LabInvSubVM>();
+
+        int custId = LabourInvoiceVM.CustId;
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .ToList();
+
+            var priceDict = await _LabourInvoiceService.GetBulkLastUnitPricesAsync(itemIds, custId ) ;
+           var LabourCost = await _CostingService.GetBulkLabourCostsAsync(itemIds);
+
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? RefDcSubId = item.ContainsKey("RefDcSubId") && item["RefDcSubId"] != null
+                    ? Convert.ToInt32(item["RefDcSubId"])
+                    : (int?)null;
+                  
+
+                decimal preSetUnitPrice = await _LabourInvoiceService.GetBulkLastUnitPricesItemIdAsync(itemId, custId , RefDcSubId ??0) ;
+
+                decimal finalUnitPrice = preSetUnitPrice > 0 
+                                ? preSetUnitPrice 
+                                : (priceDict.TryGetValue(itemId, out var price) ? price : 0);
+
+                if (LabourInvoiceVM.LabourInvoiceSubVM.Any(x => x.ItemId == itemId && x.RefDcSubId == RefDcSubId))
+                    continue;
+
+                var subVm = new LabInvSubVM
+                {
+                    RefDcSubId = RefDcSubId,
+                    RefDcNo = item.ContainsKey("DcNo") ? item["DcNo"]?.ToString() : "",
+                    RefDcDate = item.ContainsKey("DcDate") && item["DcDate"] != null
+                        ? Convert.ToDateTime(item["DcDate"])
+                        : null,
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    SACCode  = item.ContainsKey("SACCode") ? item["SACCode"]?.ToString() : "",
+                    MeasureUnit  = item.ContainsKey("UOM") ? item["UOM"]?.ToString() : "",
+                    LabourCost=LabourCost.TryGetValue(itemId,out var Labourprice)? Labourprice : 0m,
+                    // "DC Qty","Invoice Qty"
+                    Qty = item.ContainsKey("BalQty") && item["BalQty"] != null ? Convert.ToInt32(item["BalQty"]) : 0,
+                    BalQty = item.ContainsKey("BalQty") && item["BalQty"] != null ? Convert.ToInt32(item["BalQty"]) : 0,
+                    CrBalQty=item.ContainsKey("BalQty") && item["BalQty"] != null ? Convert.ToInt32(item["BalQty"]) : 0,
+                    UnitPrice = finalUnitPrice,
+                    CostId = item.ContainsKey("CostCenterId") && item["CostCenterId"] != null
+                            ? (Convert.ToInt32(item["CostCenterId"]) == 0 ? (int?)null : Convert.ToInt32(item["CostCenterId"]))
+                            : (int?)null,
+                    ProjectNo = item.ContainsKey("ProjectNo") ? item["ProjectNo"]?.ToString() : "",
+                    RefPoNo = item.ContainsKey("RefPoNo") 
+                        ? item["RefPoNo"]?.ToString() 
+                        : "",
+
+                    RefPoDate =  item.ContainsKey("RefPoDate") && item["RefPoDate"] != null
+                            ? Convert.ToDateTime(item["RefPoDate"])
+                            : null,
+
+                    LineNo =item.ContainsKey("LineNo") && item["LineNo"] != null ? Convert.ToInt32(item["LineNo"]) : 0,
+
+                    CreditNos = new List<string>(),    
+                    CreditDates = new List<DateTime>(),
+
+                    IsEditable = false
+                };
+
+                LabourInvoiceVM.LabourInvoiceSubVM.Add(subVm);
+                var taxDetailVM= await _LabourInvoiceService.GetPoTaxDataByRefDcSubIdAsync(RefDcSubId??0);
+               await BindPoTaxToInvoice(subVm, LabourInvoiceVM, taxDetailVM);
+             
+                await _calculationService.UpdateTotalsAsync(LabourInvoiceVM);
+            }
+
+            int slNo = 1;
+            foreach (var row in LabourInvoiceVM.LabourInvoiceSubVM)
+            {
+                row.SlNo = slNo++;
+            }
+            if(IsLabourCost)
+            {
+                 foreach (var subVm in LabourInvoiceVM.LabourInvoiceSubVM)
+                   {
+       
+                         if (subVm.UnitPrice < subVm.LabourCost)
+                         {
+                             _js.ToastrWarning($"Unit Price ({subVm.UnitPrice:0.00}) Is less than Labour Cost ({subVm.LabourCost:0.00})." );
+                         }
+                         else if(subVm.UnitPrice > subVm.LabourCost)
+                         {
+                                 _js.ToastrWarning($"Unit Price ({subVm.UnitPrice:0.00}) Is  Greater than than Labour Cost ({subVm.LabourCost:0.00})."     );
+
+                         }
+
+                   }
+             }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnDcSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected labour Invoice Dc Details items.");
+        }
+    }
+
+    #endregion
+
+    private async Task BindPoTaxToInvoice( LabInvSubVM sub,  LabInvVM inv,  PoTaxDetailVM tax)
+        {
+            if (tax == null) return;
+
+            sub.LineDiscountPercent = tax.LineDiscountPercent;
+            sub.LineDiscountAmount  = tax.LineDiscountAmount;
+
+            sub.LineCGSTRate = tax.LineCGSTRate;
+            sub.LineSGSTRate = tax.LineSGSTRate;
+            sub.LineIGSTRate = tax.LineIGSTRate;
+
+            if (inv.LabourInvoiceSubVM.Count == 1)
+            {
+                inv.DiscAmtOrPer = tax.DiscAmtOrPer;
+                inv.DiscountAmount  = tax.DiscountAmount;
+
+                inv.PackingAmtOrPer   = tax.PackingAmtOrPer;
+                inv.InsuranceAmtOrPer = tax.InsuranceAmtOrPer;
+
+                inv.InsuranceCharges = tax.InsuranceCharges;
+                inv.FreightCharges   = tax.FreightCharges;
+                inv.OtherCharges = tax.OtherCharges;
+
+                inv.TCSAmtOrPer = tax.TCSAmtOrPer;
+                inv.TCSAmount   = tax.TCSAmount;
+
+                inv.CGstRate = tax.CGstRate;
+                inv.SGstRate = tax.SGstRate;
+                inv.IGstRate = tax.IGstRate;
+            }
+        }
+
+    #region Formatting
+
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value) 
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+
+    #endregion
+    private async Task AskToShortCloseAsync(LabInvVM LabInvVMs)
+    {
+        try
+        {
+            if (LabInvVMs == null)
+            {
+                await _js.ToastrError("Invalid Labour SCN selected.");
+                return;
+            }
+
+            if (!LabInvId.HasValue || LabInvId == 0)
+            {
+                await _js.ToastrError("Labour SCN Short Close is not allowed before saving the Labour SCN.");
+                return;
+            }
+
+            if (LabInvVMs.InvCancel)
+            {
+                await _js.ToastrWarning("This Labour SCN is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!LabInvVMs.InvCancel)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Labour SCN?";
+                btnText = "Short Close";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Labour SCN?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while AskToShortCloseAsync Labour SCN.");
+            await LoggingService.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+    #region TDS Deduct
+    private async Task UpdateTDS()
+    {
+        if (LabourInvoiceVM == null)
+            return;
+        await _LabourInvoiceService.UpdateTDSAmountAsync(LabourInvoiceVM);
+        await _js.ToastrSuccess($" TDS Amount {LabourInvoiceVM.TDSAmount} ₹ Updated successfully.");
+    }
+
+    #endregion
+
+    private async Task TDS()
+    {
+        try
+        {
+           
+            if (LabourInvoiceVM.InvCancel)
+            {
+                await _js.ToastrWarning("You cannot be update TDS amount, This Invoice is already cancelled.");
+                return;
+            }
+
+            ModalTitle = "Are you sure you want to update this Invoice TDS?";
+            btnColor = "btn-success";
+            btnText = "Yes! Update";
+            confirmation = "TDS";
+               
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Labour invoice update TDS method");
+            await LoggingService.LogDeveloperError(ex, "Error in Labour invoice TDS() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    //-------------E-Invoice------------------------
+    private async Task ConfirmEinvoice()
+    {
+        try
+        {
+            if(await _LabourInvoiceService.CheckPrefixValid(ScreenName)  && string.IsNullOrEmpty(LabourInvoiceVM.Prefix))
+            {
+                await _js.ToastrWarning($"Prefix is required for the {ScreenName}  number because 'Prefix Required' is enabled in Screen Management.");
+                return;
+            }
+
+            ModalTitle = "Are you sure you want to generate the E-Invoice for this invoice?";
+            btnColor = "btn-success";
+            btnText = "Yes!";
+            confirmation = "EInvoice";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }   
+    }
+
+    private async Task GenerateEInvoice()
+    {
+        try
+        {
+             await _einvoiceService.GetRequiredDetailsFromDb(LabourInvoiceVM.LabInvNo, "Labour", false);
+             await _js.ToastrSuccess("E-Invoice generated successfully.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            
+             await _js.ToastrError("Something went wrong: " + ex.Message);
+        }
+    }
+
+    private async Task OnProcessChanged(Process? process)
+    {
+        try
+        {
+            LabourInvoiceVM.ProcessId= process?.ProcessId ?? 0; 
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnProcessChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error in OnProcessChanged");
+            await _js.ToastrError("Error while selecting");
+            contactPersons.Clear();
+            await ResetQuoteDefaults();
+        }
+    }
+
+    private async Task<IEnumerable<Process>> SearchProcess(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3) 
+            return Enumerable.Empty<Process>();
+
+        try
+        {
+            var results = await _LabourInvoiceService.SearchProcessAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<Process>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<Process>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search customers. Please try again.");
+            return Enumerable.Empty<Process>();
+        }
+    }
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(LabInvId.GetValueOrDefault(), "LabInvoice.frx", "LabInvId", LabourInvoiceVM.InvCancel, "Labour Invoice", "Sp_Print_LabourInv");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Labour Delivery Challan");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Labour Delivery Challan.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

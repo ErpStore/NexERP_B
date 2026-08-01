@@ -1,0 +1,501 @@
+﻿@page "/StockLedger"
+
+@using Microsoft.Data.SqlClient
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.IAnalysisReportService
+@using V.SMART.Shared.ViewModels.InventoryViewModel.StockAddVM
+@using MudBlazor
+@using V.SMART.Shared.ViewModels.ReportViewModel.AnalysisReportViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService _logs
+@inject CurrentUserService _userService
+@inject IJSRuntime _js
+@inject IStockLedgerReportService _stockledger
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Stock Ledger"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@StockLedgerBreadcrumbs" />
+
+
+
+
+            <div class="container-fluid mt-3">
+                <div class="row">
+
+                    <!--STORES -->
+                    <div class="col-md-3 mb-3">
+
+                        <div class="card shadow-sm mb-3 h-100">
+
+                            <div class="card-header bg-dark text-white small fw-semibold"
+                                 style="background-color: #0a535d;">
+                                <i class="bi bi-shop me-2 text-light fs-6"></i>
+                                Stores
+                            </div>
+
+                            <div class="card-body p-2">
+                                <input class="form-control form-control-sm mb-2"
+                                       placeholder="Search stores..."
+                                       @oninput="OnStoreSearchChange"
+                                       value="@storeSearch" />
+
+                                <div class="list-group" style="height:270px; overflow-y:auto;">
+
+                                    @foreach (var store in FilteredStores)
+                                    {
+                                        <button class="list-group-item list-group-item-action
+                                                    @(SelectedStore?.StoreId == store.StoreId ? "bg-info bg-opacity-25 border-info" : "")"
+                                                @onclick="() => SelectStore(store)">
+                                            @store.StoreName
+                                        </button>
+                                    }
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- RIGHT SIDE -->
+                    <div class="col-md-9">
+
+                        <!-- FILTER BAR -->
+                        <div class="card shadow-sm mb-3">
+
+                            <div class="card-body">
+
+                                <div class="row g-2 align-items-end">
+
+                                    <div class="col-md-3">
+                                        <label class="small">From Date</label>
+                                        <input type="date" @bind="FromDate" @bind:after="OnDateChanged" class="form-control shadow-sm" />
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <label class="small">To Date</label>
+                                        <input type="date" @bind="ToDate" @bind:after="OnDateChanged" class="form-control shadow-sm" />
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!-- ITEM LIST -->
+                        <div class="card shadow-sm mb-3">
+
+                            <div class="card-header bg-secondary text-white small fw-semibold"
+                                 style="background-color: #b57281;">
+                                <i class="bi bi-grid-fill me-2 text-light fs-6"></i>
+                                Item List
+                            </div>
+
+                            <div class="card-body p-2">
+                                <input class="form-control form-control-sm mb-2"
+                                       placeholder="Search items..."
+                                       @oninput="OnItemSearchChange"
+                                       value="@itemSearch" />
+                                <div class="list-group" style="max-height:200px; overflow-y:auto;">
+
+                                    @foreach (var item in FilteredItems)
+                                    {
+                                        <button class="list-group-item list-group-item-action
+                                                    @(SelectedItem?.ItemId == item.ItemId ? "bg-success bg-opacity-25 border-success" : "")"
+                                                @onclick="() => SelectItem(item)">
+                                            @item.ItemCode
+                                        </button>
+                                    }
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+
+
+
+                    @if (SelectedItem != null)
+                    {
+                        <div class="card shadow-sm mb-3">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+
+                                <div>
+                                    <label class="fw-bold">@SelectedItem.ItemName</label>
+                                </div>
+
+                                <div class="text-end">
+                                    <label class="fw-bold">Opening Balance : @(LedgerData != null && LedgerData.Any() ? LedgerData.First().OpeningBalance : 0)</label>
+                                </div>
+
+                            </div>
+                        </div>
+                    }
+
+                    <!-- LEDGER TABLE -->
+                    <div class="card shadow-sm mb-3 border-1 h-100">
+
+                        <div class="card-header bg-success text-white small fw-semibold">
+                            Stock Ledger
+                        </div>
+
+                        <div class="card-body p-2">
+
+                            @if (LedgerData == null || !LedgerData.Any())
+                            {
+                                @if (SelectedItem != null)
+                                {
+                                    <div class="text-center text-muted">
+                                        Selected item has no transactions to display between selected dates
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-center text-muted">
+                                        Select item to view transactions
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                           
+
+                                <div class="table-responsive" style="overflow-x:auto;">
+
+                                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1500px; font-size:12px;">
+
+                                        <thead class="custom-blue text-center align-middle sticky-top">
+                                            <tr>
+                                                <th style="width:50px;">SlNo</th>
+                                                <th style="width:100px;">Date</th>
+                                                <th style="width:250px;">Item Code</th>
+                                                <th style="width:150px;">Doc No</th>
+                                                <th style="width:100px;">Received Qty</th>
+                                                <th style="width:100px;">Issued Qty</th>
+                                                <th style="width:100px;">Price</th>
+                                                <th style="width:120px;">Amount</th>
+                                                <th style="width:120px;">Screen</th>
+                                                <th style="width:120px;">Stock Qty</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody style="font-size:12px;">
+                                            @foreach (var row in LedgerData)
+                                            {
+                                                <tr>
+                                                    <td>@row.SlNo</td>
+                                                    <td>@row.Date.ToString("dd-MM-yyyy")</td>
+                                                    <td>@row.ItemCode</td>
+                                                    <td>@row.DocNo</td>
+                                                    <td class="text-success fw-bold">@row.ReceivedQty</td>
+                                                    <td class="text-success fw-bold">@row.IssueQty</td>
+                                                    <td>@row.UnitPrice</td>
+                                                    <td>@row.Amount</td>
+                                                    <td>@row.Screen</td>
+                                                    <td>@row.StockQty</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+
+                                    </table>
+
+                                </div>
+                            }
+
+                        </div>
+                    </div>
+
+                    @if (SelectedItem != null)
+                    {
+                        <div class="card shadow-sm">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+
+                                <div>
+                                    <label class="fw-bold">UOM: @SelectedItem.MeasureUnit</label>
+                                </div>
+
+                                <div>
+                                    <button class="btn btn-sm btn-success rounded-3 d-flex align-items-center fw-semibold"
+                                            id="btnPRPrint" @onclick="Print"
+                                            title="Export data to Excel from data grid">
+                                        <i class="bi bi-file-earmark-excel-fill me-2"></i>
+                                        Export to Excel
+                                    </button>
+                                </div>
+
+                                <div class="text-end">
+                                    <label class="fw-bold">Closing Balance : @(LedgerData != null && LedgerData.Any() ? LedgerData.Last().StockQty : 0)</label>
+                                </div>
+
+                            </div>
+                        </div>
+                    }
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    protected override string ScreenName => "Stock Ledger";
+
+    private bool isProcessing = true;
+
+    private int SelectedStoreId { get; set; }
+    private int SelectedCategoryCode { get; set; }
+    private int SelectedItemId { get; set; }
+
+
+    private Store? SelectedStore { get; set; }
+    private Category? SelectedCategory { get; set; }
+    //private ItemVM? SelectedItem { get; set; }
+
+    private string storeSearch { get; set; } = string.Empty;
+    private string categorySearch { get; set; } = string.Empty;
+    private string itemSearch { get; set; } = string.Empty;
+
+    public List<Store> Stores { get; set; } = new();
+    public List<Category> Categories { get; set; } = new();
+    //public List<ItemVM> Items { get; set; } = new();
+    public List<StockAddVM> StockItemAddVMs { get; set; } = new();
+    public List<StockIssueVM> StockItemIssueVMs { get; set; } = new();
+
+    private DateTime FromDate { get; set; }
+    private DateTime ToDate { get; set; }
+
+
+    public List<StockLedgerReportVM> LedgerData { get; set; } = new();
+
+    // Items
+    private List<ItemVM> Items { get; set; } = new();
+
+    // Selected
+    private ItemVM? SelectedItem { get; set; }
+
+    private List<PageHeader.BreadcrumbItem> StockLedgerBreadcrumbs { get; set; } = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Analysis Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Stock Ledger", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await LoadAllStoresDetailsAsync();
+
+            FromDate = DateTime.Today.AddDays(-30);
+            ToDate = DateTime.Today;
+            SelectedStoreId = 1;
+            LedgerData = new List<StockLedgerReportVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync in Stock Ledger");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #region Filter all stores and item
+    IEnumerable<Store> FilteredStores =>
+    Stores.Where(s =>
+        string.IsNullOrWhiteSpace(storeSearch) ||
+        s.StoreName.Contains(storeSearch, StringComparison.OrdinalIgnoreCase)
+    );
+
+    IEnumerable<ItemVM> FilteredItems =>
+   Items.Where(s =>
+       string.IsNullOrWhiteSpace(itemSearch) ||
+       s.ItemCode.Contains(itemSearch, StringComparison.OrdinalIgnoreCase)
+   );
+    #endregion
+
+    private async Task LoadAllStoresDetailsAsync()
+    {
+        isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            Stores = (await _stockledger.GetAllActiveStoresAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "LoadAllStoresDetailsAsync");
+            await _js.ToastrError("Failed to LoadAll LoadAllStoresDetailsAsync Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async Task SelectStore(Store store)
+    {
+        try
+        {
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+
+            if (store != null)
+            {
+                SelectedStore = store;
+                SelectedStoreId = store.StoreId;
+                Items.Clear();
+                LedgerData = null;
+                await LoadItems();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "SelectStore");
+            await _js.ToastrError("Failed to LoadAll SelectStore Data");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+    }
+
+    private void OnStoreSearchChange(ChangeEventArgs e)
+    {
+        storeSearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(storeSearch))
+            return;
+    }
+
+    private void OnItemSearchChange(ChangeEventArgs e)
+    {
+        itemSearch = e.Value?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(itemSearch))
+            return;
+    }
+
+    public async Task LoadItems()
+    {
+        List<ItemVM> itemVMs = await _stockledger.GetStockItemsAsync(SelectedStoreId, FromDate, ToDate);
+        Items = itemVMs;
+    }
+
+    public async Task OnDateChanged()
+    {
+        List<ItemVM> itemVMs = await _stockledger.GetStockItemsAsync(SelectedStoreId, FromDate, ToDate);
+        Items = itemVMs;
+    }
+
+    public async Task SelectItem(ItemVM item)
+    {
+        SelectedItem = item;
+
+        await LoadLedger(item.ItemId);
+
+    }
+
+    public async Task LoadLedger(int itemId)
+    {
+        try
+        {
+            LedgerData = await _stockledger.GetStockLedgerList(itemId, SelectedStoreId, FromDate, ToDate);
+
+        }
+        catch (Exception ex)
+        {
+            // Log this
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    private async Task Print()
+    {
+        if (LedgerData == null || !LedgerData.Any())
+        {
+            await _js.ToastrWarning("Sorry, no data available to print");
+            return;
+        }
+
+        await ExportStockDataToExcel();
+    }
+
+    #region Print Work
+    private async Task ExportStockDataToExcel()
+    {
+        try
+        {
+            if (LedgerData == null || !LedgerData.Any())
+                return;
+
+            isProcessing = true;
+            await InvokeAsync(StateHasChanged);
+
+            var headers = LedgerData.First().GetType()
+                             .GetProperties()
+                             .Where(p => p.Name != "OpeningBalance")
+                             .Select(p => p.Name)
+                             .ToArray();
+
+            // Call your service
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Stock Ledger Data",
+                headers: headers,
+                sampleData: LedgerData
+            );
+
+            // Convert to Base64 and trigger download via JS
+            var base64 = Convert.ToBase64String(fileBytes);
+            await _js.InvokeVoidAsync("downloadExcelFile", base64, "StockLedgerData.xlsx");
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"ExportStockLedgerDataToExcel in StockLedger");
+            await _js.ToastrError("An error occurred while processing your action ExportStockLedgerDataToExcel in StockLedger. Please try again.");
+
+        }
+        finally
+        {
+            isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    #endregion
+}

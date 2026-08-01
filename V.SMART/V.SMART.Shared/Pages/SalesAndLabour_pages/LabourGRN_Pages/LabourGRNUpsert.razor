@@ -1,0 +1,3404 @@
+﻿@page "/labourGRN/create"
+@page "/labourGRN/create/{CustId:int}"
+@page "/labourGRN/update/{GRNId:int}"
+
+
+@using MudBlazor
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ILabourGRNService _grnService
+@inject ICostingService _CostingService
+@inject ReportService reportService
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+
+</BsModal>
+
+<DetailsModal Title="PO Details"
+              Columns="@PoColumns"
+              ColumnFields="@PoFields"
+              HiddenColumns="@PoHiddenColumns"
+              Data="@PoData"
+              IsVisible="@IsPoModalVisible"
+              IsVisibleChanged="@((val) => IsPoModalVisible = val)"
+              OnSelectedItems="OnPoSelectedAsync">
+</DetailsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Customer")
+    {
+        <CustomerUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "ExcelUpload")
+    { 
+        <ExcelUpload isModelVisible=true OnClose="CloseModal" uploadType="LabourGRN" OnUploadCompleted="ReceiveItems"/>
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                       refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+
+</MasterModal>
+
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <!-- Cancelled Watermark -->
+            @if (LabourGRNVMs.DcCancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+            else if (LabourGRNVMs.ShortClose)
+            {
+                <div class="cancelWatermark">SHORT CLOSED</div>
+            }
+
+            <PageHeader TitleText="@(LabourGRNVMs.GRNId > 0 ? "Update Goods Received Note cum DC" : "Create Goods Received Note cum DC")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@LabourGRNBreadcrumbs" />
+            <div class="card-body bg-light">
+                <EditForm Model="LabourGRNVMs" OnValidSubmit="UpsertGRN">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+                        <!-- Correspondence Status -->
+                        @if (LabourGRNVMs.GRNId > 0 && !string.IsNullOrWhiteSpace(LabourGRNVMs.GRNNo))
+                        {
+                            <CorrespondenceStatus ReferenceType="Labour-GRN"
+                                                  ReferenceId="@LabourGRNVMs.GRNId"
+                                                  ReferenceTypeName="@LabourGRNVMs.GRNNo" />
+                        }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+                        <!-- =================== Customer Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header equal-card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <!-- Title -->
+                                    <span class="fw-bold fs-6 mb-0">Customer Information</span>
+                                    <!-- Right Section -->
+                                    <div class="d-flex align-items-center gap-3">
+
+                                       <!-- Checkbox -->
+                                        @if(!LabourGRNVMs.WithoutPoGRN)
+                                        {
+                                            <div class="form-check d-flex align-items-center mb-0">
+                                                <input class="form-check-input me-2 mt-0"
+                                                        type="checkbox"
+                                                        id="chkSameItem"
+                                                        style="border:2px solid #6c757d;"
+                                                        checked="@LabourGRNVMs.IsOutItemSameAsInItem"
+                                                        @onchange="OnSameItemChanged"
+                                                        disabled="@(LabourGRNVMs.GRNId > 0 || (LabourGRNVMs.LabourGRNSubVMs?.Any(x => (x.ItemId ?? 0) > 0) ?? false))">
+
+                                                <label class="form-check-label small mb-0" for="chkSameItem">
+                                                    Out Item Same as In Item
+                                                </label>
+                                            </div>                                   
+                                        }
+                                        
+                                        <!-- Button -->
+                                        <button type="button"
+                                                class="btn btn-sm btn-success rounded-3 d-flex align-items-center"
+                                                @onclick='() => OpenModal("Customer")'>
+                                            <i class="bi bi-person-add me-1"></i> Add Customer
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="card-body">
+                                    <!-- Customer Autocomplete -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="CustomerVM"
+                                                             Value="SelectedCustomer"
+                                                             ValueChanged="@(async c => await OnCustomerChanged(c))"
+                                                             ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                             SearchFunc="SearchCustomers"
+                                                             Dense="true"
+                                                             Variant="Variant.Outlined"
+                                                             Placeholder="Search Customer"
+                                                             Title="Search atleast 3 letters in Customer"
+                                                             Class="w-100 autocomplete-sm"
+                                                             MaxItems="50"
+                                                             Clearable="true"
+                                                             ResetValueOnEmptyText="true"
+                                                             Required="true"
+                                                             AvoidSubmit="true"
+                                                             Disabled="@IsSomeItemsTransMade" />
+                                        </div>
+                                    </div>
+
+                               
+                                    <!-- Contact Person -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Contact Person</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    @bind="@LabourGRNVMs.KindofAttention">
+                                                <option disabled value="">Select Contact Person</option>
+                                                @foreach (var cp in contactPersons)
+                                                {
+                                                    <option value="@cp.ContactPersonName">@cp.ContactPersonName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => LabourGRNVMs.KindofAttention)" />
+                                        </div>
+                                    </div>
+
+                                
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Mode Of Transport</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm"
+                                                    @bind="LabourGRNVMs.TransportMode">
+                                                <option value="">-- Select Transport Mode --</option>
+                                                <option value="Road">By Road</option>
+                                                <option value="Railway">By Railway</option>
+                                                <option value="Airway">By Airway</option>
+                                                <option value="Seaway">By Seaway</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Vehicle No</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100" @bind="LabourGRNVMs.VehicleNo" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Transport From</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100" @bind="LabourGRNVMs.TransFrom" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Transport To</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100" @bind="LabourGRNVMs.TransTo" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== GRN Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                 <!-- Header -->
+                                <div class="card-header equal-card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Labour GRN Details</span>
+
+                                    @if (LabourGRNVMs.GRNId > 0 && (CanCreate || CanEdit))
+                                    {
+                                        <div class="d-flex gap-2">
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(LabourGRNVMs.DcCancel ? "btn-success" : "btn-danger")"
+                                                    @onclick="Cancel">
+
+                                                @if (!LabourGRNVMs.DcCancel)
+                                                {
+                                                    <i class="bi bi-x-circle me-1"></i> <span>Cancel</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i> <span>Revert</span>
+                                                }
+                                            </button>
+                                            <!-- Short Close / Re-Open -->
+                                            <button type="button"
+                                                class="btn btn-sm rounded-3 @(LabourGRNVMs.ShortClose ? "btn-success" : "btn-warning")"
+                                                @onclick="() => AskToShortCloseAsync(LabourGRNVMs)"
+                                                disabled="@LabourGRNVMs.DcCancel">
+
+                                                @if (!LabourGRNVMs.ShortClose)
+                                                {
+                                                    <i class="bi bi-box-seam me-1"></i>
+                                                    <span>Short Close</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Re-Open</span>
+                                                }
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="card-body">
+
+                                    @if (LabourGRNVMs?.LabourGRNSubVMs == null
+                                            || !LabourGRNVMs.LabourGRNSubVMs.Any(x => !string.IsNullOrEmpty(x.RefPoNo)))
+                                    {
+                                        <div class="row g-2 mb-2 align-items-stretch">
+                                               <div class="col-12 col-sm-6">
+
+                                                    <div class="card shadow-sm border-2
+                                                         @(LabourGRNVMs.WithoutPoGRN
+                                                             ? "border-success bg-success-subtle selected-card"
+                                                             : "border-light")
+                                                         @(LabourGRNVMs.GRNId > 0 ? "disabled-card" : "")"
+                                                         style="cursor:@(LabourGRNVMs.GRNId > 0 ? "not-allowed" : "pointer"); height:60px;"
+                                                         @onclick="LabourGRNVMs.GRNId > 0 ? null : (() => ToggleGRN(true))">
+
+                                                        <div class="card-body d-flex align-items-center justify-content-center py-2 px-2">
+                                                            <i class="bi 
+                                                                @(LabourGRNVMs.WithoutPoGRN
+                                                                    ? "bi-check-circle-fill text-success"
+                                                                    : "bi-circle text-muted") me-2"></i>
+
+                                                            <span class="fw-semibold
+                                                                @(LabourGRNVMs.WithoutPoGRN
+                                                                    ? "text-success"
+                                                                    : "text-dark")">
+                                                               Without PO
+                                                            </span>
+
+                                                        </div>
+                                                </div>
+                                                 
+                                           </div>
+
+                                        </div>
+                                    }
+                                    
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GRN No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm flex-wrap w-100">
+                                                <input type="text"
+                                                       class="form-control form-control-sm"
+                                                       placeholder="GRN No."
+                                                       @bind="LabourGRNVMs.GRNNo" disabled="@(LabourGRNVMs.GRNId>0)"/>
+
+                                                <span class="input-group-text rounded-end">@LabourGRNVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => LabourGRNVMs.GRNNo)" />
+                                            <ValidationMessage For="@(() => LabourGRNVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- GRN Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GRN Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@LabourGRNVMs.GRNDate" />
+                                            <ValidationMessage For="@(() => LabourGRNVMs.GRNDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- PO Details -->
+@*                                     @if (poPendingCount > 0 && !LabourGRNVMs.WithoutPoGRN)
+                                    { *@
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. PO</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                    class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                    @onclick="ShowPoDetails">
+                                                   <i class="bi bi-list-ul me-1"></i>  PO Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    @* } *@
+
+                                    @if (IsBatchNoRequired)
+                                    {
+
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Batch No.</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <div class="input-group input-group-sm flex-wrap w-100">
+                                                        <input type="text"
+                                                        class="form-control form-control-sm"
+                                                        placeholder="Batch No."
+                                                        @bind="LabourGRNVMs.BatchNo"/>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => LabourGRNVMs.BatchNo)" />
+                                                </div>
+                                            </div>
+
+                                     }
+
+                                    <!-- Dc No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Customer Dc</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="LabourGRNVMs.RefDcNo" />
+                                            <ValidationMessage For="@(() => LabourGRNVMs.RefDcNo)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- RefDC Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>DC Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="LabourGRNVMs.RefDcDate" />
+                                            <ValidationMessage For="@(() => LabourGRNVMs.RefDcDate)" />
+                                        </div>
+                                    </div>
+
+                                      <!---for Sharadha company only->
+                                    @if (!IsBatchNoRequired)
+                                    {
+                                        <!-- Add to Store -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Add To Store</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select @bind="LabourGRNVMs.AddStoreId"
+                                                        class="form-select form-select-sm rounded-3 w-100"
+                                                        id="PurchaseGRN" disabled>
+                                                    <option value="0" disabled selected>--Select Store--</option>
+                                                    @foreach (var storeid in stores)
+                                                    {
+                                                        <option value="@storeid.StoreId">@storeid.StoreName</option>
+                                                    }
+                                                </select>
+                                                <ValidationMessage For="@(() => LabourGRNVMs.AddStoreId)" />
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      @bind="LabourGRNVMs.Remarks"></textarea>
+                                            <ValidationMessage For="@(() => LabourGRNVMs.Remarks)" />
+                                        </div>
+                                    </div>
+
+                                      <!-- Cancel Remarks -->
+                                    @if(LabourGRNVMs.DcCancel)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-danger fw-bold">
+                                                <small>Cancel Reason</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                            rows="1"
+                                                            @bind="LabourGRNVMs.CancelReason"
+                                                            readonly></textarea>
+                                                <ValidationMessage For="@(() => LabourGRNVMs.CancelReason)" />
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-danger fw-bold">
+                                                <small>Cancel Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="date" class="form-control form-control-sm rounded-3 w-100"
+                                                            @bind="LabourGRNVMs.CancelDate"
+                                                            readonly></input>
+                                                <ValidationMessage For="@(() => LabourGRNVMs.CancelDate)" />
+                                            </div>
+                                        </div>
+                                    }
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                          <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header bg-primary-subtle text-dark">
+
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+
+                                        <span class="fw-bold fs-6">GRN Item Details</span>
+
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                                <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                            </button>
+
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                         <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed;min-width: 1700px;">
+                                             
+                                             <thead class="custom-blue">
+                                                 <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:80px;">Group</th>
+                                                    <th style="width:90px;">Trans Type</th>
+                                                    <th style="width:300px;">Item-Code</th>
+                                                    <th style="width:200px;">Item Name</th>
+                                                    <th style="width:300px;">Item Specification</th>
+                                                    <th style="width:90px;">UOM</th>
+                                                     @if (IsLabourCost)
+                                                    {
+                                                        <th style="width:100px;">LabourCost</th>
+                                                    }
+                                                    <th style="width:100px;">DC Qty</th>
+                                                   
+                                                    <th style="width:100px;">Recd. Qty.</th>
+                                                     @if(LabourGRNVMs.GRNId>0)
+                                                     {
+                                                        <th style="width:110px;">Bal Qty</th>
+                                                     } 
+                                                 
+                                                    <th style="width:110px;">Unit Price</th>
+
+                                                    @if (LabourGRNVMs.LabourGRNSubVMs.Any(x => x.RefPoSubId > 0))
+                                                    {
+                                                        <th style="width:110px;">PO Bal.Qty</th>
+                                                        <th style="width:110px;">Ref. PO No</th>
+                                                        <th style="width:110px;">Ref. PO Dt.</th>
+                                                        <th style="width:110px;">LineNo</th>
+                                                    }
+
+                                                    <th style="width:120px;">WoNo.</th>
+                                                    <th style="width:150px;">Remarks</th>
+                                                    <th style="width:130px;">Cost Center</th>
+                                                    <th style="width:110px;">Batch No.</th>
+                                                    <th style="width:110px;">Heat No.</th>
+                                                    
+                                                    @if (!LabourGRNVMs.DcCancel && (GRNId.HasValue || GRNId > 0))
+                                                    {
+                                                        <th style="width:130px;">Item Cancel</th>
+                                                        <th style="width:160px;">Cancel Reason</th>
+                                                    }
+                                                    @if (!LabourGRNVMs.DcCancel && !LabourGRNVMs.ShortClose)
+                                                    {
+                                                        <th style="width:130px;" class="freeze-last-col text-end">Action</th>
+                                                    }
+                                                 </tr>
+                                             </thead>
+
+                                             <tbody class="custom-size">
+
+                                                @foreach (var subitem in LabourGRNVMs.LabourGRNSubVMs)
+                                                {
+                                                     // Hide OUT rows in UI
+                                                     if (subitem.TransType == "Out" && LabourGRNVMs.IsOutItemSameAsInItem && !LabourGRNVMs.WithoutPoGRN)
+                                                     {
+                                                         continue;
+                                                     }
+
+                                                    <tr @key="subitem" class="@(subitem.ItemCancel ? "table-danger" : "")">
+
+                                                        @if(!LabourGRNVMs.IsOutItemSameAsInItem)
+                                                        {
+                                                        <td>@subitem.SlNo</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>@GetDisplaySlNo(subitem)</td>
+                                                        }
+
+                                                        <td>@subitem.GroupId</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        @if ((subitem.RefPoSubId == 0 || subitem.RefPoSubId == null) && subitem.IsEditable)
+                                                        {
+                                                            <td style="width:120px;">
+                                                                <select class="form-select form-select-sm"
+                                                                        @bind="subitem.TransType"
+                                                                        @bind:after="() => OnTransTypeChanged(subitem)">
+
+                                                                    @if (LabourGRNVMs.WithoutPoGRN)
+                                                                    {
+                                                                        <option value="Out">Out</option>
+                                                                        <option value="In">In</option>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <option value="In">In</option>
+                                                                    }
+
+                                                                </select>
+                                                            </td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td style="width:120px;">
+                                                                @subitem.TransType
+                                                            </td>
+                                                        }
+
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    
+                                                                    @if(subitem.IsEditable && subitem.CanEditItem
+                                                                        && (subitem.TransType=="In" && !LabourGRNVMs.IsOutItemSameAsInItem || LabourGRNVMs.WithoutPoGRN))
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                            Value="subitem.SelectedItemOut"
+                                                                                            ValueChanged="@(async item => await OnItemOutChanged(subitem, item))"
+                                                                                            ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                            SearchFunc="SearchItems"
+                                                                                            Dense="true"
+                                                                                            Variant="Variant.Outlined"
+                                                                                            Placeholder="Search Item Code"
+                                                                                            Title="Search Atleast 3 Letters in Item-Code"
+                                                                                            Class="w-100 autocomplete-sm"
+                                                                                            MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0  && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                       Size="Size.Small"
+                                                                                       Color="Color.Primary"
+                                                                                       OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                       Edge="Edge.End"
+                                                                                       Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.ItemSpecification</td>
+                                                        <td>@subitem.MeasureUnit</td>
+                                                         @if (IsLabourCost)
+                                                        {
+                                                             <td>@subitem.LabourCost</td>
+                                                        }
+
+                                                        <!--Dc Qty-->
+                                                        <td>
+                                                              @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number"
+                                                                    class="form-control form-control-sm"
+                                                                    placeholder="DC Qty"
+                                                                    step="any"
+                                                                    min="0.01"
+                                                                    title="Enter DC Quantity"
+                                                                    value="@subitem.DCQty"
+                                                                    @oninput="@(e => OnDCQtyChanged(e, subitem))" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span>@subitem.DCQty</span>
+                                                                }
+                                                            @* @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="DC Qty"
+                                                                       step="0.01"
+                                                                       min="0.01"
+                                                                       title="Enter DC Quantity"
+                                                                       @bind="subitem.DCQty"
+                                                                       @bind:event="oninput" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.DCQty</span>
+                                                            } *@
+                                                        </td>
+
+                                                        <!--Qty-->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Qty"
+                                                                       step="any"
+                                                                       title="Enter Quantity"
+                                                                       @bind="subitem.Qty"
+                                                                       @bind:event="oninput"
+                                                                       @onchange="@(e => OnQtyOutChange(e, subitem))"/>
+                                                                <ValidationMessage For="@(() => subitem.Qty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.Qty</span>
+                                                            }
+                                                        </td>
+
+                                                        @if(LabourGRNVMs.GRNId > 0)
+                                                        {
+                                                            <td>@subitem.BalQty</td>
+                                                        }
+
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" 
+                                                                       class="form-control form-control-sm" 
+                                                                       step="any"
+                                                                       placeholder="Price" title="Enter Unit Price"
+                                                                       @bind="subitem.UnitPrice" readonly="@pricelock"/>
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        @if (LabourGRNVMs.LabourGRNSubVMs.Any(x => x.RefPoSubId > 0))
+                                                        {
+                                                            <td>@subitem.POBalQty</td>
+                                                            <td>@subitem.RefPoNo</td>
+                                                            <td>@subitem.RefPoDate?.ToString("dd/MM/yyyy")</td>
+                                                             <td>@subitem.LineNo</td>
+                                                        }
+                                                        
+                                                        <!--WoNo-->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input @bind="subitem.WONo"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter WoNo" />
+                                                                <ValidationMessage For="@(() => subitem.WONo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.WONo
+                                                            }
+                                                        </td>
+                                                        
+                                                        <!--Remarks-->
+                                                         <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea @bind-Value="subitem.RowRemarks"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Remarks" 
+                                                                               rows="1"/>
+                                                                <ValidationMessage For="@(() => subitem.RowRemarks)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.RowRemarks
+                                                            }
+                                                        </td>
+
+                                                         <!-- Cost Center -->
+                                                        <td>
+                                                            @if (subitem.IsEditable && LabourGRNVMs.WithoutPoGRN)
+                                                            {
+                                                                <select class="form-select form-select-sm" 
+                                                                    value="@subitem.CostId"
+                                                                    @onchange="(e => OnCostCenterChanged(e, subitem))">
+                                                                    <option value="">select CostCentre</option>
+                                                                    @foreach (var cost in CostCenterVMs.Where(c =>
+                                                                        !LabourGRNVMs.LabourGRNSubVMs.Any(r => r != subitem && r.CostId == c.Id)))
+                                                                    {
+                                                                        <option value="@cost.Id">@cost.ProjectNo</option>
+                                                                    }
+                                                                </select>
+                                                                <ValidationMessage For="@(() => subitem.CostId)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.ProjectNo
+                                                            }
+                                                        </td>
+
+                                                        <!--Batch No-->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Batch No"
+                                                                       title="Enter Batch No"
+                                                                       @bind="subitem.BatchNo"/>
+                                                                <ValidationMessage For="@(() => subitem.BatchNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.BatchNo
+                                                            }
+                                                        </td>
+
+                                                        <!-- Heat No -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="text"
+                                                                       class="form-control form-control-sm "
+                                                                       placeholder="Heat No"
+                                                                       title="Enter Heat No"
+                                                                       @bind="subitem.HeatNo"/>
+                                                                <ValidationMessage For="@(() => subitem.HeatNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.HeatNo
+                                                            }
+                                                        </td>
+
+                                                          @if (!LabourGRNVMs.DcCancel  && (GRNId.HasValue || GRNId> 0))
+                                                          {
+                                                               <td class="text-center align-middle">
+                                                                    
+                                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                                        <InputCheckbox 
+                                                                            @bind-Value="subitem.ItemCancel"
+                                                                            @bind-Value:event="onchange"
+                                                                            ValueChanged="@(async (value) => await OnItemCancelChanged(subitem))"
+                                                                            class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                    </div>
+                                                                    <ValidationMessage For="@(() => subitem.ItemCancel)" />
+                                                                    
+                                                               </td>
+
+                                                               <td>
+                                                                    @subitem.CancelItemReason 
+                                                                </td>
+                                                          }
+
+                                                        <!-- Action Buttons -->
+                                                        @if (!LabourGRNVMs.DcCancel && !LabourGRNVMs.ShortClose)
+                                                        {
+                                                            <td class="position-sticky end-0 bg-light text-end">
+
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <button type="button"
+                                                                            class="btn btn-success btn-sm me-1"
+                                                                            title="Save"
+                                                                            @onclick="async () => await SaveRow(subitem)"
+                                                                            disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-check-lg"></i>
+                                                                    </button>
+
+                                                                    <button type="button"
+                                                                            class="btn btn-secondary btn-sm"
+                                                                            title="Cancel"
+                                                                            @onclick="async () => await CancelEdit(subitem, LabourGRNVMs)"
+                                                                            disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <button type="button"
+                                                                            class="btn btn-primary btn-sm me-1"
+                                                                            title="Edit"
+                                                                            @onclick="async () => await EditRowAsync(subitem)"
+                                                                            disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-pencil"></i>
+                                                                    </button>
+
+                                                                    <button type="button"
+                                                                            class="btn btn-danger btn-sm"
+                                                                            title="Delete"
+                                                                            @onclick="async () => await RemoveRow(subitem)"
+                                                                            disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                }
+
+                                                                @if(subitem.TransType =="Out" )
+                                                                {
+                                                                    <button type="button"
+                                                                            class="btn btn-info btn-icon btn-sm"
+                                                                            title="Add to Group"
+                                                                            @onclick="async () => await AddToGroup(subitem)"
+                                                                            disabled="@subitem.ItemCancel">
+                                                                        <i class="bi bi-plus-lg"></i>
+                                                                    </button>
+                                                                }
+
+                                                            </td>
+                                                        }
+
+                                                    </tr>
+                                                }
+
+                                            </tbody>
+
+                                             <!-- Totals -->
+                                            @if (LabourGRNVMs.LabourGRNSubVMs?.Any() == true)
+                                            {
+                                                <tfoot class="table-warning text-dark fw-bold">
+                                                    <tr>
+                                                        <td colspan="7" class="text-end">Totals:</td>
+
+                                                        <td>@LabourGRNVMs.TotalDnQty</td>
+                                                        <td>@LabourGRNVMs.TotalQty</td>
+
+                                                        @if (LabourGRNVMs.GRNId > 0)
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        <td>Avg: @FormatDecimal(LabourGRNVMs.AverageUnitPrice)</td>
+
+                                                        @if (LabourGRNVMs.LabourGRNSubVMs.Any(x => x.RefPoSubId > 0))
+                                                        {
+                                                            <td></td>
+                                                            <td></td>
+                                                            <td></td>
+                                                        }
+
+                                                        <td></td> <!-- WoNo -->
+                                                        <td></td> <!-- Remarks -->
+                                                        <td></td> <!-- Cost Center -->
+                                                        <td></td> <!-- Batch -->
+                                                        <td></td> <!-- Heat -->
+
+                                                        @if (!LabourGRNVMs.DcCancel && (GRNId.HasValue || GRNId > 0))
+                                                        {
+                                                            <td></td>
+                                                            <td></td>
+                                                        }
+
+                                                        @if (!LabourGRNVMs.DcCancel && !LabourGRNVMs.ShortClose)
+                                                        {
+                                                            <td></td>
+                                                        }
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+                                         </table>
+                                    </div>
+
+@*                                     @if (LabourGRNVMs.WithoutPoGRN || 
+                                        (!LabourGRNVMs.WithoutPoGRN && LabourGRNVMs.LabourGRNSubVMs.Count > 0 && !LabourGRNVMs.IsOutItemSameAsInItem)) *@
+                                    @if (LabourGRNVMs.WithoutPoGRN)
+                                    {
+                                        <div class="mt-2 text-start">
+                                            <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                                <i class="bi bi-plus-circle me-1"></i> Add Item
+                                            </button>
+                                        </div>
+                                    }
+
+                                </div>
+
+                          
+                                  <!--------------Instraction---------->
+                                    <button class="btn btn-sm btn-outline-secondary mb-2"
+                                            type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#docInstructionBox">
+                                        <i class="bi bi-info-circle"></i> Instructions
+                                    </button>
+
+                                    <div id="docInstructionBox" class="collapse">
+
+                                           <div class="alert alert-light mt-2 py-2 small">
+                                                <i class="bi bi-lightbulb me-1"></i>
+                                                <strong>Document Instructions:</strong>
+
+                                                <hr class="my-2" />
+
+                                                <ul class="mb-0 mt-1">
+                                                    <li>
+                                                        <b>Cancel:</b> Marks this GRN/DC as cancelled and restores the PO balance quantity. 
+                                                        <span class="text-muted">(Status update • No stock transaction)</span>
+                                                    </li>
+
+                                                    <li>
+                                                        <b>Revert:</b> Re-activates a cancelled document and reduces the PO balance again. 
+                                                        <span class="text-muted">(Status update • No stock transaction)</span>
+                                                    </li>
+
+                                                    <li>
+                                                        <b>Short Close:</b> Closes the document to prevent further processing. 
+                                                        <span class="text-muted">(Status only • No stock or PO balance change)</span>
+                                                    </li>
+
+                                                    <li>
+                                                        <b>Item-wise Cancel:</b> Cancels the selected item and restores its PO balance quantity. 
+                                                        <span class="text-muted">(Item status update • No stock transaction)</span>
+                                                    </li>
+
+                                                    <li>
+                                                        <b>Item-wise Revert:</b> Re-activates the cancelled item and reduces its PO balance again. 
+                                                        <span class="text-muted">(Item status update • No stock transaction)</span>
+                                                    </li>
+
+                                                    <li>
+                                                        <b>Without PO:</b> Allows manual entry of IN or OUT items without PO reference. 
+                                                        <span class="text-muted">(Manual mode • No PO balance tracking)</span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                     </div>
+                            </div>
+                        </div>
+
+                        @if (LabourGRNVMs.GRNId > 0)
+                        {
+                             <!-- Top Blue Line -->
+                            <hr class="border-1 border-primary mt-2 mb-1 opacity-100" />
+                            <div class="row g-3 mb-1 mt-1 align-items-end">
+                                <!-- Created By -->
+                                <div class="col-12 col-lg-3 mb-0 pb-0">
+                                    <div class="form-floating mb-0 pb-0">
+                                        <InputText @bind-Value="LabourGRNVMs.CreatedBy"
+                                                   id="CreatedBy"
+                                                   class="form-control bg-light"
+                                                   placeholder="Created By"
+                                                   disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="col-12 col-lg-3 mb-0 pb-0">
+                                    <div class="form-floating mb-0 pb-0">
+                                        <input class="form-control bg-light"
+                                               id="CreatedDate"
+                                               placeholder="Created Date"
+                                               value="@LabourGRNVMs.CreatedDate.ToString("dd-MM-yyyy HH:mm:ss")"
+                                               disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified By -->
+                                <div class="col-12 col-lg-3 mb-0 pb-0">
+                                    <div class="form-floating mb-0 pb-0">
+                                        <InputText @bind-Value="LabourGRNVMs.ModifiedBy"
+                                                   id="ModifiedBy"
+                                                   class="form-control bg-light"
+                                                   placeholder="Modified By"
+                                                   disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified Date -->
+                                <div class="col-12 col-lg-3 mb-0 pb-0">
+                                    <div class="form-floating mb-0 pb-0">
+                                        <input class="form-control bg-light"
+                                               id="ModifiedDate"
+                                               placeholder="Modified Date"
+                                               value="@LabourGRNVMs.ModifiedDate?.ToString("dd-MM-yyyy HH:mm:ss")"
+                                               disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+                             <!-- Bottom Blue Line -->
+                        <hr class="border-1 border-primary mt-1 mb-0 opacity-100" />
+                        }
+
+                       
+
+                        <div class="row g-3">
+                            <!-- Action Buttons -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if(!LabourGRNVMs.DcCancel)
+                                {
+                                    <div class="col-6 col-md-3 mt-3">
+                                        <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i> @(LabourGRNVMs.GRNId > 0 ? "Update" : "Create")
+                                        </button>
+                                    </div>
+                                  
+                                }
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="@($"/labourGRNList?currentPage={currentPage}")" />
+                            </div>
+
+                                 
+                            @if (CanCreate || CanEdit && GRNId > 0)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+
+                            <!--Newly Added Excel Upload Code-->
+                            @if (GRNId == 0 || GRNId == null)
+                            {
+                                <!-- Download Template -->
+                                <div class="col-12 col-md-3">
+                                    <button type="button"
+                                            class="btn btn-primary w-100 rounded-3 d-flex align-items-center justify-content-center"
+                                            @onclick="DownloadTemplate" disabled="@isProcessing">
+                                        @if (isProcessing)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                            <span>Preparing Template...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-download me-2"></i>
+                                            <span>Download Template</span>
+                                        }
+                                    </button>
+                                </div>
+
+                                <!-- Upload Excel -->
+                                <div class="col-12 col-md-3">
+                                      <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 w-100" @onclick='() => OpenModal("ExcelUpload")'>
+                                            <i class="bi bi-upload me-1"></i> Import
+                                      </button>
+                                </div>
+                            }
+                              <!--End of Excel Upload Code-->
+
+                        </div>
+
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+
+@code
+{
+    protected override string ScreenName => "Labour GRN";
+    private bool isProcessing = false;
+    [Parameter] public int? GRNId { get; set; }
+    [Parameter] public int CustId { get; set; }
+    private int screenCode { get; set; }
+    private int poPendingCount = 0;
+    private bool IsSomeItemsTransMade { get; set; } = false;
+    private bool pricelock{ get; set; } = false;
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    string? pdfBase64;
+
+    private LabourGRNVM LabourGRNVMs = new();
+    private CustomerVM? SelectedCustomer;
+    private List<Store> stores = new();
+    private List<ContactPerson> contactPersons = new();
+    private List<CostCenterVM> CostCenterVMs = new();
+    private LabourGRNSubVM? rowToDelete;
+    private LabourGRNSubVM? rowToCancel;
+
+    private bool IsPoModalVisible = false;
+    private List<Dictionary<string, object>>? PoData;
+
+    private HashSet<int> StockErrorSlNos = new();
+
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private int DecimalPlaces { get; set; } = 2;
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+    private bool IsLabourCost { get; set; } = false;
+    private bool IsLabourMaterial { get; set; } = false;
+
+    private bool IsBatchNoRequired { get; set; } = false;   
+
+    // Visible Column Titles
+    private List<string> PoColumns = new()
+    {
+        "Selected","PoSubId","PoId","Is Open Po","LineNo","Po No","Po Date","ItemId","Item Code","Item Name","Item Specification","UOM","HSN Code","Category","Qty",
+        "Bal Qty","Unit Price","Po Due Date","CostCenterId","Project No","Remark","Main Discount %","Main Discount Amt","Packing %","Packing Amt",
+        "Insurance %","Insurance Amt","Freight Amt","Today Value","Total Gross Amt","Total Basic Amt","Line Gross","Sub Discount %","Sub Discount Amt","Line Basic Amt",
+        "Total Qty","CategoryCode","Customer"
+    };
+
+    // Field Names (backend binding)
+    private List<string> PoFields = new()
+    {
+        "Selected","PoSubId","PoId","IsOpenPo","LineNo","PoNo","PoDate","ItemId","ItemCode","ItemName","ItemSpecification","UOM","HSNCode","Category","Qty",
+        "BalQty","UnitPrice","PoDuedate","CostCenterId","ProjectNo","Remark","MainDiscPercent","MainDiscAmt","PackingPercent","PackingAmt",
+        "InsurancePercent","InsuranceAmt","FreightAmt","TodayVal","TotalGrossAmt","TotalBasicAmt","LineGross","SubDiscPercent","SubDiscAmt","LineBasicAmt","TotalQty","CategoryCode","Customer"
+    };
+
+    // Hidden Columns (IDs and internal refs)
+    private List<string> PoHiddenColumns = new()
+    {
+        "PoSubId","PoId","ItemId", "CostCenterId","CategoryCode"
+    };
+
+    private List<PageHeader.BreadcrumbItem> LabourGRNBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Labour" },
+        new PageHeader.BreadcrumbItem { Text = "Goods Received Note cum DC", IsLast = true }
+    };
+
+
+    #region OnSameItemChanged
+
+    private async Task OnSameItemChanged(ChangeEventArgs e)
+    {
+        bool isChecked = Convert.ToBoolean(e.Value);
+
+        if (isChecked && LabourGRNVMs.WithoutPoGRN)
+        {
+            LabourGRNVMs.IsOutItemSameAsInItem = false;
+
+            await _JS.ToastrWarning("'Out Item Same as In Item' cannot be used when 'Without PO GRN' is enabled.");
+            return;
+        }
+
+        LabourGRNVMs.IsOutItemSameAsInItem = isChecked;
+    }
+
+    #endregion
+
+    private async Task OnTransTypeChanged(LabourGRNSubVM subitem)
+    {
+        if (subitem.TransType == "Out" && LabourGRNVMs.IsOutItemSameAsInItem)
+        {
+            await _JS.ToastrWarning("Out Item cannot be selected when 'Out Item Same as In Item' is enabled.");
+
+            subitem.TransType = "In";
+        }
+    }
+
+    private async Task ToggleGRN(bool isWithoutPo)
+    {
+        if (LabourGRNVMs.IsOutItemSameAsInItem)
+        {
+            LabourGRNVMs.WithoutPoGRN = false;
+            await _JS.ToastrWarning("Cannot enable 'Without PO GRN' when 'Out Item Same as In Item' is active.");
+            return;
+        }
+
+        LabourGRNVMs.WithoutPoGRN = isWithoutPo && !LabourGRNVMs.WithoutPoGRN;
+
+        if (LabourGRNVMs.WithoutPoGRN)
+            LabourGRNVMs.LabourGRNSubVMs.Clear();
+    }
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            pricelock = await _grnService.GetPriceLockStatusAsync();    
+            screenCode = await _grnService.GetScreenCodeByScreenNameAsync(ScreenName);
+            IsLabourCost = await _CostingService.IsLabourChargesDisplayEnabledAsync();
+            IsLabourMaterial = await _CostingService.IsLabourMaterialValidateEnabledAsync();
+            IsBatchNoRequired = await _grnService.BatchNoOption();
+
+            if (GRNId.HasValue)
+            {
+                await LoadExistingGRN(GRNId.Value);
+            }
+            else if (CustId > 0)
+            {
+                await InitializeNewGRN(CustId);
+
+                LabourGRNVMs.IsOutItemSameAsInItem = await _grnService.GetIsSameItemasInAsync();    
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingGRN(int grnId)
+    {
+        try
+        {
+            LabourGRNVMs = await _grnService.GetLabourGRNByIdAsync(grnId);
+            if (LabourGRNVMs == null)
+            {
+                await _JS.ToastrWarning("GRN not found.");
+                return;
+            }
+
+            SelectedCustomer = await _grnService.GetCustomerByIdAsync(LabourGRNVMs.CustId);
+            if (SelectedCustomer != null)
+                await ApplyCustomerSelectionAsync(SelectedCustomer);
+
+            foreach (var dcSub in LabourGRNVMs.LabourGRNSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[dcSub.ItemId.Value] =
+                    await _grnService.GetCorrespondenceAttachmentsCountAsync(dcSub.ItemId.Value, "Item");
+                if(IsLabourCost)
+                {
+                    if (dcSub.UnitPrice < dcSub.LabourCost)
+                    {
+                        _JS.ToastrWarning($"Unit Price ({dcSub.UnitPrice:0.00}) Is less than Labour Cost ({dcSub.LabourCost:0.00})." );
+                    }
+                    else if(dcSub.UnitPrice > dcSub.LabourCost)
+                    {
+                        _JS.ToastrWarning($"Unit Price ({dcSub.UnitPrice:0.00}) Is  Greater than than Labour Cost ({dcSub.LabourCost:0.00})."     );
+
+                    }
+
+                }
+            }
+
+            //Check Transaction Completed flag
+            IsSomeItemsTransMade = await CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to load Existing PurchaseGRN.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingDc failed in PurchaseGRN for GRNId: {grnId}");
+        }
+    }
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        try
+        {
+            if (!GRNId.HasValue)
+                return false;
+
+            return await _grnService.IsLabourGRNTransactionsMatchedAsync(GRNId.Value, LabourGRNVMs);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to check transaction exists.");
+            await LoggingService.LogDeveloperError(ex, "[CheckIsTransMade] failed");
+            return false;
+        }
+    }
+
+    private async Task InitializeNewGRN(int CustId)
+    {
+        try
+        {
+            var customer = await _grnService.GetCustomerByIdAsync(CustId);
+            if (customer != null)
+                await ApplyCustomerSelectionAsync(customer);
+
+            LabourGRNVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            LabourGRNVMs.GRNNo = await _grnService.GetLastGRNNumberAsync(LabourGRNVMs.Suffix);
+
+            var MapStoreForDc = await _grnService.GetMappedStoreForFormAsync("LabourDCInForm");
+
+            if (MapStoreForDc.StoreId > 0)
+            {
+                LabourGRNVMs.AddStoreId = MapStoreForDc.StoreId;
+                LabourGRNVMs.StoreName = MapStoreForDc.StoreName;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to initialize new po.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewPo failed for CustId: {CustId}");
+        }
+    }
+    #endregion
+
+    #region Customer data Handlers
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<CustomerVM>();
+
+        try
+        {
+            var results = await _grnService.SearchCustomersAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<CustomerVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In LabourGRNUpsert SearchCustomer failed for value: {value}");
+            await _JS.ToastrError("Failed to search Customer in LabourGRNUpsert. Please try again.");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+            await ApplyCustomerSelectionAsync(customer);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnCustomerChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _JS.ToastrError("Error while selecting");
+
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+            SelectedCustomer = customer;
+            LabourGRNVMs.CustId = customer?.CustId ?? 0;
+            LabourGRNVMs.CustName = customer?.CustName;
+            LabourGRNVMs.CustAddress = customer?.CustAddr;
+            LabourGRNVMs.CustGst = customer?.GSTNo;
+            LabourGRNVMs.CustContactNo = customer?.ContactNo;
+
+            if (customer == null)
+            {
+                stores.Clear();
+                return;
+            }
+            contactPersons = await _grnService.GetContactPersonsCustomerAsync(customer.CustId);
+
+            stores = (await _grnService.GetAllActiveStoresAsync()).ToList();
+
+            LabourGRNVMs.KindofAttention = contactPersons.Count == 1 ? contactPersons.First().ContactPersonName : string.Empty;
+
+            //Pending PoDetails
+            poPendingCount = await _grnService.GetPendingPoCountAsync(customer.CustId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {customer?.CustId}");
+            await _JS.ToastrError("Failed to apply Customer selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _grnService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _JS.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemOutChanged(LabourGRNSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItemOut = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.HSNCode = item.HSNCode;
+                subitem.MeasureUnit = item.MeasureUnit;
+                subitem.ItemSpecification = item.Specification;
+                subitem.Category = item.CategoryName;
+
+                if (LabourGRNVMs?.CustId != null && subitem.ItemId.HasValue)
+                {
+                    var rates = await _grnService.GetBulkLastUnitPricesAsync(new List<int> { subitem.ItemId.Value }, LabourGRNVMs.CustId);
+                    if (rates.TryGetValue(subitem.ItemId.Value, out decimal rate))
+                    {
+                        subitem.UnitPrice = rate;
+                    }
+                }
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _grnService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+
+                    if(IsLabourCost)
+                    {
+                        if (subitem.UnitPrice < subitem.LabourCost)
+                        {
+                            _JS.ToastrWarning($"Unit Price ({subitem.UnitPrice:0.00}) Is less than Labour Cost ({subitem.LabourCost:0.00})." );
+                        }
+                        else if(subitem.UnitPrice > subitem.LabourCost)
+                        {
+                            _JS.ToastrWarning($"Unit Price ({subitem.UnitPrice:0.00}) Is  Greater than than Labour Cost ({subitem.LabourCost:0.00})."     );
+
+                        }
+
+                    }
+                }
+
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItemOut = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.HSNCode = null;
+                subitem.MeasureUnit = null;
+                subitem.UnitPrice = 0m;
+                subitem.ItemSpecification = null;
+                subitem.Category = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In purchaseGRNUpsert OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _JS.ToastrError("Failed to apply item selection  in purchaseGRNUpsert. Please try again.");
+        }
+    }
+
+    private bool IsItemAlreadySelected(int itemId, int? currentItemId)
+    {
+        return LabourGRNVMs.LabourGRNSubVMs?.Any(q => q.ItemId == itemId && q.ItemId != currentItemId) == true;
+    }
+
+    #endregion
+
+    #region Quantity Handlers
+
+    private async Task OnDCQtyChanged(ChangeEventArgs e, LabourGRNSubVM subitem)
+    {
+        try
+        {
+            if (decimal.TryParse(e.Value?.ToString(), out decimal qty))
+            {
+                subitem.DCQty = qty;
+
+                // Auto fill Qty
+                subitem.Qty = qty;
+                subitem.BalQty = qty;
+                subitem.ProdCompBalQty = qty;
+
+                // GROUP SYNC LOGIC (ADD THIS PART)  $$ Important For manual &&
+                if (LabourGRNVMs.IsOutItemSameAsInItem && subitem.GroupId.HasValue)
+                {
+                    var groupItems = LabourGRNVMs.LabourGRNSubVMs
+                        .Where(x => x.GroupId == subitem.GroupId && x != subitem && x.TransType == "Out")
+                        .ToList();
+
+                    foreach (var item in groupItems)
+                    {
+                        item.Qty = subitem.Qty;
+                        item.BalQty = subitem.BalQty;
+                        item.DCQty = subitem.DCQty;
+                        item.ProdCompBalQty = subitem.ProdCompBalQty;
+                    }
+                }
+            }
+            else
+            {
+                subitem.DCQty = 0;
+                subitem.Qty = 0;
+                subitem.BalQty = 0;
+                subitem.ProdCompBalQty = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In OnDCQtyChanged()");
+            await _JS.ToastrError("Failed to apply item selection  in OnDCQtyChanged Please try again.");
+        }
+
+    }
+    private async Task OnQtyOutChange(ChangeEventArgs e, LabourGRNSubVM SubVM)
+    {
+        try
+        {
+
+            // Common validation
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.Qty = 0;
+                SubVM.BalQty = 0;
+                SubVM.ProdCompBalQty = 0;
+                await _JS.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+
+            // NEW PO line
+            if (SubVM.GRNSubId == 0)
+            {
+                if (SubVM.RefPoSubId > 0)
+                {
+                    var poBalQty = await _grnService.GetPoItemBalQtyFromPoSubId(SubVM.RefPoSubId.Value);
+
+                    if (SubVM.isOpenPo)
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty;
+                        SubVM.ProdCompBalQty = newQty;
+                    }
+                    else
+                    {
+                        if (newQty <= poBalQty)
+                        {
+                            SubVM.Qty = newQty;
+                            SubVM.BalQty = newQty;
+                            SubVM.ProdCompBalQty = newQty;
+                        }
+                        else
+                        {
+                            if (LabourGRNVMs.IsOutItemSameAsInItem || SubVM.TransType == "Out")
+                            {
+                                SubVM.Qty = poBalQty;
+                                SubVM.BalQty = poBalQty;
+                                SubVM.ProdCompBalQty = poBalQty;
+
+                                await _JS.ToastrWarning($"Qty can't be greater than PO Balance Qty ({poBalQty}).");
+                            }
+                            else
+                            {
+                                SubVM.Qty = newQty;
+                                SubVM.BalQty = newQty;
+                                SubVM.ProdCompBalQty = newQty;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty;
+                    SubVM.ProdCompBalQty = newQty;
+                }
+            }
+
+            // EXISTING DC line
+            else
+            {
+                var original = await _grnService.GetDcSubItemDetailByDcSubIdAsync(SubVM.GRNSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.Qty - original.BalQty;
+
+                var alreadyTransactedProd = original.Qty - original.ProdCompBalQty;
+
+
+                if (newQty < alreadyTransacted )
+                {
+                    SubVM.Qty = alreadyTransacted;
+                    SubVM.BalQty = 0;
+                  
+
+                    await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                   if (newQty < alreadyTransactedProd )
+                {
+                    SubVM.Qty = alreadyTransactedProd;
+                    SubVM.ProdCompBalQty = 0;
+
+                    await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted In Production Componet Issues).");
+                    return;
+                }
+                if (SubVM.RefPoSubId > 0 && !SubVM.isOpenPo)
+                {
+                    var poBalQty = await _grnService.GetPoItemBalQtyFromPoSubId(SubVM.RefPoSubId.Value);
+                    var maxAllowedQty = original.Qty + poBalQty;
+
+                    if (newQty > maxAllowedQty)
+                    {
+                        SubVM.Qty = maxAllowedQty;
+                        SubVM.BalQty = maxAllowedQty.GetValueOrDefault() - alreadyTransacted.GetValueOrDefault();
+
+                        await _JS.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                    }
+                    else
+                    {
+                        SubVM.Qty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted.GetValueOrDefault();
+                    }
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.BalQty = newQty - alreadyTransacted.GetValueOrDefault();
+                    SubVM.ProdCompBalQty=newQty- alreadyTransactedProd.GetValueOrDefault();
+                }
+            }
+
+            // GROUP SYNC LOGIC (ADD THIS PART)  $$ Important For manual &&
+            if (LabourGRNVMs.IsOutItemSameAsInItem && SubVM.GroupId.HasValue)
+            {
+                var groupItems = LabourGRNVMs.LabourGRNSubVMs
+                    .Where(x => x.GroupId == SubVM.GroupId && x != SubVM && x.TransType == "Out")
+                    .ToList();
+
+                foreach (var item in groupItems)
+                {
+                    item.Qty = SubVM.Qty;
+                    item.BalQty = SubVM.BalQty;
+                    item.DCQty = SubVM.DCQty;
+                    item.ProdCompBalQty = SubVM.ProdCompBalQty;
+                }
+            }
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+
+
+    #endregion
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(LabourGRNSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+            int itemid = 0;
+            decimal  qty = 0;
+
+            int.TryParse(row.ItemId.ToString(), out itemid);
+            decimal.TryParse(row.Qty.ToString(), out qty);
+
+            if (row.ItemId == null && LabourGRNVMs.LabourGRNSubVMs.Count==1)
+                errors.Add("Please select an Item ");
+
+            if (itemid>0 && qty<= 0 && LabourGRNVMs.LabourGRNSubVMs.Count>=1)
+                errors.Add("Quantity out must be greater than 0.");
+
+            if (row.UnitPrice <= 0 && LabourGRNVMs.LabourGRNSubVMs.Count==1)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (itemid==0 &&  LabourGRNVMs.LabourGRNSubVMs.Count==1)
+            {
+                await _JS.ToastrWarning("Please select item Out");
+                return false;
+            }
+
+            if (itemid>0  && LabourGRNVMs.LabourGRNSubVMs.Count>=1 && qty<=0)
+            {
+                await _JS.ToastrWarning($"Item {row.ItemCode}: Quantity out must be greater than 0.");
+                return false;
+            }
+
+            if (!row.UnitPrice.HasValue || row.UnitPrice <= 0)
+            {
+                await _JS.ToastrWarning($"Item {row.ItemCode}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            // Qty vs PO / Already Transacted validation
+            if (row.GRNSubId == 0 && row.RefPoSubId > 0 && !row.isOpenPo)
+            {
+                var poBalQty = await _grnService.GetPoItemBalQtyFromPoSubId(row.RefPoSubId.Value);
+
+                if ((row.Qty > poBalQty))
+                {
+                    row.Qty = poBalQty;
+                    row.BalQty = poBalQty;
+                    await _JS.ToastrWarning($"Qty cannot exceed Po Balance Qty ({poBalQty}).");
+                    return false;
+                }
+            }
+            else if (row.GRNSubId > 0)
+            {
+                var original = await _grnService.GetGRNSubItemDetailByGRNSubIdAsync(row.GRNSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty.Value;
+                    decimal origQty = original.Qty.GetValueOrDefault();
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (row.Qty < alreadyTransacted)
+                    {
+                        row.Qty = alreadyTransacted;
+                        row.BalQty = 0m;
+                        await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = row.Qty.GetValueOrDefault() - origQty;
+                        row.BalQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _JS.ToastrWarning(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = LabourGRNVMs.LabourGRNSubVMs.LastOrDefault();
+
+
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            if(LabourGRNVMs.IsOutItemSameAsInItem && !LabourGRNVMs.WithoutPoGRN)
+            {
+                return;
+            }
+
+            LabourGRNVMs.LabourGRNSubVMs.Add(new LabourGRNSubVM
+            {
+
+                GRNId = LabourGRNVMs.GRNId,
+                IsEditable = true
+            });
+
+            if(LabourGRNVMs.WithoutPoGRN)
+            {
+                pricelock=false;
+            }
+
+            RecalculateGroupIds();
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+
+    private async Task SaveRow(LabourGRNSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            if(LabourGRNVMs.IsOutItemSameAsInItem)
+            {
+                return;
+            }
+
+            if (!LabourGRNVMs.LabourGRNSubVMs.Any(x => x.IsEditable))
+            {
+                LabourGRNVMs.LabourGRNSubVMs.Add(new LabourGRNSubVM
+                {
+                    GRNId = LabourGRNVMs.GRNId,
+                    IsEditable = true
+                });
+            }
+
+            //RecalculateGroupIds();
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for GRNSubId: {item?.GRNSubId}");
+            await _JS.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(LabourGRNSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItemOut == null && item.ItemId > 0)
+            {
+                item.SelectedItemOut = await _grnService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for GRNSubId: {item?.GRNSubId}");
+            await _JS.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(LabourGRNSubVM? item, LabourGRNVM? parentDc)
+    {
+        try
+        {
+            if (item == null || parentDc == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (item.Qty.GetValueOrDefault() <= 0) ||
+                (item.UnitPrice <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentDc.LabourGRNSubVMs.Remove(item);
+                RecalculateGroupIds();
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for GRNSubId: {item?.GRNSubId}");
+            await _JS.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(LabourGRNSubVM item)
+    {
+        try
+        {
+            if (LabourGRNVMs.LabourGRNSubVMs.Count == 1 && item.GRNSubId > 0)
+            {
+                await _JS.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            // New validation
+            var grnItems = LabourGRNVMs.LabourGRNSubVMs
+                    .Where(x => x.GRNId == item.GRNId)
+                    .ToList();
+
+            int grnCount = grnItems.Count();
+            int inCount = grnItems.Count(x => x.TransType == "In");
+            int outCount = grnItems.Count(x => x.TransType == "Out");
+
+            bool isOnlyOneGRN = grnCount <= 1;
+            bool isOnlyOneInItem = inCount <= 1 && item.TransType == "In";
+            bool isOnlyOneOutItem = outCount <= 1 && item.TransType == "Out";
+            bool isExistingGRNSub = item.GRNSubId > 0;
+
+            if ((isOnlyOneGRN || isOnlyOneInItem || isOnlyOneOutItem) && isExistingGRNSub)
+            {
+                await _JS.ToastrWarning("Cannot delete. At least one In and one Out item required.");
+                return;
+            }
+
+            if (LabourGRNVMs.DcCancel)
+            {
+                await _JS.ToastrError("This Labour GRN is already cancelled. Row deletion is not allowed.");
+                return;
+            }
+
+            if (LabourGRNVMs.ShortClose)
+            {
+                await _JS.ToastrError("This Quotation is already short closed. Row deletion is not allowed.");
+                return;
+            }
+
+            if (item.ItemCancel)
+            {
+                await _JS.ToastrWarning("This item has already been cancelled and cannot be removed.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _JS.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction history.");
+                return;
+            }
+
+
+            if (item.ItemId == 0)
+            {
+                LabourGRNVMs.LabourGRNSubVMs.Remove(item);
+                await _JS.ToastrSuccess("New item row removed successfully.");
+
+
+                if (!LabourGRNVMs.LabourGRNSubVMs.Any())
+                    LabourGRNVMs.LabourGRNSubVMs = new List<LabourGRNSubVM>();
+
+                await ResetSlno();
+
+                RecalculateGroupIds();
+
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for GRNSubId: {item?.GRNSubId}");
+            await _JS.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in LabourGRNVMs.LabourGRNSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _JS.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "ExcelUpload" => "Excel Upload",
+                "Customer" => "Add New Customer",
+                "Item" => "Add New Item",
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type in LabourGRNUpsert: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal in LabourGRNUpsert. Please try again.");
+        }
+    }
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if (!GRNId.HasValue || GRNId == 0)
+            {
+                await _JS.ToastrError("Labour GRN cancel is not allowed before saving the Labbor GRN.");
+                return;
+            }
+            if (IsSomeItemsTransMade)
+            {
+                await _JS.ToastrWarning("Some Items Transaction Are Made!.. You Can't Cancel the Complete Labour GRN");
+                return;
+            }
+
+            if (LabourGRNVMs.ShortClose)
+            {
+                await _JS.ToastrError("Quotation is already short closed. You can't cancel it.");
+                return;
+            }
+            // If ANY item is already cancelled → stop GRN cancel
+            if (LabourGRNVMs.LabourGRNSubVMs.Any(s => s.ItemCancel))
+            {
+                await _JS.ToastrWarning("GRN cannot be cancelled — one or more items are already cancelled.");
+                return;
+            }
+
+            if(LabourGRNVMs.DcCancel)
+            {
+
+                var subs = await _grnService.GetlabourGRNSubDetailsByDcIdAsync(LabourGRNVMs.GRNId);
+
+                if (subs == null || subs.Count == 0)
+                    return;
+
+                foreach (var sub in subs)
+                {
+                    if(sub.TransType =="Out")
+                    {
+                        await _grnService.ValidatePoBalanceBeforeRevertAsync(sub);
+                    }
+                }
+            }
+
+            if (!LabourGRNVMs.DcCancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this GRN?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this GRN?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+            LabourGRNVMs= await _grnService.GetLabourGRNByIdAsync(GRNId.Value);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Labour GRN.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Labour GRN  Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnItemCancelChanged(LabourGRNSubVM subitem)
+    {
+        try
+        {
+            if (subitem.GRNSubId == 0)
+            {
+                await _JS.ToastrError("Labour GRN cancel is not allowed before saving.");
+                return;
+            }
+            if (subitem.Qty.GetValueOrDefault() != subitem.BalQty.GetValueOrDefault())
+            {
+                await _JS.ToastrWarning("Item cannot be cancelled/Revert — some transactions have been made on it.");
+                return;
+            }
+            if (LabourGRNVMs.DcCancel)
+            {
+                await _JS.ToastrWarning("Item cannot be cancelled — GRN is already cancelled.");
+                return;
+            }
+
+            var (CanItemCancel, message) = await _grnService.CanLabourGRNItemCancelCheckAsync(subitem);
+
+            if (!CanItemCancel)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.ItemCancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = false;
+                }
+                rowToCancel = subitem;
+
+                await _JS.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _JS.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            await LoadExistingGRN(GRNId.Value);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling Item in Labour GRN");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Item.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Item Cancel in PO Purchase");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+                case "Cancel":
+                case "Revert":
+                    await CancelGRN();
+                    break;
+                case "ItemCancel":
+                    await CancelItem(rowToCancel);
+                    break;
+                case "ShortClose":
+                    await ShortCloseLabourGRN();
+                    break;
+                default:
+                    await _JS.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action in LabourGRNUpsert: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action in LabourGRNUpsert. Please try again.");
+        }
+
+
+    }
+
+    private async Task ShortCloseLabourGRN()
+    {
+        if (LabourGRNVMs == null)
+        {
+            await _JS.ToastrError("No Labour GRN selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            LabourGRNVMs.ShortClose = !LabourGRNVMs.ShortClose;
+            await _grnService.UpsertlabourGRNShortCloseAsync(LabourGRNVMs);
+
+            StateHasChanged();
+
+            string msg = LabourGRNVMs.ShortClose
+                 ? "Labour GRN ShortClose Successfully!"
+                 : "Labour GRN ReOpen Successfully!";
+            await _JS.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while updating ShortClose");
+            await LoggingService.LogDeveloperError(ex, "Error in ShortClose()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelItem(LabourGRNSubVM rowToCancel)
+    {
+        if (rowToCancel == null  || isProcessing)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!rowToCancel.ItemCancel)
+            {
+                rowToCancel.ItemCancel = true;
+                rowToCancel.CancelItemReason = cancelReason;
+
+                await _grnService.UpdateItemCancelAndAddorRevertAsync(rowToCancel, screenCode, LabourGRNVMs.GRNNo, LabourGRNVMs.AddStoreId, LabourGRNVMs.GRNDate);
+                await LoggingService.LogUserAction(
+                UserName: username,
+                Machine: machine,
+                IP_Address: ip,
+                screen: "Labour GRN",
+                action: $"Cancelled Labour GRN No:{LabourGRNVMs.GRNNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"GRN No: {LabourGRNVMs.GRNNo}");
+
+            }
+            else
+            {
+                rowToCancel.ItemCancel = false;
+                rowToCancel.CancelItemReason = string.Empty; ;
+                await _grnService.UpdateItemCancelAndAddorRevertAsync(rowToCancel, screenCode, LabourGRNVMs.GRNNo, LabourGRNVMs.AddStoreId, LabourGRNVMs.GRNDate);
+
+                await LoggingService.LogUserAction(
+                username, machine, ip,
+                screen: "Labour GRN",
+                action: $"Reverted Labour GRN No: {LabourGRNVMs.GRNNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"Reason: {cancelReason}");
+            }
+
+            LabourGRNVMs = await _grnService.GetLabourGRNByIdAsync(LabourGRNVMs.GRNId);
+
+            await ResetSlno();
+
+            RecalculateGroupIds();
+
+            var toastMessage = rowToCancel.ItemCancel
+                ? "Item cancelled successfully."
+                : "Item has been reverted successfully.";
+
+            await _JS.ToastrSuccess(toastMessage);
+            rowToCancel = null;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            rowToCancel = null;
+            await _JS.ToastrError("An error occurred while cancelling/reverting the Item.");
+            await LoggingService.LogDeveloperError(ex, $"Item Cancel/Reverse failed for GRNId: {LabourGRNVMs.GRNId}");
+        }
+        finally
+        {
+            rowToCancel = null;
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelGRN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!LabourGRNVMs.DcCancel)
+            {
+                LabourGRNVMs.DcCancel = true;
+                LabourGRNVMs.CancelReason = cancelReason;
+                LabourGRNVMs.CancelDate = DateTime.Now;
+                LabourGRNVMs.CancelBy = username;
+
+                await _grnService.UpdatedCancelStatusAndAddOrRevertQty(LabourGRNVMs, screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Labour GRN",
+                    action: $"Cancelled Labour GRN No: {LabourGRNVMs.GRNNo}",
+                    additionalInfo: $"GRN Id: {LabourGRNVMs.GRNId}"
+                );
+
+                await _JS.ToastrSuccess("GRN cancelled successfully.");
+            }
+            else
+            {
+                LabourGRNVMs.DcCancel = false;
+                LabourGRNVMs.CancelReason = string.Empty;
+                LabourGRNVMs.CancelDate = null;
+                LabourGRNVMs.CancelBy = string.Empty;
+
+                await _grnService.UpdatedCancelStatusAndAddOrRevertQty(LabourGRNVMs, screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Labour GRN",
+                    action: $"Reverted Labour GRN No: {LabourGRNVMs.GRNNo}",
+                    additionalInfo: $"GRN Id: {LabourGRNVMs.GRNId}"
+                );
+
+                await _JS.ToastrSuccess("Labour GRN has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            LabourGRNVMs= await _grnService.GetLabourGRNByIdAsync(LabourGRNVMs.GRNId);
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"CancelGRN failed for GRNId: {LabourGRNVMs.GRNId}");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the Labour GRN.");
+            await LoggingService.LogDeveloperError(ex, $"Cancel Labour GRN failed for GRNId: {LabourGRNVMs.GRNId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _JS.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.GRNSubId > 0)
+            {
+                await _grnService.DeleteAndResequenceAsync(rowToDelete, LabourGRNVMs,screenCode);
+
+                LabourGRNVMs = await _grnService.GetLabourGRNByIdAsync(LabourGRNVMs.GRNId);
+            }
+            else
+            {
+                var list = LabourGRNVMs.LabourGRNSubVMs;
+
+                var groupItems = list
+                    .Where(x => x.GroupId == rowToDelete.GroupId)
+                    .ToList();
+
+                var outItems = groupItems.Where(x => x.TransType == "Out").ToList();
+                var inItems = groupItems.Where(x => x.TransType == "In").ToList();
+
+                list.Remove(rowToDelete);
+
+                // OUT row deleted
+                if (rowToDelete.TransType == "Out")
+                {
+                    if (outItems.Count == 1)
+                    {
+                        foreach (var item in inItems)
+                            list.Remove(item);
+                    }
+                }
+
+                // IN row deleted
+                else if (rowToDelete.TransType == "In")
+                {
+                    if (inItems.Count == 1)
+                    {
+                        foreach (var item in outItems)
+                            list.Remove(item);
+                    }
+                }
+
+                // If list empty add new row
+                if (!list.Any())
+                {
+                    list.Add(new LabourGRNSubVM
+                    {
+                        GRNId = LabourGRNVMs.GRNId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    await ResetSlno();
+                    RecalculateGroupIds();
+                }
+            }
+
+            await _JS.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for GRNId:{LabourGRNVMs.GRNId} ");
+            await _JS.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _JS.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _JS.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _grnService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _JS.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region CostCenter And terms
+
+    private Task OnCostCenterChanged(ChangeEventArgs e, LabourGRNSubVM row)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            row.CostId = selectedId;
+
+            var selectedCostCenter = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            row.ProjectNo = selectedCostCenter?.ProjectNo; // Will be null if not found
+        }
+        else
+        {
+            // No selection or invalid selection
+            row.CostId = null;
+            row.ProjectNo = null;
+        }
+        return Task.CompletedTask;
+
+    }
+
+    #endregion
+
+    #region GRN Operations
+
+    private async Task UpsertGRN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            LabourGRNVMs.LabourGRNSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.Qty.HasValue || x.Qty == 0) &&
+                (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (!LabourGRNVMs.LabourGRNSubVMs.Any())
+            {
+                await _JS.ToastrWarning("Cannot save a Labour GRN without valid items.");
+                return;
+            }
+            bool hasIn = LabourGRNVMs.LabourGRNSubVMs
+                .Any(x => x.TransType?.Equals("Out", StringComparison.OrdinalIgnoreCase) == true);
+
+            bool hasOut = LabourGRNVMs.LabourGRNSubVMs
+                .Any(x => x.TransType?.Equals("In", StringComparison.OrdinalIgnoreCase) == true);
+
+            if (!hasIn || !hasOut)
+            {
+                await _JS.ToastrError("At least one IN item and one OUT item are required.");
+                return;
+            }
+
+            // Validate Group-wise IN and OUT
+            var invalidGroups = LabourGRNVMs.LabourGRNSubVMs
+                .GroupBy(x => x.GroupId)
+                .Where(g =>
+                    !g.Any(x => x.TransType?.Equals("Out", StringComparison.OrdinalIgnoreCase) == true) ||
+                    !g.Any(x => x.TransType?.Equals("In", StringComparison.OrdinalIgnoreCase) == true))
+                .Select(g => g.Key)
+                .ToList();
+
+            if (invalidGroups.Any())
+            {
+                await _JS.ToastrError($"Group {string.Join(", ", invalidGroups)} must contain at least one OUT item and one IN item.");
+                return;
+            }
+
+
+            if (LabourGRNVMs.AddStoreId == 0)
+            {
+                await _JS.ToastrError("Store selection is required.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(LabourGRNVMs.RefDcNo))
+            {
+                await _JS.ToastrWarning($"Please enter the DC number");
+                return;
+            }
+
+
+            // Validate each line
+            foreach (var line in LabourGRNVMs.LabourGRNSubVMs)
+            {
+                bool isValid = await ValidateRowAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewDc = LabourGRNVMs.GRNId == 0;
+            if (isNewDc)
+            {
+                if (await _grnService.IsDuplicateDcNoAsync(LabourGRNVMs.CustId, LabourGRNVMs.RefDcNo, LabourGRNVMs.Suffix))
+                {
+                    await _JS.ToastrWarning($"The same Customer {LabourGRNVMs.CustName} and DC No {LabourGRNVMs.RefDcNo} already exist. Please enter a different DC No.");
+                    return;
+                }
+            }
+            try
+            {
+                await _grnService.UpsertGRNAsync(LabourGRNVMs, screenCode);
+
+            }
+            catch (Exception ex)
+            {
+                await _JS.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewDc)
+                await _JS.ToastrSuccess("Labour GRN saved successfully.");
+            else
+                await _JS.ToastrSuccess("Labour GRN updated successfully.");
+
+            // Discard popup Clear
+            await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigation.NavigateTo("/labourGRNList");
+        }
+
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertGRN failed.");
+            await _JS.ToastrError("Error saving  Labour GRN.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Show PoDetails
+
+    private async Task ShowPoDetails()
+    {
+        if (LabourGRNVMs?.CustId != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                if (LabourGRNVMs.CustId > 0)
+                {
+                    PoData = await _grnService.GetPoDetailsByVendorCode(LabourGRNVMs.CustId);
+                }
+                else
+                {
+                    await _JS.ToastrError("Select a Customer First");
+                }
+                IsPoModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogDeveloperError(ex, "ShowPoDetails failed.");
+                await _JS.ToastrError("Error fetching Show PoDetails details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnPoSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (LabourGRNVMs.LabourGRNSubVMs == null)
+            LabourGRNVMs.LabourGRNSubVMs = new();
+
+        if (LabourGRNVMs.AddStoreId == 0)
+        {
+            await _JS.ToastrWarning("Please select Purchase Store");
+            return;
+        }
+
+        try
+        {
+            foreach (var item in selectedItems)
+            {
+                var itemId = GetInt(item, "ItemId");
+                var poSubId = GetInt(item, "PoSubId");
+                var categoryCode = GetInt(item, "CategoryCode");
+
+                if (LabourGRNVMs.LabourGRNSubVMs.Any(x => x.ItemId == itemId && x.RefPoSubId == poSubId ))
+                    continue;
+
+                var parentVm = CreateParentVM(item, itemId, poSubId);
+
+                LabourGRNVMs.LabourGRNSubVMs.Add(parentVm);
+
+                if (LabourGRNVMs.IsOutItemSameAsInItem)
+                {
+                    await AddSameItemChildAsync(parentVm);
+                }
+                else if (categoryCode == 3 || categoryCode == 7)
+                {
+                    await AddAssemblyChildrenAsync(parentVm, itemId);
+                }
+                else if (categoryCode == 2)
+                {
+                    await AddRawMaterialChildAsync(parentVm, itemId);
+                }
+            }
+
+            RecalculateGroupIds();
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnPoSelectedAsync failed.");
+            await _JS.ToastrError("Error processing selected items.");
+        }
+    }
+
+    private LabourGRNSubVM CreateParentVM(Dictionary<string, object> item, int? itemId, int? poSubId)
+    {
+        decimal qty = GetDecimal(item, "Qty");
+        decimal totalQty = GetDecimal(item, "TotalQty");
+        decimal unitPrice =  GetDecimal(item, "UnitPrice");
+
+        // decimal stockValue = CalculateLandedStockPrice(
+        //     qty,
+        //     totalQty,
+        //     GetDecimal(item, "LineGross"),
+        //     GetDecimal(item, "SubDiscPercent"),
+        //     GetDecimal(item, "SubDiscAmt"),
+        //     GetDecimal(item, "MainDiscPercent"),
+        //     GetDecimal(item, "MainDiscAmt"),
+        //     GetDecimal(item, "PackingPercent"),
+        //     GetDecimal(item, "PackingAmt"),
+        //     GetDecimal(item, "InsurancePercent"),
+        //     GetDecimal(item, "InsuranceAmt"),
+        //     GetDecimal(item, "FreightAmt"),
+        //     GetDecimal(item, "TotalBasicAmt"),
+        //     GetDecimal(item, "TodayVal")
+        // );
+
+        return new LabourGRNSubVM
+        {
+            RefPoSubId = poSubId,
+            RefPoNo = GetString(item, "PoNo"),
+            RefPoDate = GetDate(item, "PoDate"),
+
+            ItemId = itemId,
+            TransType = "Out",
+
+            isOpenPo = item.ContainsKey("IsOpenPo") &&
+                       item["IsOpenPo"] != null &&
+                       item["IsOpenPo"].ToString().Trim().ToLower() == "yes",
+
+            ItemCode = GetString(item, "ItemCode"),
+            ItemName = GetString(item, "ItemName"),
+            ItemSpecification = GetString(item, "ItemSpecification"),
+            MeasureUnit = GetString(item, "UOM"),
+            HSNCode = GetString(item, "HSNCode"),
+            Category = GetString(item, "Category"),
+
+            Qty = GetDecimal(item, "BalQty"),
+            BalQty = GetDecimal(item, "BalQty"),
+            DCQty = GetDecimal(item, "BalQty"),
+            ProdCompBalQty = GetDecimal(item, "BalQty"),
+
+            UnitPrice = unitPrice,
+
+            CostId = GetInt(item, "CostCenterId"),
+            ProjectNo = GetString(item, "ProjectNo"),
+
+            POBalQty = GetDecimal(item, "BalQty"),
+            PoDueDate = GetDate(item, "PoDuedate"),
+
+            IsEditable = true
+        };
+    }
+
+    private decimal GetDecimal(Dictionary<string, object> item, string key)
+    {
+        return item.TryGetValue(key, out var val) && decimal.TryParse(val?.ToString(), out var parsed)
+            ? parsed
+            : 0;
+    }
+
+    private int? GetInt(Dictionary<string, object> item, string key)
+    {
+        return item.TryGetValue(key, out var val) && int.TryParse(val?.ToString(), out var parsed)
+            ? parsed
+            : (int?)null;
+    }
+
+    private string GetString(Dictionary<string, object> item, string key)
+    {
+        return item.TryGetValue(key, out var val)
+            ? val?.ToString() ?? string.Empty
+            : string.Empty;
+    }
+
+    private DateTime? GetDate(Dictionary<string, object> item, string key)
+    {
+        return item.TryGetValue(key, out var val) && DateTime.TryParse(val?.ToString(), out var parsed)
+            ? parsed
+            : (DateTime?)null;
+    }
+
+    private async Task AddSameItemChildAsync(LabourGRNSubVM parentVm)
+    {
+        var item = await _grnService.GetItemByItemIdAsync(parentVm.ItemId ?? 0);
+
+        LabourGRNVMs.LabourGRNSubVMs.Add(new LabourGRNSubVM
+        {
+            SelectedItemOut = item,
+
+            RefPoSubId = parentVm.RefPoSubId,
+            RefPoNo = parentVm.RefPoNo,
+            RefPoDate = parentVm.RefPoDate,
+
+            TransType = "In",
+
+            isOpenPo = parentVm.isOpenPo,
+           
+            ItemId = parentVm.ItemId,
+            ItemCode = parentVm.ItemCode,
+            ItemName = parentVm.ItemName,
+            ItemSpecification = parentVm.ItemSpecification,
+            MeasureUnit = parentVm.MeasureUnit,
+            HSNCode = parentVm.HSNCode,
+            Category = parentVm.Category,
+
+            Qty = parentVm.Qty,
+            BalQty = parentVm.Qty,
+            POBalQty=parentVm.POBalQty,
+            DCQty = parentVm.Qty,
+            ProdCompBalQty = parentVm.Qty,
+
+            UnitPrice = parentVm.UnitPrice,
+            CostId = parentVm.CostId,
+            ProjectNo = parentVm.ProjectNo,
+            IsEditable = true
+        });
+    }
+
+    private async Task AddAssemblyChildrenAsync(LabourGRNSubVM parentVm, int? itemId)
+    {
+        var asmItems = await _grnService.GetAssemblyItemsAsync(itemId ?? 0);
+
+        if(IsLabourMaterial)
+        {
+            asmItems = asmItems.Where(x => x.IsLabourMaterial).ToList();
+        }
+
+        var ids = asmItems.Where(x => x.ItemId.HasValue).Select(x => x.ItemId.Value).ToList();
+
+        var prices = await _grnService.GetBulkLastUnitPricesAsync(ids, LabourGRNVMs.CustId);
+
+        foreach (var rm in asmItems)
+        {
+            var qtyCalc = Math.Round(parentVm.Qty.GetValueOrDefault() * rm.UtilQty.GetValueOrDefault(), 3);
+
+            LabourGRNVMs.LabourGRNSubVMs.Add(new LabourGRNSubVM
+            {
+                TransType = "In",
+
+                SelectedItemOut = await _grnService.GetItemByItemIdAsync(rm.ItemId),
+
+                ItemId = rm.ItemId,
+                ItemCode = rm.PartItemCode,
+                ItemName = rm.PartItemName,
+                MeasureUnit = rm.UOM,
+                ItemSpecification = rm.PartSpecification,
+                Category = rm.CategoryName,
+
+                Qty = qtyCalc,
+                BalQty = qtyCalc,
+                DCQty = qtyCalc,
+                ProdCompBalQty = qtyCalc,
+
+                UnitPrice = prices.ContainsKey(rm.ItemId.Value) ? prices[rm.ItemId.Value] : 0,
+
+                CostId = parentVm.CostId,
+                ProjectNo = parentVm.ProjectNo,
+                IsEditable = true
+            });
+        }
+    }
+
+    private async Task AddRawMaterialChildAsync(LabourGRNSubVM parentVm, int? itemId)
+    {
+        var rmItem = await _grnService.GetRawMaterialItemAsync(itemId ?? 0);
+
+        if (rmItem == null) return;
+
+        var prices = await _grnService.GetBulkLastUnitPricesAsync(new List<int> { rmItem.ItemId }, LabourGRNVMs.CustId);
+
+        var qtyCalc = Math.Round(parentVm.Qty.GetValueOrDefault() * rmItem.Weight, 3);
+
+        LabourGRNVMs.LabourGRNSubVMs.Add(new LabourGRNSubVM
+        {
+            SelectedItemOut = rmItem,
+
+            TransType = "In",
+            ItemId = rmItem.ItemId,
+            ItemCode = rmItem.ItemCode,
+            ItemName = rmItem.ItemName,
+            MeasureUnit = rmItem.MeasureUnit,
+            ItemSpecification = rmItem.Specification,
+            Category = rmItem.CategoryName,
+
+            Qty = qtyCalc,
+            BalQty = qtyCalc,
+            DCQty = qtyCalc,
+            ProdCompBalQty = qtyCalc,
+
+            UnitPrice = prices.ContainsKey(rmItem.ItemId) ? prices[rmItem.ItemId] : 0,
+
+            CostId = parentVm.CostId,
+            ProjectNo = parentVm.ProjectNo,
+            IsEditable = true
+        });
+    }
+
+    #endregion
+
+    private decimal CalculateLandedStockPrice(decimal qty, decimal totalQty, decimal itemBasicWithoutDisc,decimal subDiscPercent, 
+        decimal subDiscAmt, decimal mainDiscPercent, decimal mainDiscAmt,decimal packingPercent,
+        decimal packingAmt, decimal insurancePercent, decimal insuranceAmt, decimal freightAmt, decimal totalBasicAmt, decimal todayVal)
+    {
+        if (qty <= 0) return 0;
+
+        decimal itemBasic = itemBasicWithoutDisc;
+
+        if (subDiscAmt > 0)
+            itemBasic -= subDiscAmt;
+        else if (subDiscPercent > 0)
+            itemBasic -= (itemBasicWithoutDisc * subDiscPercent / 100);
+
+        if (subDiscAmt == 0 && subDiscPercent == 0)
+        {
+            if (mainDiscAmt > 0 && totalBasicAmt > 0)
+            {
+                decimal proportion = itemBasicWithoutDisc / totalBasicAmt;
+                itemBasic -= proportion * mainDiscAmt;
+            }
+            else if (mainDiscPercent > 0)
+            {
+                itemBasic -= (itemBasicWithoutDisc * mainDiscPercent / 100);
+            }
+        }
+
+        if (packingAmt > 0 && totalBasicAmt > 0)
+            itemBasic += (itemBasicWithoutDisc / totalBasicAmt) * packingAmt;
+        else if (packingPercent > 0)
+            itemBasic += (itemBasicWithoutDisc * packingPercent / 100);
+
+        if (insuranceAmt > 0 && totalBasicAmt > 0)
+            itemBasic += (itemBasicWithoutDisc / totalBasicAmt) * insuranceAmt;
+        else if (insurancePercent > 0)
+            itemBasic += (itemBasicWithoutDisc * insurancePercent / 100);
+
+        if (freightAmt > 0 && totalQty > 0)
+            itemBasic += (qty / totalQty) * freightAmt;
+
+        decimal unitPrice = itemBasic / qty;
+
+        if (todayVal > 1)
+            unitPrice *= todayVal;
+
+        return unitPrice = Math.Round(unitPrice, 3, MidpointRounding.AwayFromZero);
+    }
+
+    #region Formatting
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+    #endregion
+
+    private async Task AskToShortCloseAsync(LabourGRNVM LabourGRNVMs)
+    {
+        try
+        {
+            if (LabourGRNVMs == null)
+            {
+                await _JS.ToastrError("Invalid Labour GRN  selected.");
+                return;
+            }
+
+            if (!GRNId.HasValue || GRNId == 0)
+            {
+                await _JS.ToastrError("Labour GRN Short Close is not allowed before saving the Labour GRN.");
+                return;
+            }
+
+            if (LabourGRNVMs.DcTally)
+            {
+                await _JS.ToastrWarning("This Labour GRN is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (LabourGRNVMs.DcCancel)
+            {
+                await _JS.ToastrWarning("This Labour GRN is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!LabourGRNVMs.ShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Labour GRN?";
+                btnText = "Short Close";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Labour GRN?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while AskToShortCloseAsync Labour GRN.");
+            await LoggingService.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #region Template Download And Excel Upload
+
+    private async Task DownloadTemplate()
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            // Generate Excel
+            var bytes = await _grnService.CreateTemplateAsync(UploadTypes.LabourGRN);
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.InvokeVoidAsync("downloadExcelFile", base64, "LabourGRNTemplate.xlsx");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    #endregion
+
+    #region Receive Items from Excel Upload
+
+    private async Task ReceiveItems(List<ExcelUploadVM> items)
+    {
+        try
+        {
+            if (items == null || !items.Any()) return;
+
+            // Map each ExcelUploadVM to LabourGRNSUB
+            if (LabourGRNVMs.LabourGRNSubVMs == null || LabourGRNVMs.WithoutPoGRN)
+            {
+                LabourGRNVMs.LabourGRNSubVMs = new List<LabourGRNSubVM>();
+            }
+
+            var newItems = items
+           .Where(i => !LabourGRNVMs.LabourGRNSubVMs.Any(e => e.ItemId == i.ItemId))
+           .Select(item => new LabourGRNSubVM
+            {
+                SlNo = item.SlNo,
+                TransType = item.TransType,
+                ItemId = item.ItemId,
+                ItemCode = item.ItemCode,
+                ItemName = item.ItemName,
+                ItemSpecification=item.ItemSpeification,
+                DCQty = item.DCQty,
+                Qty = item.Qty,
+                BalQty=item.RecievedQty,
+                
+                UnitPrice = item.UnitPrice,
+                MeasureUnit = item.MeasureUnit,
+
+                HSNCode = item.HSNCode,
+                WONo = item.WONo,
+                RowRemarks = item.RowRemarks,
+                BatchNo = item.BatchNo,
+                HeatNo = item.HeatNo
+            });
+
+            LabourGRNVMs.LabourGRNSubVMs.AddRange(newItems);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ReceiveItems() failed.");
+            await _JS.ToastrError("Error processing ReceiveItems() items.");
+        }
+    }
+    #endregion
+
+
+    #region Display SlNo From In Items
+
+    private int GetDisplaySlNo(LabourGRNSubVM item)
+    {
+        if (!LabourGRNVMs.IsOutItemSameAsInItem)
+            return item.SlNo;
+
+        var list = LabourGRNVMs.LabourGRNSubVMs
+                    .Where(x => x.TransType == "In")
+                    .ToList();
+
+        var index = list.IndexOf(item);
+
+        return index >= 0 ? index + 1 : 0;
+    }
+    #endregion
+
+    #region Calculate GroupId For IN and OUT items
+
+    private void RecalculateGroupIds()
+    {
+        try
+        {
+            var list = LabourGRNVMs?.LabourGRNSubVMs;
+
+            if (list == null || !list.Any())
+                return;
+
+            int groupId = 1;
+            bool inStarted = false;
+
+            foreach (var row in list)
+            {
+                if (row.TransType == "Out")
+                {
+                    if (inStarted)
+                    {
+                        groupId++;
+                        inStarted = false;
+                    }
+
+                    row.GroupId = groupId;
+                }
+                else if (row.TransType == "In")
+                {
+                    row.GroupId = groupId;
+                    inStarted = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggingService.LogDeveloperError(ex, "RecalculateGroupIds() failed.");
+        }
+    }
+
+    #endregion
+
+
+    private async Task AddToGroup(LabourGRNSubVM item)
+    {
+        try
+        {
+            if (item == null)
+            {
+                await _JS.ToastrWarning("Invalid row selected.");
+                return;
+            }
+
+            var list = LabourGRNVMs?.LabourGRNSubVMs;
+
+            if (list == null || !list.Any())
+            {
+                await _JS.ToastrWarning("No rows available.");
+                return;
+            }
+
+            if (LabourGRNVMs.IsOutItemSameAsInItem)
+            {
+                await _JS.ToastrWarning("Out Item Same As In Item enabled. Cannot add group row.");
+                return;
+            }
+
+            int insertIndex = list.IndexOf(item);
+
+            if (insertIndex < 0)
+                insertIndex = list.Count - 1;
+
+            var newRow = new LabourGRNSubVM
+            {
+                TransType = "In",
+                IsEditable = true
+            };
+
+            list.Insert(insertIndex + 1, newRow);
+
+            // Recalculate GroupIds based on Out/In logic
+            RecalculateGroupIds();
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"AddToGroup() failed. ItemId: {item?.ItemId}");
+            await _JS.ToastrError("Error processing AddToGroup().");
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(GRNId.GetValueOrDefault(),"LabourGRN.frx","GRNId",LabourGRNVMs.DcCancel,ScreenName, "Sp_Print_LabourGRN");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _JS.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _JS.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,"Error in GenerateAndOpenPdf LabourGRN PDF");
+            await _JS.ToastrError("Unexpected error occurred while generating report LabourGRN PDF");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

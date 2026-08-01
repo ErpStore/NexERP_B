@@ -1,0 +1,354 @@
+﻿@page "/routeCard/details/{RcId:int}"
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.PlanningViewModel.RouteCardViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ReportService reportService
+@inject ILoggingService _logs
+
+@inject NavigationManager _navigationManager
+@inject IRouteCardService rcService
+@inject IJSRuntime _js
+@inject ILoggingService LoggingService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <!-- Company Details Section -->
+            <MyCompanyDetails />
+
+            <!-- Cancelled Watermark -->
+            @*  @if (RouteCardVMs.AssyId)
+            {
+                <div class="cancelWatermark ms-20 mt-10">CANCELLED</div>
+            } *@
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+            <div class="text-center">
+                <h4 class="fw-semibold mt-3">Route Card Details</h4>
+            </div>
+            <hr class="border-2 border-primary-subtle mb-4" />
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Barcode & QR Code
+                        </div>
+                        <div class="card-body bg-light rounded-bottom-3 h-100">
+                            <div class="d-flex flex-column flex-md-row
+                                        justify-content-center justify-content-md-around
+                                        align-items-center gap-4 h-100">
+
+                                @if (!string.IsNullOrWhiteSpace(RouteCardVMs.BarCodeBase64))
+                                {
+                                    <div class="text-center">
+                                        <p class="mb-1 small text-muted">Barcode</p>
+                                        <img src="@RouteCardVMs.BarCodeBase64"
+                                             class="bg-white p-2 border rounded"
+                                             style="width:250px; height:auto;" />
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(RouteCardVMs.QrCodeBase64))
+                                {
+                                    <div class="text-center">
+                                        <p class="mb-1 small text-muted">QR Code</p>
+                                        <img src="@RouteCardVMs.QrCodeBase64"
+                                             class="bg-white p-2 border rounded"
+                                             style="width:100px; height:100px; object-fit:contain;" />
+                                    </div>
+                                }
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                            Route Card Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Document Type</strong></td>
+                                        <td>@(RouteCardVMs.MfgOrLab ? "Manufacturing" : "Labour")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Route Card No</strong></td>
+                                        <td>@(RouteCardVMs != null ? $"{RouteCardVMs.RCNo}{RouteCardVMs.Suffix}" : "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Route Card Date</strong></td>
+                                        <td>@(RouteCardVMs?.RCDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+
+                                    <!--The below Code is for Cotcenter -->
+                                    @*   <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Currency</strong></td>
+                                        <td>@(!string.IsNullOrEmpty(RouteCardVMs?.) ? RouteCardVMs.CurrName : "N/A")</td>
+                                    </tr> *@
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Customer Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <div class="card-body p-2 small">
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(RouteCardVMs?.CustName) ? RouteCardVMs.CustName : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>PO No.</strong></td><td>@(!string.IsNullOrEmpty(RouteCardVMs?.RefPoNo) ? RouteCardVMs.RefPoNo : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Item Type</strong></td><td>@((RouteCardVMs?.SelectedItemType != null && RouteCardVMs?.SelectedItemType == "COMP") ? "Component" : "Assembly")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Component</strong></td><td>@((RouteCardVMs?.SelectedComponent != null) ? RouteCardVMs.SelectedComponent.ItemCode : "N/A")</td></tr>
+                                        <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@((RouteCardVMs?.RcQty != null) ? RouteCardVMs.RcQty : "N/A")</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Raw Material Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Raw Material</strong></td>
+                                        <td>@(RouteCardVMs?.RMCode ?? "N/A")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>RM Req Qty</strong></td>
+                                        <td>@RouteCardVMs.RMReqQty</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>RM Stock Qty</strong></td>
+                                        <td>@RouteCardVMs.RMWeight</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Batch No</strong></td>
+                                        <td>@RouteCardVMs.RMBatchNo</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Main Remarks</strong></td>
+                                        <td>@(RouteCardVMs?.MainRemarks ?? "N/A")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                    Process Items
+                </div>
+                <div class="table-responsive" style="overflow-x:auto;">
+                    <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                        <thead class="custom-blue">
+                            <tr>
+                                <th>Sl No.</th>
+                                <th>Same Seq.</th>
+                                <th>Seq No.</th>
+                                <th>Process</th>
+                                <th>Total Qty</th>
+                                <th>Issued Qty</th>
+                                <th>Accepted Qty</th>
+                                <th>Rejected Qty</th>
+                                <th>Rework Qty</th>
+                                <th>Machine</th>
+                                <th>Vendor</th>
+                                <th>Cycle Time</th>
+                                <th>Setting Time</th>
+                                <th>Process Skip</th>
+                                <th>BOM</th>
+                                <th>Inspection</th>
+                                <th>Process Cost</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="custom-size">
+                            @if (RouteCardVMs?.RouteCardSubVMs != null && RouteCardVMs.RouteCardSubVMs.Any())
+                            {
+                                @foreach (var item in RouteCardVMs.RouteCardSubVMs)
+                                {
+                                    <tr>
+                                        <td>@item.SlNo</td>
+                                        <td>@(item.UseSameSeq ? "Yes" : "No")</td>
+                                        <td>@(item.SeqNo)</td>
+                                        <td>@item.ProcessName</td>
+                                        <td>@item.TotalQty</td>
+                                        <td>@item.IssuedQty</td>
+                                        <td>@item.AccQty</td>
+                                        <td>@item.RejQty</td>
+                                        <td>@item.RewQty</td>
+                                        <td>@item.MachineName</td>
+                                        <td>@item.VendorName</td>
+                                        <td>@item.CycleTime</td>
+                                        <td>@item.SettingTime</td>
+                                        <td>@item.IsProcessSkip</td>
+                                        <td>@item.IsBOM</td>
+                                        <td>@item.IsInspection</td>
+                                        <td>@item.ProcessCost</td>
+                                        <td>@((item.ProcessStatus<=2) ? "Pending":"Completed")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="13" class="text-center text-muted">No items found</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="/routeCardList" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+                <a href="@($"/routeCard/update/{RcId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+
+            </div>
+        </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Route Card";
+
+    [Parameter]
+    public int RcId { get; set; }
+
+    private string? pdfBase64;
+
+    private bool isProcessing { get; set; } = true;
+    private RouteCardVM RouteCardVMs { get; set; } = new RouteCardVM();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            else
+            {
+                await LoadRouteCards();
+                isProcessing = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error while Loading OnInitializedAsync() in MfgPODetails()");
+        }
+    }
+
+    private async Task LoadRouteCards()
+    {
+        try
+        {
+            if (RcId > 0)
+            {
+                var po = await rcService.GetRouteCardByRCIdAsync(RcId);
+                if (po != null)
+                {
+                    RouteCardVMs = po;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error while Loading LoadManufacturingPo() in MfgPODetails()");
+            await LoggingService.LogDeveloperError(ex, "Error while Loading LoadManufacturingPo() in MfgPODetails()");
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            bool Cancel = false;
+
+            if (RouteCardVMs.RcStatus == 3)
+            {
+                Cancel = true;
+            }
+
+            var pdfBytes = await reportService.Generate_Report(RcId, "RouteCard.frx", "RcId", Cancel, ScreenName, "Sp_Print_RouteCard");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Route Card");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Route Card");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

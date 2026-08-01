@@ -1,0 +1,590 @@
+﻿@page "/biometric-Excel"
+
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IBiometricExcelSettingService _biometricExcelSetService
+@inject ILoggingService _logs
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-4 mt-4">
+
+        <div class="card shadow-sm">
+
+            <div class="card-header text-white" style="background-color:#902214;">
+                <h5 class="mb-0">
+                    <i class="bi bi-person-workspace me-2"></i>
+                    Biometric Excel Upload Settings
+                </h5>
+            </div>
+
+            <div class="card-body">
+
+                <EditForm Model="BiometricExcelSets" OnValidSubmit="SaveBiometricExcelSet">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row">
+                        <!-- Excel Upload Settings -->
+                        <div class="col-lg-8 col-md-12 mb-3">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-primary-subtle">
+                                    <h6 class="mb-0 fw-bold text-primary">
+                                        Biometric Excel Upload Settings
+                                    </h6>
+                                </div>
+
+                                <div class="card-body">
+                                    <div class="row mb-1">
+                                        <div class="col-sm-4"></div>
+
+                                        <div class="col-sm-4 text-center">
+                                            <small>Header Names/Column</small>
+                                        </div>
+                                        <div class="col-sm-2 text-center">
+                                            <small>Index</small>
+                                        </div>
+                                        <div class="col-sm-2"></div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>Month Date Column</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputNumber class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="BiometricExcelSets.MonthDateColumn" />
+                                        </div>
+                                        <label class="col-6 col-sm-2 col-form-label pt-1 text-dark">
+                                            <small>Row</small>
+                                        </label>
+                                        <div class="col-6 col-sm-2">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.MonthDateRow" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>Status Row Name</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="BiometricExcelSets.StatusName" />
+                                        </div>
+                                        <label class="col-6 col-sm-2 col-form-label pt-1 text-dark">
+                                            <small>Row</small>
+                                        </label>
+                                        <div class="col-6 col-sm-2">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.StatusNameIndexFromInTime" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>InTime Row Name(Base Reference Point)</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="@BiometricExcelSets.InTimeName" />
+                                        </div>
+                                        <label class="col-6 col-sm-2 col-form-label pt-1 text-dark">
+                                            <small>Row</small>
+                                        </label>
+                                        <div class="col-6 col-sm-2">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.InTimeNameStartRow" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>OutTime Row Name</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="@BiometricExcelSets.OutTimeName" />
+                                        </div>
+                                        <label class="col-6 col-sm-2 col-form-label pt-1 text-dark">
+                                            <small>Row</small>
+                                        </label>
+                                        <div class="col-6 col-sm-2">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.OutTimeIndexFromInTime" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>Total Worked Hrs Row Name</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       @bind-Value="@BiometricExcelSets.TotalWorkedHrs" />
+                                        </div>
+                                        <label class="col-6 col-sm-2 col-form-label pt-1 text-dark">
+                                            <small>Row</small>
+                                        </label>
+                                        <div class="col-6 col-sm-2">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.TotalWorkHrsIndexFromInTime" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>Over Time Row Name</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputText class="form-control form-control-sm rounded-3 rounded-3 w-100"
+                                                       @bind-Value="@BiometricExcelSets.OTName" />
+                                        </div>
+                                        <label class="col-6 col-sm-2 col-form-label pt-1 text-dark">
+                                            <small>Row</small>
+                                        </label>
+                                        <div class="col-6 col-sm-2">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.OTNameIndexFromInTime" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>Employee Code/Id Row Offset</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputNumber class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.EmpCodeIndexFromInTime" />
+                                        </div>
+                                        <label class="col-6 col-sm-2 col-form-label pt-1 text-dark">
+                                            <small>Row</small>
+                                        </label>
+                                        <div class="col-6 col-sm-2">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.EmpIdColIndex" />
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>Header Start Col</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.HeaderInTimeStartCol" />
+                                        </div>
+                                    </div>
+
+                                    
+                                    <div class="mb-2 row">
+                                        <label class="col-6 col-sm-4 col-form-label pt-1 text-dark">
+                                            <small>InTime Data Start Column</small>
+                                        </label>
+                                        <div class="col-6 col-sm-4">
+                                            <InputNumber TValue="int"
+                                                         class="form-control form-control-sm rounded-3 w-100"
+                                                         @bind-Value="@BiometricExcelSets.InTimeDataStartCol" />
+                                        </div>
+                                    </div>
+
+                                    <div class="alert alert-warning border border-warning rounded-3 mt-3 mb-0 p-3">
+                                        <div class="d-flex align-items-start">
+                                            <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                                            <div>
+                                                <strong>Important Note</strong><br />
+                                                Enter the row number as <strong>one less than the actual Excel row number</strong> (zero-based index).<br />
+                                                <strong>Example:</strong> If <strong>In Time</strong> is in Excel row <strong>10</strong>, enter <strong>9</strong>.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status Reference -->
+                        <div class="col-lg-4 col-md-12 mb-3">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-success-subtle">
+                                    <h6 class="mb-0 fw-bold text-success">
+                                        Status Name References
+                                    </h6>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <!-- P -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-5 col-form-label pt-1 text-dark">
+                                            <small> P-Present =></small>
+                                        </label>
+                                        <div class="col-7">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       Value="@BiometricExcelSets.P"
+                                                       ValueExpression="@(() => BiometricExcelSets.P)"
+                                                       ValueChanged="@(async value => await OnStatusChanged(nameof(BiometricExcelSets.P), value))" />
+                                        </div>
+                                    </div>
+
+                                    <!-- L -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-5 col-form-label pt-1 text-dark">
+                                            <small>L-Leave =></small>
+                                        </label>
+                                        <div class="col-7">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       Value="@BiometricExcelSets.L"
+                                                       ValueExpression="@(() => BiometricExcelSets.L)"
+                                                       ValueChanged="@(async value => await OnStatusChanged(nameof(BiometricExcelSets.L), value))" />
+                                        </div>
+                                    </div>
+
+                                    <!-- A -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-5 col-form-label pt-1 text-dark">
+                                            <small>A-Absent =></small>
+                                        </label>
+                                        <div class="col-7">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       Value="@BiometricExcelSets.A"
+                                                       ValueExpression="@(() => BiometricExcelSets.A)"
+                                                       ValueChanged="@(async value => await OnStatusChanged(nameof(BiometricExcelSets.A), value))" />
+                                        </div>
+                                    </div>
+
+                                    <!-- H -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-5 col-form-label pt-1 text-dark">
+                                            <small>H-Holiday =></small>
+                                        </label>
+                                        <div class="col-7">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       Value="@BiometricExcelSets.H"
+                                                       ValueExpression="@(() => BiometricExcelSets.H)"
+                                                       ValueChanged="@(async value => await OnStatusChanged(nameof(BiometricExcelSets.H), value))" />
+                                        </div>
+                                    </div>
+
+                                    <!-- O -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-5 col-form-label pt-1 text-dark">
+                                            <small>O (On Duty Codes) =></small>
+                                        </label>
+                                        <div class="col-7">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       Value="@BiometricExcelSets.O"
+                                                       ValueExpression="@(() => BiometricExcelSets.O)"
+                                                       ValueChanged="@(async value => await OnStatusChanged(nameof(BiometricExcelSets.O), value))" />
+                                        </div>
+                                    </div>
+
+                                    <!-- W -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-5 col-form-label pt-1 text-dark">
+                                            <small>W-Week Off =></small>
+                                        </label>
+                                        <div class="col-7">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       Value="@BiometricExcelSets.W"
+                                                       ValueExpression="@(() => BiometricExcelSets.W)"
+                                                       ValueChanged="@(async value => await OnStatusChanged(nameof(BiometricExcelSets.W), value))" />
+                                        </div>
+                                    </div>
+
+                                    <!-- M -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-5 col-form-label pt-1 text-dark">
+                                            <small>M-Halfday Leave =></small>
+                                        </label>
+                                        <div class="col-7">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       Value="@BiometricExcelSets.M"
+                                                       ValueExpression="@(() => BiometricExcelSets.M)"
+                                                       ValueChanged="@(async value => await OnStatusChanged(nameof(BiometricExcelSets.M), value))" />
+                                        </div>
+                                    </div>
+
+                                    <!-- N -->
+                                    <div class="row mb-2 align-items-center">
+                                        <label class="col-5 col-form-label pt-1 text-dark">
+                                            <small>N-Halfday Absent =></small>
+                                        </label>
+                                        <div class="col-7">
+                                            <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                       Value="@BiometricExcelSets.N"
+                                                       ValueExpression="@(() => BiometricExcelSets.N)"
+                                                       ValueChanged="@(async value => await OnStatusChanged(nameof(BiometricExcelSets.N), value))" />
+                                        </div>
+                                    </div>
+
+                                    <table class="table table-sm table-bordered mb-0 small">
+                                        <tbody>
+                                            <tr>
+                                                <td class="text-center fw-bold">A</td>
+                                                <td>Absent</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-center fw-bold">P</td>
+                                                <td>Present</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-center fw-bold">L</td>
+                                                <td>Leave</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-center fw-bold">H</td>
+                                                <td>Holiday</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-center fw-bold">W</td>
+                                                <td>Week Off</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-center fw-bold">O</td>
+                                                <td>On Duty</td>
+                                            </tr>
+
+                                           
+                                        </tbody>
+                                    </table>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Action Buttons -->
+                    <div class="row mt-3">
+                        <div class="col-12 col-md-3 mb-2">
+                            <button type="submit"
+                                    class="btn btn-primary w-100"
+                                    disabled="@isProcessing">
+                                <i class="bi bi-save me-1"></i>
+                                Save
+                            </button>
+                        </div>
+
+                        <div class="col-12 col-md-3 mb-2">
+                            <a href="/generalSettings" class="btn btn-outline-secondary w-100">
+                                <i class="bi bi-arrow-left me-1"></i>
+                                Back To List
+                            </a>
+                        </div>
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Biometric Excel Set";
+
+    private bool isProcessing = true;
+    private string searchText = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> biometricExcelBreadcrumbs = new()
+    {
+        new() { Text = "Master" },
+        new() { Text = "General settings" },
+        new() { Text = "Biometric Excel Set", IsLast = true }
+    };
+
+    private BiometricExcelSetting BiometricExcelSets { get; set; } = new();
+    private string? DuplicateStatus;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        await LoadBiometricExcelSets();
+
+        isProcessing = false;
+    }
+
+    private async Task OnStatusChanged(string propertyName, string value)
+    {
+        var values = value.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                          .Select(x => x.Trim().ToUpper())
+                          .ToList();
+
+        var allStatuses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var properties = typeof(BiometricExcelSetting).GetProperties()
+            .Where(p => new[] { "P", "L", "H", "N", "A", "W", "M", "O" }.Contains(p.Name));
+
+        foreach (var prop in properties)
+        {
+            var propValue = prop.Name == propertyName
+                ? string.Empty
+                : prop.GetValue(BiometricExcelSets)?.ToString();
+
+            if (string.IsNullOrWhiteSpace(propValue))
+                continue;
+
+            foreach (var s in propValue.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                       .Select(x => x.Trim().ToUpper()))
+            {
+                allStatuses[s] = prop.Name;
+            }
+        }
+
+
+        var currentValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var s in values)
+        {
+            // Check duplicate within the same textbox
+            if (!currentValues.Add(s))
+            {
+                await _js.ToastrWarning($"'{s}' is duplicated in the same status.");
+                return;
+            }
+
+            // Check duplicate in other status fields
+            if (allStatuses.TryGetValue(s, out var existingStatus))
+            {
+                await _js.ToastrWarning($"'{s}' already exists in '{existingStatus}'. Duplicate values are not allowed.");
+                return;
+            }
+        }
+
+        typeof(BiometricExcelSetting)
+            .GetProperty(propertyName)?
+            .SetValue(BiometricExcelSets, value);
+    }
+
+    private void ValidateDuplicateStatus()
+    {
+        DuplicateStatus = null;
+
+        var statusMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var fields = new Dictionary<string, string?>
+    {
+        { "P", BiometricExcelSets.P },
+        { "L", BiometricExcelSets.L },
+        { "H", BiometricExcelSets.H },
+        { "A", BiometricExcelSets.A },
+        { "W", BiometricExcelSets.W },
+        { "O", BiometricExcelSets.O }
+        // { "M", BiometricExcelSets.M },
+        //  { "N", BiometricExcelSets.N },
+    };
+
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Value))
+                continue;
+
+            var values = field.Value
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim().ToUpper());
+
+            foreach (var value in values)
+            {
+                if (statusMap.ContainsKey(value))
+                {
+                    DuplicateStatus = $"'{value}' is already assigned in '{statusMap[value]}'. Duplicate values are not allowed.";
+                    return;
+                }
+
+                statusMap[value] = field.Key;
+            }
+        }
+    }
+
+    private async Task SaveBiometricExcelSet()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await _biometricExcelSetService.SaveBiometricExcelSetsAsync(BiometricExcelSets);
+            await _js.ToastrSuccess("Biometric Excel Setting updated successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while saving hr master");
+            await _js.ToastrError("Failed to save Biometric Excel Setting.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadBiometricExcelSets()
+    {
+        try
+        {
+            BiometricExcelSets = await _biometricExcelSetService.GetBiometricExcelSetAsync();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while loading Biometric Excel settings.");
+        }
+    }
+
+    private async Task LoadExistingSetting(int Id)
+    {
+        try
+        {
+            BiometricExcelSets =
+                await _biometricExcelSetService.GetBESByIdAsync(Id)
+                ?? new BiometricExcelSetting();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing Biometric Excel Setting.");
+        }
+    }
+
+    private async Task UpsertBiometricExcel()
+    {
+        if (isProcessing) return;
+
+        isProcessing = true;
+        try
+        {
+            await _biometricExcelSetService.SaveAsync(BiometricExcelSets);
+
+            await _js.ToastrSuccess("Record updated successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "UpsertBiometricExcel");
+            await _js.ToastrError("Error saving Biometric Excel Settings.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

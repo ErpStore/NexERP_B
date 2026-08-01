@@ -1,0 +1,882 @@
+﻿@page "/staffLoan/create"
+@page "/staffLoan/update/{LoanId:int}"
+
+
+@using MudBlazor
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService.IEmployeeLoanService
+@using V.SMART.Shared.Data.HumanResource.Salary
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.StaffLoanViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ICalculationService _calculationService
+@inject IStaffLoanService staffLoanService
+@inject ILoggingService LoggingService
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="@(StaffLoanVMs.LoanId > 0 ? "Update StaffLoan" : "Create StaffLoan")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@LoanFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="StaffLoanVMs" OnValidSubmit="UpsertStaffLoan">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2">
+                        <!--------------- Employee Select List -------------->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body">
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Employee Name*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="Staff"
+                                                             @bind-Value="SelectedStaff"
+                                                             ToStringFunc="@(s => s?.StaffName ?? string.Empty)"
+                                                             SearchFunc="SearchStaffs"
+                                                             Dense="true"
+                                                             Variant="Variant.Outlined"
+                                                             Placeholder="Search Staff"
+                                                             Clearable="true"
+                                                             ResetValueOnEmptyText="true" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== StaffLoan Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">StaffLoan Details</span>
+                                </div>
+
+                                <div class="card-body">
+                                    <!-- Loan No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Loan No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                           placeholder="Loan No."
+                                                           maxlength="30"
+                                                           @bind-Value="@StaffLoanVMs.LoanNo"
+                                                           readonly />
+                                            </div>
+                                            <ValidationMessage For="@(() => StaffLoanVMs.LoanNo)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Loan Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Loan Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@StaffLoanVMs.DateOfIssue" />
+                                            <ValidationMessage For="@(() => StaffLoanVMs.DateOfIssue)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- LoanType -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Loan Type</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      @bind="StaffLoanVMs.LoanType"></textarea>
+                                            <ValidationMessage For="@(() => StaffLoanVMs.LoanType)" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Item Details</span>
+                                        <div class="d-flex align-items-center gap-2">
+                                        </div>
+                                    </div>
+
+                                    <div class="card-body p-2">
+                                        <div class="table-responsive" style="overflow-x:auto;">
+                                            <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 300px;">
+                                                <thead class="custom-blue">
+                                                    <tr>
+                                                        <th style="width:30px;">Sl.No</th>
+                                                        <th style="width:80px;">Loan Amount</th>
+                                                        <th style="width:100px;">NoOf Months To Recovery</th>
+                                                        <th style="width:80px;">Balance Amount</th>
+                                                        <th style="width:120px;">Actions</th>
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody class="custom-size">
+                                                    @if (StaffLoanDetails != null && StaffLoanDetails.Any())
+                                                    {
+                                                        @for(int i=0; i<StaffLoanDetails.Count; i++)
+                                                        //@foreach (var subitem in StaffLoanDetails)
+                                                        {
+                                                            var subitem = StaffLoanDetails[i];
+
+                                                            if (subitem.RowType == "LoanItem")
+                                                            {
+                                                                <tr @key="subitem" class="@(subitem.IsFinished ? "table-danger text-danger fw-bold" : "")">
+                                                                    @* <td>@subitem.SlNo</td> *@
+                                                                    <td>@(i+1)</td>
+                                                                    <!-- Loan Amount -->
+                                                                    <td>
+                                                                        @if (subitem.IsEditable)
+                                                                        {
+                                                                            <InputNumber TValue="decimal"
+                                                                                         Value="subitem.Amount"
+                                                                                         ValueChanged="@( (decimal value) => OnLoanAmountChanged(value, subitem) )"
+                                                                                         ValueExpression="@(() => subitem.Amount)"
+                                                                                         class="form-control form-control-sm" />
+
+                                                                            <ValidationMessage For="@(() => subitem.Amount)" />
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            @subitem.Amount
+                                                                        }
+                                                                    </td>
+
+                                                                    <!-- No Of Months -->
+                                                                    <td>
+                                                                        @if (subitem.IsEditable)
+                                                                        {
+                                                                            <InputNumber @bind-Value="subitem.NumberOfMonthsRecoveries"
+                                                                                         class="form-control form-control-sm"
+                                                                                         placeholder="Enter NoOf Months To Recovery" />
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            @subitem.NumberOfMonthsRecoveries
+                                                                        }
+                                                                    </td>
+
+                                                                    <!-- Balance Amount -->
+                                                                    <td>
+                                                                        @if (subitem.IsEditable)
+                                                                        {
+                                                                            <InputNumber @bind-Value="subitem.BalanceAmount"
+                                                                                         class="form-control form-control-sm"
+                                                                                         disabled />
+
+                                                                            <ValidationMessage For="@(() => subitem.BalanceAmount)" />
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            @subitem.BalanceAmount
+                                                                        }
+                                                                    </td>
+
+                                                                    <!-- Action Buttons -->
+                                                                    <td>
+                                                                        <div class="d-flex justify-content-center gap-1">
+                                                                            @if (subitem.IsEditable)
+                                                                            {
+                                                                                <button type="button" class="btn btn-success btn-sm"
+                                                                                        @onclick="async () => await SaveRow(subitem)">
+                                                                                    <i class="bi bi-check-lg"></i>
+                                                                                </button>
+
+                                                                                <button type="button" class="btn btn-secondary btn-sm"
+                                                                                        @onclick="() => CancelEdit(subitem)">
+                                                                                    <i class="bi bi-x-lg"></i>
+                                                                                </button>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <button type="button" class="btn btn-danger btn-sm"
+                                                                                        @onclick="() => RemoveRow(subitem)">
+                                                                                    <i class="bi bi-trash"></i>
+                                                                                </button>
+                                                                            }
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        }
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        @if (!StaffLoanVMs.IsFinished)
+                                        {
+                                            <div class="mt-2 text-start">
+                                                <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                                    <i class="bi bi-plus-circle me-1"></i> Add Row
+                                                </button>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                       
+                            <div class="col-md-6">
+                                @if (StaffLoanVMs.LoanId > 0 && StaffLoanVMs.LoanRecoveries != null && StaffLoanVMs.LoanRecoveries.Any())
+                                {
+                                    <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                                        <div class="card-header bg-info-subtle text-dark py-1">
+                                            <span class="fw-bold small">Loan Recovery Details</span>
+                                        </div>
+
+                                        <div class="card-body p-2">
+                                            <table class="table table-bordered table-sm align-middle text-center mb-0">
+                                                <thead class="custom-blue">
+                                                    <tr>
+                                                        <th style="width:80px;">Loan No</th>
+                                                        <th style="width:90px;">Date</th>
+                                                        <th style="width:90px;">Amount</th>
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody class="custom-size">
+                                                    @foreach (var item in StaffLoanVMs.LoanRecoveries)
+                                                    {
+                                                        <tr>
+                                                           @*  <td>@item.LoanDedId</td> *@
+                                                            <td>@item.LoanNo</td>
+                                                            <td>@item.SalDate.ToString("dd/MM/yyyy")</td>
+                                                            <td>@item.LoanAmtDed.ToString("N2")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+
+                                            </table>
+                                        </div>
+                                    </div>
+                                }
+
+                            </div>
+                        </div>
+
+                        <!--Action Buttons -->
+                        @if (CanCreate || CanEdit)
+                        {
+                            @*  @if (!StaffLoanVMs.IsFinished)
+                            { *@
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(StaffLoanVMs.LoanId > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                            @*  } *@
+                        }
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <a href="/staffLoanList" class="btn btn-secondary w-100 rounded-3" disabled="@isProcessing">
+                                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                            </a>
+                        </div>
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    #region Parameters & Properties
+
+    protected override string ScreenName => "StaffLoan";
+
+    [Parameter] public int? LoanId { get; set; }
+    [Parameter] public int StaffId { get; set; }
+
+    private bool isProcessing = true;
+    private StaffLoanVM StaffLoanVMs { get; set; } = new();
+
+    private List<StaffLoanVM> StaffLoanDetails { get; set; } = new();
+    private List<Staff> Staffs { get; set; } = new List<Staff>();
+
+    private List<Salary> LoanRecoveries = new();
+
+    // private Staff? _selectedStaff;
+
+    private Staff? SelectedStaff
+    {
+        get => _selectedStaff;
+        set
+        {
+            _selectedStaff = value;
+            StaffLoanVMs.StaffId = value?.StaffID ?? 0; // ✅ map the ID here
+        }
+    }
+    private Staff? _selectedStaff;
+
+    private int? SelectedStaffId;
+    private bool IsSomeItemsTransMade = false;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<PageHeader.BreadcrumbItem> LoanFormBreadcrumbs = new()
+    {
+        new() { Text = "HumanResource" },
+        new() { Text = "StaffLoan", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    #endregion
+
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            Staffs = (await _unitOfWork.Staffs.GetAllAsync())
+                    .Where(x => x.Status == "Active")        
+                    .ToList();
+
+            if (LoanId.HasValue)
+            {
+                await LoadExistingStaffLoan(LoanId.Value);
+            }
+            else
+            {
+                await InitializeNewStaffLoan();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InitializeNewStaffLoan()
+    {
+        try
+        {
+            var staff = await staffLoanService.GetStaffByStaffIDAsync(StaffId);
+
+            StaffLoanVMs.LoanNo = await staffLoanService.GetLoanNumberAsync();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new staff.");
+            await LoggingService.LogDeveloperError(ex, "InitializeNewQuote failed");
+        }
+    }
+
+
+    private async Task LoadExistingStaffLoan(int loanId)
+    {
+        try
+        {
+            StaffLoanVMs = await staffLoanService.GetStaffLoanByLoanIdAsync(loanId);
+
+            if (StaffLoanVMs == null)
+            {
+                await _js.ToastrWarning("Staff Loan not found.");
+                return;
+            }
+
+            // 🔹 Load recoveries from Salary table
+            StaffLoanVMs.LoanRecoveries = await staffLoanService
+                .GetRecoveriesByLoanIdAsync(StaffLoanVMs.LoanId.Value, StaffLoanVMs.StaffId);
+
+            // Clear previous data
+            StaffLoanDetails = new List<StaffLoanVM>();
+
+            // Add loan items
+            if (StaffLoanVMs.LoanRows != null)
+            {
+                foreach (var item in StaffLoanVMs.LoanRows)
+                {
+                    item.RowType = "LoanItem";
+                    StaffLoanDetails.Add(item);
+                }
+            }
+
+            // Add recoveries (only if salary deductions exist)
+            if (StaffLoanVMs.LoanRecoveries != null && StaffLoanVMs.LoanRecoveries.Any())
+            {
+                foreach (var recovery in StaffLoanVMs.LoanRecoveries)
+                {
+                    recovery.RowType = "Recovery";
+                    StaffLoanDetails.Add(recovery);
+                }
+            }
+
+            // Select staff
+            SelectedStaff = Staffs.FirstOrDefault(s => s.StaffID == StaffLoanVMs.StaffId);
+
+            await InvokeAsync(StateHasChanged);
+
+            Console.WriteLine($"Total rows loaded: {StaffLoanDetails.Count}");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing staff loan.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingLoan failed for LoanId: {loanId}");
+        }
+    }
+
+    private async Task LoadStaffLoan(int staffId)
+    {
+        StaffLoanVMs = await staffLoanService.GetStaffLoanByStaffIdAsync(staffId);
+
+        if (StaffLoanVMs != null && StaffLoanVMs.LoanId > 0)
+        {
+            StaffLoanVMs.LoanRecoveries = await staffLoanService.GetRecoveriesByLoanIdAsync(StaffLoanVMs.LoanId.Value,StaffLoanVMs.StaffId);
+        }
+    }
+
+    private Task OnStaffChanged(Staff staff)
+    {
+        SelectedStaff = staff;
+        // If you need the ID separately
+        SelectedStaffId = staff?.StaffID;
+        return Task.CompletedTask;
+    }
+
+    private void OnLoanAmountChanged(decimal value, StaffLoanVM subitem)
+    {
+        subitem.Amount = value;
+        subitem.BalanceAmount = value;
+    }
+
+    private void RecalculateBalance(StaffLoanVM loan)
+    {
+        var totalRecovered = LoanRecoveries
+            .Where(x => x.LoanId == loan.LoanId)
+            .Sum(x => x.LoanAmtDed);
+
+        loan.BalanceAmount = loan.Amount - totalRecovered;
+
+        if (loan.BalanceAmount <= 0)
+        {
+            loan.BalanceAmount = 0;
+            loan.IsFinished = true;
+        }
+    }
+
+    private Task<IEnumerable<Staff>> SearchStaffs(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Task.FromResult(Enumerable.Empty<Staff>());
+
+        var result = Staffs.Where(s =>
+            s.StaffName.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return Task.FromResult(result);
+    }
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        try
+        {
+            if (!LoanId.HasValue)
+                return false;
+
+            return await staffLoanService.IsLoanTransactionsMatchedAsync(LoanId.Value, StaffLoanVMs);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to check transaction exists.");
+            await LoggingService.LogDeveloperError(ex, "[CheckIsTransMade] failed");
+            return false;
+        }
+    }
+    #endregion
+
+
+    #region Row Operations
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = StaffLoanVMs.LoanRows.LastOrDefault();
+            if (lastRow == null) return true;
+
+            // if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync())
+                return;
+
+            var newRow = new StaffLoanVM
+            {
+                SlNo = StaffLoanDetails.Count + 1,
+                IsEditable = true
+            };
+
+            StaffLoanDetails.Add(newRow);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await LoggingService.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(StaffLoanVM item)
+    {
+        try
+        {
+            // if (!await ValidateRowAsync(item))
+            // {
+            //     item.IsEditable = true;
+            //     return;
+            // }
+
+            item.IsEditable = false;
+
+            // Ensure at least one editable row exists for new entries
+            if (!StaffLoanVMs.LoanRows.Any(x => x.IsEditable))
+            {
+                StaffLoanVMs.LoanRows.Add(new StaffLoanVM
+                {
+                    LoanId = StaffLoanVMs.LoanId,
+                    IsEditable = true
+                });
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for LoanId: {item?.LoanId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(StaffLoanVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            // if (item.SelectedItem == null && item.LoanId > 0)
+            // {
+            //     item.SelectedItem = await mfgQuotationService.GetItemByItemIdAsync(item.ItemId);
+            // }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for LoanId: {item?.LoanId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(StaffLoanVM? item)
+    {
+        try
+        {
+            if (item == null)
+                return;
+
+            // bool isEmptyOrInvalid =
+            //     (item.LoanId <= 0) ||
+            //     (!item.Amount.Value || item.Qty.Value <= 0) ||
+            //     (!item.Amount.HasValue || item.UnitPrice.Value <= 0);
+
+            // if (isEmptyOrInvalid)
+            // {
+            //     parentQuote.MfgQuoteSubVM.Remove(item);
+            //     await ResetSlno();
+            // }
+            // else
+            // {
+            //     item.IsEditable = false;
+            // }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for QuoteSubId: {item?.LoanId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(StaffLoanVM item)
+    {
+        try
+        {
+            // if (item.IsFinished)
+            // {
+            //     await _js.ToastrError("This item is already cancelled and cannot be deleted.");
+            //     return;
+            // }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction integrity.");
+                return;
+            }
+
+            // if (item.ItemId == 0)
+            // {
+            //     MfgQuoteVM.MfgQuoteSubVM.Remove(item);
+            //     await _js.ToastrSuccess("New item row removed successfully.");
+
+            //     if (!MfgQuoteVM.MfgQuoteSubVM.Any())
+            //         MfgQuoteVM.MfgQuoteSubVM = new List<MfgQuoteSubVM>();
+
+            //     await ResetSlno();
+            //     await _calculationService.UpdateTotalsAsync(MfgQuoteVM);
+            //     StateHasChanged();
+            //     return;
+            // }
+
+            // rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for LoanId: {item.LoanId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in StaffLoanVMs.LoanRows)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "Cancel":
+                    // case "Revert":
+                    //     await CancelQuotation();
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            // AttachItemSelected = await mfgQuotationService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+
+
+    #region StaffLoan Operations
+    private async Task UpsertStaffLoan()
+    {
+        try
+        {
+            if (SelectedStaff == null)
+            {
+                await _js.ToastrWarning("Please select a staff member.");
+                return;
+            }
+
+            if (StaffLoanDetails == null || !StaffLoanDetails.Any())
+            {
+                await _js.ToastrWarning("Please add at least one loan row.");
+                return;
+            }
+
+            StaffLoanVMs = new StaffLoanVM
+            {
+                LoanId = 0,
+                StaffId = SelectedStaff.StaffID,
+                LoanType = StaffLoanVMs.LoanType, // map the selected loan type from your UI
+                LoanRows = StaffLoanDetails
+            };
+
+            await staffLoanService.UpsertLoanAsync(StaffLoanVMs);
+
+            await _js.ToastrSuccess("Staff Loan saved successfully.");
+            _navigationManager.NavigateTo("/staffLoanList");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError(ex.Message);
+            await LoggingService.LogDeveloperError(ex, "UpsertStaffLoan failed.");
+        }
+    }
+    #endregion
+
+    #region Formatting
+
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+    #endregion
+}

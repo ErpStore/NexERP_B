@@ -1,0 +1,821 @@
+﻿@page "/PendingStatements"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel.LabourTrackViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject IPendingStatementsService PendingStatementsService
+@inject NavigationManager _navigation
+@inject IExcelTemplateService excelTemplateService
+
+
+<style>
+
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --border: #e5e7eb;
+        --text: #111827;
+        --muted: #6b7280;
+        --success: #16a34a;
+    }
+
+    body {
+        background: var(--bg);
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* PAGE */
+
+    .page-container {
+        padding: 24px;
+    }
+
+    .page-title {
+        font-size: 40px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 22px;
+    }
+
+    /* HERO SECTION */
+
+    .hero-section {
+        background: linear-gradient(135deg, #4c1d95, #7c3aed, #0f766e);
+        padding: 10px 10px;
+        border-radius: 16px;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 18px 40px rgba(109, 40, 217, 0.25);
+    }
+
+        .hero-section::before {
+            content: "";
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 50%;
+            top: -120px;
+            right: -80px;
+        }
+
+        .hero-section h5 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 500;
+            font-family: Georgia, serif;
+            letter-spacing: 0.5px;
+        }
+
+        .hero-section p {
+            margin-top: 6px;
+            opacity: 0.92;
+            font-size: 12px;
+        }
+
+
+
+
+    /* FILTER CARD */
+
+    .filter-card {
+        background: white;
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 4px 18px rgba(15,23,42,0.06);
+        border: 1px solid var(--border);
+        margin-bottom: 12px;
+    }
+
+    /* FORM */
+
+    .form-label {
+        font-size: 15px;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    .form-control,
+    .form-select {
+        height: 52px;
+        border-radius: 14px;
+        border: 1px solid #dbe2ea;
+        padding: 0 16px;
+        font-size: 16px;
+        box-shadow: none;
+    }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 0.15rem rgba(124, 58, 237, 0.15);
+        }
+
+    /* TOPIC SECTION */
+
+    .topic-section {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+
+    .filter-heading {
+        font-size: 16px;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 12px;
+        white-space: nowrap;
+        margin-left: 100px;
+        padding-right: 275px; /* adjust alignment */
+        letter-spacing: 0.5px;
+    }
+
+    /* RADIO WRAPPER */
+
+    .radio-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 32px;
+        flex-wrap: wrap;
+        font-family: Georgia, serif;
+    }
+
+    /* RADIO ITEM */
+
+    .radio-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        color: #1e293b;
+        white-space: nowrap;
+    }
+
+        .radio-item input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            cursor: pointer;
+            accent-color: #7c3aed;
+        }
+
+    /* BUTTON */
+
+    .custom-print-btn {
+        background: linear-gradient(135deg, #7c3aed, #4c1d95);
+        color: white;
+        border: none;
+        border-radius: 14px;
+        padding: 12px 22px;
+        font-size: 14px;
+        font-weight: 700;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        box-shadow: 0 10px 24px rgba(109, 40, 217, 0.25);
+    }
+
+        .custom-print-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(109, 40, 217, 0.35);
+        }
+
+    /* TABLE CARD */
+
+    .table-card {
+        background: white;
+        border-radius: 20px;
+        padding: 22px;
+        box-shadow: 0 4px 18px rgba(15,23,42,0.06);
+        border: 1px solid var(--border);
+    }
+
+    /* TABLE HEADER */
+
+    .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .table-title {
+        font-size: 28px;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    /* TABLE */
+
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 16px;
+    }
+
+        .custom-table thead {
+            background: linear-gradient(135deg, #2f5d9f, #4a90e2);
+            color: white;
+        }
+
+        .custom-table th {
+            padding: 18px;
+            font-size: 16px;
+            font-weight: 700;
+            text-align: left;
+        }
+
+        .custom-table td {
+            padding: 18px;
+            border-bottom: 1px solid #eef2f7;
+            font-size: 10px;
+            color: #334155;
+        }
+
+        .custom-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+    .amount,
+    .balance-amount {
+        font-weight: 600;
+        text-align: right;
+    }
+
+    /* SUMMARY SECTION */
+
+    .summary-section {
+        display: flex;
+        gap: 20px;
+        margin-top: 24px;
+    }
+
+    .summary-card {
+        flex: 1;
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 22px;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        transition: 0.3s;
+    }
+
+        .summary-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(15,23,42,0.08);
+        }
+
+    .summary-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+    }
+
+    /* ICON COLORS */
+
+    .vendors-icon {
+        background: #eef4ff;
+        color: #2563eb;
+    }
+
+    .purchase-icon {
+        background: #fff7ed;
+        color: #ea580c;
+    }
+
+    .total-icon {
+        background: #ecfdf5;
+        color: #16a34a;
+    }
+
+    /* SUMMARY TEXT */
+
+    .summary-title {
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        color: #64748b;
+    }
+
+    .summary-value {
+        font-size: 30px;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    /* RESPONSIVE */
+
+    @@media(max-width:992px) {
+
+        .hero-section {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .table-header {
+            flex-direction: column;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .summary-section {
+            flex-direction: column;
+        }
+
+        .topic-section {
+            align-items: flex-start;
+            margin-top: 10px;
+        }
+
+        .radio-wrapper {
+            justify-content: flex-start;
+            gap: 18px;
+        }
+
+        .radio-item {
+            font-size: 15px;
+        }
+
+        .page-title {
+            font-size: 30px;
+        }
+
+        .table-title {
+            font-size: 22px;
+        }
+    }
+
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-4 mt-4">
+
+        <div class="card shadow-sm border-0 rounded-4">
+
+            <PageHeader TitleText="Pending Statements List"
+                        TitleIcon="bi bi-cash-stack"
+                        Breadcrumbs="@PendingStatementBreadcrumbs" />
+
+            <div class="page-container">
+
+                <!-- PAGE TITLE -->
+
+                <div class="hero-section">
+
+                    <div>
+                        <h5>Pending Statement</h5>
+                        <p>Track all Total Pending Statements  with smart filtering & analytics</p>
+                    </div>
+
+                    <div class="header-badge">
+                        <i class="bi bi-lightning-charge-fill me-2"></i>
+                        Live Tracking
+                    </div>
+
+                </div>
+
+                <div class="filter-card">
+
+                    <div class="top-filter-layout">
+
+                        <div class="row align-items-end g-3">
+
+                            <!-- From Date -->
+                            <div class="col-12 col-md-2">
+                                <div class="filter-item">
+                                    <label class="form-label">From Date</label>
+
+                                    <input type="date"
+                                           @bind="FromDate"
+                                           class="form-control" />
+                                </div>
+                            </div>
+
+                            <!-- To Date -->
+                            <div class="col-12 col-md-2">
+                                <div class="filter-item">
+                                    <label class="form-label">To Date</label>
+
+                                    <input type="date"
+                                           @bind="ToDate"
+                                           class="form-control" />
+                                </div>
+                            </div>
+
+                            @*   <div class="col-12 col-md-2">
+                          
+                            </div> *@
+
+                            <!-- RIGHT SIDE -->
+                            <div class="col-12 col-md-8">
+
+                                <div class="d-flex justify-content-end align-items-end gap-4">
+
+                                    <!-- Details View -->
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input"
+                                               checked="@IsDetailsView" title="Click to View Customer-wise Invoice Summary"
+                                               @onchange="OnDetailsViewChanged" />
+
+                                        <label class="form-check-label fw-bold">
+                                            OverAll Summary
+                                        </label>
+                                    </div>
+
+                                    <!-- Topic Section -->
+                                    <div class="topic-section">
+
+                                        <div class="filter-heading">
+                                            Select Topic
+                                        </div>
+
+                                        <InputRadioGroup TValue="string"
+                                                         Value="@SelectedType"
+                                                         ValueChanged="@OnPartyTypeChanged"
+                                                         ValueExpression="() => SelectedType">
+
+                                            <div class="radio-wrapper">
+
+                                                <label class="radio-item">
+                                                    <InputRadio Value="@("Customer")" />
+                                                    <span>Customer</span>
+                                                </label>
+
+                                                <label class="radio-item">
+                                                    <InputRadio Value="@("Supplier")" />
+                                                    <span>Supplier</span>
+                                                </label>
+
+                                                <label class="radio-item">
+                                                    <InputRadio Value="@("Vendor")" />
+                                                    <span>Vendor</span>
+                                                </label>
+
+                                            </div>
+
+                                        </InputRadioGroup>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+
+
+                <!-- TABLE -->
+
+                <div class="table-card">
+
+                    <div class="table-header">
+
+                        <h5 class="text-primary fw-bold">
+                            <i class="bi bi-receipt-cutoff me-2"></i>
+                            Pending Statement List
+                        </h5>
+
+
+                        <button class="custom-print-btn"
+                                @onclick="OnPrintPendingTrack">
+
+                            <i class="bi bi-download me-2"></i>
+                            Export Excel
+
+                        </button>
+
+                    </div>
+
+                    <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                        <table class="table table-bordered table-sm mb-0 align-middle" style="white-space:nowrap;">
+
+                            <thead class="custom-blue text-center align-middle sticky-top">
+
+                                <tr>
+
+                                    <th>Sl No.</th>
+                                    <th>PartyName</th>
+                                    @*   <th>Total Invoice Amount</th>
+                                    <th>Balance</th> *@
+                                    <th class="text-end">Total Invoice Amount</th>
+                                    <th class="text-end">Balance</th>
+
+                                </tr>
+
+                            </thead>
+
+                            <tbody>
+
+                                @if (PendingStatementsList != null && PendingStatementsList.Any())
+                                {
+                                    i = 1;
+                                    @foreach (var item in PendingStatementsList)
+                                    {
+                                        <tr>
+
+                                            <td class="fw-bold ">@i</td>
+                                            <td class="text-dark small">
+                                                @item.PartyName
+                                            </td>
+
+                                            <td class="balance-amount">
+                                                ₹ @item.Total
+                                            </td>
+
+
+                                            <td class="amount">
+                                                ₹ @item.PendingBalance
+                                            </td>
+
+                                        </tr>
+                                        i++;
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="8" class="empty-data">
+                                            No pending bills found
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                    <!-- SUMMARY -->
+
+                    <div class="summary-section">
+
+                        <div class="summary-card">
+
+                            <div class="summary-icon vendors-icon">
+                                <i class="bi bi-buildings"></i>
+                            </div>
+
+                            <div class="summary-title">
+                                Total Partys
+                            </div>
+
+                            <div class="summary-value">
+                                @PendingStatementsList.Select(x => x.PartyName).Distinct().Count()
+                            </div>
+
+                        </div>
+
+
+
+                        <div class="summary-card">
+
+                            <div class="summary-icon purchase-icon">
+                                <i class="bi bi-cart-check"></i>
+                            </div>
+
+                            <div class="summary-title">
+                                Overall Invoice Value
+                            </div>
+
+                            <div class="summary-value">
+                                ₹ @PendingStatementsList.Sum(x => x.Total).ToString("N2")
+                            </div>
+
+                        </div>
+
+                        <div class="summary-card">
+
+                            <div class="summary-icon total-icon">
+                                <i class="bi bi-cash-stack"></i>
+                            </div>
+
+                            <div class="summary-title">
+                                Overall Balance Value
+                            </div>
+
+                            <div class="summary-value">
+                                ₹ @PendingStatementsList.Sum(x => x.PendingBalance).ToString("N2")
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    protected override string ScreenName => "Pending Statements";
+
+    private List<PendingStatementsVM> PendingStatementsList = new();
+
+    private string SelectedType { get; set; }
+
+    private bool isProcessing = false;
+
+    private bool CanView = true;
+
+    private DateTime FromDate = DateTime.Today.Month >= 4 ? new DateTime(DateTime.Today.Year, 4, 1) : new DateTime(DateTime.Today.Year - 1, 4, 1);
+
+    public DateTime? ToDate { get; set; }
+
+    private string? UserName;
+    private int i = 0;
+
+    private bool IsDetailsView { get; set; } = false;
+
+    private List<PageHeader.BreadcrumbItem> PendingStatementBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Pending Report" },
+        new PageHeader.BreadcrumbItem { Text = "Pending Statements", IsLast = true }
+    };
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+
+
+
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            // Today's Date
+            ToDate = DateTime.Today;
+
+            // One month back from today
+            FromDate = DateTime.Today.Month >= 4
+              ? new DateTime(DateTime.Today.Year, 4, 1)
+              : new DateTime(DateTime.Today.Year - 1, 4, 1);
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error occurred while loading Paid Bills"
+            );
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+
+
+    private async Task OnPartyTypeChanged(string value)
+    {
+        SelectedType = value;
+
+        isProcessing = true;
+
+        try
+        {
+            PendingStatementsList = await PendingStatementsService.GetPendingStatements(IsDetailsView, SelectedType, FromDate, ToDate);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnDetailsViewChanged(ChangeEventArgs e)
+    {
+        IsDetailsView = (bool)e.Value;
+
+        await OnPartyTypeChanged(SelectedType);
+    }
+
+    private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            if (PendingStatementsList == null || !PendingStatementsList.Any())
+            {
+                await _JS.InvokeVoidAsync(
+                    "alert",
+                    "No pending Statement found to export."
+                );
+                return;
+            }
+
+            string[] headers = { "Party Name", "Grand Total", "balance-amount" };
+
+            var exportData = PendingStatementsList
+                .Select(x => new
+                {
+                    x.PartyName,
+                    x.Total,
+                    x.PendingBalance
+
+                })
+                .ToList();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Pending Statements",
+                headers: headers,
+                sampleData: exportData
+            );
+
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                await _JS.InvokeVoidAsync(
+                    "alert",
+                    "Failed to generate Excel file."
+                );
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync(
+                "downloadExcelFile",
+                base64,
+                "PendingStatements.xlsx"
+            );
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error while exporting Pending Bills Excel"
+            );
+
+            await _JS.InvokeVoidAsync(
+                "alert",
+                "Error occurred while exporting Excel."
+            );
+        }
+    }
+
+}

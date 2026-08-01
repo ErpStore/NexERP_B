@@ -1,0 +1,242 @@
+﻿@page "/enquiryDetails/{EnquiryId:int}"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ISalesService
+@using V.SMART.Shared.Data.SalesAndLabour.SalesEnquiry
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesEnquiryVM
+
+@inherits BaseUserRightsComponent
+@inject IEnquirySalesService enquiryService
+@inject IJSRuntime _js
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+       <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+        <!-- Header -->
+        <MyCompanyDetails />
+
+        <!-- Cancelled Watermark -->
+        @if (EnquirySalesVM.Cancel)
+        {
+            <div class="cancelWatermark ms-20 mt-10">CANCELLED</div>
+        }
+        else if (EnquirySalesVM.ShortClose)
+        {
+            <div class="cancelWatermark ms-20 mt-10">SHORT CLOSED</div>
+        }
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        <div class="text-center">
+            <h4 class="fw-semibold mt-3">Enquiry Details</h4>
+        </div>
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        <!-- Customer & Document Info -->
+        <div class="row g-3 mb-4">
+            <!-- Customer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                        Customer Details
+                    </div>
+                    <div class="card-body small">
+                        <p><strong>Name:</strong> @(!string.IsNullOrEmpty(EnquirySalesVM?.CustomerName) ? EnquirySalesVM.CustomerName : "N/A")</p>
+                        <p><strong>Address:</strong> @(!string.IsNullOrEmpty(EnquirySalesVM?.CustomerAddress) ? EnquirySalesVM.CustomerAddress : "N/A")</p>
+                        <p><strong>GST No.:</strong> @(!string.IsNullOrEmpty(EnquirySalesVM?.CustomerGSTNO) ? EnquirySalesVM.CustomerGSTNO : "N/A")</p>
+                        <p><strong>Contact No.:</strong> @(!string.IsNullOrEmpty(EnquirySalesVM?.CustomerPhoneNo) ? EnquirySalesVM.CustomerPhoneNo : "N/A")</p>
+                        <p><strong>Contact Person:</strong> @(!string.IsNullOrEmpty(EnquirySalesVM?.KindOfAttention) ? EnquirySalesVM.KindOfAttention : "N/A")</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                        Document Details
+                    </div>
+                    <div class="card-body small">
+                        <p><strong>Document Type:</strong> @(EnquirySalesVM != null ? (EnquirySalesVM.MfgORLab?"Manufacturing":"Labour"): "N/A")</p>
+                        <p><strong>Enquiry No:</strong> @(EnquirySalesVM != null ? $"{EnquirySalesVM.Prefix} {EnquirySalesVM.EnquiryNo} {EnquirySalesVM.Suffix}" : "N/A")</p>
+                        <p><strong>Enquiry Date:</strong> @(EnquirySalesVM?.EnquiryDate != null ? EnquirySalesVM.EnquiryDate.ToString("dd/MM/yyyy") : "N/A")</p>
+                        <p><strong>POC Name:</strong> @(!string.IsNullOrEmpty(EnquirySalesVM?.POCName) ? EnquirySalesVM.POCName : "N/A")</p>
+                        <p><strong>POC Contact:</strong> @(!string.IsNullOrEmpty(EnquirySalesVM?.POCContactNo) ? EnquirySalesVM.POCContactNo : "N/A")</p>
+                        <p><strong>Expected Reply:</strong> @(EnquirySalesVM?.ExpectedReplyDate.HasValue == true ? EnquirySalesVM.ExpectedReplyDate.Value.ToString("dd/MM/yyyy") : "N/A")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enquiry Items -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info fw-semibold">
+                Enquiry Items
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle mb-0">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th>Sl No.</th>
+                            <th>Item Code</th>
+                            <th>Description</th>
+                            <th>UOM</th>
+                            <th>HSN</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Bal. Qty</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (EnquirySalesVM?.EnquirySalesSubVM != null && EnquirySalesVM.EnquirySalesSubVM.Any())
+                        {
+                            @foreach (var item in EnquirySalesVM.EnquirySalesSubVM)
+                            {
+                                <tr>
+                                    <td class="text-center">@item.SlNo</td>
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td class="text-center">@(!string.IsNullOrEmpty(item.UOM) ? item.UOM : "—")</td>
+                                    <td class="text-center">@(!string.IsNullOrEmpty(item.HsnCode) ? item.HsnCode : "—")</td>
+                                    <td class="text-end">@item.Qty</td>
+                                    <td class="text-end">@item.BalQty</td>
+                                    <td>@(item.Remark ?? "—")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-warning-subtle text-primary fw-semibold">
+                Notes / Remarks
+            </div>
+            <div class="card-body small">
+                <p class="mb-0">@(string.IsNullOrWhiteSpace(EnquirySalesVM?.MainRemarks) ? "No remarks provided." : EnquirySalesVM.MainRemarks)</p>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="/enquirysales" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left-circle"></i> Back To List
+            </a>
+            <a href="@($"/enquirysales/update/{EnquiryId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+
+            <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                <i class="bi bi-printer"></i> Print
+            </button>
+
+        </div>
+    </div>
+    }
+}
+
+@code {
+
+    protected override string ScreenName => "Enquiry Sales";
+
+    [Parameter]
+    public int EnquiryId { get; set; }
+
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    public bool isProcessing { get; set; } = true;
+
+    private EnquirySalesVM EnquirySalesVM { get; set; } = new EnquirySalesVM();
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+
+            if (!CanView)
+
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await GetDetails();
+
+            isProcessing = false;
+        }
+        catch(Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnInitializedAsync SalesEnquiry");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    public async Task GetDetails()
+    {
+        try
+        {
+            if (EnquiryId > 0)
+            {
+                var existEnquirySales = await enquiryService.GetEnquiryDetailsByEnqIdAsync(EnquiryId);
+                if (existEnquirySales != null)
+                {
+                    EnquirySalesVM = existEnquirySales;
+                }
+            }
+        }
+        catch(Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GetDetails() SalesEnquiry");
+            await _js.ToastrError("An unexpected error occurred while loading GetDetails() in SalesEnquiry.");
+        }
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            var pdfBytes = await enquiryService.GenerateAndOpenPdf(EnquiryId, "SalesEnquiry.frx", "EnquiryId", EnquirySalesVM.Cancel, ScreenName, "Sp_Print_EnquirySales");
+            
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf SalesEnquiry");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in SalesEnquiry.");
+        }
+    }
+
+}

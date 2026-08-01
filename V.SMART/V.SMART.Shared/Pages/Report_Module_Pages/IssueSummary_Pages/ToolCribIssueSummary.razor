@@ -1,0 +1,451 @@
+﻿@page "/ToolCribReport"
+
+
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel
+
+ @inherits BaseUserRightsComponent
+ 
+@inject IToolCribServices toolCribServices
+@inject IJSRuntime _JS
+@inject IExcelTemplateService excelTemplateService
+@inject NavigationManager _navigation
+@inject ILoggingService LoggingService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Tool Crib Issue/Return"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@PoBreadcrumbs" />
+            <div class="card-body  bg-light">
+
+                <div class="row g-1 mb-3">
+
+                    <div class="row g-3 align-items-end mb-3">
+
+                        <!-- FROM DATE -->
+                        <div class="col-md-2">
+                            <label class="form-label">From Date</label>
+
+                            <InputDate @bind-Value="fromDate"
+                                       @bind-Value:after="LoadIssuedToList"
+                                       class="form-control" />
+                        </div>
+
+                        <!-- TO DATE -->
+                        <div class="col-md-2">
+                            <label class="form-label">To Date</label>
+
+                            <InputDate @bind-Value="toDate"
+                                       @bind-Value:after="LoadIssuedToList"
+                                       class="form-control" />
+                        </div>
+
+                        <!-- ISSUE / RETURN CENTER -->
+                        <div class="col-md-2">
+
+                            <label class="form-label d-block text-center">
+                                Type
+                            </label>
+
+                            <div class="d-flex gap-2">
+
+                                <!-- ISSUE -->
+                                <div class="flex-fill">
+
+                                    <input type="radio"
+                                           class="btn-check"
+                                           name="reportType"
+                                           id="issueType"
+                                           checked="@(selectedType == "Issue")"
+                                           @onchange='async (_) => await OnTypeChanged("Issue")' />
+
+                                    <label class="btn btn-outline-primary w-100"
+                                           for="issueType">
+                                        Issue
+                                    </label>
+
+                                </div>
+
+                                <!-- RETURN -->
+                                <div class="flex-fill">
+
+                                    <input type="radio" class="btn-check" name="reportType" id="returnType"
+                                           checked="@(selectedType == "Return")"
+                                           @onchange='async (_) => await OnTypeChanged("Return")' />
+
+                                    <label class="btn btn-outline-danger w-100"
+                                           for="returnType">
+                                        Return
+                                    </label>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <!-- ISSUED TO -->
+                        <div class="col-md-2">
+
+                            <label class="form-label">Issued To</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="selectedIssuedTo"
+                                         @bind-Value:after="LoadFilteredData">
+
+                                <option value="">
+                                    -- Select Issued To --
+                                </option>
+
+                                @foreach (var item in issuedToList)
+                                {
+                                    <option value="@item">
+                                        @item
+                                    </option>
+                                }
+
+                            </InputSelect>
+
+                        </div>
+
+                        <!-- SEARCH -->
+                        <div class="col-md-2">
+
+                            <label class="form-label">Search</label>
+
+                            <input type="text"
+                                   class="form-control"
+                                   placeholder="Search Issue No / Item Code / User..."
+                                   @bind="searchText"
+                                   @bind:event="oninput" />
+
+                        </div>
+
+                    </div>
+
+
+
+
+                    <!-- ERROR -->
+                    @if (!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            @errorMessage
+                        </div>
+                    }
+
+                    <!-- LOADING -->
+                    @if (isLoading)
+                    {
+                        <div class="text-center p-5">
+                            <div class="spinner-border text-primary"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (FilteredReportList.Any())
+                        {
+
+
+                            <div class="table-responsive border rounded" style="max-height:600px; overflow-x:auto; overflow-y:auto;">
+
+                                <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; white-space:nowrap;">
+
+                                    <thead class="custom-blue text-center align-middle sticky-top">
+
+                                        <tr>
+                                            <th>Sl No</th>
+                                            <th>Issue No</th>
+                                            <th>Issue Date</th>
+                                            <th>Issued To</th>
+                                            <th>Category</th>
+                                            <th>Store</th>
+                                            <th>Item Code</th>
+                                            <th>Item Name/Description</th>
+                                            <th>UOM</th>
+                                            <th>HSN Code</th>
+                                            <th class="text-end">Qty Out</th>
+                                            <th class="text-end">Balance Qty</th>
+                                            <th class="text-end">Rate</th>
+                                            <th>Remarks</th>
+                                            <th>Created By</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+
+                                        @foreach (var row in FilteredReportList.Select((item, index) => new { item, index }))
+                                        {
+                                            <tr>
+                                                <td>@(row.index + 1)</td>
+                                                <td>@row.item.IssueNo</td>
+                                                <td>@row.item.TCIssueDate.ToString("dd/MM/yyyy")</td>
+                                                <td>@row.item.IssuedToWhom</td>
+                                                <td>@row.item.CategoryName</td>
+                                                <td>@row.item.StoreName</td>
+                                                <td>@row.item.ItemCode</td>
+                                                <td>@row.item.ItemName</td>
+                                                <td>@row.item.UOM</td>
+                                                <td>@row.item.HSNCode</td>
+                                                <td class="text-end">@row.item.QtyOut.ToString("N2")</td>
+                                                <td class="text-end">@row.item.BalQty.ToString("N2")</td>
+                                                <td class="text-end">@row.item.Rate.ToString("N2")</td>
+                                                <td>@row.item.MainRemarks</td>
+                                                <td>@row.item.CreatedBy</td>
+                                            </tr>
+                                        }
+
+                                    </tbody>
+
+                                    <tfoot>
+                                        <tr class="table-secondary fw-bold">
+                                            <td colspan="10" class="text-end">Total</td>
+                                            <td class="text-end">
+                                                @FilteredReportList.Sum(x => x.QtyOut).ToString("N2")
+                                            </td>
+                                            <td colspan="4"></td>
+                                        </tr>
+                                    </tfoot>
+
+                                </table>
+
+                            </div>
+                            //Export
+                            <div class=" col-12 d-flex justify-content-md-end mt-3">
+
+                                <button class="btn btn-primary  text-center "
+                                        @onclick="ExportToExcel"
+                                        disabled="@isProcessing">
+
+                                    @if (isProcessing)
+                                    {
+                                        <span>
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            Exporting...
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span>
+                                            <i class="bi bi-printer-fill me-1"></i>
+                                            Export
+                                        </span>
+                                    }
+
+                                </button>
+
+
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning">
+                                No records found.
+                            </div>
+                        }
+                    }
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+}
+
+@code {
+
+    protected override string ScreenName => "ToolCribIssue Summary";
+
+    private DateTime? fromDate = DateTime.Today.AddDays(-30);
+    private DateTime? toDate = DateTime.Today;
+
+    private bool isLoading = false;
+    private bool isProcessing = true;
+
+    private string errorMessage = string.Empty;
+
+    private string? selectedType = "Issue";
+    private string selectedIssuedTo = string.Empty;
+    private string searchText = string.Empty;
+
+    private List<string> issuedToList = new();
+    private List<ToolCribVM> reportList = new();
+
+    private List<PageHeader.BreadcrumbItem> PoBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Report" },
+        new PageHeader.BreadcrumbItem { Text = "Issue Summary" },
+        new PageHeader.BreadcrumbItem { Text = "Tool Crib Issue Summary", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            StateHasChanged();
+            await LoadIssuedToList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in View Tool Crib Issue Summary OnInitializedAsync");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    // FILTERED DATA
+    private IEnumerable<ToolCribVM> FilteredReportList =>
+        reportList
+            .Where(x =>
+                (string.IsNullOrWhiteSpace(selectedIssuedTo)
+                    || x.IssuedToWhom == selectedIssuedTo))
+            .Where(x =>
+                string.IsNullOrWhiteSpace(searchText)
+                || (x.IssueNo?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.ItemCode?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.CreatedBy?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.ItemName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+            );
+
+    // TYPE CHANGE
+    private async Task OnTypeChanged(string type)
+    {
+        selectedType = type;
+        await LoadIssuedToList();
+    }
+
+    // LOAD DATA + ISSUED TO LIST
+    private async Task LoadIssuedToList()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+
+            selectedIssuedTo = string.Empty;
+            searchText = string.Empty;
+
+            var data = await toolCribServices.GetReport(fromDate, toDate, selectedType);
+
+            reportList = data;
+
+            issuedToList = data
+                .Where(x => !string.IsNullOrWhiteSpace(x.IssuedToWhom))
+                .Select(x => x.IssuedToWhom)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // FILTER CHANGE
+    private async Task LoadFilteredData()
+    {
+        try
+        {
+            isLoading = true;
+
+            var data = await toolCribServices.GetReport(fromDate, toDate, selectedType);
+
+            reportList = data
+                .Where(x => x.IssuedToWhom == selectedIssuedTo)
+                .ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // EXPORT
+    private async Task ExportToExcel()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (!FilteredReportList.Any())
+            {
+                await _JS.InvokeVoidAsync("alert", "No records available to export.");
+                return;
+            }
+
+            string[] headers =
+            {
+                "Issue No","Issue Date","Issued To","Category","Store",
+                "Item Code","Item Name/Description","UOM","HSN Code","Qty Out","Balance Qty",
+                "Rate","Remarks","Created By","Type"
+            };
+
+            var exportData = FilteredReportList.Select(x => new
+            {
+                x.IssueNo,
+                IssueDate = x.TCIssueDate.ToString("dd-MM-yyyy"),
+                x.IssuedToWhom,
+                x.CategoryName,
+                x.StoreName,
+                x.ItemCode,
+                x.ItemName,
+                x.UOM,
+                x.HSNCode,
+                QtyOut = x.QtyOut.ToString("N2"),
+                BalQty = x.BalQty.ToString("N2"),
+                Rate = x.Rate.ToString("N2"),
+                x.MainRemarks,
+                x.CreatedBy,
+                Type = x.IsReturn ? "Return" : "Issue"
+            }).ToList<object>();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                "Tool Crib Report",
+                headers,
+                exportData
+            );
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync(
+                "downloadExcelFile",
+                base64,
+                $"ToolCribReport_{DateTime.Now:ddMMyyyyHHmmss}.xlsx"
+            );
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

@@ -1,0 +1,399 @@
+﻿@page "/correspondence/upload"
+@page "/correspondence/update/{CorresId:int?}"
+@using V.SMART.Shared.Data.Utilities.Correspondence
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IFileUploadService corresFile
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- Card Header -->
+                <PageHeader TitleText="@(Correspondence.Id == 0 ? "Upload New Correspondence" : "Update Correspondence")"
+                            TitleIcon="bi bi-clipboard-plus"
+                            Breadcrumbs="@correspondenceBreadcrumbs" />
+
+
+                <!-- Body -->
+                <div class="card-body px-5 py-4">
+                    <EditForm Model="Correspondence" OnValidSubmit="UpsertCorrespondence">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="mb-3 text-danger" />
+
+                        <!-- SECTION 1: File Upload -->
+                        <div class="mb-5">
+                            <h6 class="text-uppercase text-muted mb-3 border-bottom pb-2">
+                                <i class="bi bi-upload me-2"></i>Upload File
+                            </h6>
+
+                            <div class="row g-4">
+                                <!-- Upload Input -->
+                                <!-- Upload Input -->
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 shadow-sm bg-light">
+                                        <label class="form-label fw-semibold text-secondary">
+                                            <i class="bi bi-folder2-open me-1 text-primary"></i> Choose a file to upload
+                                        </label>
+                                        <InputFile OnChange="HandleFileUpload" class="form-control border-0 shadow-sm" />
+                                        <ValidationMessage For="@(() => Correspondence.FilePath)" class="text-danger mt-2" />
+
+                                        <!-- File extension note -->
+                                        <div class="form-text text-muted mt-2">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            Allowed file types:
+                                            <strong>
+                                                .pdf, .doc, .docx, .xls, .xlsx, .xlsm, .ppt, .pptx, .txt, .csv, .rpt, .jpg, .jpeg, .png, .bmp, .gif, .tiff, .zip, .rar, .eml, .msg, .dwg, .dxf, .svg
+                                            </strong><br />
+                                            Max file size: <strong>5 MB</strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                                <!-- File Preview -->
+                                <div class="col-md-6">
+                                    @if (!string.IsNullOrWhiteSpace(Correspondence.FilePath))
+                                    {
+                                        <div class="d-flex gap-3 align-items-center bg-white border-start border-4 border-primary rounded shadow-sm p-3">
+                                            <div class="bg-primary bg-opacity-10 p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                <i class="bi bi-paperclip fs-4 text-primary"></i>
+                                            </div>
+                                            <div class="text-truncate">
+                                                <a href="@Correspondence.FilePath" target="_blank" class="fw-semibold text-decoration-none text-dark">
+                                                    @Correspondence.FileName
+                                                </a>
+                                                <div class="small text-muted">@Correspondence.FileSize • @Correspondence.FileType</div>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-muted fst-italic small">
+                                            <i class="bi bi-info-circle me-1"></i> No file selected yet
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 2: Document Details -->
+                        <div class="mb-4 border-bottom pb-3">
+                            <h6 class="text-uppercase text-muted mb-3">Document Details</h6>
+                            <div class="row g-4">
+                                <!-- File Name -->
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Correspondence.FileName" class="form-control" id="FileName" placeholder="File Name" />
+                                        <label for="FileName">File Name</label>
+                                        <ValidationMessage For="@(() => Correspondence.FileName)" />
+                                    </div>
+                                </div>
+
+                                <!-- Screen Name -->
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Correspondence.ReferenceType" class="form-control" id="ReferenceType" placeholder="Screen Name" readonly />
+                                        <label for="ReferenceType">Reference Type</label>
+                                        <ValidationMessage For="@(() => Correspondence.ReferenceType)" />
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Correspondence.ReferenceTypeName" class="form-control" id="ReferenceTypeName" placeholder="Reference Type Name" readonly />
+                                        <label for="ReferenceTypeName">Reference Type Name</label>
+                                        <ValidationMessage For="@(() => Correspondence.ReferenceTypeName)" />
+                                    </div>
+                                </div>
+
+                                <!-- Remarks -->
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <InputTextArea @bind-Value="Correspondence.Remarks" class="form-control" id="Remarks" />
+                                        <label for="Remarks">Remarks</label>
+                                        <ValidationMessage For="@(() => Correspondence.Remarks)" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 3: Actions -->
+                        <div class="row mt-4 g-3">
+                            <div class="col-6 col-md-3">
+                                @if (CanCreate || CanEdit)
+                                {
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-save2-fill me-1"></i>
+                                        @(Correspondence.Id == 0 ? "Upload" : "Update")
+                                    </button>
+                                }
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <button class="btn btn-outline-secondary w-100"
+                                        @onclick="NavigateBack"
+                                        type="button"
+                                        disabled="@isProcessing">
+                                    <i class="bi bi-arrow-left me-1"></i> Back
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                        <!-- SECTION 4: Metadata -->
+                        @if (Correspondence.Id > 0)
+                        {
+                            <hr class="mt-5" />
+                            <div class="row text-muted small">
+                                <div class="col-md-3"><strong>Uploaded By:</strong> @Correspondence.UploadedBy</div>
+                                <div class="col-md-3"><strong>Uploaded On:</strong> @Correspondence.UploadedOn?.ToString("g")</div>
+                                <div class="col-md-3"><strong>Modified By:</strong> @Correspondence.Modifiedby</div>
+                                <div class="col-md-3"><strong>Modified Date:</strong> @Correspondence.ModifiedDate?.ToString("g")</div>
+                            </div>
+                        }
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+
+    }
+}
+
+@code {
+    protected override string ScreenName => "Correspondences";
+
+    [Parameter] public int? CorresId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string refType { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public int refId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string refName { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string docType { get; set; }
+
+     private List<PageHeader.BreadcrumbItem> correspondenceBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Utilities" },
+        new PageHeader.BreadcrumbItem { Text = "Correspondence", IsLast = true }
+    };
+
+
+    private Correspondence Correspondence { get; set; } = new();
+    private bool isProcessing = true;
+    private string currentUser = "";
+
+    private static readonly string[] AllowedExtensions = new[]
+    {
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv",".rpt",".xlsm",
+        ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff",
+        ".zip", ".rar",
+        ".eml", ".msg",".txt",
+        ".dwg", ".dxf", ".svg"
+    };
+
+    private const long MaxAllowedSizeInBytes = 5 * 1024 * 1024;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            currentUser = await CurrentUserService.GetUsernameAsync();
+            await LoadCorrespondence();
+
+            if (Correspondence.Id == 0)
+            {
+                Correspondence.ReferenceType = refType;
+                Correspondence.ReferenceId = refId;
+                Correspondence.ReferenceTypeName = refName;
+
+                // !! Important.... Make here if docType is null or "" then make is as Correspondence as docType
+                Correspondence.DocumentType = string.IsNullOrWhiteSpace(docType) ? "Correspondence" : docType;  // docType Considers as  Drawing or Correspondence
+
+            }
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "Error initializing Correspondence page.");
+        }
+    }
+
+    private async Task LoadCorrespondence()
+    {
+        try
+        {
+            if (CorresId > 0)
+            {
+                var existing = await _unitOfWork.Correspondances.GetAsync(CorresId.Value);
+                if (existing != null)
+                    Correspondence = existing;
+            }
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "Error initializing Correspondence page. on LoadCorrespondence");
+        }
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+
+            // Validate file extension
+            if (!AllowedExtensions.Contains(extension))
+            {
+                await _js.ToastrError($"File type '{extension}' is not allowed.");
+                return;
+            }
+
+            // Validate file size
+            if (file.Size > MaxAllowedSizeInBytes)
+            {
+                await _js.ToastrError("File size exceeds the 5 MB limit.");
+                return;
+            }
+
+            var savedPath = await corresFile.SaveCorresFileAsync(file, refType, docType);
+
+            Correspondence.FilePath = savedPath;
+            Correspondence.FileName = file.Name;
+            Correspondence.FileSize = $"{file.Size / 1024.0:F2} KB";
+            Correspondence.FileType = file.ContentType;
+            Correspondence.UploadedOn = DateTime.UtcNow;
+            Correspondence.UploadedBy = await CurrentUserService.GetUsernameAsync();
+
+            using var stream = file.OpenReadStream(maxAllowedSize: MaxAllowedSizeInBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            Correspondence.Image = ms.ToArray();
+
+            // Log user action for upload
+            await LoggingService.LogUserAction(
+                Correspondence.UploadedBy,
+                _userService.MachineName,
+                _userService.IpAddress,
+                "Correspondence",
+                "File uploaded",
+                $"Filename: {file.Name}, Size: {file.Size / 1024.0:F2} KB, ReferemceType: {Correspondence.ReferenceType},ReferenceNam:{Correspondence.ReferenceTypeName}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Upload failed: {ex.Message}");
+            await _js.ToastrError("File upload failed due to an error.");
+        }
+    }
+
+
+    private async Task UpsertCorrespondence()
+    {
+        try
+        {
+            isProcessing = true;
+
+            bool isDuplicate = await _unitOfWork.Correspondances.ExistsByNameAsync("FileName", Correspondence.FileName?.Trim(), "Id", Correspondence.Id == 0 ? null : Correspondence.Id);
+            if (isDuplicate)
+            {
+                await _js.ToastrError("File name already exists.");
+                isProcessing = false;
+                return;
+            }
+
+            if (Correspondence.Id == 0)
+            {
+                Correspondence.UploadedBy = currentUser;
+                Correspondence.UploadedOn = DateTime.Now;
+                await _unitOfWork.Correspondances.CreateAsync(Correspondence);
+            }
+            else
+            {
+                Correspondence.Modifiedby = currentUser;
+                Correspondence.ModifiedDate = DateTime.Now;
+                await _unitOfWork.Correspondances.UpdateAsync(Correspondence);
+            }
+
+            await _unitOfWork.SaveAsync();
+            await _js.ToastrSuccess("Correspondence saved successfully.");
+            await LoggingService.LogUserAction(
+                currentUser,
+                _userService.MachineName,
+                _userService.IpAddress,
+                "Correspondence",
+                "File Saved",
+                $"Filename: {Correspondence.FileName}, ReferemceType: {Correspondence.ReferenceType},ReferenceNam:{Correspondence.ReferenceTypeName}");
+
+            if (Correspondence.ReferenceType == "" || string.IsNullOrEmpty(Correspondence.ReferenceType))
+            {
+                _navigationManager.NavigateTo("/correspondenceList");
+            }
+            else
+            {
+                _navigationManager.NavigateTo($"/correspondence/by-reference?refType={Correspondence.ReferenceType}&refId={Correspondence.ReferenceId}&refName={Correspondence.ReferenceTypeName}&docType={Correspondence.DocumentType}");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while saving the correspondence.");
+            await LoggingService.LogDeveloperError(ex, "Error in UpsertCorrespondence.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NavigateBack()
+    {
+        if (Correspondence?.ReferenceType == "" || string.IsNullOrEmpty(Correspondence?.ReferenceType))
+        {
+            _navigationManager.NavigateTo("/correspondenceList");
+        }
+        else
+        {
+            _navigationManager.NavigateTo($"/correspondence/by-reference?refType={Correspondence.ReferenceType}&refId={Correspondence.ReferenceId}&refName={Correspondence.ReferenceTypeName}&docType={Correspondence.DocumentType}");
+
+        }
+    }
+
+}

@@ -1,0 +1,1006 @@
+﻿@page "/labourSCNList"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ILabourServices
+@using V.SMART.Shared.Pages.InstantSearch_Pages
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.LabourSCN_VM
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchaseSCNVM
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject ILabourSCNService _scnService
+@inject ExcelExportService ExcelExportService
+
+
+<style>
+    .pagination-fixed {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1030; /* keeps above table */
+    }
+
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+
+</style>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch 
+            isModelVisible="true" 
+            Screen="@ScreenName" 
+            Filters="SearchFilters"
+            OnClose="CloseModal"
+            OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="@(confirmation != "Export" ? "btn-danger" : btnColor)" 
+         ButtonText="@(confirmation != "Export" ? "Delete" : btnText)"
+         Title="@(confirmation != "Export"
+                      ? "Are you sure you want to delete this Labour SCN?"
+                      : ModalTitle)">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+            <PageHeader TitleText="LabourSCN List"
+                        TitleIcon="bi bi-list-check"
+                        Breadcrumbs="@LabourSCNBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="LabourSCNList"
+                                    UserId="@UserName"
+                                    MaxVisible="int.MaxValue"
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                 @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                     <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm" value="@pageSize"
+                                @onchange="OnPageSizeChanged"
+                                title="Select number of records per page">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                              value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select status of records">
+                            <option value="">-- Select Status --</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Short Closed">Short Closed</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-12 col-lg-2 ms-md-auto text-end">
+                            <button type="button" class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewSCN">
+                                <i class="bi bi-plus-square me-1"></i> Add New SCN
+                            </button>
+                        </div>
+                    }
+
+                </div>
+
+                @if (LabourSCNVMs.Any())
+                {
+                    <div class="table-responsive">
+                        <QuickGrid Items="LabourSCNVMs.AsQueryable()"
+                                   
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Count(c => c.IsVisible) >= 1)
+                            {
+
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+                                        @switch (col.Field)
+                                        {
+                                            case "SCNId":
+                                                <PropertyColumn Title="SCN ID" Property="@(c => c.SCNId)" />
+                                                break;
+
+                                            case "SCNNo":
+                                                <PropertyColumn Title="SCN No." Property="@(c => $"{c.SCNNo}{c.Suffix}")" Sortable="true" />
+                                                break;
+
+                                            case "SCNDate":
+                                                <PropertyColumn Title="SCN Date" Property="@(c => c.SCNDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "SCNDateNow":
+                                                <PropertyColumn Title="SCN Date (System)" Property="@(c => c.SCNDateNow)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            // 🔹 Customer
+                                            case "CustId":
+                                                <PropertyColumn Title="Customer ID" Property="@(c => c.CustId)" />
+                                                break;
+
+                                            case "CustName":
+                                                <PropertyColumn Title="Customer Name" Property="@(c => c.CustName)" Sortable="true" />
+                                                break;
+
+                                            case "CustAddress":
+                                                <PropertyColumn Title="Customer Address" Property="@(c => c.CustAddress)" />
+                                                break;
+
+                                            case "CustGst":
+                                                <PropertyColumn Title="Customer GST No" Property="@(c => c.CustGst)" />
+                                                break;
+
+                                            case "CustContactNo":
+                                                <PropertyColumn Title="Customer Contact No" Property="@(c => c.CustContactNo)" />
+                                                break;
+
+                                            case "KindofAttention":
+                                                <PropertyColumn Title="Kind Attention" Property="@(c => c.KindofAttention)" />
+                                                break;
+
+                                            // 🔹 Shipping
+                                            case "ShippingName":
+                                                <PropertyColumn Title="Shipping Name" Property="@(c => c.ShippingName)" />
+                                                break;
+
+                                            case "ShippingAddress":
+                                                <PropertyColumn Title="Shipping Address" Property="@(c => c.ShippingAddress)" />
+                                                break;
+
+                                            case "ShippingGstin":
+                                                <PropertyColumn Title="Shipping GSTIN" Property="@(c => c.ShippingGstin)" />
+                                                break;
+
+                                            case "ShippingContactNo":
+                                                <PropertyColumn Title="Shipping Contact No" Property="@(c => c.ShippingContactNo)" />
+                                                break;
+
+                                            // 🔹 Stores
+                                            case "AddStoreName":
+                                                <PropertyColumn Title="Add Store" Property="@(c => c.AddStoreName)" />
+                                                break;
+
+                                            case "IssueStoreName":
+                                                <PropertyColumn Title="Issue Store" Property="@(c => c.IssueStoreName)" />
+                                                break;
+
+                                            case "NoOfItems":
+                                                <PropertyColumn Title="No. of Items" Property="@(c => c.NoOfItems)" />
+                                                break;
+
+                                            case "TotalQty":
+                                                <PropertyColumn Title="Total Qty" Property="@(c => c.TotalQty)" />
+                                                break;
+
+                                            case "AverageUnitPrice":
+                                                <PropertyColumn Title="Avg Unit Price" Property="@(c => c.AverageUnitPrice)" />
+                                                break;
+
+                                            case "MainRemarks":
+                                                <PropertyColumn Title="Main Remarks" Property="@(c => c.MainRemarks)" />
+                                                break;
+
+                                            case "Status":
+                                                <TemplateColumn Title="SCN Status" Context="c">
+                                                    @if (c.SCNCancel)
+                                                    {
+                                                        <span class="badge text-bg-danger bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-x-circle me-1"></i> Cancelled
+                                                        </span>
+                                                    }
+                                                    else if (c.ShortClose)
+                                                    {
+                                                        <span class="badge text-bg-secondary bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-slash-circle me-1"></i> Short Closed
+                                                        </span>
+                                                    }
+                                                    else if (c.SCNTally)
+                                                    {
+                                                        <span class="badge text-bg-success bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-check-circle me-1"></i> Completed
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge text-bg-warning bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                        </span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            // 🔹 Cancel Info
+                                            case "CancelReason":
+                                                <PropertyColumn Title="Cancel Reason" Property="@(c => c.CancelReason)" />
+                                                break;
+
+                                            case "CancelDate":
+                                                <PropertyColumn Title="Cancel Date" Property="@(c => c.CancelDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "CanceledBy":
+                                                <PropertyColumn Title="Cancel By" Property="@(c => c.CanceledBy)" />
+                                                break;
+
+                                            @* Sathish *@
+                                            case "CorrespondenceStatus":
+                                                <TemplateColumn Title="Correspondence Status">
+                                                    @if (UploadStatus.ContainsKey(context.SCNId)
+                                                                                && UploadStatus[context.SCNId])
+                                                    {
+                                                        <span class="badge bg-success">Uploaded</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark">Not Uploaded</span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+                                            // 🔹 Approval
+                                            case "LevelStatus":
+                                                <TemplateColumn Title="Level Status" Context="c">
+                                                    @{
+                                                        string levelText = "-";
+                                                        if (c.IsLevel3) levelText = "Level 3";
+                                                        else if (c.IsLevel2) levelText = "Level 2";
+                                                        else if (c.IsLevel1) levelText = "Level 1";
+                                                    }
+                                                    <span class="badge bg-primary">@levelText</span>
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "Level1Sign":
+                                                <PropertyColumn Title="L1 Approved By" Property="@(c => c.Level1Sign)" />
+                                                break;
+
+                                            case "Level2Sign":
+                                                <PropertyColumn Title="L2 Approved By" Property="@(c => c.Level2Sign)" />
+                                                break;
+
+                                            case "Level3Sign":
+                                                <PropertyColumn Title="L3 Approved By" Property="@(c => c.Level3Sign)" />
+                                                break;
+
+                                            case "Level4Sign":
+                                                <PropertyColumn Title="L4 Approved By" Property="@(c => c.Level4Sign)" />
+                                                break;
+
+                                            case "ApprovalStatus":
+                                                <TemplateColumn Title="Approval Status" Context="c">
+                                                    @if (c.Authorized)
+                                                    {
+                                                        <span class="badge text-bg-success bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-check-circle me-1"></i> Authorized
+                                                        </span>
+                                                    }
+                                                    else if (c.IsRejected)
+                                                    {
+                                                        <span class="badge text-bg-danger bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-x-circle me-1"></i> Rejected
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge text-bg-warning bg-gradient shadow-sm px-3 py-1 rounded-pill">
+                                                            <i class="bi bi-hourglass-split me-1"></i> Pending
+                                                        </span>
+                                                    }
+                                                </TemplateColumn>
+                                                break;
+
+                                            case "ApprovedBy":
+                                                <PropertyColumn Title="Approved By" Property="@(c => c.ApprovedBy)" />
+                                                break;
+
+                                            case "ApprovalDate":
+                                                <PropertyColumn Title="Approval Date" Property="@(c => c.ApprovalDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "RejectReason":
+                                                <PropertyColumn Title="Reject Reason" Property="@(c => c.RejectReason)" />
+                                                break;
+
+
+                                            // 🔹 Audit
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" />
+                                                break;
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" />
+                                                break;
+                                        }
+                                    </div>
+                                }
+
+                            }
+
+                            <!-- Actions -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"labourSCN/update/{c.SCNId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit SCN">
+                                           <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    @if (CanView)
+                                    {
+                                        <a href="@($"labourSCN/details/{c.SCNId}?currentPage={currentPage}")"
+                                           class="btn btn-sm btn-outline-info"
+                                           title="View SCN">
+                                           <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete SCN"
+                                                @onclick="() => HandleDelete(c)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </TemplateColumn>
+
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+
+                        <div class="container-fluid">
+
+                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="FirstPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-skip-backward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="PreviousPage"
+                                        disabled="@(currentPage == 1)">
+                                    <i class="bi bi-arrow-left-circle"></i>
+                                </button>
+
+                                <span class="fw-semibold small px-1">
+                                    Page @currentPage of @totalPages
+                                </span>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="NextPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </button>
+
+                                <button class="btn btn-outline-primary btn-sm"
+                                        @onclick="LastPage"
+                                        disabled="@(currentPage >= totalPages)">
+                                    <i class="bi bi-skip-forward-fill"></i>
+                                </button>
+
+                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5" @onclick="HandleExport">
+
+                                    <i class="bi bi-download me-1"></i> Export SCN's
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center">No Labour SCN found.</p>
+                }
+            
+            </div>
+        </div>
+    </div>
+}
+
+
+@code
+{
+    protected override string ScreenName => "Labour SCN";
+    private bool isProcessing = false;
+    private string searchText = string.Empty;
+    private string? UserName;
+    private int DeleteSCNID = 0;
+    private string selectedStatus = string.Empty;
+    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    public List<GridColumn> Columns { get; set; }
+
+    private int screenCode { get; set; }
+
+    private List<LabourSCNVM> LabourSCNVMs = new();
+
+    [Parameter] public List<LabourSCNVM> result { get; set; }
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private int totalItems;
+  //  private int currentPage = 1;
+    private int pageSize = 10;
+    private string searchTerm;
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+
+    // Instant Search filter parameter
+    [SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = "";
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+
+    //Sathish
+    private Dictionary<int, bool> UploadStatus = new();
+
+    private void AddNewLabourSCN()
+    {
+        _navigation.NavigateTo("/Customer/Select?ReturnUrl=/purchaseSCNList/create/{id}");
+    }
+
+    private List<PageHeader.BreadcrumbItem> LabourSCNBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Labour" },
+        new PageHeader.BreadcrumbItem { Text = "Store Credit Note", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            await InitializeColumns(IsHidden);
+            UserName = await CurrentUserService.GetUsernameAsync();
+            //Sathish
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+            await LoadAllLabourSCNDetailsAsync();
+            screenCode = await _scnService.GetScreenCodeByScreenNameAsync(ScreenName);
+
+            var saved = await PreferenceService.LoadPreferencesAsync("LabourSCNList", UserName);
+            if (saved?.Any() == true)
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(s => s.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LabourSCNList OnInitializedAsync() method");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "SCN ID", Field = "SCNId", IsVisible = false },
+
+                new() { Title = "SCN No.", Field = "SCNNo", IsVisible = true },
+
+                new() { Title = "SCN Date", Field = "SCNDate", IsVisible = true },
+                new() { Title = "SCN Date (System)", Field = "SCNDateNow", IsVisible = false },
+
+                // 🔹 Customer
+                new() { Title = "Customer ID", Field = "CustId", IsVisible = false },
+                new() { Title = "Customer Name", Field = "CustName", IsVisible = true },
+                new() { Title = "Customer Address", Field = "CustAddress", IsVisible = false },
+                new() { Title = "Customer GST No", Field = "CustGst", IsVisible = false },
+                new() { Title = "Customer Contact No", Field = "CustContactNo", IsVisible = false },
+
+                new() { Title = "Kind Attention", Field = "KindofAttention", IsVisible = false },
+
+                // 🔹 Shipping
+                new() { Title = "Shipping Name", Field = "ShippingName", IsVisible = false },
+                new() { Title = "Shipping Address", Field = "ShippingAddress", IsVisible = false },
+                new() { Title = "Shipping GSTIN", Field = "ShippingGstin", IsVisible = false },
+                new() { Title = "Shipping Contact No", Field = "ShippingContactNo", IsVisible = false },
+
+                // 🔹 Stores
+                new() { Title = "Add Store", Field = "AddStoreName", IsVisible = true },
+                new() { Title = "Issue Store", Field = "IssueStoreName", IsVisible = true },
+
+                new() { Title = "No. of Items", Field = "NoOfItems", IsVisible = true },
+
+                new() { Title = "Total Qty", Field = "TotalQty", IsVisible = true },
+                new() { Title = "Avg Unit Price", Field = "AverageUnitPrice", IsVisible = false },
+
+                new() { Title = "Main Remarks", Field = "MainRemarks", IsVisible = false },
+
+                new() { Title = "SCN Status", Field = "Status", IsVisible = true },
+
+                // 🔹 Cancel Info
+                new() { Title = "Cancel Reason", Field = "CancelReason", IsVisible = false },
+                new() { Title = "Cancel Date", Field = "CancelDate", IsVisible = false },
+                new() { Title = "Cancel By", Field = "CanceledBy", IsVisible = false },
+                  //Sathish
+                new() { Title = "Correspondence Status", Field = "CorrespondenceStatus", IsVisible = false },
+                // 🔹 Approval
+                new() { Title = "Level Status", Field = "LevelStatus", IsVisible = false },
+
+                new() { Title = "L1 Approved By", Field = "Level1Sign", IsVisible = false },
+                new() { Title = "L2 Approved By", Field = "Level2Sign", IsVisible = false },
+                new() { Title = "L3 Approved By", Field = "Level3Sign", IsVisible = false },
+                new() { Title = "L4 Approved By", Field = "Level4Sign", IsVisible = false },
+
+                new() { Title = "Approval Status", Field = "ApprovalStatus", IsVisible = true },
+                new() { Title = "Approved By", Field = "ApprovedBy", IsVisible = false },
+                new() { Title = "Approval Date", Field = "ApprovalDate", IsVisible = false },
+
+                new() { Title = "Reject Reason", Field = "RejectReason", IsVisible = false },
+
+                // 🔹 Audit
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = false },
+                new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = false }
+            };
+
+
+            if (!Hidden)
+            {
+
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the PurchaseSCNList InitializeColumns() method");
+            await _JS.ToastrError("An error occurred while handling the PurchaseSCNList InitializeColumns() method");
+        }
+    }
+
+    private async Task LoadAllLabourSCNDetailsAsync()
+    {
+        isProcessing = true;
+        try
+        {
+            var result = await _scnService.SearchWithDynamicFilterAsync(pageNumber: currentPage, pageSize: pageSize, filters: SearchFilters);
+            LabourSCNVMs = result.Scns;
+            totalItems = result.TotalCount;
+
+            foreach (var item in LabourSCNVMs)
+            {
+                UploadStatus[item.SCNId] = await _scnService.IsDocumentUploaded(item.SCNId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadAllLabourSCNDetailsAsync");
+            await _JS.ToastrError("Failed to load LabourSCN data.");
+
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleColumnChange(List<GridColumn> updated)
+    {
+        try
+        {
+            Columns = updated ?? new List<GridColumn>();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "HandleColumnChange in LabourSCNList");
+            await _JS.ToastrError("Failed to update column preferences in LabourSCNList .");
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllLabourSCNDetailsAsync();
+       
+            await InvokeAsync(StateHasChanged);
+          
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnPageSizeChanged in LabourSCNList");
+            await _JS.ToastrError("Failed to update page size in LabourSCNList.");
+        }
+    }
+    private void AddNewSCN()
+    {
+        var returnUrl = Uri.EscapeDataString("labourSCN/create/{id}");
+        _navigation.NavigateTo($"/Customer/Select?ReturnUrl={returnUrl}");
+    }
+    private async Task HandleDelete(LabourSCNVM scn)
+    {
+        try
+        {
+            var totalQty = scn.LabourSCNSubVMs.Sum(s => s.AcceptQty);
+            var totalBalQty = scn.LabourSCNSubVMs.Sum(s => s.BalQty);
+            if ((totalQty != totalBalQty) || scn.SCNTally)
+            {
+                await _JS.ToastrError("Oops! You can't delete this SCN because some items have already been processed.");
+                return;
+
+            }
+            bool hasAnyItemOrGRNCancel = await _scnService.HasAnyItemOrLabourSCNCancelAsync(scn.SCNId);
+            if (hasAnyItemOrGRNCancel)
+            {
+                await _JS.ToastrWarning("Cannot delete this Labour SCN as it or one of its items has been cancelled.");
+                return;
+            }
+            if (scn.LabourSCNSubVMs.Any())
+            {
+                foreach (var sub in scn.LabourSCNSubVMs)
+                {
+                    if (sub.RejectQty>0)
+                    {
+                        var (canRemove, showmessage) = await _scnService.NeedTocheckRejection(sub.RefGRNSubId.Value,sub.RejectQty.Value);
+
+                        if (!canRemove)
+                        {
+                            await _JS.ToastrWarning(showmessage);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            var (canDelete, message) = await _scnService.CanDeleteLabourSCNAsync(scn.SCNId, screenCode, scn.SCNNo);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteSCNID = scn.SCNId;
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error while HandleDelete in LabourSCN List");
+            await _JS.ToastrError("Failed to  HandleDelete data.");
+        }
+    }
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (isConfirmed && DeleteSCNID > 0 && confirmation=="")
+            {
+
+                isProcessing = true;
+
+                bool success = await _scnService.DeleteLabourSCNByIdAsync(DeleteSCNID, screenCode);
+                if (success)
+                {
+                    await _JS.ToastrSuccess("SCN Deleted successfully.");
+                    await LoadAllLabourSCNDetailsAsync();
+                }
+                else
+                {
+                    await _JS.ToastrWarning("Leads Delete failed.");
+
+
+                }
+                isProcessing = false;
+                DeleteSCNID = 0;
+            }else if (isConfirmed && confirmation=="Export")
+            {
+                await ExportToExcel(isConfirmed);
+                confirmation = "";
+            }
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the LabourSCNList confirmDelete_Click() method");
+            await _JS.ToastrError("An error occurred while handling the LabourSCNList confirmDelete_Click() method");
+        }
+    }
+
+    private async Task FirstPage()
+    {
+        if (currentPage != 1)
+        {
+            currentPage = 1;
+            await LoadAllLabourSCNDetailsAsync();
+        }
+    }
+    private async Task PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadAllLabourSCNDetailsAsync();
+        }
+    }
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            await LoadAllLabourSCNDetailsAsync();
+        }
+    }
+    private async Task LastPage()
+    {
+        if (currentPage != totalPages)
+        {
+            currentPage = totalPages;
+            await LoadAllLabourSCNDetailsAsync();
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllLabourSCNDetailsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Purchase Invoice  page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #region instant search
+    public void Search()
+    {
+         isProcessing = true;
+        isModalVisible = true;
+        ActiveModal = "InstantSearch";
+        isProcessing = false;
+
+    }
+    private void HandleSCNSearch(List<LabourSCNVM> list)
+    {
+        LabourSCNVMs = list;
+        isModalVisible = false;   // Close popup
+        StateHasChanged();
+    }
+    
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+
+    #region SEARCH FILTERS
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllLabourSCNDetailsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in LabourSCNList");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+    #endregion
+
+       #region Search order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "";
+
+       
+       if (string.IsNullOrWhiteSpace(selectedStatus))
+            SearchFilters.Remove("Status");
+        else
+            SearchFilters["Status"] = selectedStatus;
+
+
+        currentPage = 1;
+        await LoadAllLabourSCNDetailsAsync();
+    }
+
+    #endregion 
+
+    private async Task HandleExport()
+    {
+        selectedStatus = selectedStatus == "" ? "All" : selectedStatus;
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColor = "btn-success";
+        btnText = "Yes";
+        confirmation = "Export";
+        await _JS.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            isProcessing = true;
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+
+            var exportData = await _scnService.GetLabourSCNStatusListAsync(selectedStatus);
+
+            if (exportData == null || !exportData.Any())
+                return;
+
+            var bytes = await ExcelExportService.ExportPendingListToExcel(exportData, "LabourSCN", "Labour SCN's Status List");
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _JS.DownloadExcelAsync(base64, "LabourSCNExport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,
+                "Error in ExportToExcel (SCN's)");
+            await _JS.ToastrError("Error while exporting Labour SCN!");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

@@ -1,0 +1,850 @@
+﻿@page "/Pending_Bills"
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.TrakReportsViewModel.LabourTrackViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject IPendingBillsService pendingBillsService
+@inject IExcelTemplateService excelTemplateService
+
+<style>
+
+    :root {
+        --primary: #5b21b6;
+        --primary-light: #7c3aed;
+        --secondary: #06b6d4;
+        --success: #006400;
+        --danger: #FF0000;
+        --warning: #f59e0b;
+        --bg: #f4f7fb;
+        --card-bg: #ffffff;
+        --text-dark: #1e293b;
+        --text-light: #64748b;
+        --border: #e2e8f0;
+    }
+
+    body {
+        background: linear-gradient(to bottom right, #eef2ff, #f8fafc);
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+    }
+
+    .pending-bills-page {
+        padding: 24px;
+    }
+
+    /* HERO SECTION */
+
+    .hero-section {
+        background: linear-gradient(135deg, #ea580c, #f97316, #f59e0b);
+        border-radius: 24px;
+        padding: 28px 35px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 28px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 15px 40px rgba(91, 33, 182, 0.25);
+    }
+
+        .hero-section::before {
+            content: "";
+            position: absolute;
+            width: 280px;
+            height: 280px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 50%;
+            top: -80px;
+            right: -80px;
+        }
+
+        .hero-section h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+            font-family: Georgia, serif;
+            letter-spacing: 0.5px;
+        }
+
+        .hero-section p {
+            margin-top: 8px;
+            font-size: 15px;
+            opacity: 0.9;
+        }
+
+    .header-badge {
+        background: rgba(255,255,255,0.15);
+        padding: 12px 22px;
+        border-radius: 40px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.2);
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    /* FILTER CARD */
+
+    .filter-card {
+        background: rgba(255,255,255,0.75);
+        backdrop-filter: blur(12px);
+        border-radius: 24px;
+        padding: 30px;
+        margin-bottom: 30px;
+        border: 1px solid rgba(255,255,255,0.5);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 22px;
+    }
+
+    .filter-item label {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-dark);
+    }
+
+    .filter-item input,
+    .filter-item select {
+        width: 100%;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: #fff;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+
+        .filter-item input:focus,
+        .filter-item select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(91, 33, 182, 0.12);
+            outline: none;
+        }
+
+    /* TABLE CARD */
+
+    .table-card {
+        background: rgba(255,255,255,0.85);
+        backdrop-filter: blur(14px);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 10px 35px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+    }
+
+    .table-header {
+        margin-bottom: 22px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+        .table-header h2 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-dark);
+        }
+
+    /* BUTTON */
+
+    .custom-print-btn {
+        background: linear-gradient(135deg, #ea580c, #f97316);
+        color: white;
+        border: none;
+        border-radius: 14px;
+        padding: 12px 22px;
+        font-weight: 700;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        box-shadow: 0 10px 20px rgba(91, 33, 182, 0.25);
+    }
+
+        .custom-print-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 14px 25px rgba(91, 33, 182, 0.35);
+        }
+
+    /* TABLE */
+
+    .table-wrapper {
+        overflow-x: auto;
+        border-radius: 18px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 1200px;
+    }
+
+    thead {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+
+    th {
+        background: linear-gradient(to right, #ede9fe, #f5f3ff);
+        color: #ea580c;
+        padding: 18px;
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        border-bottom: 2px solid #ddd6fe;
+        white-space: nowrap;
+    }
+
+    td {
+        padding: 16px 18px;
+        border-bottom: 1px solid #f1f5f9;
+        background: white;
+        font-size: 14px;
+        color: #334155;
+        white-space: nowrap;
+    }
+
+    tbody tr {
+        transition: all 0.25s ease;
+    }
+
+        tbody tr:hover {
+            background: #f8fafc;
+            transform: scale(1.002);
+        }
+
+    .amount {
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .paid-amount {
+        color: var(--success);
+        font-weight: 800;
+    }
+
+    .balance-amount {
+        color: var(--danger);
+        font-weight: 800;
+    }
+
+    .empty-data {
+        padding: 40px;
+        text-align: center;
+        font-size: 16px;
+        color: var(--text-light);
+    }
+
+    /* RESPONSIVE */
+
+    @@media(max-width:992px) {
+
+        .hero-section {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 18px;
+        }
+
+            .hero-section h1 {
+                font-size: 26px;
+            }
+
+        .table-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 15px;
+        }
+    }
+
+    @@media(max-width:768px) {
+
+        .pending-bills-page {
+            padding: 12px;
+        }
+
+        .filter-card,
+        .table-card {
+            padding: 20px;
+        }
+
+        th, td {
+            padding: 14px;
+            font-size: 13px;
+        }
+    }
+
+    /* PRINT */
+
+    @@media print {
+
+        body * {
+            visibility: hidden;
+        }
+
+        .table-card,
+        .table-card * {
+            visibility: visible;
+        }
+
+        .table-card {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            box-shadow: none;
+        }
+
+        .hero-section,
+        .filter-card,
+        button {
+            display: none !important;
+        }
+    }
+
+</style>
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    <CorrespondenceListByReference refType="@reftypename" refId="@AttachItemSelected.InvId"
+                                   refName="@invoiceNo" docType="Correspondence" isModelVisible="true" />
+</MasterModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-4 mt-4">
+        
+        <div class="card shadow-sm border-0 rounded-4">
+
+            <PageHeader TitleText="Pending Bills List"
+                        TitleIcon="bi bi-cash-stack"
+                        Breadcrumbs="@PendingBillsBreadcrumbs" />
+
+        <div class="pending-bills-page">
+
+            <!-- HERO SECTION -->
+
+            <div class="hero-section">
+
+                <div>
+                    <h1>Pending Bills </h1>
+                    <p>Track all pending invoices with smart filtering & analytics</p>
+                </div>
+
+                <div class="header-badge">
+                    <i class="bi bi-lightning-charge-fill me-2"></i>
+                    Live Tracking
+                </div>
+
+            </div>
+
+            <!-- FILTER SECTION -->
+
+            <div class="filter-card">
+
+                <div class="filter-grid">
+
+                    <div class="filter-item">
+                        <label>From Date</label>
+                        <input type="date" @bind="FromDate" />
+                    </div>
+
+                    <div class="filter-item">
+                        <label>To Date</label>
+                        <input type="date" @bind="ToDate" />
+                    </div>
+
+                    <div class="filter-item">
+                        <label>Bill Type</label>
+
+                        <select value="@SelectedBillType"
+                                @onchange="OnBillTypeChanged">
+
+                            <option value="">Select Bill Type</option>
+                            <option>Sales</option>
+                            <option>Purchase</option>
+                            <option>Subcontract</option>
+                            <option>Labour</option>
+                            <option>Service Bill In</option>
+                            <option>Service Bill Out</option>
+
+                        </select>
+                    </div>
+
+                    <div class="filter-item">
+
+                        <label>Pending Customer</label>
+
+                        <select @onchange="OnCustomerChanged">
+
+                            <option value="">Select Customer</option>
+
+                            @foreach (var customer in PendingCustomers)
+                            {
+                                <option value="@customer.CustId">
+                                    @customer.CustomerName
+                                </option>
+                            }
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- TABLE SECTION -->
+
+            <div class="table-card">
+
+                <div class="table-header">
+
+                    <h2>
+                        <i class="bi bi-receipt-cutoff me-2"></i>
+                        Pending Bills List
+                    </h2>
+
+                    <button class="custom-print-btn"
+                            @onclick="OnPrintPendingTrack">
+
+                        <i class="bi bi-download me-2"></i>
+                        Export Excel
+
+                    </button>
+
+                </div>
+
+                    <div class="table-wrapper" style="max-height:600px; overflow-y:auto;">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>Customer Name</th>
+                                <th>Invoice No</th>
+                                <th>Invoice Date</th>
+                                <th>Invoice Value</th>
+                                <th>Credit Note</th>
+                                <th>TDS</th>
+                                <th>Amount Received</th>
+                                <th>Balance</th>
+                                <th>OverDue Days</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            @if (PendingBillVMs != null && PendingBillVMs.Any())
+                            {
+                                @foreach (var item in PendingBillVMs)
+                                {
+                                    <tr>
+
+                                        <td>@item.CustomerName</td>
+
+                                        <td>@item.InvNo
+
+                                                @if (item.InvId > 0 && attachmentCounts.TryGetValue(item.InvId, out var count) && count > 0)
+                                                {
+                                                    <button class="btn btn-link p-0 ms-1"
+                                                            title="@($"This Invoice has {count} attachment(s). Click to view.")"
+                                                            @onclick="() => OpenAttachmentButton(item.InvId, count)">
+                                                        <i class="bi bi-paperclip" style="font-size:15px;"></i>
+                                                    </button>
+                                                }
+                                        
+                                        </td>
+
+                                        <td>@item.InvDate</td>
+
+                                        <td class="amount">
+                                            ₹ @item.GrandTotal
+                                        </td>
+
+                                        <td class="amount">
+                                            ₹ @item.Credit
+                                        </td>
+
+                                        <td class="amount">
+                                            ₹ @item.TDSAmount
+                                        </td>
+
+                                        <td class="paid-amount">
+                                            ₹ @item.PaidAmount
+                                        </td>
+
+                                        <td class="balance-amount">
+                                            ₹ @item.Balance
+                                        </td>
+
+                                        <td>
+                                            @item.OverDueDays
+                                        </td>
+
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="empty-data">
+                                        No pending bills found
+                                    </td>
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    protected override string ScreenName => "Bill Pending List";
+
+    private DateTime FromDate = DateTime.Today.Month >= 4 ? new DateTime(DateTime.Today.Year, 4, 1) : new DateTime(DateTime.Today.Year - 1, 4, 1);
+
+    private DateTime ToDate = DateTime.Today;
+
+    public string SelectedBillType { get; set; }
+
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<PendingBillVM> PendingBillVMs = new();
+
+    private List<PendingBillVM> PendingCustomers { get; set; } = new();
+
+    private PendingBillVM? AttachItemSelected = null;
+
+    private bool isProcessing = true;
+
+    private string? UserName;
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+
+    private int? SelectedCustomerId { get; set; }
+
+    public List<PendingBillVM> AllData { get; set; } = new();
+    string invoiceNo = string.Empty;
+    private string reftypename
+    {
+        get
+        {
+            return SelectedBillType switch
+            {
+                "Sales" => "Sales-Invoice",
+                "Purchase" => "Purchase Invoice",
+                "Subcontract" => "Sub-Contract Invoice",
+                "Labour" => "Labour-Invoice",
+                "Service Bill In" => "ServiceBill-In",
+                "Service Bill Out" => "ServiceBill-Out",
+                _ => string.Empty,
+            };
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            UserName = await CurrentUserService.GetUsernameAsync();
+
+            // Today's Date
+              ToDate = DateTime.Today;
+
+            // One month back from today
+            FromDate = DateTime.Today.Month >= 4
+            ? new DateTime(DateTime.Today.Year, 4, 1)
+            : new DateTime(DateTime.Today.Year - 1, 4, 1);
+
+            var data = await pendingBillsService.GetPendingBills(
+                SelectedBillType,
+                FromDate,
+                ToDate
+            );
+
+            AllData = data?.ToList() ?? new List<PendingBillVM>();
+
+            PendingBillVMs = AllData;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error occurred while loading Pending Bills"
+            );
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private List<PageHeader.BreadcrumbItem> PendingBillsBreadcrumbs = new()
+    {
+    new PageHeader.BreadcrumbItem { Text = "Reports" },
+    new PageHeader.BreadcrumbItem { Text = "Po Pending Report" },
+    new PageHeader.BreadcrumbItem { Text = "Pending Bills", IsLast = true }
+    };
+
+    private async Task OnBillTypeChanged(ChangeEventArgs e)
+    {
+        SelectedBillType = e.Value?.ToString() ?? "";
+
+        if (!string.IsNullOrEmpty(SelectedBillType))
+        {
+            AllData = await pendingBillsService.GetPendingBills(SelectedBillType, FromDate, ToDate);
+
+            PendingBillVMs = AllData;
+
+            if (PendingBillVMs != null)
+            {
+                foreach (var item in PendingBillVMs)
+                {
+                    if (item.InvNo != null)
+                    {
+                        attachmentCounts[item.InvId] = await pendingBillsService.GetCorrespondenceAttachmentsCountAsync(item.InvId, reftypename);
+                    }
+                }
+            }
+
+            PendingBillVMs = AllData;
+
+            await LoadPendingCustomers(SelectedBillType);
+        }
+        else
+        {
+            PendingCustomers.Clear();
+            SelectedCustomerId = null;
+            PendingBillVMs.Clear();
+            AllData.Clear();
+        }
+    }
+
+    private async Task LoadPendingCustomers(string SelectedBillType)
+    {
+        try
+        {
+            PendingCustomers = PendingBillVMs
+                .GroupBy(i => new { i.CustId, i.CustomerName })
+                .Select(g => new PendingBillVM
+                {
+                    CustId = g.Key.CustId,
+                    CustomerName = g.Key.CustomerName
+                })
+                .OrderBy(x => x.CustomerName)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    private async Task OnCustomerChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int custId))
+            SelectedCustomerId = custId;
+        else
+            SelectedCustomerId = null;
+
+        if (SelectedCustomerId.HasValue)
+        {
+            PendingBillVMs = AllData
+                .Where(i => i.CustId == SelectedCustomerId.Value)
+                .ToList();
+        }
+        else
+        {
+            PendingBillVMs = AllData.ToList();
+        }
+    }
+
+    private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            if (PendingBillVMs == null || !PendingBillVMs.Any())
+            {
+                await _JS.InvokeVoidAsync(
+                    "alert",
+                    "No pending bills found to export."
+                );
+                return;
+            }
+
+            string[] headers =
+            {
+                "Customer Name",
+                "Invoice No",
+                "Invoice Date",
+                "Invoice Value",
+                "Credit Note",
+                "TDS",
+                "Amount Received",
+                "Balance",
+                "Over Due Days"
+            };
+
+            var exportData = PendingBillVMs
+                .Select(x => new
+                {
+                    x.CustomerName,
+                    x.InvNo,
+                    x.InvDate,
+                    x.GrandTotal,
+                    x.Credit,
+                    x.TDSAmount,
+                    x.PaidAmount,
+                    x.Balance,
+                    x.OverDueDays
+                })
+                .ToList();
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Pending Bills",
+                headers: headers,
+                sampleData: exportData
+            );
+
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                await _JS.InvokeVoidAsync(
+                    "alert",
+                    "Failed to generate Excel file."
+                );
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync(
+                "downloadExcelFile",
+                base64,
+                "PendingBills.xlsx"
+            );
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error while exporting Pending Bills Excel"
+            );
+
+            await _JS.InvokeVoidAsync(
+                "alert",
+                "Error occurred while exporting Excel."
+            );
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _JS.ToastrWarning("Please select Invoice");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _JS.ToastrWarning("No attachments found.");
+                return;
+            }
+
+            AttachItemSelected = PendingBillVMs.FirstOrDefault(i => i.InvId == ItemId);
+
+            if (AttachItemSelected == null)
+            {
+                await _JS.ToastrError("Invoice not found.");
+                return;
+            }
+
+            MasterModalTitle = $"Attachments - {AttachItemSelected.InvNo}";
+
+            invoiceNo = AttachItemSelected.InvNo;
+
+            invoiceNo = invoiceNo.Split('/')[0];
+
+            isModalVisible = true;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "OpenAttachmentButton");
+
+            await _JS.ToastrError(
+                "Error while opening attachments.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+}

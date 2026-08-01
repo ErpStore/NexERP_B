@@ -1,0 +1,996 @@
+﻿@page "/labourpending"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.ITrackReportService
+@using V.SMART.Shared.ViewModels.ReportViewModel.AccountsVM
+@using System.Dynamic;
+@using System.Reflection;
+
+
+@rendermode InteractiveServer
+
+@inherits BaseUserRightsComponent
+
+
+@inject IJSRuntime _JS
+@inject IExcelTemplateService excelTemplateService
+@inject ILabourPendingService labourpend
+@inject ILoggingService LoggingService
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService currentUserService
+@inject ExcelExportService ExcelExportService
+
+
+
+@inject NavigationManager _navigation
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-4 mt-4">
+
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Labour Pending"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@LabourPendingBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-3 align-items-end">
+
+                    <!-- FROM DATE -->
+                    <div class="col-md-2">
+                        <label class="fw-bold mb-2">From Date</label>
+                        <InputDate class="form-control" @bind-Value="FromDate" />
+                    </div>
+
+                    <!-- TO DATE -->
+                    <div class="col-md-2">
+                        <label class="fw-bold mb-2">To Date</label>
+                        <InputDate class="form-control" @bind-Value="ToDate" />
+                    </div>
+
+                    <!-- DOC TYPE -->
+                    <div class="col-md-2">
+                        <label class="fw-bold mb-2">Choose Doc Type</label>
+                        <select class="form-select"
+                                @onchange="OnTypeChanged"
+                                value="@selectedType">
+                            <option value="">--Select--</option>
+                            <option value="Sales Po">Sales Po</option>
+                            <option value="Labour GRN">Labour GRN</option>
+                            <option value="Labour SCN">Labour SCN</option>
+                            <option value="Labour Dc-Out">Labour Dc-Out</option>
+                        </select>
+                    </div>
+
+                    <!-- CUSTOMER -->
+                    <div class="col-md-2">
+                        <label class="fw-bold mb-2">Select Customer</label>
+                        <select class="form-select"
+                                @onchange="OnCustomerChanged"
+                                value="@SelectedId">
+                            <option value="0">--Select Customer--</option>
+                            @foreach (var item in CustomerDictionary)
+                            {
+                                <option value="@item.Key">@item.Value</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- COLUMN MENU -->
+                    <div class="col-md-2">
+
+                        <div class="dropdown position-relative" style="z-index:1055;">
+                            <label class="fw-bold mb-2 d-block">&nbsp;</label>
+                            <ColumnMenu Columns="Columns"
+                                        ScreenName="@ScreenName"
+                                        UserId="@UserName"
+                                        MaxVisible="int.MaxValue"
+                                        OnChanged="HandleColumnChange" />
+                        </div>
+
+                    </div>
+
+                    <!-- DETAILS VIEW -->
+                    <div class="col-md-2">
+                        <label class="fw-bold mb-2 d-block">&nbsp;</label>
+
+                        <div class="form-check mt-2">
+                            <input type="checkbox" class="form-check-input" checked="@IsDetailsView" @onchange="OnDetailsViewChanged" />
+
+                            <label class="form-check-label fw-bold">
+                                Details View
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- SEARCH -->
+                    <div class="col-12 mb-2">
+                        <label class="fw-bold mb-2">Search</label>
+
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            @* <InputText class="form-control"
+                                       placeholder="Search here..."
+                                       @bind-Value="searchText"
+                                       @oninput="e => searchText = e.Value?.ToString()" /> *@
+
+                            <input type="text"
+                                   class="form-control border-start-0"
+                                   placeholder="Search DCNo.,Customer,GRNNo.,ItemCode..."
+                                   @bind="searchText"
+                                   @bind:event="oninput" />
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- TABLE -->
+                @if ((!IsDetailsView && FilteredLabourPending.Any()) || (IsDetailsView && FilteredLabourPendingDetails.Any()))
+                {
+                    <div class="table-responsive border rounded" style="max-height:500px; overflow-x:auto; overflow-y:auto;">
+
+                        <table class="table table-bordered table-sm mb-0 align-middle" style="min-width:1900px; table-layout:fixed;">
+
+                            <thead class="custom-blue text-center align-middle sticky-top">
+
+                                <tr>
+
+                                    <th width="50">Sl No.</th>
+
+                                    @if (IsColumnVisible("CustName"))
+                                    {
+                                        <th width="250">Customer Name</th>
+                                    }
+
+                                    @if (IsDetailsView)
+                                    {
+                                        @if (IsColumnVisible("LineNo"))
+                                        {
+                                            <th width="50">Line No</th>
+                                        }
+                                    }
+
+                                    @if (IsColumnVisible("DocNo"))
+                                    {
+                                        <th width="100">Doc No</th>
+                                    }
+
+                                    @if (IsColumnVisible("DocDate"))
+                                    {
+                                        <th width="100">Doc Date</th>
+                                    }
+
+                                    @if (IsColumnVisible("RefDcNo"))
+                                    {
+                                        <th width="150">Ref DcNo</th>
+                                    }
+
+                                    @if (IsColumnVisible("RefDcDate"))
+                                    {
+                                        <th width="100">Ref DcDate</th>
+                                    }
+
+                                    @if (IsColumnVisible("BatchNo"))
+                                    {
+                                        <th width="50">Batch No</th>
+                                    }
+
+                                    @if (IsColumnVisible("NoofItems"))
+                                    {
+                                        <th width="50">No of Items</th>
+                                    }
+
+                                    @if (IsDetailsView)
+                                    {
+                                        @if (IsColumnVisible("ItemCode"))
+                                        {
+                                            <th width="200">Item Code</th>
+                                        }
+
+                                        @if (IsColumnVisible("ItemName"))
+                                        {
+                                            <th width="150">Item Name</th>
+                                        }
+                                        @if (IsColumnVisible("ChildItemCode"))
+                                        {
+                                            <th width="150">Child Item Code</th>
+                                        }
+                                        @if (IsColumnVisible("childItemName"))
+                                        {
+                                            <th width="150">Child Item Name</th>
+                                        }
+
+                                        @if (IsColumnVisible("ItemSpecification"))
+                                        {
+                                            <th width="150">Item Specification</th>
+                                        }
+
+                                        @if (IsColumnVisible("MeasureUnit"))
+                                        {
+                                            <th width="50">UOM</th>
+                                        }
+
+                                        @if (IsColumnVisible("Qty"))
+                                        {
+                                            <th width="80">Qty</th>
+                                        }
+
+                                        @if (IsColumnVisible("BalQty"))
+                                        {
+                                            <th width="80">Bal Qty</th>
+                                        }
+                                        @if (IsColumnVisible("UtilQty"))
+                                        {
+                                            <th width="80">Util Qty</th>
+                                        }
+                                        @if (IsColumnVisible("RequiredQty"))
+                                        {
+                                            <th width="80">Required Qty</th>
+                                        }
+                                        @if (IsColumnVisible("ReceivedQty"))
+                                        {
+                                            <th width="80">Received Qty</th>
+                                        }
+                                        @if (IsColumnVisible("PendingQty"))
+                                        {
+                                            <th width="80">Pending Qty</th>
+                                        }
+                                        @if (IsColumnVisible("TransType"))
+                                        {
+                                            <th width="50">Trans Type</th>
+                                        }
+                                        @if (IsColumnVisible("PONo"))
+                                        {
+                                            <th width="150">PO No</th>
+                                        }
+                                        @if (IsColumnVisible("PODate"))
+                                        {
+                                            <th width="100">PO Date</th>
+                                        }
+                                    }
+
+                                    @if (IsColumnVisible("createdBy"))
+                                    {
+                                        <th width="120">Created By</th>
+                                    }
+
+                                    @if (IsColumnVisible("CreatedDate"))
+                                    {
+                                        <th width="100">Created Date</th>
+                                    }
+                                </tr>
+
+                            </thead>
+                            @{
+                                slno = 1;
+                            }
+                            <tbody>
+                                @if (!IsDetailsView)
+                                {
+                                    @foreach (var item in FilteredLabourPending)
+                                    {
+                                        <tr>
+                                            <td>@slno</td>
+
+                                            @if (IsColumnVisible("CustName"))
+                                            {
+                                                <td>@item.CustName</td>
+                                            }
+
+                                            @if (IsColumnVisible("DocNo"))
+                                            {
+                                                <td>@item.DocNo</td>
+                                            }
+
+                                            @if (IsColumnVisible("DocDate"))
+                                            {
+                                                <td>@item.DocDate</td>
+                                            }
+
+                                            @if (IsColumnVisible("RefDcNo"))
+                                            {
+                                                <td>@item.RefDcNo</td>
+                                            }
+
+                                            @if (IsColumnVisible("RefDcDate"))
+                                            {
+                                                <td>@item.RefDcDate</td>
+                                            }
+
+                                            @if (IsColumnVisible("BatchNo"))
+                                            {
+                                                <td>@item.BatchNo</td>
+                                            }
+
+                                            @if (IsColumnVisible("NoofItems"))
+                                            {
+                                                <td>@item.NoofItems</td>
+                                            }
+
+                                            @if (IsColumnVisible("createdBy"))
+                                            {
+                                                <td>@item.createdBy</td>
+                                            }
+
+                                            @if (IsColumnVisible("CreatedDate"))
+                                            {
+                                                <td>@item.CreatedDate</td>
+                                            }
+
+                                        </tr>
+
+                                        slno++;
+                                    }
+                                }
+                                else
+                                {
+                                    @foreach (var item in FilteredLabourPendingDetails)
+                                    {
+                                        <tr>
+                                            <td>@slno</td>
+
+                                            @if (IsColumnVisible("CustName"))
+                                            {
+                                                <td>@item.CustName</td>
+                                            }
+                                            @if (IsColumnVisible("LineNo"))
+                                            {
+                                                <td>@item.LineNo</td>
+                                            }
+
+                                            @if (IsColumnVisible("DocNo"))
+                                            {
+                                                <td>@item.DocNo</td>
+                                            }
+
+                                            @if (IsColumnVisible("DocDate"))
+                                            {
+                                                <td>@item.DocDate</td>
+                                            }
+
+                                            @if (IsColumnVisible("RefDcNo"))
+                                            {
+                                                <td>@item.RefDcNo</td>
+                                            }
+
+                                            @if (IsColumnVisible("RefDcDate"))
+                                            {
+                                                <td>@item.RefDcDate</td>
+                                            }
+
+                                            @if (IsColumnVisible("BatchNo"))
+                                            {
+                                                <td>@item.BatchNo</td>
+                                            }
+
+                                            @if (IsColumnVisible("NoofItems"))
+                                            {
+                                                <td>@item.NoofItems</td>
+                                            }
+                                            @if (IsColumnVisible("ItemCode"))
+                                            {
+                                                <td>@item.ItemCode</td>
+                                            }
+
+                                            @if (IsColumnVisible("ItemName"))
+                                            {
+                                                <td>@item.ItemName</td>
+                                            }
+                                            @if (IsColumnVisible("ChildItemCode"))
+                                            {
+                                                <td>@item.ChildItemCode</td>
+                                            }
+                                            @if (IsColumnVisible("childItemName"))
+                                            {
+                                                <td>@item.childItemName</td>
+                                            }
+
+                                            @if (IsColumnVisible("ItemSpecification"))
+                                            {
+                                                <td>@item.ItemSpecification</td>
+                                            }
+
+                                            @if (IsColumnVisible("MeasureUnit"))
+                                            {
+                                                <td>@item.MeasureUnit</td>
+                                            }
+
+                                            @if (IsColumnVisible("Qty"))
+                                            {
+                                                <td>@item.Qty</td>
+                                            }
+
+                                            @if (IsColumnVisible("BalQty"))
+                                            {
+                                                <td>@item.BalQty</td>
+                                            }
+                                            @if (IsColumnVisible("UtilQty"))
+                                            {
+                                                <td>@item.UtilQty</td>
+                                            }
+                                            @if (IsColumnVisible("RequiredQty"))
+                                            {
+                                                <td>@item.RequiredQty</td>
+                                            }
+                                            @if (IsColumnVisible("ReceivedQty"))
+                                            {
+                                                <td>@item.ReceivedQty</td>
+                                            }
+                                            @if (IsColumnVisible("PendingQty"))
+                                            {
+                                                <td>@item.PendingQty</td>
+                                            }
+                                            @if (IsColumnVisible("TransType"))
+                                            {
+                                                <td>@item.TransType</td>
+                                            }
+                                            @if (IsColumnVisible("PONo"))
+                                            {
+                                                <td>@item.PONo</td>
+                                            }
+                                            @if (IsColumnVisible("PODate"))
+                                            {
+                                                <td>@item.PODate</td>
+                                            }
+                                            @if (IsColumnVisible("createdBy"))
+                                            {
+                                                <td>@item.createdBy</td>
+                                            }
+
+                                            @if (IsColumnVisible("CreatedDate"))
+                                            {
+                                                <td>@item.CreatedDate</td>
+                                            }
+
+                                        </tr>
+
+                                        slno++;
+                                    }
+                                }
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                    <!-- EXPORT -->
+                    <div class=" col-12 d-flex justify-content-md-end mt-3">
+
+                        <button class="btn btn-primary  text-center "
+                                @onclick="OnPrintPendingTrack"
+                                disabled="@isProcessing">
+
+                            @if (isProcessing)
+                            {
+                                <span>
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                    Exporting...
+                                </span>
+                            }
+                            else
+                            {
+                                <span>
+                                    <i class="bi bi-printer-fill me-1"></i>
+                                    Export
+                                </span>
+                            }
+
+                        </button>
+
+
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning mt-4 rounded-4 shadow-sm">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        No records found.
+                    </div>
+                }
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+
+
+@code
+{
+    protected override string ScreenName => "Po Pendings";
+
+    private bool isProcessing = true;
+
+    private DateTime? FromDate = new DateTime(2026, 4, 1);
+
+    private DateTime? ToDate = DateTime.Today;
+
+    private const string Sales = "Sales";
+
+    private const string Purchase = "Purchase";
+
+    private string? selectedType;
+
+    private long slno { get; set; } = 0;
+
+    private int SelectedId = 0;
+
+    private bool isPurchase = false;
+
+    private bool IsPoWiseLabDcOut { get; set; } = false;
+
+    private string searchText = string.Empty;
+
+    public List<GridColumn> Columns { get; set; } = new();
+
+    private List<LabourPendingVM> LabourPendingList = new();
+    private List<LabourPendingVM> TempLabourPendingList = new();
+
+    private Dictionary<int, string> CustomerDictionary = new();
+
+    private List<LabourPendingSummaryVM> PoPendingDetailsVMs = new();
+    private List<LabourPendingSummaryVM> TempPoPendingDetailsVMs = new();
+
+    private string UserName { get; set; } = "";
+
+    private bool IsDetailsView { get; set; }
+
+    private List<PageHeader.BreadcrumbItem> LabourPendingBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Pending Report" },
+        new PageHeader.BreadcrumbItem { Text = "Labour Pending", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+
+        if (!CanView)
+        {
+            _navigation.NavigateTo("/access-denied");
+            return;
+        }
+        IsPoWiseLabDcOut = await labourpend.IsPOWiseLabDcOutEnabledAsync();
+        UserName = await currentUserService.GetUsernameAsync();
+        await InitializeColumns();
+        await LoadCombo();
+        await LoadColumnPreferences();
+    }
+
+    private async Task InitializeColumns()
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                new() { Title = "Customer Name", Field = "CustName", IsVisible = true },
+                new() { Title = "Doc No", Field = "DocNo", IsVisible = true },
+                new() { Title = "Doc Date", Field = "DocDate", IsVisible = true },
+                new() { Title = "Ref DcNo", Field = "RefDcNo", IsVisible = false },
+                new() { Title = "Ref DcDate", Field = "RefDcDate", IsVisible = false },
+                new() { Title = "Batch No", Field = "BatchNo", IsVisible = false },
+                new() { Title = "No of Items", Field = "NoofItems", IsVisible = true },
+                new() { Title = "Created By", Field = "createdBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                new() { Title = "Line No", Field = "LineNo", IsVisible = true },
+                new() { Title = "Item Code", Field = "ItemCode", IsVisible = true },
+                new() { Title = "Item Name", Field = "ItemName", IsVisible = true },
+                new() { Title = "Child ItemCode", Field = "ChildItemCode", IsVisible = false },
+                new() { Title = "Child ItemName", Field = "childItemName", IsVisible = false },
+                new() { Title = "Item Specification", Field = "ItemSpecification", IsVisible = false },
+                new() { Title = "Measure Unit", Field = "MeasureUnit", IsVisible = false },
+                new() { Title = "Qty", Field = "Qty", IsVisible = false },
+                new() { Title = "BalQty", Field = "BalQty", IsVisible = false },
+                new() { Title = "Util Qty", Field = "UtilQty", IsVisible = false },
+                new() { Title = "Required Qty", Field = "RequiredQty", IsVisible = false },
+                new() { Title = "Received Qty", Field = "ReceivedQty", IsVisible = false },
+                new() { Title = "Pending Qty ", Field = "PendingQty", IsVisible = false },
+                new() { Title = "Created By", Field = "createdBy", IsVisible = false },
+                new() { Title = "No of Items", Field = "NoofItems", IsVisible = false },
+                new() { Title = "Trans Type", Field = "TransType", IsVisible = false },
+                new() { Title = "PO No", Field = "PONo", IsVisible = false },
+                new() { Title = "PO Date", Field = "PODate", IsVisible = false }
+            };
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error initializing columns in ItemList");
+            await _JS.ToastrError("Failed to initialize columns.");
+        }
+
+    }
+
+    private bool IsColumnVisible(string field)
+    {
+        return Columns?.FirstOrDefault(x => x.Field == field)?.IsVisible ?? false;
+    }
+
+    // SEARCH FILTER
+    private IEnumerable<LabourPendingVM> FilteredLabourPending
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+                return LabourPendingList;
+
+            return LabourPendingList.Where(x =>
+
+                (!string.IsNullOrEmpty(x.DocNo) &&
+                 x.DocNo.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase))
+
+                ||
+
+                (!string.IsNullOrEmpty(x.RefDcNo) &&
+                 x.RefDcNo.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase))
+
+                ||
+
+                (!string.IsNullOrEmpty(x.CustName) &&
+                 x.CustName.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase))
+
+                ||
+
+                (!string.IsNullOrEmpty(x.BatchNo) &&
+                 x.BatchNo.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase)) ||
+
+                 (!string.IsNullOrEmpty(x.createdBy) &&
+                 x.createdBy.Contains(searchText,
+                 StringComparison.OrdinalIgnoreCase))
+
+        );
+        }
+    }
+
+    private IEnumerable<LabourPendingSummaryVM> FilteredLabourPendingDetails =>
+        PoPendingDetailsVMs?.Where(x =>
+
+            string.IsNullOrWhiteSpace(searchText)
+
+            ||
+
+            (!string.IsNullOrEmpty(x.DocNo) &&
+             x.DocNo.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+            (!string.IsNullOrEmpty(x.RefDcNo) &&
+             x.RefDcNo.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+            (!string.IsNullOrEmpty(x.CustName) &&
+             x.CustName.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+            (!string.IsNullOrEmpty(x.BatchNo) &&
+             x.BatchNo.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+            (!string.IsNullOrEmpty(x.createdBy) &&
+             x.createdBy.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+            (!string.IsNullOrEmpty(x.ItemName) &&
+             x.ItemName.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+             (!string.IsNullOrEmpty(x.ItemCode) &&
+             x.ItemCode.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+              (!string.IsNullOrEmpty(x.ChildItemCode) &&
+             x.ItemCode.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+              (!string.IsNullOrEmpty(x.childItemName) &&
+             x.ItemCode.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+            (!string.IsNullOrEmpty(x.ItemSpecification) &&
+             x.ItemSpecification.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+            (!string.IsNullOrEmpty(x.MeasureUnit) &&
+             x.MeasureUnit.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+
+            ||
+
+            x.Qty.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase)
+
+        ) ?? Enumerable.Empty<LabourPendingSummaryVM>();
+
+
+
+
+    private async Task OnDetailsViewChanged(ChangeEventArgs e)
+    {
+        IsDetailsView = (bool)e.Value;
+
+        await LoadCombo();
+    }
+
+    // TYPE CHANGE
+    private async Task OnTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            selectedType = e.Value.ToString() ?? string.Empty;
+            LabourPendingList.Clear();
+            PoPendingDetailsVMs.Clear();
+            await LoadCombo();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    // LOAD DROPDOWN
+    private async Task LoadCombo()
+    {
+        try
+        {
+            isProcessing = true;
+            if (IsDetailsView)
+            {
+                TempPoPendingDetailsVMs = await labourpend.GetAccountDetailsAsync(IsPoWiseLabDcOut, IsDetailsView, selectedType, FromDate, ToDate, SelectedId);
+
+                if (TempPoPendingDetailsVMs.Any())
+                {
+                    PoPendingDetailsVMs = TempPoPendingDetailsVMs;
+                    //CustomerDictionary=  PoPendingDetailsVMs.GroupBy(x => x.CustId??0).ToDictionary(g => g.Key, g => g.First().CustName??string.Empty);
+                }
+            }
+            else
+            {
+
+                TempLabourPendingList = await labourpend.GetAccountsAsync(IsPoWiseLabDcOut, IsDetailsView, selectedType, FromDate, ToDate, SelectedId);
+
+                if (TempLabourPendingList.Any())
+                {
+                    LabourPendingList = TempLabourPendingList;
+                    CustomerDictionary = LabourPendingList.GroupBy(x => x.CustId).ToDictionary(g => g.Key, g => g.First().CustName ?? string.Empty);
+                }
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnCustomerChanged(ChangeEventArgs e)
+    {
+        SelectedId = Convert.ToInt32(e.Value);
+
+        if (isProcessing)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            SelectedId = Convert.ToInt32(e.Value);
+            if (!IsDetailsView)
+            {
+                if (SelectedId == 0)
+                {
+                    LabourPendingList = TempLabourPendingList;
+                }
+                else
+                {
+                    LabourPendingList = TempLabourPendingList.Where(x => x.CustId == SelectedId).ToList();
+                }
+            }
+            else
+            {
+                if (SelectedId == 0)
+                {
+                    PoPendingDetailsVMs = TempPoPendingDetailsVMs;
+                }
+                else
+                {
+                    PoPendingDetailsVMs = TempPoPendingDetailsVMs.Where(x => x.CustId == SelectedId).ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+
+
+
+    //EXPORT
+    private async Task OnPrintPendingTrack()
+    {
+        try
+        {
+            isProcessing = true;
+
+            string[] headers;
+            List<object> exportData;
+
+            if (IsDetailsView)
+            {
+                if (PoPendingDetailsVMs == null || !PoPendingDetailsVMs.Any())
+                {
+                    await _JS.ToastrWarning("No records available to export.");
+                    return;
+                }
+
+                headers =
+                ["Sl No.","Customer","Doc No.","Doc Date","Ref DC No.","Ref DC Date","Batch No.","No of Items",
+                "LineNo","Item Code","Item Name","ChildItemCode","childItemName","Item Specification","UOM","Qty","Bal Qty",
+                "UtilQty","RequiredQty","ReceivedQty","PendingQty","Trans Type","PO No","PO Date","Created By", "Created Date"];
+
+                exportData = PoPendingDetailsVMs
+                    .Select(x => new
+                    {
+                        x.slno,
+                        x.CustName,
+                        x.DocNo,
+                        x.DocDate,
+                        x.RefDcNo,
+                        x.RefDcDate,
+                        x.BatchNo,
+                        x.NoofItems,
+                        x.LineNo,
+                        x.ItemCode,
+                        x.ItemName,
+                        x.ChildItemCode,
+                        x.childItemName,
+                        x.ItemSpecification,
+                        x.MeasureUnit,
+                        x.Qty,
+                        x.BalQty,
+                        x.UtilQty,
+                        x.RequiredQty,
+                        x.ReceivedQty,
+                        x.PendingQty,
+                        x.TransType,
+                        x.PONo,
+                        x.PODate,
+                        x.createdBy,
+                        x.CreatedDate
+                    })
+                    .Cast<object>()
+                    .ToList();
+            }
+            else
+            {
+                if (LabourPendingList == null || !LabourPendingList.Any())
+                {
+                    await _JS.ToastrWarning("No records available to export.");
+                    return;
+                }
+
+                headers =
+                ["Sl No.","Customer/Vendor","Doc No.","Doc Date","Ref DC No.","Ref DC Date",
+                "Batch No.", "No Of Items","Created By","Created Date"];
+
+                exportData = LabourPendingList
+                    .Select(x => new
+                    {
+                        x.slno,
+                        x.CustName,
+                        x.DocNo,
+                        x.DocDate,
+                        x.RefDcNo,
+                        x.RefDcDate,
+                        x.BatchNo,
+                        x.NoofItems,
+                        x.createdBy,
+                        x.CreatedDate
+                    })
+                    .Cast<object>()
+                    .ToList();
+            }
+
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Labour Pending Report",
+                headers: headers,
+                sampleData: exportData);
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            await _JS.InvokeVoidAsync("downloadExcelFile", base64, "LabourPendingReport.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError($"Export failed. {ex.Message}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    private Task HandleColumnChange(List<GridColumn> updated)
+    {
+        Columns = updated;
+        return Task.CompletedTask;
+    }
+
+
+
+    private async Task LoadColumnPreferences()
+    {
+        try
+        {
+            var user = await currentUserService.GetUsernameAsync();
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, user);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for ItemList");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+
+
+}

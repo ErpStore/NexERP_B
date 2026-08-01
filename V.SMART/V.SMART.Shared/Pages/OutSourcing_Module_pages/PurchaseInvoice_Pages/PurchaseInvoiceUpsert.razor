@@ -1,0 +1,2913 @@
+﻿@page "/purchaseInvoice/create"
+@page "/purchaseInvoice/create/{VendorCode:int}"
+@page "/purchaseInvoice/update/{InvId:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.IPurchase_Invoice_Service
+@using V.SMART.Shared.Pages.Master_Module_pages.VendorSupplier_Pages
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.OutSourcingViewModel.PurchaseInvoiceVM
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject CurrentUserService CurrentUserService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject NavigationManager _navigation
+@inject IPurchaseInvoiceService _invService
+@inject ReportService reportService
+
+@inject ICalculationService _calculationService
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+    ButtonBootstrapStyle="@btnColor"
+    ButtonText="@btnText"
+    Title=@ModalTitle
+    ShowReasonBox="@showCancelReasonBox"
+    Reason="@cancelReason"
+    OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<DetailsModal Title="Store Credit Note(SCN) Details"
+    Columns="@SCNColumns"
+    ColumnFields="@SCNFields"
+    HiddenColumns="@SCNHiddenColumns"
+    Data="@SCNData"
+    IsVisible="@IsSCNModalVisible"
+    IsVisibleChanged="@((val) => IsSCNModalVisible = val)"
+    OnSelectedItems="OnSCNSelectedAsync">
+</DetailsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Vendor")
+    {
+        <VendorUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+            refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Cancelled Watermark -->
+            @if (PurchaseInvoiceVMs.InvCancel && !PurchaseInvoiceVMs.InvTally)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+
+            @if (PurchaseInvoiceVMs.ShortClose && !PurchaseInvoiceVMs.InvTally)
+            {
+                <div class="cancelWatermark">SHORT-CLOSED</div>
+            }
+
+            <PageHeader TitleText="@(PurchaseInvoiceVMs.InvId > 0 ? "Update Purchase Invoice" : "Create Purchase Invoice")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@PurchaseInvoiceBreadcrumbs" />
+            <div class="card-body bg-light">
+                 <EditForm Model="PurchaseInvoiceVMs" OnValidSubmit="UpsertPurchaseInvoice">
+                    <ObjectGraphDataAnnotationsValidator  />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+
+                        @if (PurchaseInvoiceVMs.InvId > 0 && !string.IsNullOrWhiteSpace(PurchaseInvoiceVMs.InvNo))
+                        {
+                            <CorrespondenceStatus ReferenceType=@ScreenName
+                                                    ReferenceId="@PurchaseInvoiceVMs.InvId"
+                                                    ReferenceTypeName="@PurchaseInvoiceVMs.InvNo" />
+                        }
+
+                    </div>
+
+                    <div class="row g-3 mb-2">
+                        <!-- =================== Vendor Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Vendor Information</span>
+                                    <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Vendor")'>
+                                        <i class="bi bi-person-add me-1"></i> Add Vendor
+                                    </button>
+                                </div>
+
+                                <div class="card-body">
+                                    <!-- Customer Autocomplete -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>M/S.*</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <MudAutocomplete T="VendorVM"
+                                                Value="SelectedVendor"
+                                                ValueChanged="@(async c => await OnVendorChanged(c))"
+                                                ToStringFunc="@(c => c?.VendorName ?? string.Empty)"
+                                                SearchFunc="SearchVendors"
+                                                Dense="true"
+                                                Variant="Variant.Outlined"
+                                                Placeholder="Search Vendor"
+                                                Title="Search atleast 3 letters in Vendor"
+                                                Class="w-100 autocomplete-sm"
+                                                MaxItems="50"
+                                                Clearable="true"
+                                                ResetValueOnEmptyText="true"
+                                                Required="true"
+                                                AvoidSubmit="true" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                rows="1" readonly>@PurchaseInvoiceVMs?.VendorAddress</textarea>
+                                        </div>
+                                    </div>
+
+                                     <!-- GSTIN -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>GSTIN</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@PurchaseInvoiceVMs?.VendorGstNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <!-- Phone -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Phone No</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                   value="@PurchaseInvoiceVMs?.VendorContactNo" readonly />
+                                        </div>
+                                    </div>
+
+                                    <!-- Shipping Address -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Shipping Address</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="form-check form-switch d-flex align-items-center">
+                                                <input class="form-check-input" type="checkbox" id="SameAsShipping"
+                                                       checked="@PurchaseInvoiceVMs.IsSameAsShipping"
+                                                       @onchange="OnShippingChange" />
+                                                <label class="form-check-label ms-2 fw-semibold"
+                                                       for="SameAsShipping">Same as Shipping</label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    @if (!PurchaseInvoiceVMs.IsSameAsShipping)
+                                    {
+                                        <!-- Shipping To -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Consignee From</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select value="@PurchaseInvoiceVMs.ShipAddrsId"
+                                                        class="form-select form-select-sm rounded-3 w-100"
+                                                        @onchange="OnConsigneeChangedAsync">
+                                                    <option value="">Select Consignee Address</option>
+                                                    @foreach (var consine in consineeAddress)
+                                                    {
+                                                        <option value="@consine.AltVendorCode">@consine.AltVendorName</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        @if (PurchaseInvoiceVMs.ShipAddrsId > 0)
+                                        {
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Address</small>
+                                                </label>
+                                                <div class="col-12 col-lg-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@PurchaseInvoiceVMs.ShippingAddress" readonly />
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>Contact No</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@PurchaseInvoiceVMs.ShippingContactNo" readonly />
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-2 row">
+                                                <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                    <small>GSTIN</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                           value="@PurchaseInvoiceVMs.ShippingGstin" readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+
+                                     <!-- E-Way No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>E-Way No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm flex-wrap w-100">
+                                                <input type="text"
+                                                       class="form-control form-control-sm"
+                                                       placeholder="eway No."
+                                                       @bind="PurchaseInvoiceVMs.EWayNo" maxlength="12"/>
+                                            </div>
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.EWayNo)" />
+                                            
+                                        </div>
+                                    </div>
+
+                                    <!-- eway Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>E-Way Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                        @bind-Value="@PurchaseInvoiceVMs.EWayDate" />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.EWayDate)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Purchase Invoice Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+                            <!-- Header -->
+                            <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                <span class="fw-bold fs-6">Purchase Invoice Details</span>
+
+                                @if (PurchaseInvoiceVMs.InvId > 0 && (CanCreate || CanEdit))
+                                {
+                                    <div class="d-flex gap-2">
+
+                                        @* Cancel / Revert Button *@
+                                        @if (PurchaseInvoiceVMs.PurchaseInvoiceSubVMs == null ||
+                                             !PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Any(x => x.ItemCancel))
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(PurchaseInvoiceVMs.InvCancel ? "btn-success" : "btn-danger")"
+                                                    @onclick="Cancel">
+
+                                                @if (!PurchaseInvoiceVMs.InvCancel)
+                                                {
+                                                    <i class="bi bi-x-circle me-1"></i>
+                                                    <span>Cancel</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Revert</span>
+                                                }
+                                            </button>
+                                        }
+
+                                        @* Short Closed / Re-Open Button *@
+                                        <button type="button"
+                                                class="btn btn-sm rounded-3 @(PurchaseInvoiceVMs.ShortClose ? "btn-success" : "btn-warning")"
+                                                @onclick="() => AskToShortCloseAsync()"
+                                                disabled="@PurchaseInvoiceVMs.InvCancel">
+
+                                            @if (!PurchaseInvoiceVMs.ShortClose)
+                                            {
+                                                <i class="bi bi-box-seam me-1"></i>
+                                                <span>Short Closed</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                <span>Re-Open</span>
+                                            }
+                                        </button>
+
+                                    </div>
+                                }
+                            </div>
+
+
+                                <div class="card-body">
+                                    <!-- Purchase Invoice No. -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Invoice No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm flex-wrap w-100">
+                                                <input type="text"
+                                                       class="form-control form-control-sm"
+                                                       placeholder="Inv No."
+                                                       @bind="PurchaseInvoiceVMs.InvNo" maxlength="50"/>
+
+                                                <span class="input-group-text rounded-end">@PurchaseInvoiceVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.InvNo)" />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Invoice Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Invoice Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                        @bind-Value="@PurchaseInvoiceVMs.InvDate" />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.InvDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Reference SCN -->
+                                    @if(scnPendingCount > 0)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. SCN</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center rounded-3"
+                                                        @onclick="ShowSCNDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> SCN Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Currency -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Currency</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    value="@PurchaseInvoiceVMs.CurrId"
+                                                    @onchange="OnCurrencyChanged"
+                                                    disabled>
+                                                @foreach (var currency in Currencies)
+                                                {
+                                                    <option value="@currency.CurrId">@currency.CurrName</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                        rows="1"
+                                                        @bind="PurchaseInvoiceVMs.MainRemarks"></textarea>
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.MainRemarks)" />
+                                        </div>
+                                    </div>
+
+                                    @if (PurchaseInvoiceVMs.InvId > 0)
+                                    {
+                                        <div class="accordion mb-3" id="tdsAccordion">
+                                            <div class="accordion-item border-0 shadow-sm rounded-3">
+                                                <h2 class="accordion-header" id="headingTDS">
+                                                    <button class="accordion-button collapsed fw-semibold text-primary"
+                                                            type="button"
+                                                            data-bs-toggle="collapse"
+                                                            data-bs-target="#collapseTDS"
+                                                            aria-expanded="false"
+                                                            aria-controls="collapseTDS">
+                                                        TDS Details
+                                                    </button>
+                                                </h2>
+
+                                                <div id="collapseTDS"
+                                                     class="accordion-collapse collapse"
+                                                     aria-labelledby="headingTDS"
+                                                     data-bs-parent="#tdsAccordion">
+                 
+                                                    <div class="accordion-body">
+
+                                                        <!-- TDS Amount Input -->
+                                                        <div class="mb-3 row align-items-center">
+                                                            <label class="col-12 col-sm-4 col-form-label fw-medium text-dark">
+                                                                TDS Amount (₹)
+                                                            </label>
+                                                            <div class="col-12 col-sm-8">
+                                                                <div class="input-group input-group-sm">
+                                                                    <span class="input-group-text bg-light border-1 rounded-start">₹</span>
+                                                                    <input type="number"
+                                                                           class="form-control rounded-end"
+                                                                           @bind="PurchaseInvoiceVMs.TDSAmount"
+                                                                           min="0"
+                                                                           step="any"
+                                                                           placeholder="Enter TDS Amount" />
+                                                                </div>
+                                                                <ValidationMessage For="@(() => PurchaseInvoiceVMs.TDSAmount)" />
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+
+                                                    <!-- Deduct TDS Button -->
+                                                    <div class="accordion-footer d-flex justify-content-center py-2 border-top">
+                                                        <button type="button" class="btn btn-warning btn-sm fw-semibold rounded-3 px-4"
+                                                                @onclick="TDS">
+                                                            <i class="bi bi-currency-rupee me-1"></i>
+                                                            Deduct TDS
+                                                            <i class="bi bi-dash-circle ms-1"></i>
+                                                        </button>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+
+
+                                    <div class="card shadow-sm mb-3">
+                                        <div class="card-body py-2">
+                                            <div class="d-flex justify-content-between align-items-center">
+
+                                                <div class="me-3">
+                                                    <div class="fw-semibold text-danger">
+                                                        Enable Accept / Rework / Reject Qty
+                                                    </div>
+                                                    <small class="text-muted">
+                                                        Allows entry of Accepted, Reworked and Rejected quantities
+                                                    </small>
+                                                </div>
+
+                                                <div class="form-check form-switch m-0">
+                                                    <InputCheckbox class="form-check-input"
+                                                                   style="width: 1.8rem; height: 1rem; border: 1px solid #999; "
+                                                                   @bind-Value="PurchaseInvoiceVMs.IsAcptRejRewQtyRequired"
+                                                                   disabled="@IsSomeItemsTransMade" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                               
+                                <div class="card-header bg-primary-subtle text-dark">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+
+                                        <!-- Title -->
+                                        <span class="fw-bold fs-6">Item Details</span>
+
+                                        <!-- Right Controls -->
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                            <!-- Discount Toggle -->
+                                            <div class="d-flex align-items-center gap-2">
+                                                <label class="mb-0"><small>Discount:</small></label>
+                                                <div class="btn-group btn-group-sm rounded-pill border" role="group">
+                                                    <input type="radio" class="btn-check" name="toggleDiscount" id="discountToggleRs" 
+                                                           @onchange='() => SetDiscountMode(true)' 
+                                                           checked="@PurchaseInvoiceVMs.IsItemWiseDiscAmtOrPerReq" />
+                                                    <label class="btn btn-outline-primary rounded-start-pill" for="discountToggleRs">@PurchaseInvoiceVMs.Symbol</label>
+
+                                                    <input type="radio" class="btn-check" name="toggleDiscount" id="discountTogglePercent" 
+                                                           @onchange='() => SetDiscountMode(false)' 
+                                                           checked="@(!PurchaseInvoiceVMs.IsItemWiseDiscAmtOrPerReq)" />
+                                                    <label class="btn btn-outline-primary rounded-end-pill" for="discountTogglePercent">%</label>
+                                                </div>
+                                            </div>
+
+                                            <!-- Add Item Button -->
+                                             <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                                <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                            </button>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:70px;">HSN</th>
+                                                    <th style="width:120px;">Qty</th>
+                                                    <th style="width:120px;">Unit Price</th>
+                                                    <th style="width:130px;">Gross Amount</th>
+
+                                                    @if (!PurchaseInvoiceVMs.IsItemWiseDiscAmtOrPerReq)
+                                                    {
+                                                        <th style="width:110px;">Disc %</th>
+                                                        <th style="width:110px;">Disc Amt</th>
+                                                    }
+                                                    else
+                                                    {
+                                                        <th style="width:110px;">Disc Amt</th>
+                                                    }
+
+                                                    @if (SelectedVendor?.TaxValidate == false)
+                                                    {
+                                                        @if(SelectedVendor?.BusiType == "Local")
+                                                        {
+                                                            <th style="width:110px;">CGST %</th>
+                                                            <th style="width:110px;">SGST %</th>
+                                                        }
+                                                        else if(SelectedVendor?.BusiType == "InterState")
+                                                        {
+                                                            <th style="width:110px;">IGST %</th>
+                                                        }
+                                                    }
+
+                                                    <th style="width:130px;">Basic Amount</th>
+                                                    <th style="width:200px;">Remarks</th>
+                                                    <th style="width:110px;">Ref SCN No.</th>
+                                                    <th style="width:110px;">Ref SCN Dt.</th>
+                                                    <th style="width:150px;">Cost-Center</th>
+
+                                                    <th style="width:150px;">Category</th>
+                                                    <th style="width:150px;">Specification</th>
+
+
+                                                    @if (PurchaseInvoiceVMs?.PurchaseInvoiceSubVMs?.Any(x => x?.DebititNos != null && x.DebititNos.Count > 0) == true)
+                                                    {
+                                                        <th style="width:150px;">DebitNote No.</th>
+                                                        <th style="width:150px;">DebitNote Date</th>
+                                                    }
+
+                                                    <th style="width:90px;" class="freeze-last-col text-center">Action</th>
+
+
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in PurchaseInvoiceVMs.PurchaseInvoiceSubVMs)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @subitem.ItemCode
+                                                                </div>
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                        Size="Size.Small"
+                                                                                        Color="Color.Primary"
+                                                                                        OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                        Edge="Edge.End"
+                                                                                        Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.MeasureUnit</td>
+                                                        <td>@subitem.HSNCode</td>
+
+                                                        <!-- Qty -->
+                                                        <td>
+
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Qty"
+                                                                           step="any"
+                                                                           title="Enter Quantity"
+                                                                           @bind="subitem.Qty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.Qty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.Qty</span>
+                                                            }
+                                                        </td>
+
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" class="form-control form-control-sm" 
+                                                                        step="any"
+                                                                        placeholder="Price" title="Enter Unit Price"
+                                                                        @bind="subitem.UnitPrice" @bind:event="oninput"
+                                                                        @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)' />
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        <!-- Line Gross -->
+                                                        <td>@FormatDecimal(subitem.LineGross)</td>
+
+                                                        <!-- Discount -->
+                                                        @if (!PurchaseInvoiceVMs.IsItemWiseDiscAmtOrPerReq)
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number" class="form-control form-control-sm" 
+                                                                            step="any"
+                                                                            placeholder="Disc %" title="Enter Discount %"
+                                                                            @bind="subitem.LineDiscountPercent" @bind:event="oninput"
+                                                                            @bind:after='() => OnLineDiscountPercentChanged(subitem)' />
+                                                                    <ValidationMessage For="@(() => subitem.LineDiscountPercent)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @FormatDecimal(subitem.LineDiscountPercent)
+                                                                }
+                                                            </td>
+                                                            <td>@FormatDecimal(subitem.LineDiscountAmount)</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <input type="number" class="form-control form-control-sm" placeholder="Disc Amt" 
+                                                                            step="any" title="Enter Discount Amount"
+                                                                            @bind="subitem.LineDiscountAmount" @bind:event="oninput"
+                                                                            @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)' />
+                                                                    <ValidationMessage For="@(() => subitem.LineDiscountAmount)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @FormatDecimal(subitem.LineDiscountAmount)
+                                                                }
+                                                            </td>
+                                                        }
+
+                                                        <!-- Taxes -->
+                                                        @if (SelectedVendor?.TaxValidate == false)
+                                                        {
+                                                            @if (SelectedVendor?.BusiType == "Local")
+                                                            {
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" 
+                                                                            value="@subitem.LineCGSTRate"
+                                                                            @onchange="e => OnTaxRateChanged(e, subitem)">
+                                                                            <option value="" disabled selected>CGST %</option>
+                                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                        <ValidationMessage For="@(() => subitem.LineCGSTRate)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineCGSTRate)
+                                                                    }
+                                                                </td>
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" 
+                                                                            value="@subitem.LineSGSTRate"
+                                                                            @onchange="e => OnTaxRateChanged(e, subitem)">
+                                                                            <option value="" disabled selected>SGST %</option>
+                                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                        <ValidationMessage For="@(() => subitem.LineSGSTRate)" />
+
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineSGSTRate)
+                                                                    }
+                                                                </td>
+                                                            }
+                                                            else if (SelectedVendor?.BusiType == "InterState")
+                                                            {
+                                                                <td>
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <select class="form-select form-select-sm" @bind="subitem.LineIGSTRate" @bind:event="oninput"
+                                                                                @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)'>
+                                                                            <option value="" disabled selected>IGST %</option>
+                                                                            @foreach (var rate in CommonConstants.IGSTRates)
+                                                                            {
+                                                                                <option value="@rate">@rate</option>
+                                                                            }
+                                                                        </select>
+                                                                        <ValidationMessage For="@(() => subitem.LineIGSTRate)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @FormatDecimal(subitem.LineIGSTRate)
+                                                                    }
+                                                                </td>
+                                                            }
+                                                        }
+
+                                                        <!-- Basic Amount -->
+                                                        <td>@FormatDecimal(subitem.LineBasicAmount)</td>
+
+                                                        <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea @bind-Value="subitem.Remarks"
+                                                                    class="form-control form-control-sm"
+                                                                    placeholder="Enter Remarks"
+                                                                    rows="1" />
+                                                                <ValidationMessage For="@(() => subitem.Remarks)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remarks
+                                                            }
+                                                        </td>
+
+                                                        <!-- Ref PO -->
+                                                        <td>@subitem.RefSCNNo</td>
+                                                        <td>@subitem.RefSCNDate?.ToString("dd/MM/yyyy")</td>
+
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @subitem.ProjectNo
+                                                        </td>
+
+                                                         <td>
+                                                            @subitem.Category
+                                                        </td>
+                                                         <td>
+                                                            @subitem.Specification
+                                                        </td>
+
+                                                        @if (PurchaseInvoiceVMs?.PurchaseInvoiceSubVMs?.Any(x => x?.DebititNos != null && x.DebititNos.Count > 0) == true)
+                                                        {
+                                                            <td>@string.Join(", ", subitem.DebititNos)</td>
+                                                            <td>@string.Join(", ", subitem.DebititDates.Select(d => d.ToString("dd/MM/yyyy")))</td>
+                                                        }
+
+                                                        <!-- Action Buttons -->
+                                                        <td class="freeze-last-col text-end">
+                                                            @if (!PurchaseInvoiceVMs.InvCancel && !PurchaseInvoiceVMs.ShortClose)
+                                                            {
+                                                                @if (subitem.IsEditable)
+                                                                {
+                                                                    <button type="button" class="btn btn-success btn-icon btn-sm" title="Save" 
+                                                                            @onclick="async () => await SaveRow(subitem)">
+                                                                        <i class="bi bi-check-lg"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel" 
+                                                                            @onclick="async () => await CancelEdit(subitem, PurchaseInvoiceVMs)">
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit" 
+                                                                            @onclick="async () => await EditRowAsync(subitem)">
+                                                                        <i class="bi bi-pencil"></i>
+                                                                    </button>
+                                                                    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete" 
+                                                                            @onclick="async () => await RemoveRow(subitem)">
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                }
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            <!-- Totals -->
+                                            @if (PurchaseInvoiceVMs.PurchaseInvoiceSubVMs?.Any() == true)
+                                            {
+                                                <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="5" class="text-end fw-bold">
+                                                            Totals:
+                                                        </td>
+                                                        <td>@PurchaseInvoiceVMs.TotalQty</td>
+                                                        <td>Avg: @FormatDecimal(PurchaseInvoiceVMs.AvgUnitPrice)</td>
+                                                        <td>@FormatDecimal(PurchaseInvoiceVMs.TotalLineGross)</td>
+
+                                                        @if (!PurchaseInvoiceVMs.IsItemWiseDiscAmtOrPerReq)
+                                                        {
+                                                            <td></td>
+                                                            <td>@FormatDecimal(PurchaseInvoiceVMs.TotalLineDiscountAmount)</td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td>@FormatDecimal(PurchaseInvoiceVMs.TotalLineDiscountAmount)</td>
+                                                        }
+
+                                                        @if (SelectedVendor?.TaxValidate == false)
+                                                        {
+                                                            @if(SelectedVendor?.BusiType == "Local")
+                                                            {
+                                                                <td></td>
+                                                                <td></td>
+                                                            }
+                                                            else if(SelectedVendor?.BusiType == "InterState")
+                                                            {
+                                                                <td></td>
+                                                            }
+                                                        }
+
+                                                        <td>@FormatDecimal(PurchaseInvoiceVMs.TotalLineBasicAmount)</td>
+                                                        @if (PurchaseInvoiceVMs?.PurchaseInvoiceSubVMs?.Any(x => x?.DebititNos != null && x.DebititNos.Count > 0) == true)
+                                                        {
+                                                            <td colspan="9"></td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td colspan="7"></td>
+                                                        }
+
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ===================Other Details Terms and Conditions ===================-->
+                        <div class="col-12 col-lg-6 mb-3">
+                            <div class="card shadow-sm rounded-4 border-0">
+                                <div class="card-body">
+                                    <div class="row g-3">
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Tax Details Section =================== -->
+                        <div class="col-12 col-lg-6">
+                            <div class="card shadow-sm rounded-4 border-0 p-3">
+
+                                <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
+                                    <i class="bi bi-receipt-cutoff me-1 text-primary"></i> Tax & Charges
+                                </h6>
+
+                                <!-- Total Gross -->
+                                <div class="row mb-2 gx-3">
+                                    <label for="TotalGross" class="col-5 col-md-4 col-form-label text-dark">
+                                        <small>Total Gross</small>
+                                    </label>
+                                    <div class="col-7 col-md-8">
+                                        <input id="TotalGross"
+                                               class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               type="number"
+                                               step="any"
+                                               value="@FormatDecimal(PurchaseInvoiceVMs.TotalGrossAmount)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Discount -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Discount</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="discountToggle" id="discountRs"
+                                                   @onchange="() => SetDiscountType(true)"
+                                                   checked="@PurchaseInvoiceVMs.DiscAmtOrPer"
+                                                   disabled="@(PurchaseInvoiceVMs.TotalLineDiscountAmount > 0)" />
+                                            <label class="btn btn-outline-primary" for="discountRs">
+                                                <small>@PurchaseInvoiceVMs.Symbol</small>
+                                            </label>
+
+                                            <input type="radio" class="btn-check" name="discountToggle" id="discountPercent"
+                                                   @onchange="() => SetDiscountType(false)"
+                                                   checked="@(!PurchaseInvoiceVMs.DiscAmtOrPer)"
+                                                   disabled="@(PurchaseInvoiceVMs.TotalLineDiscountAmount > 0)" />
+                                            <label class="btn btn-outline-primary" for="discountPercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-3 col-md-5">
+                                        @if (PurchaseInvoiceVMs.DiscAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number"
+                                                   step="any"
+                                                   @bind="PurchaseInvoiceVMs.DiscountAmount"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)'
+                                                   disabled="@(PurchaseInvoiceVMs.TotalLineDiscountAmount > 0)" />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.DiscountAmount)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number"
+                                                   step="any"
+                                                   @bind="PurchaseInvoiceVMs.DiscountPercent"
+                                                   @bind:after="OnDiscountPercentChanged"
+                                                   disabled="@(PurchaseInvoiceVMs.TotalLineDiscountAmount > 0)" />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.DiscountPercent)" />
+                                            <small class="text-muted d-block text-end">
+                                                Amt: @FormatDecimal(PurchaseInvoiceVMs.DiscountAmount)
+                                            </small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- SubTotal -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>SubTotal</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               type="number" 
+                                               step="any"
+                                               value="@FormatDecimal(PurchaseInvoiceVMs.TotalBasicAmount)" 
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Freight Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Freight Charges</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end"
+                                                step="any"
+                                               type="number" @bind="PurchaseInvoiceVMs.FreightCharges"
+                                               @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)' />
+                                        <ValidationMessage For="@(() => PurchaseInvoiceVMs.FreightCharges)" />
+                                    </div>
+                                </div>
+
+                                <!-- P & F Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>P & F Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="packingToggle" id="packingToggleRs"
+                                                   @onchange="() => SetPAndFType(true)" checked="@PurchaseInvoiceVMs.PackingAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="packingToggleRs"><small>@PurchaseInvoiceVMs.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="packingToggle" id="packingTogglePercent"
+                                                   @onchange="() => SetPAndFType(false)" checked="@(!PurchaseInvoiceVMs.PackingAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="packingTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (PurchaseInvoiceVMs.PackingAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseInvoiceVMs.PackingCharges"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)' />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.PackingCharges)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseInvoiceVMs.PackingPercent"
+                                                   @bind:after="() => OnPandFPercentChanged()" />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.PackingPercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(PurchaseInvoiceVMs.PackingCharges)</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Insurance Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Insurance Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="insuranceToggle" id="insuranceToggleRs"
+                                                   @onchange="() => SetInsuranceType(true)" checked="@PurchaseInvoiceVMs.InsuranceAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="insuranceToggleRs"><small>@PurchaseInvoiceVMs.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="insuranceToggle" id="insuranceTogglePercent"
+                                                   @onchange="() => SetInsuranceType(false)" checked="@(!PurchaseInvoiceVMs.InsuranceAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="insuranceTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (PurchaseInvoiceVMs.InsuranceAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseInvoiceVMs.InsuranceCharges"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)' />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.InsuranceCharges)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseInvoiceVMs.InsurancePercent"
+                                                   @bind:after="() => OnInsurancePercentChanged()" />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.InsurancePercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(PurchaseInvoiceVMs.InsuranceCharges)</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Total Taxable -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Total Taxable</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end bg-warning-subtle"
+                                               value="@FormatDecimal(PurchaseInvoiceVMs.TotalTaxable)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Taxes (CGST/SGST/IGST) -->
+                                @if (SelectedVendor?.TaxValidate == false)
+                                {
+                                    <div class="mb-2">
+                                        @if (SelectedVendor?.BusiType == "Local")
+                                        {
+                                            <!-- CGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>CGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!PurchaseInvoiceVMs.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="PurchaseInvoiceVMs.CGstRate"
+                                                                @bind:after="() => OnMainTaxRateChanged(PurchaseInvoiceVMs.CGstRate)">
+                                                            <option value="0">-- Select CGST % --</option>
+                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => PurchaseInvoiceVMs.CGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(PurchaseInvoiceVMs.TotalCGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+
+                                            <!-- SGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>SGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!PurchaseInvoiceVMs.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="PurchaseInvoiceVMs.SGstRate"
+                                                                @bind:after="() => OnMainTaxRateChanged(PurchaseInvoiceVMs.SGstRate)">
+                                                            <option value="0">-- Select SGST % --</option>
+                                                            @foreach (var rate in CommonConstants.GSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => PurchaseInvoiceVMs.SGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(PurchaseInvoiceVMs.TotalSGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                        else if (SelectedVendor?.BusiType == "InterState")
+                                        {
+                                            <!-- IGST -->
+                                            <div class="row mb-2 gx-2">
+                                                <label class="col-5 col-md-4 col-form-label text-dark"><small>IGST (%)</small></label>
+                                                <div class="col-3 col-md-4">
+                                                    @if (!PurchaseInvoiceVMs.HasItemWiseTax)
+                                                    {
+                                                        <select class="form-select form-select-sm rounded-3 w-100"
+                                                                @bind="PurchaseInvoiceVMs.IGstRate"
+                                                                @bind:after="() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)"
+                                                                disabled="@(SelectedVendor?.TaxValidate == true)">
+                                                            <option value="0">-- Select IGST % --</option>
+                                                            @foreach (var rate in CommonConstants.IGSTRates)
+                                                            {
+                                                                <option value="@((decimal)rate)">@rate</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => PurchaseInvoiceVMs.IGstRate)" />
+                                                    }
+                                                </div>
+                                                <div class="col-4">
+                                                    <input class="form-control form-control-sm text-end"
+                                                           value="@FormatDecimal(PurchaseInvoiceVMs.TotalIGSTAmount)"
+                                                           readonly />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                <!-- TCS Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>TCS Charges</small></label>
+                                    <div class="col-4 col-md-3">
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <input type="radio" class="btn-check" name="tcsToggle" id="tcsToggleRs"
+                                                   @onchange="() => SetTCSType(true)" checked="@PurchaseInvoiceVMs.TCSAmtOrPer" />
+                                            <label class="btn btn-outline-primary" for="tcsToggleRs"><small>@PurchaseInvoiceVMs.Symbol</small></label>
+
+                                            <input type="radio" class="btn-check" name="tcsToggle" id="tcsTogglePercent"
+                                                   @onchange="() => SetTCSType(false)" checked="@(!PurchaseInvoiceVMs.TCSAmtOrPer)" />
+                                            <label class="btn btn-outline-primary" for="tcsTogglePercent"><small>%</small></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-3 col-md-5">
+                                        @if (PurchaseInvoiceVMs.TCSAmtOrPer)
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseInvoiceVMs.TCSAmount"
+                                                   @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)' />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.TCSAmount)" />
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm rounded-3 text-end"
+                                                   type="number" step="any" @bind="PurchaseInvoiceVMs.TCSPercent"
+                                                   @bind:after="() => OnTCSPercentChanged()" />
+                                            <ValidationMessage For="@(() => PurchaseInvoiceVMs.TCSPercent)" />
+                                            <small class="text-muted d-block text-end">Amt: @FormatDecimal(PurchaseInvoiceVMs.TCSAmount)</small>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Other Charges -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Other Charges</small></label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 text-end"
+                                               type="number"  step="any" @bind="PurchaseInvoiceVMs.OtherCharges"
+                                               @bind:after='() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)' />
+                                        <ValidationMessage For="@(() => PurchaseInvoiceVMs.OtherCharges)" />
+                                    </div>
+                                </div>
+
+                                <!-- Round Off -->
+                                <div class="row mb-2 gx-2 align-items-center">
+                                    <div class="col-5 col-md-4 d-flex align-items-center">
+                                        <small class="me-2 text-dark">Round Off</small>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   role="switch"
+                                                   id="roundOffSwitch"
+                                                   @bind="PurchaseInvoiceVMs.IsRoundOffEnabled"
+                                                   @bind:after="() => _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs)" >
+                                            <label class="form-check-label" for="roundOffSwitch"></label>
+                                        </div>
+                                    </div>
+                                    <div class="col-7 col-md-8">
+                                       <input class="form-control form-control-sm rounded-3 text-end"
+                                               value="@FormatDecimal(PurchaseInvoiceVMs.RoundOff)"
+                                               readonly />
+                                    </div>
+                                </div>
+
+                                <!-- Grand Total -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label fw-bold text-dark">
+                                        <small>Grand Total</small>
+                                    </label>
+                                    <div class="col-7 col-md-8">
+                                        <input class="form-control form-control-sm rounded-3 fw-bold text-primary text-end bg-warning-subtle"
+                                               value="@FormatDecimal(PurchaseInvoiceVMs.GrandTotal)"
+                                               readonly />
+                                        @if (PurchaseInvoiceVMs.CurrId > 1)
+                                        {
+                                            <div class="mt-1 text-end">
+                                                <small class="text-muted d-block">
+                                                    Today's value: @PurchaseInvoiceVMs.TodayVal
+                                                </small>
+                                                <small class="fw-bold text-success d-block">
+                                                    Converted Value in Rs: @((PurchaseInvoiceVMs.GrandTotal * PurchaseInvoiceVMs.TodayVal).ToString("0.00"))
+                                                </small>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Amount in Words -->
+                                <div class="row mb-2 gx-2">
+                                    <label class="col-5 col-md-4 col-form-label text-dark"><small>Amount in Words</small></label>
+                                    <div class="col-7 col-md-8 pt-1">
+                                        @if (PurchaseInvoiceVMs.CurrId > 1)
+                                        {
+                                            <small class="fw-bold text-success d-block">
+                                                Converted Value in Rs: @FormatDecimal(PurchaseInvoiceVMs.GrandTotal * PurchaseInvoiceVMs.TodayVal)
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <strong>@NumberToWordsHelper.ConvertNumberToWords(PurchaseInvoiceVMs.GrandTotal)</strong>
+                                        }
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Action Buttons -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if (!PurchaseInvoiceVMs.InvCancel && !PurchaseInvoiceVMs.ShortClose)
+                                {
+                                    <div class="col-6 col-md-3 mt-3">
+                                        <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i> @(PurchaseInvoiceVMs.InvId > 0 ? "Update" : "Create")
+                                        </button>
+                                    </div>
+                                }
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="@($"/purchaseInvoiceList?currentPage={currentPage}")" />
+                            </div>
+
+                            @if (CanCreate || CanEdit && InvId > 0)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code
+{
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Purchase Invoice";
+    [Parameter] public int? InvId { get; set; }
+    [Parameter] public int VendorCode { get; set; }
+
+    private bool isProcessing = false;
+    private int screenCode { get; set; }
+    private PurchaseInvoiceVM PurchaseInvoiceVMs { get; set; } = new();
+    private PurchaseInvoiceSubVM? rowToDelete;
+    private PurchaseInvoiceSubVM? rowToCancel;
+    private List<VendorContact> contactPersons = new();
+    private List<VendorInDirect> consineeAddress = new();
+    private List<CostCenterVM> CostCenterVMs = new();
+
+    private List<Currency> Currencies = new();
+
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private VendorVM? SelectedVendor;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+    string? pdfBase64;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private int scnPendingCount = 0;
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private bool IsSCNModalVisible = false;
+    private List<Dictionary<string, object>>? SCNData;
+
+    // 🔹 Visible Column Titles
+    private List<string> SCNColumns = new()
+    {
+        "PoSubId","SCNSubId","SCN No", "SCN Date","ItemId",
+        "Item Code", "Item Name","Specification", "UOM", "HSN Code","Category Name",
+        "Qty","Bal Qty", "Reject Qty", "Rew Qty","CostCenterId",
+        "Project No", "Remark","Unit Price","Disc. Percent","Disc Amount","CGST","SGST","IGST","Vendor"
+    };
+
+    // 🔹 Field Names (backend binding)
+    private List<string> SCNFields = new()
+    {
+        "PoSubId","SCNSubId","SCNNo", "SCNDate","ItemId",
+        "ItemCode", "ItemName","Specification", "UOM", "HSNCode","CategoryName",
+        "Qty","BalQty","RejectQty","RewQty" ,"CostCenterId",
+        "ProjectNo", "Remark", "PoUnitPrice","PoLineDiscountPercent","PoLineDiscountAmount","PoLineCGSTRate","PoLineSGSTRate","PoLineIGSTRate","Vendor"
+    };
+
+    // 🔹 Hidden Columns (IDs and internal refs)
+    private List<string> SCNHiddenColumns = new()
+    {
+        "PoSubId","SCNSubId","ItemId", "CostCenterId"
+    };
+
+    private List<PageHeader.BreadcrumbItem> PurchaseInvoiceBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Purchase" },
+        new PageHeader.BreadcrumbItem { Text = "PurchaseInvoice", IsLast = true }
+    };
+
+    private int DecimalPlaces { get; set; } = 2;
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    #endregion
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            Currencies = await _invService.GetCurrenciesAsync();
+            DecimalPlaces = await _invService.GetDecimalPlacesAsync();
+            screenCode = await _invService.GetScreenCodeByScreenNameAsync(ScreenName);
+
+            if (InvId.HasValue)
+            {
+                await LoadExistingInvoice(InvId.Value);
+            }
+            else if (VendorCode > 0)
+            {
+                await InitializeNewGRN(VendorCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingInvoice(int InvId)
+    {
+        try
+        {
+            PurchaseInvoiceVMs = await _invService.GetPurchaseInvoiceByIdAsync(InvId);
+            if (PurchaseInvoiceVMs == null)
+            {
+                await _JS.ToastrWarning("Invoice not found.");
+                return;
+            }
+
+            SelectedVendor = await _invService.GetVendorByIdAsync(PurchaseInvoiceVMs.VendorCode.Value);
+            if (SelectedVendor != null)
+                await ApplyVendorSelectionAsync(SelectedVendor);
+
+            foreach (var dcSub in PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[dcSub.ItemId.Value] =
+                    await _invService.GetCorrespondenceAttachmentsCountAsync(dcSub.ItemId.Value, "Item");
+            }
+
+            //Check Transaction Completed flag
+            IsSomeItemsTransMade = await CheckIsTransMade();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to load Existing PurchaseGRN.");
+            await LoggingService.LogDeveloperError(ex, $"LoadExistingDc failed in PurchaseInvoice for InvId: {InvId}");
+        }
+    }
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        try
+        {
+            if (!InvId.HasValue)
+                return false;
+
+            return await _invService.IsInvTransactionsMatchedAsync(InvId.Value, PurchaseInvoiceVMs);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to check transaction exists.");
+            await LoggingService.LogDeveloperError(ex, "[CheckIsTransMade] failed");
+            return false;
+        }
+    }
+
+    private async Task InitializeNewGRN(int vendorCode)
+    {
+        try
+        {
+            var vendor = await _invService.GetVendorByIdAsync(vendorCode);
+            if (vendor != null)
+                await ApplyVendorSelectionAsync(vendor);
+
+            PurchaseInvoiceVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Failed to initialize new po.");
+            await LoggingService.LogDeveloperError(ex, $"InitializeNewPo failed for VendorCode: {vendorCode}");
+        }
+    }
+    #endregion
+
+    #region Vendor data Handlers
+    private async Task<IEnumerable<VendorVM>> SearchVendors(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<VendorVM>();
+
+        try
+        {
+            var results = await _invService.SearchVendorsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<VendorVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"In PurchaseInvoiceUpsert SearchVendors failed for value: {value}");
+            await _JS.ToastrError("Failed to search Vendors in PurchaseInvoiceUpsert. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+
+    private async Task OnVendorChanged(VendorVM? vendor)
+    {
+        try
+        {
+            await ApplyVendorSelectionAsync(vendor);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnVendorChanged: {ex}");
+            await LoggingService.LogDeveloperError(ex, "Error in OnVendorChanged");
+            await _JS.ToastrError("Error while selecting");
+        }
+    }
+
+    private async Task ApplyVendorSelectionAsync(VendorVM? vendor)
+    {
+        try
+        {
+            SelectedVendor = vendor;
+            PurchaseInvoiceVMs.VendorCode = vendor?.VendorCode ?? 0;
+            PurchaseInvoiceVMs.VendorName = vendor?.VendorName;
+            PurchaseInvoiceVMs.VendorAddress = vendor?.VendorAddress;
+            PurchaseInvoiceVMs.VendorGstNo = vendor?.GSTNo;
+            PurchaseInvoiceVMs.VendorContactNo = vendor?.ContactNo;
+            PurchaseInvoiceVMs.IsAcptRejRewQtyRequired = vendor?.IsAllowAccRejRew ?? false;
+
+            if (vendor == null)
+            {
+                contactPersons.Clear();
+                consineeAddress.Clear();
+                return;
+            }
+
+            contactPersons = await _invService.GetContactPersonsVendorAsync(vendor.VendorCode);
+            consineeAddress = await _invService.GetConsigneeAddressesAsync(vendor.VendorCode);
+
+            PurchaseInvoiceVMs.KindofAttention = contactPersons.Count == 1 ? contactPersons.First().ContactPerson : string.Empty;
+
+            // Tax logic
+            if (!vendor.TaxValidate)
+            {
+                var lastInv = await  _invService.GetLastInvAsync(vendor.VendorCode);
+
+                if (lastInv != null)
+                {
+                    PurchaseInvoiceVMs.CGstRate = lastInv.CGstRate;
+                    PurchaseInvoiceVMs.SGstRate = lastInv.SGstRate;
+                    PurchaseInvoiceVMs.IGstRate = lastInv.IGstRate;
+                }
+                else
+                {
+                    if (string.Equals(vendor.BusiType, "Local", StringComparison.OrdinalIgnoreCase)  && vendor.TaxValidate == false)
+                    {
+                        PurchaseInvoiceVMs.CGstRate = CommonConstants.GetGST(9.000m);
+                        PurchaseInvoiceVMs.SGstRate = CommonConstants.GetGST(9.000m);
+                        PurchaseInvoiceVMs.IGstRate = CommonConstants.GetIGST(0.000m);
+                    }
+                    else if (string.Equals(vendor.BusiType, "InterState", StringComparison.OrdinalIgnoreCase) && vendor.TaxValidate == false )
+                    {
+                        PurchaseInvoiceVMs.CGstRate = CommonConstants.GetGST(0.000m);
+                        PurchaseInvoiceVMs.SGstRate = CommonConstants.GetGST(0.000m);
+                        PurchaseInvoiceVMs.IGstRate = CommonConstants.GetIGST(18.000m);
+                    }
+                }
+
+            }
+
+            // Currency
+            PurchaseInvoiceVMs.CurrId = (vendor.CurrId.HasValue && vendor.CurrId > 0) ? vendor.CurrId.Value : 1;
+            await ApplyCurrencyChange(PurchaseInvoiceVMs.CurrId);
+
+            //Pending PoDetails
+            scnPendingCount = await _invService.GetPendingSCNCountAsync(vendor.VendorCode);
+
+            // Update totals
+            await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"ApplyVendorSelectionAsync failed for VendorCode: {vendor?.VendorCode}");
+            await _JS.ToastrError("Failed to apply vendor selection. Please try again.");
+        }
+    }
+
+    private async Task OnCurrencyChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int selectedId))
+            await ApplyCurrencyChange(selectedId);
+    }
+
+    private async Task ApplyCurrencyChange(int currencyId)
+    {
+        var selectedCurrency = await _invService.GetCurrencyByIdAsync(currencyId);
+        if (selectedCurrency == null) return;
+
+        PurchaseInvoiceVMs.CurrName = selectedCurrency.CurrName;
+        PurchaseInvoiceVMs.Symbol = selectedCurrency.Symbol;
+        PurchaseInvoiceVMs.CurrId = selectedCurrency.CurrId;
+
+        if (currencyId > 1)
+            PurchaseInvoiceVMs.TodayVal = await _invService.GetLatestCurrencyValueAsync(currencyId) ?? 0m;
+    }
+
+    private async Task ResetQuoteDefaults()
+    {
+        PurchaseInvoiceVMs.CGstRate = 0m;
+        PurchaseInvoiceVMs.SGstRate = 0m;
+        PurchaseInvoiceVMs.IGstRate = 0m;
+    }
+
+    private async Task OnShippingChange(ChangeEventArgs e)
+    {
+        try
+        {
+            PurchaseInvoiceVMs.IsSameAsShipping = (bool)e.Value;
+
+            if (!PurchaseInvoiceVMs.IsSameAsShipping && SelectedVendor != null)
+            {
+                consineeAddress = await _invService.GetConsigneeAddressesAsync(SelectedVendor.VendorCode);
+            }
+            else
+            {
+                consineeAddress.Clear();
+                ResetShippingDefaults();
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,$"Error while toggling shipping address for VendorCode={SelectedVendor?.VendorCode}");
+        }
+    }
+
+    private void ResetShippingDefaults()
+    {
+        PurchaseInvoiceVMs.ShipAddrsId = null;
+        PurchaseInvoiceVMs.ShippingName = null;
+        PurchaseInvoiceVMs.ShippingAddress = null;
+        PurchaseInvoiceVMs.ShippingGstin = null;
+        PurchaseInvoiceVMs.ShippingContactNo = null;
+    }
+
+    private async Task OnConsigneeChangedAsync(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var selectedId) || selectedId == 0)
+            {
+                PurchaseInvoiceVMs.IsSameAsShipping = true; 
+                ResetShippingDefaults();
+
+                StateHasChanged();
+                return;
+            }
+
+            PurchaseInvoiceVMs.IsSameAsShipping = false; 
+
+            var selectedConsignee = consineeAddress.FirstOrDefault(c => c.AltVendorCode == selectedId);
+            if (selectedConsignee == null)
+                return;
+
+            PurchaseInvoiceVMs.ShipAddrsId = selectedConsignee.AltVendorCode;
+            PurchaseInvoiceVMs.ShippingAddress = string.Join(" ",
+                new[] { selectedConsignee.AltVendorAddr1, selectedConsignee.AltVendorAddr2 }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+            PurchaseInvoiceVMs.ShippingGstin = selectedConsignee.GSTNo ?? string.Empty;
+            PurchaseInvoiceVMs.ShippingContactNo = selectedConsignee.ContactNo ?? string.Empty;
+
+            await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnConsigneeChangedAsync");
+        }
+    }
+    #endregion
+
+    #region Quantity Handlers
+
+    private async Task OnQtyChange(ChangeEventArgs e, PurchaseInvoiceSubVM SubVM)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.Qty = 0;
+                await _JS.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+
+            decimal maxAllowedQty = 0;
+
+            if (SubVM.RefSCNSubId > 0)
+            {
+                var scnQty = await _invService.GetSCNQtyDetailsFromSCNSubId(SubVM.RefSCNSubId.Value);
+
+                // ===== NEW Invoice line =====
+                if (SubVM.InvSubId == 0)
+                {
+                    if (PurchaseInvoiceVMs.IsAcptRejRewQtyRequired)
+                    {
+                        maxAllowedQty = scnQty.BalQty.GetValueOrDefault() + scnQty.RejectQty.GetValueOrDefault() + scnQty.ReworkQty.GetValueOrDefault();
+                        SubVM.DbBalQty = maxAllowedQty;
+                    }
+                    else
+                    {
+                        maxAllowedQty = scnQty.AcceptQty.GetValueOrDefault();
+                        SubVM.DbBalQty = maxAllowedQty;
+                    }
+                }
+
+                // ==== EXISTING Invoice line ====
+                else
+                {
+                    var originalQty = await _invService.GetExistingPurchInvoiceQtyByInvSubId(SubVM.InvSubId);
+
+                    if (PurchaseInvoiceVMs.IsAcptRejRewQtyRequired)
+                    {
+                        maxAllowedQty = scnQty.BalQty.GetValueOrDefault() + scnQty.RejectQty.GetValueOrDefault() + scnQty.ReworkQty.GetValueOrDefault() + originalQty;
+                        SubVM.DbBalQty = maxAllowedQty;
+                    }
+                    else
+                    {
+                        maxAllowedQty = scnQty.BalQty.GetValueOrDefault() + originalQty;
+                        SubVM.DbBalQty = maxAllowedQty;
+                    }
+                }
+
+                if (newQty > maxAllowedQty)
+                {
+                    SubVM.Qty = maxAllowedQty;
+                    SubVM.DbBalQty = maxAllowedQty;
+                    await _JS.ToastrWarning( $"Qty cannot be greater than SCN allowed Qty ({maxAllowedQty}).");
+                }
+                else
+                {
+                    SubVM.Qty = newQty;
+                    SubVM.DbBalQty = maxAllowedQty;
+                }
+            }
+            else
+            {
+                // No SCN reference
+                SubVM.Qty = newQty;
+                SubVM.DbBalQty = maxAllowedQty;
+            }
+
+            await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex,$"OnQtyChange failed for InvSubId: {SubVM?.InvSubId}");
+            await _JS.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+
+    #endregion
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(PurchaseInvoiceSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.Qty == null || row.Qty <= 0)
+                errors.Add("Quantity must be greater than 0.");
+
+            if (row.UnitPrice == null || row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _JS.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("Error validating last row.");
+            await LoggingService.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task SaveRow(PurchaseInvoiceSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            await ResetSlno();
+            await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"SaveRow failed for InvSubId: {item?.InvSubId}");
+            await _JS.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(PurchaseInvoiceSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItem == null && item.ItemId > 0)
+            {
+                item.SelectedItem = await _invService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"EditRowAsync failed for InvSubId: {item?.InvSubId}");
+            await _JS.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(PurchaseInvoiceSubVM? item, PurchaseInvoiceVM? parentPerforma)
+    {
+        try
+        {
+            if (item == null || parentPerforma == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.Qty.HasValue || item.Qty.Value <= 0) ||
+                (!item.UnitPrice.HasValue || item.UnitPrice.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentPerforma.PurchaseInvoiceSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CancelEdit failed for PerformaSubId: {item?.InvSubId}");
+            await _JS.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(PurchaseInvoiceSubVM item)
+    {
+        try
+        {
+            if (PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Count == 1 && item.InvSubId > 0)
+            {
+                await _JS.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if ((PurchaseInvoiceVMs.InvTally || PurchaseInvoiceVMs.GrandTotal!=PurchaseInvoiceVMs.Balance) && item.InvSubId > 0)
+            {
+                await _JS.ToastrError("Deletion not allowed. Payments have already been processed for this Purchase Invoice.");
+                return;
+
+            }
+
+            bool exist = false;
+            foreach (var refId in PurchaseInvoiceVMs.PurchaseInvoiceSubVMs)
+            {
+                exist = await _invService.HasAnyItemOrInvoiceDebitNoteAsync(refId.InvSubId);
+                if (exist)
+                {
+                    await _JS.ToastrWarning("Cannot remove this invoice. Debit Note already exists for this invoice or its items.");
+                    return;
+                }
+            }
+
+            if (item.ItemId == 0)
+            {
+                PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Remove(item);
+                await _JS.ToastrSuccess("New item row removed successfully.");
+
+                if (!PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Any())
+                    PurchaseInvoiceVMs.PurchaseInvoiceSubVMs = new List<PurchaseInvoiceSubVM>();
+
+                await ResetSlno();
+                await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"RemoveRow failed for PerformaSubId: {item?.InvSubId}");
+            await _JS.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in PurchaseInvoiceVMs.PurchaseInvoiceSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ResetSlno failed.");
+            await _JS.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+    #region Modal Handlers
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Vendor" => "Add New Vendor",
+                "Item" => "Add New Item",
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type in PurchasInvoiceUpsert: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal in PurchasInvoiceUpsert. Please try again.");
+        }
+    }
+
+    private async Task AskToShortCloseAsync()
+    {
+        try
+        {
+            if (PurchaseInvoiceVMs == null)
+            {
+                await _JS.ToastrError("Invalid Purchase Invoice selected.");
+                return;
+            }
+
+            if (!InvId.HasValue || InvId == 0)
+            {
+                await _JS.ToastrError("Quotation Short Closed is not allowed before saving the Quotation.");
+                return;
+            }
+
+            if (PurchaseInvoiceVMs.InvTally)
+            {
+                await _JS.ToastrWarning("This Purchase Invoice is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (PurchaseInvoiceVMs.InvCancel)
+            {
+                await _JS.ToastrWarning("This Purchase Invoice is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!PurchaseInvoiceVMs.ShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Purchase Invoice?";
+                btnText = "Short Closed";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Purchase Invoice?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while AskToShortCloseAsync Purchase Invoice.");
+            await LoggingService.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task Cancel()
+    {
+        try
+        {
+            if (!InvId.HasValue || InvId == 0)
+            {
+                await _JS.ToastrError("Invoice cancel is not allowed before saving the Purchase Invoice.");
+                return;
+            }
+
+            if(IsSomeItemsTransMade)
+            {
+                await _JS.ToastrError("Some Items Transaction Are Made!.. You Can't Cancel the Complete Purchase Invoice");
+                return;
+            }
+
+            if (PurchaseInvoiceVMs.ShortClose)
+            {
+                await _JS.ToastrError("Invoice is already short closed. You can't cancel it.");
+                return;
+            }
+
+            if (PurchaseInvoiceVMs.PurchaseInvoiceSubVMs?.Any(x => x.ItemCancel) == true)
+            {
+                await _JS.ToastrError("Some items are already cancelled. Complete Purchase Invoice cancellation is not allowed.");
+                return;
+            }
+
+            bool exist = false;
+            foreach (var refId in PurchaseInvoiceVMs.PurchaseInvoiceSubVMs)
+            {
+                exist = await _invService.HasAnyItemOrInvoiceDebitNoteAsync(refId.InvSubId);
+                if (exist)
+                {
+                    await _JS.ToastrWarning("Cannot Cancel this invoice. Debit Note already exists for this invoice or its items.");
+                    return;
+                }
+            }
+
+            if (PurchaseInvoiceVMs.InvCancel)
+            {
+                var subs = await _invService.GetInvSubByInvIdAsync(PurchaseInvoiceVMs.InvId); 
+
+                foreach (var sub in subs)
+                {
+                    await _invService.ValidatePurchaseSCNBalanceBeforeRevertAsync(sub);
+                }
+            }
+
+            if (!PurchaseInvoiceVMs.InvCancel)
+            {
+                ModalTitle = "Are you sure you want to Cancel this Purchase Invoice?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to Revert this Purchase Invoice?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (InvId.HasValue || InvId > 0)
+                await LoadExistingInvoice(InvId.Value);
+
+            await _JS.ToastrWarning(ex.Message);
+            await LoggingService.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Invoice.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Purchase Invoice Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                case "Cancel":
+                case "Revert":
+                    await CancelInvoice();
+                    break;
+
+                case "ShortClose":
+                    await ShortCloseInvoice();
+                    break;
+
+                case "TDS":
+                    await UpdateTDS();
+                    break;
+
+                default:
+                    await _JS.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action in PurchaseGRNUpsert: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action in PurchaseGRNUpsert. Please try again.");
+        }
+    }
+
+    private async Task ShortCloseInvoice()
+    {
+        if (PurchaseInvoiceVMs == null)
+        {
+            await _JS.ToastrError("No Purchase Invoice selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            PurchaseInvoiceVMs.ShortClose = !PurchaseInvoiceVMs.ShortClose;
+            await _invService.UpsertPurchaseInvShortCloseAsync(PurchaseInvoiceVMs);
+            StateHasChanged();
+
+            string msg = PurchaseInvoiceVMs.ShortClose
+                 ? "Purchase Invoice ShortClose Successfully!"
+                 : "Purchase Invoice ReOpen Successfully!";
+            await _JS.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while updating ShortClose.Purchase Invoice");
+            await LoggingService.LogDeveloperError(ex, "Error in ShortClose() Purchase Invoice");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task CancelInvoice()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!PurchaseInvoiceVMs.InvCancel)
+            {
+                PurchaseInvoiceVMs.InvCancel = true;
+                await _invService.UpdatedCancelStatusAndAddOrRevertQty(PurchaseInvoiceVMs, screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Purchase Invoice",
+                    action: $"Cancelled Purchase invoice No: {PurchaseInvoiceVMs.InvNo}",
+                    additionalInfo: $"Inv Id: {PurchaseInvoiceVMs.InvId}"
+                );
+
+                await _JS.ToastrSuccess("Purchase Invoice cancelled successfully.");
+            }
+            else
+            {
+                PurchaseInvoiceVMs.InvCancel = false;
+                await _invService.UpdatedCancelStatusAndAddOrRevertQty(PurchaseInvoiceVMs, screenCode);
+
+                await LoggingService.LogUserAction(
+                    UserName: username,
+                    Machine: machine,
+                    IP_Address: ip,
+                    screen: "Purchase Invoice",
+                    action: $"Reverted Purchase invoice No: {PurchaseInvoiceVMs.InvNo}",
+                    additionalInfo: $"Inv Id: {PurchaseInvoiceVMs.InvId}"
+                );
+
+                await _JS.ToastrSuccess("Purchase Invoice has been reverted successfully.");
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while cancelling/reverting the Purchase Invoice.");
+            await LoggingService.LogDeveloperError(ex, $"Cancel Purchase Invoice failed for InvId: {PurchaseInvoiceVMs.InvId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _JS.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.InvSubId > 0)
+            {
+                await _invService.DeleteAndResequenceAsync(rowToDelete, PurchaseInvoiceVMs);
+                if(InvId.HasValue || InvId > 0)
+                    await LoadExistingInvoice(InvId.Value);
+            }
+            else
+            {
+                PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Remove(rowToDelete);
+
+                if (!PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Any())
+                {
+                    PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Add(new PurchaseInvoiceSubVM
+                    {
+                        InvId = PurchaseInvoiceVMs.InvId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    await ResetSlno();
+                }
+            }
+
+            await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+
+            await _JS.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error confirming deletion for InvId: {PurchaseInvoiceVMs.InvId}");
+            await _JS.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _JS.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _JS.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _invService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _JS.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task TDS()
+    {
+        try
+        {
+
+            if (PurchaseInvoiceVMs.InvCancel)
+            {
+                await _JS.ToastrWarning("You cannot be update TDS amount, This Invoice is already cancelled.");
+                return;
+            }
+
+            ModalTitle = "Are you sure you want to update this Invoice TDS?";
+            btnColor = "btn-success";
+            btnText = "Yes! Update";
+            confirmation = "TDS";
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _JS.ToastrError("An error occurred while processing the Purchase invoice update TDS method");
+            await LoggingService.LogDeveloperError(ex, "Error in Purchase invoice TDS() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Discount, P&F, Insurance, TCS
+
+    private void SetDiscountMode(bool isRs)
+    {
+        PurchaseInvoiceVMs.IsItemWiseDiscAmtOrPerReq = isRs;
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+    }
+
+    private void SetDiscountType(bool isAmount)
+    {
+        PurchaseInvoiceVMs.DiscAmtOrPer = isAmount;
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    private void SetPAndFType(bool isRs)
+    {
+        PurchaseInvoiceVMs.PackingAmtOrPer = isRs;
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    private void SetInsuranceType(bool isRs)
+    {
+        PurchaseInvoiceVMs.InsuranceAmtOrPer = isRs;
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    private void SetTCSType(bool isRs)
+    {
+        PurchaseInvoiceVMs.TCSAmtOrPer = isRs;
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    private void OnLineDiscountPercentChanged(PurchaseInvoiceSubVM subitem)
+    {
+        if (subitem.Qty > 0 && subitem.UnitPrice > 0)
+        {
+            var gross = subitem.Qty * subitem.UnitPrice;
+            subitem.LineDiscountAmount = (gross * subitem.LineDiscountPercent / 100m);
+        }
+        else
+        {
+            subitem.LineDiscountAmount = 0;
+        }
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    private void OnDiscountPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    private void OnPandFPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    private void OnInsurancePercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    private void OnTCSPercentChanged()
+    {
+        _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    #endregion
+
+
+    #region Tax
+
+    private async Task OnTaxRateChanged(ChangeEventArgs e, PurchaseInvoiceSubVM subitem)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal newRate))
+        {
+            subitem.LineCGSTRate = newRate;
+            subitem.LineSGSTRate = newRate;
+
+            await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnMainTaxRateChanged(decimal newRate)
+    {
+        PurchaseInvoiceVMs.CGstRate = newRate;
+        PurchaseInvoiceVMs.SGstRate = newRate;
+
+        await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+        StateHasChanged();
+    }
+
+    #endregion
+
+    #region Purchase-Invoice Operations
+
+    private async Task UpsertPurchaseInvoice()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.Qty.HasValue || x.Qty == 0) &&
+                (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (!PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Any())
+            {
+                await _JS.ToastrError("Cannot save a Purchase-Invoice without valid items.");
+                return;
+            }
+
+            // Validate each line
+            foreach (var line in PurchaseInvoiceVMs.PurchaseInvoiceSubVMs)
+            {
+                bool isValid = await ValidateSCNLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewInv = PurchaseInvoiceVMs.InvId == 0;
+
+            if(isNewInv)
+            {
+                var isduplicate = await _invService.IsDuplicateInvoiceAsync(PurchaseInvoiceVMs.InvNo, PurchaseInvoiceVMs.Suffix, PurchaseInvoiceVMs.InvId, PurchaseInvoiceVMs.VendorCode);
+
+                if (isduplicate)
+                {
+                    await _JS.ToastrWarning("This invoice number already exists for the selected vendor. Please verify and try again.");
+                    return;
+                }
+            }
+
+            try
+            {
+                await _invService.UpsertPurchaseInvoice(PurchaseInvoiceVMs, screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _JS.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewInv)
+                await _JS.ToastrSuccess("Purchase Invoice saved successfully.");
+            else
+                await _JS.ToastrSuccess("Purchase Invoice updated successfully.");
+
+            // Discard popup Clear
+            await _JS.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigation.NavigateTo("/purchaseInvoiceList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertPurchaseInvoice failed.");
+            await _JS.ToastrError("Error saving purchase Invoice.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateSCNLineAsync(PurchaseInvoiceSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _JS.ToastrWarning("One or more items are missing Item selection.");
+                return false;
+            }
+
+            if (!line.Qty.HasValue || line.Qty <= 0)
+            {
+                await _JS.ToastrWarning($"Item {line.ItemCode}: Quantity must be greater than 0.");
+                return false;
+            }
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+            {
+                await _JS.ToastrWarning($"Item {line.ItemCode}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            decimal cgst=0,sgst=0,igst=0,lcgst=0,lsgst=0,ligst=0;
+
+            decimal.TryParse(PurchaseInvoiceVMs.CGstRate.ToString(),out cgst);
+            decimal.TryParse(PurchaseInvoiceVMs.SGstRate.ToString(),out sgst);
+            decimal.TryParse(PurchaseInvoiceVMs.IGstRate.ToString(),out igst);
+
+            decimal.TryParse(line.LineCGSTRate.ToString(),out lcgst);
+            decimal.TryParse(line.LineSGSTRate.ToString(),out lsgst);
+            decimal.TryParse(line.LineIGSTRate.ToString(),out ligst);
+
+            bool isCGST_SGST_Zero = (cgst + lcgst) == 0 &&  (sgst + igst) == 0;
+
+            bool isIGST_Zero =(igst + ligst) == 0;
+
+            if (!SelectedVendor.TaxValidate && (isCGST_SGST_Zero && isIGST_Zero))
+            {
+                await _JS.ToastrWarning("Please verify tax rates. Item-wise CGST/SGST/IGST cannot be empty or zero.");
+                return false;
+            }
+
+
+            if (line.InvSubId == 0 && line.RefSCNSubId > 0)
+            {
+                var purchaseSCNSub = await _invService.GetSCNQtyDetailsFromSCNSubId(line.RefSCNSubId.Value);
+
+                var SCNSubBalQty = PurchaseInvoiceVMs.IsAcptRejRewQtyRequired ? (purchaseSCNSub.BalQty + purchaseSCNSub.RejectQty + purchaseSCNSub.ReworkQty) : purchaseSCNSub.BalQty;
+
+                if (line.Qty > SCNSubBalQty.GetValueOrDefault())
+                {
+                    line.Qty = SCNSubBalQty;
+                    await _JS.ToastrWarning($"Qty cannot exceed Purchase SCN Balance Qty ({SCNSubBalQty.GetValueOrDefault()}).");
+                    return false;
+                }
+            }
+            else if (line.InvSubId > 0)
+            {
+                var original = await _invService.GetInvSubItemDetailByInvSubIdAsync(line.InvSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty.GetValueOrDefault();
+                    decimal origQty = original.Qty.GetValueOrDefault();
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.Qty < alreadyTransacted)
+                    {
+                        line.Qty = alreadyTransacted;
+                        line.BalQty = 0m;
+                        await _JS.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = line.Qty.GetValueOrDefault() - origQty;
+                        line.BalQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ValidateSCNLineAsync failed.");
+            await _JS.ToastrError("Error Validate Purchase-SCN line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+
+
+    #region Show SCNDetails
+
+    private async Task ShowSCNDetails()
+    {
+        if (PurchaseInvoiceVMs?.VendorCode != 0)
+        {
+            try
+            {
+                isProcessing = true;
+                if (PurchaseInvoiceVMs.VendorCode > 0)
+                {
+                    SCNData = await _invService.GetSCNDetailsByVendorCode(PurchaseInvoiceVMs.VendorCode.Value);
+                }
+                else
+                {
+                    await _JS.ToastrError("Select the Vendor First");
+                }
+                IsSCNModalVisible = true;
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogDeveloperError(ex, "ShowSCNDetails failed.");
+                await _JS.ToastrError("Error fetching Show SCNDetails details.");
+            }
+            finally
+            {
+                isProcessing = false;
+            }
+        }
+    }
+
+    private async Task OnSCNSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (PurchaseInvoiceVMs.PurchaseInvoiceSubVMs == null)
+            PurchaseInvoiceVMs.PurchaseInvoiceSubVMs = new List<PurchaseInvoiceSubVM>();
+
+        try
+        {
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.TryGetValue("ItemId", out var itemObj) && int.TryParse(itemObj?.ToString(), out var id) ? id : 0;
+                int? scnSubId = item.TryGetValue("SCNSubId", out var scnObj) && int.TryParse(scnObj?.ToString(), out var sid) ? sid : (int?)null;
+                int? poSubId = item.TryGetValue("PoSubId", out var poSubObj) && int.TryParse(poSubObj?.ToString(), out var psId) ? psId : (int?)null;
+
+                if (itemId == 0 || PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Any(x => x.ItemId == itemId && x.RefSCNSubId == scnSubId))
+                    continue;
+
+                decimal balQty = TryDecimal(item, "BalQty");
+                decimal rejectQty = TryDecimal(item, "RejectQty");
+                decimal reworkQty = TryDecimal(item, "RewQty");
+
+                decimal poUnitPrice = TryDecimal(item, "PoUnitPrice");
+                decimal poDiscPercent = TryDecimal(item, "PoLineDiscountPercent");
+                decimal poDiscAmount = TryDecimal(item, "PoLineDiscountAmount");
+
+                decimal poCgstRate = TryDecimal(item, "PoLineCGSTRate");
+                decimal poSgstRate = TryDecimal(item, "PoLineSGSTRate");
+                decimal poIgstRate = TryDecimal(item, "PoLineIGSTRate");
+
+                // RECALCULATE DISCOUNT AMOUNT BASED ON CURRENT QTY
+                var gross = balQty * poUnitPrice;
+                var recalculatedDiscount = (gross * poDiscPercent) / 100m;
+
+                var sub = new PurchaseInvoiceSubVM
+                {
+                    RefPoSubId = poSubId,
+                    RefSCNSubId = scnSubId,
+                    RefSCNNo = GetString(item, "SCNNo"),
+                    RefSCNDate = GetDate(item, "SCNDate"),
+
+                    ItemId = itemId,
+                    ItemCode = GetString(item, "ItemCode"),
+                    ItemName = GetString(item, "ItemName"),
+                    Specification = GetString(item, "Specification"),
+                    MeasureUnit = GetString(item, "UOM"),
+                    HSNCode = GetString(item, "HSNCode"),
+                    Category = GetString(item, "Category"),
+
+                    Qty = PurchaseInvoiceVMs.IsAcptRejRewQtyRequired ? balQty+ rejectQty + reworkQty : balQty,
+                    BalQty = PurchaseInvoiceVMs.IsAcptRejRewQtyRequired ? balQty+ rejectQty + reworkQty : balQty,
+                    DbBalQty = PurchaseInvoiceVMs.IsAcptRejRewQtyRequired ? balQty + rejectQty + reworkQty : balQty,
+                    UnitPrice = poUnitPrice,
+
+                    LineDiscountPercent = poDiscPercent,
+                    LineDiscountAmount = recalculatedDiscount,
+
+                    LineCGSTRate = CommonConstants.GetGST(poCgstRate),
+                    LineSGSTRate = CommonConstants.GetGST(poSgstRate),
+                    LineIGSTRate = CommonConstants.GetIGST(poIgstRate),
+
+                    CostId = TryInt(item, "CostCenterId"),
+                    ProjectNo = GetString(item, "ProjectNo"),
+
+                    IsEditable = true
+                };
+                PurchaseInvoiceVMs.PurchaseInvoiceSubVMs.Add(sub);
+            }
+
+            await ResetSlno();
+
+            if (await _invService.IsInvoiceExistsForVendorAsync(PurchaseInvoiceVMs.VendorCode.Value))
+            {
+                await _invService.LoadPreviousInvoiceHeaderAsync(PurchaseInvoiceVMs);
+            }
+            else
+            {
+                var poSubIds = PurchaseInvoiceVMs.PurchaseInvoiceSubVMs
+                                .Where(x => x.RefPoSubId.HasValue)
+                                .Select(x => x.RefPoSubId.Value)
+                                .Distinct()
+                                .ToList();
+
+                if (poSubIds.Any())
+                {
+                    var poIds = await _invService.GetPOIdsByPOSubIdsAsync(poSubIds);
+
+                    if (poIds.Distinct().Count() == 1)
+                    {
+                        await _invService.LoadPOHeaderToInvoiceAsync(PurchaseInvoiceVMs,poIds.First());
+                    }
+                }
+            }
+
+            await _calculationService.UpdateTotalsAsync(PurchaseInvoiceVMs);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnSCNSelectedAsync failed.");
+            await _JS.ToastrError("Error processing SCN selected items.");
+        }
+    }
+
+    private decimal TryDecimal(Dictionary<string, object> dict, string key)
+    {
+        return dict.TryGetValue(key, out var value) &&
+               decimal.TryParse(value?.ToString(), out var result)
+               ? result
+               : 0m;
+    }
+
+    private int? TryInt(Dictionary<string, object> dict, string key)
+    {
+        return dict.TryGetValue(key, out var value) &&
+               int.TryParse(value?.ToString(), out var result)
+               ? result
+               : (int?)null;
+    }
+
+    private string GetString(Dictionary<string, object> dict, string key)
+    {
+        return dict.TryGetValue(key, out var value) ? value?.ToString() ?? "" : "";
+    }
+
+    private DateTime? GetDate(Dictionary<string, object> dict, string key)
+    {
+        return dict.TryGetValue(key, out var value) &&
+               DateTime.TryParse(value?.ToString(), out var dt)
+               ? dt
+               : (DateTime?)null;
+    }
+
+    #endregion
+
+    #region Formatting
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+    #endregion
+
+    #region TDS Deduct
+
+    private async Task UpdateTDS()
+    {
+        if (PurchaseInvoiceVMs == null)
+            return;
+        await _invService.UpdateTDSAmountAsync(PurchaseInvoiceVMs);
+        await _JS.ToastrSuccess($" TDS Amount {PurchaseInvoiceVMs.TDSAmount} ₹ Updated successfully.");
+    }
+
+    #endregion
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(InvId.GetValueOrDefault(), "PurchaseInvoice.frx", "InvId", PurchaseInvoiceVMs.InvCancel, "PurchaseInvoice", "Sp_Print_PurchaseInvoice");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _JS.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf PurchaseInvoice");
+            await _JS.ToastrError("An unexpected error occurred while generating the PDF in PurchaseInvoice.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

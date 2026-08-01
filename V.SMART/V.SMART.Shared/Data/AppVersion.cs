@@ -1,0 +1,16 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace V.SMART.Shared.Data
+{
+    public class AppVersion
+    {
+        [Key]
+        [MaxLength(50)]
+        public string Version { get; set; } = string.Empty;
+    }
+}

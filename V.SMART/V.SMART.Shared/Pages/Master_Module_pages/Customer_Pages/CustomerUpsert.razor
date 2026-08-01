@@ -1,0 +1,1309 @@
+﻿@page "/customer/create"
+@page "/customer/update/{CustId:int}"
+@using System.Text.RegularExpressions
+@using V.SMART.Shared.Data.Master.Accounts
+@using V.SMART.Shared.Data.Master.General
+@using V.SMART.Shared.Data.Master.Inventory
+@using System.ComponentModel.DataAnnotations
+
+@inherits BaseUserRightsComponent
+
+@inject CurrentUserService _userService
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@inject ICustomerService customerService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                @if (!isCustModelVisible)
+                {
+                    <PageHeader TitleText="@(CustId == 0 || CustId == null ? "Create Customer" : "Update Customer")"
+                                TitleIcon="bi bi-person"
+                                Breadcrumbs="@customerFormBreadcrumbs" />
+                }
+
+
+                <div class="card-body">
+                    <EditForm Model="Customer" OnValidSubmit="UpsertCustomer">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <!-- Checkboxes -->
+                        <div class="row g-3 mb-3 text-end">
+
+                            @if (Customer != null && Customer.CustId > 0 && !string.IsNullOrWhiteSpace(Customer.CustName))
+                            {
+                                <CorrespondenceStatus ReferenceType="Customer"
+                                                      ReferenceId="@Customer.CustId"
+                                                      ReferenceTypeName="@Customer.CustName" />
+                            }
+
+                            <div class="col-12 d-flex flex-wrap gap-4 ps-3">
+
+                                <div class="form-check">
+                                    <InputCheckbox @bind-Value="Customer.LineId"
+                                                   id="lineId"
+                                                   class="form-check-input" />
+                                    <label class="form-check-label text-primary"
+                                           for="lineId"
+                                           title="Check this if a Line ID is required for this customer in SalesOrder">
+                                        LineId Required
+                                    </label>
+                                </div>
+
+                                <div class="form-check">
+                                    <InputCheckbox @bind-Value="Customer.IsWoNoReq"
+                                                   id="wowno"
+                                                   class="form-check-input" />
+                                    <label class="form-check-label text-danger"
+                                           for="wowno"
+                                           title="Check this if a Work Order number is required for this customer in SalesOrder">
+                                        WONo. Required
+                                    </label>
+                                </div>
+
+                                <div class="form-check">
+                                    <InputCheckbox @bind-Value="Customer.RejectRetrac"
+                                                   id="Rejection"
+                                                   class="form-check-input" />
+                                    <label class="form-check-label text-danger"
+                                           for="Rejection"
+                                           title="Check this if rejection retracking is enabled for this customer ">
+                                        Rejection Retrack
+                                    </label>
+                                </div>
+
+                                <div class="form-check">
+                                    <InputCheckbox @bind-Value="Customer.Inactive"
+                                                   id="Inactive"
+                                                   class="form-check-input" />
+                                    <label class="form-check-label text-danger"
+                                           for="Inactive"
+                                           title="Check this to mark the customer as inactive">
+                                        Inactive
+                                    </label>
+                                </div>
+
+                                <div class="form-check">
+                                    <InputCheckbox @bind-Value="Customer.TaxValidate"
+                                                   id="Taxation"
+                                                   class="form-check-input" />
+                                    <label class="form-check-label text-success"
+                                           for="Taxation"
+                                           title="Check this if tax validation is NOT required for this customer">
+                                        Taxation Validation Not Required
+                                    </label>
+                                </div>
+
+                            </div>
+
+
+                        </div>
+
+                        <!-- Customer Name and Address -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <TrimmedInputText @bind-Value="Customer.CustName" id="CustomerName" class="form-control" placeholder="Customer Name" CssClass="form-control" />
+                                    <label for="CustomerName">Customer Name</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.CustName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputTextArea @bind-Value="Customer.CustAddr" id="Address" class="form-control" placeholder="Customer Address" style="height: 50px;" />
+                                    <label for="Address">Customer Address</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.CustAddr)" />
+                            </div>
+
+                            <!-- Pin, GST, PAN -->
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.PinCode" id="Pincode" class="form-control" placeholder="PIN Code" maxlength="6"
+                                               oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                                    <label for="PinCode">PINCode</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.PinCode)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <select id="BusiType"
+                                            class="form-select"
+                                            value="@Customer.BusiType"
+                                            @onchange="OnBusinessTypeChanged">
+                                        <option value="">Select Business Type</option>
+                                        @foreach (var business in BusinessTypes)
+                                        {
+                                            <option value="@business.Name">@business.Name</option>
+                                        }
+                                    </select>
+                                    <label for="BusiType">Business Type</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.BusiType)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputSelect id="SupTyp"
+                                                 @bind-Value="Customer.SupTyp"
+                                                 class="form-select">
+                                        @foreach (var type in CustomerTypes)
+                                        {
+                                            <option value="@type">@type</option>
+                                        }
+                                    </InputSelect>
+                                    <label for="SupTyp">Customer Type</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.SupTyp)" />
+                            </div>
+
+
+                            <!-- Currency, State, StateCode -->
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.GSTNo" 
+                                        @oninput="OnMainCustomerGSTChanged" 
+                                        id="GSTNo" class="form-control" 
+                                        placeholder="GSTNo" maxlength="15" />
+                                    <label for="GSTNo">GSTNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.GSTNo)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.PANNo" 
+                                        id="PANNo" class="form-control" 
+                                        placeholder="PANNo" readonly maxlength="10" />
+                                    <label for="PANNo">PANNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.PANNo)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputSelect id="currencySelect" class="form-select" @bind-Value="Customer.CurrId">
+                                        <option value="">Select Currency</option>
+                                        @foreach (var curr in Currencies)
+                                        {
+                                            <option value="@curr.CurrId">@curr.CurrName</option>
+                                        }
+                                    </InputSelect>
+                                    <label for="currencySelect">Currency</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.CurrId)" />
+                            </div>
+
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <select class="form-select"
+                                            value="@Customer.StateId"
+                                            @onchange="OnStateChanged">
+                                        <option value="">--Select State--</option>
+                                        @foreach (var sta in States)  @* Changed 'state' to 'States' here *@
+                                        {
+                                            <option value="@sta.StateCode">@sta.StateCode - @sta.StateName</option>
+                                        }
+                                    </select>
+                                    <label for="stateSelect">State</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.StateName)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <input class="form-control" @bind="Customer.StateId" readonly />
+                                    <label for="stateSelect">StateCode</label>
+                                </div>
+                            </div>
+
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.Location" id="Location" class="form-control" placeholder="Location" />
+                                    <label for="Location">Location</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.Location)" />
+                            </div>
+
+                            <!-- Distance, VendorCode, Email -->
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="Customer.Distance" id="Distance" class="form-control" placeholder="Distance" onkeypress="return isNumericWithDot(event)" />
+                                    <label for="Distance">Distance</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.Distance)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.VendorCode" id="VendorCode" class="form-control" placeholder="VendorCode" />
+                                    <label for="VendorCode">VendorCode</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.VendorCode)" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.Email" id="Email" class="form-control" placeholder="Email" />
+                                    <label for="Email">Email</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.Email)" />
+                            </div>
+
+                            <!-- TanNo, CINNo, OpenBal -->
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.TanNo" id="TanNo" class="form-control" placeholder="TanNo" />
+                                    <label for="TanNo">TanNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.TanNo)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.CINNo" id="CINNo" class="form-control" placeholder="CINNo" />
+                                    <label for="CINNo">CINNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.CINNo)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="Customer.OpenBal" id="OpenBal" class="form-control" placeholder="OpenBal" onkeypress="return isNumericWithDot(event)" />
+                                    <label for="OpenBal">OpenBal</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.OpenBal)" />
+                            </div>
+
+                            <!-- Scope, Remark -->
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.Scope" id="Scope" class="form-control" placeholder="Scope of Supply" />
+                                    <label for="Scope">Scope of Supply</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.Scope)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.Remark" id="Remark" class="form-control" placeholder="Remark" />
+                                    <label for="Remark">Remark</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.Remark)" />
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="Customer.ContactNo" id="ContactNo" class="form-control" placeholder="ContactNo" maxlength="15"
+                                               oninput="this.value = this.value.replace(/[^0-9+]/g, '')" />
+                                    <label for="ContactNo">ContactNo</label>
+                                </div>
+                                <ValidationMessage For="@(() => Customer.ContactNo)" />
+                            </div>
+                        </div>
+
+                        <!-- Tabs for Contacts, Consignee, TDS -->
+                        <div class="row g-3 mt-1">
+                            <ul class="nav nav-tabs">
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "contacts" ? "active" : (IsNoTabActive ? "tab-contacts" : ""))"
+                                       @onclick="@(() => SetTab("contacts"))">Add Contacts</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "consignee" ? "active" : (IsNoTabActive ? "tab-consignee" : ""))"
+                                       @onclick="@(() => SetTab("consignee"))">Add Consignee</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "tds" ? "active" : (IsNoTabActive ? "tab-tds" : ""))"
+                                       @onclick="@(() => SetTab("tds"))">TDS</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link @(activeTab == "bank" ? "active" : (IsNoTabActive ? "tab-bank" : ""))"
+                                       @onclick="@(() => SetTab("bank"))">BANK Details</a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="tab-content mt-3">
+                            @if (activeTab == "contacts")
+                            {
+                                <!-- Contacts Table -->
+                                <div class="container-fluid">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">Contact Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="table-responsive">
+                                                    <table class="table table-bordered table-sm align-middle text-center" style="table-layout: fixed; width: 100%;">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">Contact Name</th>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">Phone Number</th>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">Email</th>
+                                                                <th style="width: 80px;font-size: 12px;background-color: #1f7fb9; color: white;">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var contact in ContactPersons)
+                                                            {
+                                                                <tr>
+                                                                    <td>
+                                                                        <InputText class="form-control" @bind-Value="contact.ContactPersonName" maxlength="50" />
+                                                                        <ValidationMessage For="@(() => contact.ContactPersonName)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control" @bind-Value="contact.PhoneNo" maxlength="10"
+                                                                                   oninput="this.value = this.value.replace(/[^0-9+]/g, '')" />
+                                                                        <ValidationMessage For="@(() => contact.PhoneNo)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control" @bind-Value="contact.Email" maxlength="50" />
+                                                                        <ValidationMessage For="@(() => contact.Email)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => RemoveContact(contact))">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <div class="row mt-1">
+                                                    <div class="col-md-3 d-flex align-items-center " style="height: 50px;">
+                                                        <button type="button" class="btn" style="font-size: 12px; background-color:Purple;color:white" @onclick="AddContact">
+                                                            <i class="bi bi-plus-circle"></i> Add Row
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else if (activeTab == "consignee")
+                            {
+                                <!-- Consignee Table -->
+                                <div class="container-fluid">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">Consignee Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+
+                                                <div class="table-responsive">
+                                                    <table class="table table-bordered table-sm align-middle text-center" style="table-layout: fixed; width: 100%;">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">Alternate Customer</th>
+                                                                <th style="width: 180px;font-size: 12px;background-color: #1f7fb9; color: white;">Address</th>
+                                                                <th style="width: 180px;font-size: 12px;background-color: #1f7fb9; color: white;">Address-2</th>
+                                                                <th style="width: 100px;font-size: 12px;background-color: #1f7fb9; color: white;">PinCode</th>
+                                                                <th style="width: 160px;font-size: 12px;background-color: #1f7fb9; color: white;">GSTNo</th>
+                                                                <th style="width: 130px;font-size: 12px;background-color: #1f7fb9; color: white;">PANNo</th>
+                                                                <th style="width: 200px;font-size: 12px;background-color: #1f7fb9; color: white;">Email</th>
+                                                                <th style="width: 150px;font-size: 12px;background-color: #1f7fb9; color: white;">Contact Person</th>
+                                                                <th style="width: 130px;font-size: 12px;background-color: #1f7fb9; color: white;">Contact No</th>
+                                                                <th style="width: 150px;font-size: 12px;background-color: #1f7fb9; color: white;">State</th>
+                                                                <th style="width: 120px;font-size: 12px;background-color: #1f7fb9; color: white;">City</th>
+                                                                <th style="width: 120px;font-size: 12px;background-color: #1f7fb9; color: white;">Country</th>
+                                                                <th style="width: 80px; font-size: 12px;background-color: #1f7fb9; color: white;">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var CustInd in Indirects)
+                                                            {
+                                                                <tr>
+
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.AltCustName" maxlegth="150" />
+                                                                        <ValidationMessage For="@(() => CustInd.AltCustName)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.AltCustAddr1" maxlegth="250" />
+                                                                        <ValidationMessage For="@(() => CustInd.AltCustAddr1)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.AltCustAddr2" maxlength="250" />
+                                                                        <ValidationMessage For="@(() => CustInd.AltCustAddr2)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.Pincode" maxlength="6"
+                                                                                   oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                                                                        <ValidationMessage For="@(() => CustInd.Pincode)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm"
+                                                                                   @bind-Value="CustInd.GSTNo"
+                                                                                   @oninput="@(e => OnCustomerIndirectGstChanged(e, CustInd))" maxlength="15" />
+                                                                        <ValidationMessage For="@(() => CustInd.GSTNo)" />
+
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm"
+                                                                                   @bind-Value="CustInd.PANNo" maxlength="10" readonly />
+                                                                        <ValidationMessage For="@(() => CustInd.PANNo)" />
+
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.Email" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => CustInd.Email)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.ContactPerson" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => CustInd.ContactPerson)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.ContactNo" maxlength="10"
+                                                                                   oninput="this.value = this.value.replace(/[^0-9+]/g, '')" />
+                                                                        <ValidationMessage For="@(() => CustInd.ContactNo)" />
+                                                                    </td>
+
+                                                                    @* <td><InputText class="form-control form-control-sm" @bind-Value="CustInd.State" /></td> *@
+                                                                    <td>
+
+
+                                                                        <select id="SateSelect" @bind="CustInd.State" class="form-select">
+
+                                                                            <option value="">Select State</option>
+                                                                            @foreach (var sta in States)
+                                                                            {
+                                                                                <option value="@sta.StateCode">@sta.StateName</option>
+
+                                                                            }
+                                                                        </select>
+                                                                        <ValidationMessage For="@(() => CustInd.ContactNo)" />
+
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.City" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => CustInd.City)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <InputText class="form-control form-control-sm" @bind-Value="CustInd.Country" maxlength="100" />
+                                                                        <ValidationMessage For="@(() => CustInd.Country)" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => RemoveCustomerIndirect(CustInd))">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                <div class="row mt-1">
+                                                    <div class="col-md-3 d-flex align-items-center " style="height: 50px;">
+                                                        <button type="button" class="btn" style="font-size: 12px; background-color:Purple;color:white" @onclick="AddCustomerIndirect">
+                                                            <i class="bi bi-plus-circle"></i> Add Row
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else if (activeTab == "tds")
+                            {
+                                <!-- BANK Details -->
+                                <div class="container-fluid">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">TDS Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="Customer.TDSExmptdAmt"
+                                                                     id="TDSExmptdAmt"
+                                                                     class="form-control"
+                                                                     placeholder="TDS Exempted Amount (Yearly)"
+                                                                     onkeypress="return isNumericWithDot(event)" />
+                                                        <label for="TDSExmptdAmt">TDS Exempted Amount (Yearly)</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Customer.TDSExmptdAmt)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="Customer.TDSDeductper"
+                                                                     id="TDSDeductper" class="form-control"
+                                                                     placeholder="TDS Deduction (%)"
+                                                                     onkeypress="return isNumericWithDot(event)" />
+                                                        <label for="TDSDeductper">TDS Deduction (%)</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Customer.TDSDeductper)" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-floating">
+                                                        <InputNumber @bind-Value="Customer.TDSBillval"
+                                                                     id="TDSBillval"
+                                                                     class="form-control"
+                                                                     placeholder="Maximum Amount per Single Invoice"
+                                                                     onkeypress="return isNumericWithDot(event)" />
+                                                        <label for="TDSBillval">Maximum Amount per Single Invoice</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Customer.TDSBillval)" />
+                                                </div>
+                                            </div>
+                                            <div class="row g-3 mt-3">
+                                                <div class="col-md-6">
+                                                    <div class="form-check">
+                                                        <InputCheckbox @bind-Value="Customer.TdsDeduct" id="TDSAutoDeduct" class="form-check-input" />
+                                                        <label class="form-check-label text-primary" for="TDSAutoDeduct">Auto TDS Deduction</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-check">
+                                                        <InputCheckbox @bind-Value="Customer.TdsDeductInSales" id="TDSDeductionINSales" class="form-check-input" />
+                                                        <label class="form-check-label text-danger" for="TDSDeductionINSales">TDS Applicable on Sales</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else if (activeTab == "bank")
+                            {
+                                <!-- TDS Details -->
+                                <div class="container-fluid">
+                                    <div class="card shadow border-0">
+                                        <div class="bg-secondary text-center py-2 card-header">
+                                            <h5 class="text-white">BANK Details</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-12">
+                                                    <div class="form-floating">
+                                                        <InputTextArea @bind-Value="Customer.BankDetails" id="BankDetails" class="form-control" placeholder="BANK Details" />
+                                                        <label for="BankDetails">BANK Details</label>
+                                                    </div>
+                                                    <ValidationMessage For="@(() => Customer.BankDetails)" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @if (Customer.CustId > 0)
+                        {
+                            <div class="row g-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Customer.CreatedBy" class="form-control" id="CreatedBy" placeholder="Created By" CssClass="form-control" disabled />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="CreatedDate" value="@Customer.CreatedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="Customer.ModifiedBy" class="form-control" id="ModifiedBy" placeholder="Modified By" CssClass="form-control" disabled />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control" id="ModifiedDate" value="@Customer.ModifiedDate?.ToString("dd/MM/yyyy")" disabled />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Buttons -->
+                        <div class="row mt-4">
+
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-md-3">
+                                    <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(CustId == 0 || CustId == null ? "Create" : "Update")
+                                    </button>
+                                </div>
+                            }
+                            @if (!isCustModelVisible)
+                            {
+                                <div class="col-md-3">
+                                    <SmartBackButton Url="@($"/customer?currentPage={currentPage}")" />
+                                </div>
+                            }
+
+
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+    }
+}
+
+@code {
+
+    //UserRights
+    protected override string ScreenName => "Customer";
+
+    [Parameter]
+    public int? CustId { get; set; }
+
+    [Parameter]
+    public bool isCustModelVisible { get; set; } = false;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool isProcessing = true;
+    private Customer Customer { get; set; } = new Customer();
+
+    // Separate lists for UI binding/manipulation, pointed to Customer's collections
+    private List<CustomerIndirect> Indirects { get; set; } = new List<CustomerIndirect>();
+    private List<ContactPerson> ContactPersons { get; set; } = new List<ContactPerson>();
+    private List<State> States { get; set; } = new List<State>();
+    private List<Currency> Currencies { get; set; } = new List<Currency>();
+
+    private bool HasMfgDcForCustomer { get; set; } = false;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private string activeTab = "";
+    private void SetTab(string tab) => activeTab = tab;
+    private bool IsNoTabActive => string.IsNullOrEmpty(activeTab);
+
+    private int SelectedBusinessType;
+    public List<string> CustomerTypes { get; set; } = new();
+
+    private string username;
+
+    private List<PageHeader.BreadcrumbItem> customerFormBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "General" },
+        new PageHeader.BreadcrumbItem { Text = "Customer", IsLast = true }
+    };
+
+    private async Task OnCustomerIndirectGstChanged(ChangeEventArgs e, CustomerIndirect custInd)
+    {
+        try
+        {
+            var gst = e.Value?.ToString();
+            custInd.GSTNo = gst.Trim();
+
+            if (!string.IsNullOrWhiteSpace(gst) && gst.Length == 15)
+            {
+                custInd.PANNo = gst.Substring(2, 10);
+            }
+            else
+            {
+                custInd.PANNo = string.Empty; // Clear PAN if GST is invalid or empty
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer Consignee GST Changed event");
+        }
+    }
+
+    private async Task OnMainCustomerGSTChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e.Value is string gstValue)
+            {
+                gstValue = gstValue.ToUpper().Trim(); // Trim and convert to uppercase
+                Customer.GSTNo = gstValue;
+
+                if (!string.IsNullOrEmpty(gstValue) && gstValue.Length == 15)
+                {
+                    // PAN is typically the 3rd to 12th characters (10 chars total) in a 15-character GSTN
+                    Customer.PANNo = gstValue.Substring(2, 10);
+                }
+                else
+                {
+                    Customer.PANNo = string.Empty;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the OnMainCustomerGSTChanged event");
+        }
+    }
+
+    private async Task OnStateChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e.Value?.ToString(), out int stateId))
+            {
+                var stateItem = States.FirstOrDefault(s => s.StateCode == stateId);
+
+                if (stateItem != null)
+                {
+                    Customer.StateId = stateItem.StateCode;
+                    Customer.StateName = stateItem.StateName;
+                }
+                else
+                {
+                    Customer.StateId = 0;
+                    Customer.StateName = string.Empty;
+                }
+            }
+            else
+            {
+                Customer.StateId = 0;
+                Customer.StateName = string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer OnStateChanged event");
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            username = await _userService.GetUsernameAsync();
+            await LoadRightsAsync(); // sets CanView, CanCreate, etc.
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            // var loadTasks = new List<Task>
+            // {
+            await LoadCurrencies();
+            await LoadStates();
+            await LoadCustomerData();
+            // };
+
+            // await Task.WhenAll(loadTasks);
+
+            if (!string.IsNullOrEmpty(Customer.BusiType))
+            {
+                await LoadCustomerTypesForBusinessType(Customer.BusiType);
+            }
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer OnInitializedAsync event");
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadCustomerTypesForBusinessType(string? busiType)
+    {
+        try
+        {
+            Customer.BusiType = busiType;
+            CustomerTypes.Clear();
+
+            if (string.IsNullOrEmpty(busiType))
+            {
+                return;
+            }
+
+            switch (busiType)
+            {
+                case "Local":
+                case "InterState":
+                    CustomerTypes.AddRange(new[] { "B2B", "SEZWP", "SEZWOP" });
+                    if (string.IsNullOrEmpty(Customer.SupTyp) || !CustomerTypes.Contains(Customer.SupTyp))
+                    {
+                        Customer.SupTyp = "B2B";
+                    }
+                    break;
+
+                case "Imports":
+                case "Exports":
+                    CustomerTypes.AddRange(new[] { "SEZWP", "SEZWOP", "EXPWP", "EXPWOP" });
+                    if (string.IsNullOrEmpty(Customer.SupTyp) || !CustomerTypes.Contains(Customer.SupTyp))
+                    {
+                        Customer.SupTyp = "SEZWP";
+                    }
+                    break;
+
+                default:
+                    Customer.SupTyp = null;
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer LoadCustomerTypesForBusinessType Method");
+        }
+    }
+
+    private async Task LoadStates()
+    {
+        try
+        {
+            var existing = await _unitOfWork.States.GetAllAsync();
+            if (existing != null)
+            {
+                States = existing.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer LoadState Method");
+        }
+    }
+
+    private async Task LoadCurrencies()
+    {
+        try
+        {
+            var existing = await _unitOfWork.Currencyis.GetAllAsync();
+            if (existing != null)
+            {
+                Currencies = existing.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer LoadCurrency() Method");
+        }
+    }
+
+    private async Task LoadCustomerData()
+    {
+        try
+        {
+            if (CustId.HasValue && CustId.Value > 0)
+            {
+                var existingCustomer = await _unitOfWork.Customers.GetCustomerWithAllRelatedDataAsync(CustId.Value);
+
+                if (existingCustomer != null)
+                {
+                    Customer = existingCustomer;
+                    Indirects = Customer.CustomerIndirects?.ToList() ?? new List<CustomerIndirect>();
+                    ContactPersons = Customer.ContactPersons?.ToList() ?? new List<ContactPerson>();
+                }
+                else
+                {
+                    Customer = new Customer();
+                    Indirects = new List<CustomerIndirect>();
+                    ContactPersons = new List<ContactPerson>();
+                }
+            }
+            else
+            {
+                Customer = new Customer();
+                Indirects = new List<CustomerIndirect>();
+                ContactPersons = new List<ContactPerson>();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer LoadCustomerData() Method");
+        }
+    }
+
+    private List<(int Id, string Name)> BusinessTypes = new()
+    {
+        (1, "Local"),
+        (2, "InterState"),
+        (3, "Imports"),
+        (4, "Exports")
+    };
+
+    private async Task UpsertCustomer()
+    {
+        isProcessing = true;
+        using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            bool isDuplicate = await _unitOfWork.Customers.ExistsByNameAsync("CustName", Customer.CustName?.Trim(), "CustId", Customer.CustId == 0 ? null : Customer.CustId);
+            if (isDuplicate)
+            {
+                await _js.ToastrError("Customer name already exists.");
+                isProcessing = false;
+                return;
+            }
+
+            var errors = ValidateCustomer(Customer);
+            if (errors.Any())
+            {
+                foreach (var err in errors)
+                {
+                    await _js.ToastrError(err);
+                }
+                isProcessing = false;
+                return;
+            }
+
+            var currentUsername = await _userService.GetUsernameAsync();
+
+            if (Customer.OpenBal.HasValue)
+            {
+                Customer.OpenBalPndg = Customer.OpenBal;
+                Customer.OpenBalDate = DateTime.Now;
+            }
+            else
+            {
+                Customer.OpenBalPndg = null;
+                Customer.OpenBalDate = null;
+            }
+
+            if (Customer.CustId == 0)
+            {
+                Customer.CreatedBy = currentUsername;
+                Customer.CreatedDate = DateTime.Now;
+
+                await _unitOfWork.Customers.CreateAsync(Customer);
+                await _unitOfWork.SaveAsync();
+
+                foreach (var indirect in Indirects.Where(i => !string.IsNullOrWhiteSpace(i.AltCustName)))
+                {
+                    indirect.CustId = Customer.CustId;
+                    await _unitOfWork.CustomerIndirects.CreateAsync(indirect);
+                    await _unitOfWork.SaveAsync();
+                }
+
+                foreach (var contact in ContactPersons.Where(c => !string.IsNullOrWhiteSpace(c.ContactPersonName)))
+                {
+                    contact.CustId = Customer.CustId;
+                    await _unitOfWork.ContactPersons.CreateAsync(contact);
+                    await _unitOfWork.SaveAsync();
+                }
+
+                await _unitOfWork.SaveAsync();
+                await transaction.CommitAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: currentUsername,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Customer",
+                    action: $"Customer Created: {Customer.CustName}",
+                    additionalInfo: $"CustomerName: {Customer.CustName}");
+
+                await _js.ToastrSuccess("Customer Created Successfully");
+            }
+            else
+            {
+                var currentIndirectIds = Indirects.Where(i => i.AltCustId != 0).Select(i => i.AltCustId).ToHashSet();
+                var currentContactIds = ContactPersons.Where(c => c.Id != 0).Select(c => c.Id).ToHashSet();
+
+                Customer.ModifiedBy = currentUsername;
+                Customer.ModifiedDate = DateTime.Now;
+
+                await _unitOfWork.Customers.UpdateAsync(Customer);
+
+                var indirectsToDelete = Customer.CustomerIndirects
+                                            .Where(originalIndirect => !currentIndirectIds.Contains(originalIndirect.AltCustId))
+                                            .ToList();
+
+                foreach (var indirectToDelete in indirectsToDelete)
+                {
+                    await _unitOfWork.CustomerIndirects.DeleteAsync(indirectToDelete.AltCustId);
+                    await _unitOfWork.SaveAsync();
+                }
+
+                foreach (var indirect in Indirects.Where(i => !string.IsNullOrWhiteSpace(i.AltCustName)))
+                {
+                    
+                    if (indirect.AltCustId == 0)
+                    {
+                        indirect.CustId = Customer.CustId;
+                        await _unitOfWork.CustomerIndirects.CreateAsync(indirect);
+                        await _unitOfWork.SaveAsync();
+
+                    }
+                    else
+                    {
+                        await _unitOfWork.CustomerIndirects.UpdateAsync(indirect);
+                        await _unitOfWork.SaveAsync();
+
+                    }
+                }
+
+                var contactPersonsToDelete = Customer.ContactPersons.Where(originalContact => !currentContactIds.Contains(originalContact.Id)).ToList();
+
+                foreach (var contactToDelete in contactPersonsToDelete)
+                {
+                    await _unitOfWork.ContactPersons.DeleteAsync(contactToDelete.Id);
+                    await _unitOfWork.SaveAsync();
+                }
+
+                foreach (var contact in ContactPersons.Where(c => !string.IsNullOrWhiteSpace(c.ContactPersonName)))
+                {
+                    if (contact.Id == 0)
+                    {
+                        contact.CustId = Customer.CustId;
+                        await _unitOfWork.ContactPersons.CreateAsync(contact);
+                        await _unitOfWork.SaveAsync();
+                    }
+                    else
+                    {
+                        await _unitOfWork.ContactPersons.UpdateAsync(contact);
+                        await _unitOfWork.SaveAsync();
+                    }
+                }
+
+                await _unitOfWork.SaveAsync();
+                await transaction.CommitAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: currentUsername,
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Customer",
+                    action: $"Customer Updated: {Customer.CustName}",
+                    additionalInfo: $"CustomerName: {Customer.CustName}");
+
+                await _js.ToastrSuccess("Customer Updated Successfully");
+            }
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            if (!isCustModelVisible)
+            {
+                _navigationManager.NavigateTo("/customer");
+            }
+            else
+            {
+                await OnClose.InvokeAsync();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            await _js.ToastrError("An error occurred while saving the customer.");
+            await LoggingService.LogDeveloperError(ex, "An error occurred in UpsertCustomer()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private List<string> ValidateCustomer(Customer customer)
+    {
+        var errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(customer.CustName))
+        {
+            errors.Add("Customer Name is required.");
+        }
+        if (string.IsNullOrWhiteSpace(customer.BusiType))
+        {
+            errors.Add("Business Type is required.");
+        }
+
+        string busiType = customer.BusiType?.Trim();
+        if (busiType == "Imports" || busiType == "Exports")
+        {
+            if (!string.Equals(customer.GSTNo, "URP", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add("For Imports/Exports, GST No must be 'URP'.");
+            }
+            // For Imports/Exports, PAN is not strictly tied to GST, but if it exists, it should be valid
+            if (!string.IsNullOrWhiteSpace(customer.PANNo) && !Regex.IsMatch(customer.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
+            {
+                errors.Add("Invalid PAN No format for Imports/Exports.");
+            }
+        }
+        else // Local, InterState
+        {
+            if (string.IsNullOrWhiteSpace(customer.GSTNo))
+            {
+                errors.Add("Please enter GST No.");
+            }
+            else if (customer.GSTNo.Length != 15)
+            {
+                errors.Add("GST No must be 15 characters.");
+            }
+            else if (!Regex.IsMatch(customer.GSTNo, @"^(URP|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})$"))
+            {
+                errors.Add("Invalid GST No format.");
+            }
+
+            if (string.IsNullOrWhiteSpace(customer.PANNo))
+            {
+                errors.Add("Please enter PAN No.");
+            }
+            else if (!Regex.IsMatch(customer.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
+            {
+                errors.Add("Invalid PAN No format.");
+            }
+        }
+
+        var matchedState = States.FirstOrDefault(s => s.StateCode == customer.StateId);
+        if (customer.StateId == 0 || matchedState == null)
+        {
+            errors.Add("Please select a valid State.");
+        }
+        else
+        {
+            customer.StateName = matchedState.StateName;
+        }
+
+        foreach (var indirect in Indirects.Where(i => !string.IsNullOrWhiteSpace(i.AltCustName)))
+        {
+            if (string.IsNullOrWhiteSpace(indirect.GSTNo))
+            {
+                errors.Add($"Consignee '{indirect.AltCustName}': Please enter GST No.");
+            }
+            else if (indirect.GSTNo.Length != 15)
+            {
+                errors.Add($"Consignee '{indirect.AltCustName}': GST No must be 15 characters.");
+            }
+            else if (!Regex.IsMatch(indirect.GSTNo, @"^(URP|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})$"))
+            {
+                errors.Add($"Consignee '{indirect.AltCustName}': Invalid GST No format.");
+            }
+
+            if (string.IsNullOrWhiteSpace(indirect.PANNo))
+            {
+                errors.Add($"Consignee '{indirect.AltCustName}': Please enter PAN No.");
+            }
+            else if (!Regex.IsMatch(indirect.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
+            {
+                errors.Add($"Consignee '{indirect.AltCustName}': Invalid PAN No format.");
+            }
+        }
+
+        return errors;
+    }
+
+    private async Task OnBusinessTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (e?.Value is null)
+            {
+                return;
+            }
+
+            var value = e.Value.ToString();
+
+            await LoadCustomerTypesForBusinessType(value);
+
+            if (value == "Imports" || value == "Exports")
+            {
+                Customer.GSTNo = "URP";
+                // Find the "URP" state (StateCode 99) and assign it
+                var urpState = States.FirstOrDefault(s => s.StateCode == 99);
+                if (urpState != null)
+                {
+                    Customer.StateId = 99;
+                    Customer.StateName = urpState.StateName;
+                }
+                Customer.PANNo = string.Empty;
+            }
+            else if (string.IsNullOrWhiteSpace(Customer.GSTNo) || Customer.GSTNo.Length < 15 || Customer.GSTNo.Equals("URP", StringComparison.OrdinalIgnoreCase))
+            {
+                Customer.GSTNo = string.Empty;
+                Customer.PANNo = string.Empty;
+                Customer.StateId = 0;
+                Customer.StateName = string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer OnBusinessTypeChanged event");
+        }
+    }
+
+    private async Task AddContact()
+    {
+        try
+        {
+            if (ContactPersons.Any())
+            {
+                var lastContact = ContactPersons.Last();
+
+                if (string.IsNullOrWhiteSpace(lastContact.ContactPersonName))
+                {
+                    await _js.ToastrWarning("Please fill the current contact person row before adding a new one.");
+                    return;
+                }
+            }
+            ContactPersons.Add(new ContactPerson());
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer AddContact() method");
+        }
+    }
+
+    private void RemoveContact(ContactPerson contact)
+    {
+        ContactPersons.Remove(contact);
+    }
+
+    private async Task AddCustomerIndirect()
+    {
+        try
+        {
+            if (Indirects.Any())
+            {
+                var lastIndirect = Indirects.Last();
+
+                if (string.IsNullOrWhiteSpace(lastIndirect.AltCustName))
+                {
+                    await _js.ToastrWarning("Please fill the current consignee row before adding a new one.");
+                    return;
+                }
+            }
+            Indirects.Add(new CustomerIndirect());
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Customer AddCustomerIndirect() method");
+        }
+    }
+
+    private void RemoveCustomerIndirect(CustomerIndirect indirect)
+    {
+        Indirects.Remove(indirect);
+    }
+
+}

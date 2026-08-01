@@ -1,0 +1,2172 @@
+﻿@page "/minIss/create"
+@page "/minIss/update/{MINId:int}"
+
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IInventoryService
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.InventoryViewModel.MaterialIssueNoteVM
+@using V.SMART.Shared.ViewModels.InventoryViewModel.SCNGenViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@inject ReportService reportService
+@inject IExcelTemplateService _excelTemplateService
+@inject ICalculationService _calculationService
+@inject IMINService _minService
+@inject ILoggingService _logs
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="@HandleModalConfirmation"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         Title=@ModalTitle>
+</BsModal>
+<DetailsModal Title="Stock Request Details"
+              Columns="@RequestColumns"
+              ColumnFields="@RequestFields"
+              HiddenColumns="@RequestHiddenColumns"
+              Data="@StockReqData"
+              IsVisible="@IsStockRequestModalVisible"
+              IsVisibleChanged="@((val) => IsStockRequestModalVisible = val)"
+              OnSelectedItems="OnEnquirySelectedAsync">
+</DetailsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+
+    if (ActiveModal == "Item")
+    {
+    <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+    <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+                                   refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@(MINVMs.MINId > 0 ? "Update MIN" : "Create MIN")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@MINFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+                <EditForm Model="MINVMs" OnValidSubmit="UpsertMIN">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+
+                        @if (MINVMs.MINId > 0 && !string.IsNullOrWhiteSpace(MINVMs.IssueNo))
+                        {
+                            <CorrespondenceStatus ReferenceType="Stock-Issue"
+                                                  ReferenceId="@MINVMs.MINId"
+                                                  ReferenceTypeName="@MINVMs.IssueNo" />
+                        }
+                    </div>
+
+                    <div class="row g-3 mb-2">
+
+                        <!-- =================== SCN Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Material Issue Information</span>
+                                </div>
+
+                                <div class="card-body">
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>MIN No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                           placeholder="SCNGen No."
+                                                           maxlength="30"
+                                                           @bind-Value="@MINVMs.IssueNo"
+                                                           readonly />
+
+                                                <span class="input-group-text rounded-3">@MINVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => MINVMs.IssueNo)" />
+                                            <ValidationMessage For="@(() => MINVMs.Suffix)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- SCNGen Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small> MIN Date</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                       @bind-Value="@MINVMs.IssueDate" />
+                                            <ValidationMessage For="@(() => MINVMs.IssueDate)" />
+                                        </div>
+                                    </div>
+
+
+                                    <!-- Store -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Issue To Store</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select class="form-select form-select-sm rounded-3 w-100"
+                                                    id="storeIssId"
+                                                    value="@MINVMs.StoreIssId"
+                                                    @onchange="OnStoreChanged">
+                                                <option value="0">--Select Store--</option>
+                                                @foreach (var storeid in stores)
+                                                {
+                                                    <option value="@storeid.StoreId">@storeid.StoreName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => MINVMs.StoreIssId)" />
+                                        </div>
+                                    </div>
+
+
+
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Ref.StockIssueRequet</small>
+                                        </label>
+
+                                        <div class="col-12 col-sm-9 position-relative">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                    @onclick="ShowStockRequestDetails">
+                                                <i class="bi bi-list-ul me-1"></i> Stock Request Issues Details
+                                            </button>
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Assembly Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">
+                                        <i class="bi bi-gear-wide-connected me-1"></i> Assembly Details
+                                    </span>
+                                </div>
+
+                                <!-- Body -->
+                                <div class="card-body">
+
+                                    <!-- With BOM Toggle (Card Style) -->
+                                    <div class="row mb-3">
+                                        <div class="col-12">
+                                            <div class="border rounded-3 p-2 ps-3 bg-light-subtle shadow-sm d-flex align-items-center justify-content-between">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="bi bi-diagram-3 fs-5 text-primary me-2"></i>
+                                                    <label class="form-check-label fw-semibold mb-0 @(MINVMs.IsWithBom ? "text-primary" : "text-dark")"
+                                                           for="WithBomSwitch">
+                                                        With BOM
+                                                    </label>
+                                                </div>
+
+                                                <div class="form-check form-switch m-0">
+                                                    <input class="form-check-input"
+                                                           type="checkbox"
+                                                           id="WithBomSwitch"
+                                                           checked="@MINVMs.IsWithBom"
+                                                           disabled="@(MINVMs.MINId > 0 || MINVMs.AssyId > 0)"
+                                                           @onchange="OnWithBomToggle" />
+                                                </div>
+                                            </div>
+                                            <ValidationMessage For="@(() => MINVMs.IsWithBom)" />
+                                        </div>
+                                    </div>
+
+                                    @* <div class="row mb-3">
+                                        <div class="col-12 text-center">
+                                            <button type="button"
+                                                    class="btn btn-sm @(SCNGenVMs.IsWithBom ? "btn-outline-primary" : "btn-outline-secondary") rounded-pill px-4"
+                                                    disabled="@SCNGenVMs.SCNGenSubVMs.Any(x => !string.IsNullOrEmpty(x.ItemCode))"
+                                                    @onclick="() => SCNGenVMs.IsWithBom = !SCNGenVMs.IsWithBom">
+                                                <i class="bi @(SCNGenVMs.IsWithBom ? "bi-check-circle" : "bi-x-circle") me-2"></i>
+                                                @(SCNGenVMs.IsWithBom ? "With BOM Enabled" : "With BOM Disabled")
+                                            </button>
+                                            <ValidationMessage For="@(() => SCNGenVMs.IsWithBom)" />
+                                        </div>
+                                    </div> *@
+
+                                    <!-- Conditional BOM Section -->
+                                    @if (MINVMs.IsWithBom)
+                                    {
+                                        <!-- Assembly -->
+                                        <div class="row mb-2">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Assembly Name</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9">
+                                                @if (MINVMs.MINId > 0)
+                                                {
+                                                    <!-- View Mode (Non-editable) -->
+                                                    <input type="text" class="form-control form-control-sm"
+                                                           value="@MINVMs.AssyItemCode"
+                                                           readonly />
+                                                }
+                                                else
+                                                {
+                                                    <!-- Edit Mode -->
+                                                    <select class="form-select form-select-sm"
+                                                            value="@MINVMs.AssyId"
+                                                            @onchange="OnAssemblyChange">
+                                                        <option value="">-- Select --</option>
+                                                        @foreach (var asm in AssemblyList)
+                                                        {
+                                                            <option value="@asm.ItemId">@asm.ItemCode</option>
+                                                        }
+                                                    </select>
+                                                    <ValidationMessage For="@(() => MINVMs.AssyId)" />
+                                                }
+                                            </div>
+                                        </div>
+
+                                        @if (MINVMs != null && MINVMs.AssyId > 0)
+                                        {
+                                            <!-- Sub-Assembly -->
+                                            <div class="row mb-2">
+                                                <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                    <small>Sub-Assembly Name</small>
+                                                </label>
+
+                                                <div class="col-12 col-sm-9">
+                                                    @if (MINVMs.MINId > 0)
+                                                    {
+                                                        <!-- View Mode (Non-editable) -->
+                                                        <input type="text" class="form-control form-control-sm"
+                                                               value="@MINVMs.SubAssyItemCode"
+                                                               readonly />
+                                                    }
+                                                    else
+                                                    {
+                                                        <!-- Edit Mode -->
+                                                        <select class="form-select form-select-sm"
+                                                                value="@MINVMs.SubAssyId"
+                                                                @onchange="OnSubAssemblyChange">
+                                                            <option value="">-- Select --</option>
+                                                            @foreach (var subAsm in SubAssyList)
+                                                            {
+                                                                <option value="@subAsm.ItemId">@subAsm.ItemCode</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => MINVMs.SubAssyId)" />
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+
+                                        @if (MINVMs != null && MINVMs.SubAssyId > 0)
+                                        {
+                                            <!-- Sub-Assembly 2 -->
+                                            <div class="row mb-2">
+                                                <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                    <small>Sub-Assembly 2</small>
+                                                </label>
+
+                                                <div class="col-12 col-sm-9">
+                                                    @if (MINVMs.MINId > 0)
+                                                    {
+                                                        <!-- View Mode (Non-editable) -->
+                                                        <input type="text" class="form-control form-control-sm"
+                                                               value="@MINVMs.SubAssyItemCode2"
+                                                               readonly />
+                                                    }
+                                                    else
+                                                    {
+                                                        <!-- Edit Mode -->
+                                                        <select class="form-select form-select-sm"
+                                                                value="@MINVMs.SubAssyId2"
+                                                                @onchange="OnSubAssemblyChange2">
+                                                            <option value="">-- Select --</option>
+                                                            @foreach (var subAsm in SubAssyList2)
+                                                            {
+                                                                <option value="@subAsm.ItemId">@subAsm.ItemCode</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => MINVMs.SubAssyId2)" />
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+
+                                        @if (MINVMs != null && MINVMs.SubAssyId2 > 0)
+                                        {
+                                            <!-- Sub-Assembly 3 -->
+                                            <div class="row mb-2">
+                                                <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                    <small>Sub-Assembly 3</small>
+                                                </label>
+
+                                                <div class="col-12 col-sm-9">
+                                                    @if (MINVMs.MINId > 0)
+                                                    {
+                                                        <!-- View Mode (Non-editable) -->
+                                                        <input type="text" class="form-control form-control-sm"
+                                                               value="@MINVMs.SubAssyItemCode3"
+                                                               readonly />
+                                                    }
+                                                    else
+                                                    {
+                                                        <!-- Edit Mode -->
+                                                        <select class="form-select form-select-sm"
+                                                                value="@MINVMs.SubAssyId3"
+                                                                @onchange="OnSubAssemblyChange3">
+                                                            <option value="">-- Select --</option>
+                                                            @foreach (var subAsm in SubAssyList3)
+                                                            {
+                                                                <option value="@subAsm.ItemId">@subAsm.ItemCode</option>
+                                                            }
+                                                        </select>
+                                                        <ValidationMessage For="@(() => MINVMs.SubAssyId3)" />
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+
+                                        <!-- Required Quantity -->
+                                        <div class="row mb-2">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Required Qty</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+
+                                                <input type="number"
+                                                       class="form-control form-control-sm"
+                                                       placeholder="Qty"
+                                                       title="Enter Quantity"
+                                                       step="any"
+                                                       @bind="MINVMs.ReqQty"
+                                                       @bind:event="oninput"
+                                                       @onchange="@(async e => await OnReqQtyChanged(e))" />
+                                                <ValidationMessage For="@(() => MINVMs.ReqQty)" />
+                                            </div>
+                                        </div>
+
+                                    }
+
+                                    <div class="mb-3 row align-items-center">
+                                        <label class="col-12 col-sm-3 col-form-label text-dark mb-1 mb-sm-0">
+                                            <small>Issue to Whom</small>
+                                        </label>
+
+                                        <div class="col-12 col-sm-9">
+                                            <input type="text"
+                                                   list="personList"
+                                                   class="form-control form-control-sm rounded-3"
+                                                   placeholder="Select or enter Person"
+                                                   @bind="MINVMs.ToWhom" />
+
+                                            <datalist id="personList">
+                                                @foreach (var user in UserList)
+                                                {
+                                                    <option value="@user"></option>
+                                                }
+                                            </datalist>
+
+                                            <ValidationMessage For="@(() => MINVMs.ToWhom)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="row mb-2">
+                                        <label class="col-12 col-sm-3 col-form-label text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                      rows="1"
+                                                      placeholder="Enter remarks here..."
+                                                      @bind="MINVMs.MainRemark">
+                                                    </textarea>
+                                            <ValidationMessage For="@(() => MINVMs.MainRemark)" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+
+                                <div class="card-header bg-primary-subtle text-dark">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                        <span class="fw-bold fs-6">Item Details</span>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:200px;">Item Code</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th class="d-none">Utility Qty</th>
+                                                    <th style="width:120px;">Qty</th>
+                                                    <th style="width:120px;">Stock Qty</th>
+                                                    <th style="width:120px;">Unit Price</th>
+                                                    <th style="width:130px;">Gross Amount</th>
+                                                    <th style="width:130px;">Ref Req No.</th>
+                                                    <th style="width:130px;">Ref Req Date</th>
+                                                    <th style="width:110px;">Batch No.</th>
+                                                    <th style="width:110px;">Rack No.</th>
+                                                    <th style="width:110px;">Make</th>
+                                                    <th style="width:200px;">Remarks</th>
+                                                    <th style="width:150px;">Cost-Center</th>
+                                                    <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in MINVMs.MaterialIssNoteSubVMs)
+                                                {
+                                                    <tr @key="subitem">
+                                                        <td>@subitem.SlNo</td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @if (subitem.IsEditable
+                                                                                                                                && (MINVMs.AssyId == null || MINVMs.AssyId == 0))
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                                         Value="subitem.SelectedItemVMs"
+                                                                                         ValueChanged="@(async item => await OnItemChanged(subitem, item))"
+                                                                                         ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                         SearchFunc="SearchItems"
+                                                                                         Dense="true"
+                                                                                         Variant="Variant.Outlined"
+                                                                                         Placeholder="Search Item Code"
+                                                                                         Title="Search Atleast 3 Letters in Item-Code"
+                                                                                         Class="w-100 autocomplete-sm"
+                                                                                         MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                                                                                && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                       Size="Size.Small"
+                                                                                       Color="Color.Primary"
+                                                                                       OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                                       Edge="Edge.End"
+                                                                                       Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.UOM</td>
+                                                        <td class="d-none">@subitem.UtlQty</td>
+
+                                                        <!-- Qty -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       placeholder="Issue Qty"
+                                                                       title="Enter Issue Qty"
+                                                                       @bind="subitem.IssueQty"
+                                                                       @bind:event="oninput"
+                                                                       @onchange="@(e => OnQtyChange(e, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.IssueQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.IssueQty</span>
+                                                            }
+                                                        </td>
+                                                        <td class="text-danger fw-bold">
+                                                            @subitem.StockQty
+                                                            <ValidationMessage For="@(() => subitem.StockQty)" />
+                                                        </td>
+
+
+
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" class="form-control form-control-sm" placeholder="Price" title="Enter Unit Price"
+                                                                       @bind="subitem.UnitPrice" @bind:event="oninput" step="any" />
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        <!-- Line Gross -->
+                                                        <td>@FormatDecimal(subitem.LineGross)</td>
+                                                        <td>@subitem.RefReqNo</td>
+                                                        <td>@subitem.RefReqDate?.ToString("dd/MM/yyyy")</td>
+
+                                                        <!-- Batch No -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputText @bind-Value="subitem.BatchNo"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="BatchNo." />
+                                                                <ValidationMessage For="@(() => subitem.BatchNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.BatchNo
+                                                            }
+                                                        </td>
+
+                                                        <!-- Rack No -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputText @bind-Value="subitem.RackNo"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="RackNo." />
+                                                                <ValidationMessage For="@(() => subitem.RackNo)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.RackNo
+                                                            }
+                                                        </td>
+
+                                                        <!-- Make -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputText @bind-Value="subitem.Make"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Make." />
+                                                                <ValidationMessage For="@(() => subitem.Make)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Make
+                                                            }
+                                                        </td>
+
+                                                        <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea @bind-Value="subitem.Remark"
+                                                                               class="form-control form-control-sm"
+                                                                               placeholder="Enter Remarks"
+                                                                               rows="1" />
+                                                                <ValidationMessage For="@(() => subitem.Remark)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remark
+                                                            }
+                                                        </td>
+
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <select class="form-select form-select-sm"
+                                                                        value="@subitem.CostId"
+                                                                        @onchange="(e => OnCostCenterChanged(e, subitem))">
+                                                                    <option value="">Select CostCentre</option>
+                                                                    @foreach (var cost in CostCenterVMs)
+                                                                    {
+                                                                        <option value="@cost.Id">@cost.ProjectNo</option>
+                                                                    }
+                                                                </select>
+                                                                <ValidationMessage For="@(() => subitem.CostId)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.ProjectNo
+                                                            }
+                                                        </td>
+
+                                                        <!-- Action Buttons -->
+
+                                                        <td class="freeze-last-col text-end">
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                        @onclick="async () => await SaveRow(subitem)">
+                                                                    <i class="bi bi-check-lg"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel"
+                                                                        @onclick="async () => await CancelEdit(subitem, MINVMs)">
+                                                                    <i class="bi bi-x-lg"></i>
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                        @onclick="async () => await EditRowAsync(subitem)">
+                                                                    <i class="bi bi-pencil"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                        @onclick="async () => await RemoveRow(subitem)">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            }
+                                                        </td>
+
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            <!-- Totals -->
+                                            @if (MINVMs.MaterialIssNoteSubVMs?.Any() == true)
+                                            {
+                                                <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="4" class="text-end fw-bold">Totals:</td>
+                                                        <td>@MINVMs.TotalQty</td>
+                                                        <td></td>
+                                                        <td>Avg: @FormatDecimal(MINVMs.AverageUnitPrice)</td>
+                                                        <td>@FormatDecimal(MINVMs.TotalLineGross)</td>
+                                                        <td colspan="@(MINVMs.AssyId == null || MINVMs.AssyId == 0 ? 7 : 6)">
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+                                        </table>
+                                    </div>
+
+                                    @if (MINVMs.AssyId == null || MINVMs.AssyId == 0)
+                                    {
+                                        <div class="mt-2 text-start">
+                                            <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                                <i class="bi bi-plus-circle me-1"></i> Add Item
+                                            </button>
+                                        </div>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Action Buttons -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                        <i class="bi bi-floppy2-fill me-1"></i> @(MINVMs.MINId > 0 ? "Update" : "Create")
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <a href="/minIssList" class="btn btn-secondary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                                </a>
+                            </div>
+
+                            @if (MINId == 0 || MINId == null)
+                            {
+                                <!-- Download Template -->
+                                <div class="col-12 col-md-3">
+                                    <button type="button"
+                                            class="btn btn-primary w-100 rounded-3 d-flex align-items-center justify-content-center"
+                                            @onclick="DownloadTemplate" disabled="@isProcessing">
+                                        @if (isProcessing)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                            <span>Preparing Template...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-download me-2"></i>
+                                            <span>Download Template</span>
+                                        }
+                                    </button>
+                                </div>
+
+                                <!-- Upload Excel -->
+                                <div class="col-12 col-md-3">
+                                    <div class="input-group">
+                                        <label class="input-group-text bg-success text-white rounded-start-3">
+                                            <i class="bi bi-upload"></i>
+                                        </label>
+                                        <InputFile OnChange="UploadExcelFile" accept=".xlsx" class="form-control rounded-end-3" />
+                                    </div>
+
+                                    @if (!string.IsNullOrEmpty(uploadMessage))
+                                    {
+                                        <div class="mt-2 small text-success fw-semibold">
+                                            <i class="bi bi-check-circle me-1"></i>@uploadMessage
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            @if (CanCreate || CanEdit && MINId > 0)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+                        </div>
+
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+
+}
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Material Issue-Note";
+
+    private int screenCode { get; set; }
+
+    [Parameter] public int? MINId { get; set; }
+
+    private bool isProcessing = true;
+    private MaterialIssNoteVM MINVMs { get; set; } = new();
+    private MaterialIssNoteSubVM? rowToDelete;
+    private MaterialIssNoteSubVM? rowToCancel;
+
+    private DateTime? DueDate { get; set; } = DateTime.Today;
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private List<CostCenterVM> CostCenterVMs = new();
+    private List<Store> stores = new();
+
+    private List<ItemVM> AssemblyList = new();
+    private List<ItemVM> SubAssyList = new();
+    private List<ItemVM> SubAssyList2 = new();
+    private List<ItemVM> SubAssyList3 = new();
+
+    private string uploadMessage;
+
+    private string? pdfBase64;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private List<string> UserList = new();
+
+    private List<PageHeader.BreadcrumbItem> MINFormBreadcrumbs = new()
+    {
+        new() { Text = "Inventory(Stock)" },
+        new() { Text = "Material Issue Note(Reduction)", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+    private int ReqPendingCount = 0;
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    private bool IsStockRequestModalVisible = false;
+    private List<Dictionary<string, object>>? StockReqData;
+
+    private List<string> RequestColumns = new() { "RequestSubId", "Request No", "Request Date", "Item Id", "Item Code", "Item Name", "UOM", "Qty", "Bal Qty.", "Cost-Center Id", "Project No" };
+    private List<string> RequestFields = new() { "RequestSubId", "RequestNo", "RequestDate", "ItemId", "ItemCode", "ItemName", "UOM", "ReqQty", "ReqBalQty", "CostCenterId", "ProjectNo" };
+    private List<string> RequestHiddenColumns = new() { "RequestSubId", "Item Id", "Cost-Center Id" };
+
+    #endregion
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            screenCode = await _minService.GetScreenCodeByScreenNameAsync(ScreenName);
+            stores = (await _minService.GetAllActiveStoresAsync()).ToList();
+            DecimalPlaces = await _minService.GetDecimalPlacesAsync();
+            CostCenterVMs = await _minService.GetAllCostCenterDetails();
+            UserList = await _minService.GetAllExistingUserNamesinMINAsync();
+
+
+            if (MINId.HasValue)
+            {
+                await LoadExistingMIN(MINId.Value);
+            }
+            else
+            {
+                await InitializeNewMIN();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingMIN(int minId)
+    {
+        try
+        {
+            // Fetch MIN
+            MINVMs = await _minService.GetMINByMINIdAsync(minId);
+            if (MINVMs == null)
+            {
+                await _js.ToastrWarning("Material Issue Note not found.");
+                return;
+            }
+
+            if (!MINVMs.StoreIssId.HasValue)
+            {
+                await _js.ToastrWarning("Store not selected for this MIN.");
+                return;
+            }
+
+            var storeId = MINVMs.StoreIssId.Value;
+
+            foreach (var minSub in MINVMs.MaterialIssNoteSubVMs.Where(q => q.ItemId > 0))
+            {
+                attachmentCounts[minSub.ItemId.Value] =
+                    await _minService.GetCorrespondenceAttachmentsCountAsync(minSub.ItemId.Value, "Item");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to load existing MIN.");
+            await _logs.LogDeveloperError(ex, $"LoadExistingMIN failed for MINID: {minId}");
+        }
+    }
+
+    private async Task InitializeNewMIN()
+    {
+        try
+        {
+            MINVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            MINVMs.IssueNo = await _minService.GetMINIssueNumberAsync(MINVMs.Suffix);
+
+            var MapStoreForSCNGen = await _minService.GetMappedStoreForFormAsync("MaterialIssueForm");
+
+            if (MapStoreForSCNGen.StoreId > 0)
+            {
+                MINVMs.StoreIssId = MapStoreForSCNGen.StoreId;
+                MINVMs.StoreIssName = MapStoreForSCNGen.StoreName;
+            }
+            else
+            {
+                MINVMs.StoreIssId = null;
+                MINVMs.StoreIssName = null;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to initialize new MIN.");
+            await _logs.LogDeveloperError(ex, $"InitializeNewMIN failed!.. ");
+        }
+    }
+
+    #endregion
+
+    #region Template Download And Upload Excel File
+
+    private readonly string[] headers = new[]
+    {
+        "SlNo", "ItemCode", "ItemName","UOM",
+        "IssueQty", "UnitPrice", "Remark", "BatchNo", "Make", "RackNo"
+    };
+
+    private async Task DownloadTemplate()
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            // Example: load UOMs & Categories
+            var uomList = await _minService.GetUOMsAsync();
+
+            var bytes = await _excelTemplateService.CreateTemplateAsync(
+                "MaterialIssueTemplate",
+                headers,
+                uomList: uomList
+            );
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.InvokeVoidAsync("downloadExcelFile", base64, "MaterialIssueTemplate.xlsx");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UploadExcelFile(InputFileChangeEventArgs e)
+    {
+        isProcessing = true;
+        uploadMessage = string.Empty;
+
+        try
+        {
+            var file = e.File;
+
+            if (file.Size > 5 * 1024 * 1024)
+            {
+                uploadMessage = "File size exceeds 5 MB.";
+                return;
+            }
+
+            using var memoryStream = new MemoryStream();
+            await file.OpenReadStream().CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            using var workbook = new ClosedXML.Excel.XLWorkbook(memoryStream);
+            var ws = workbook.Worksheet("MaterialIssueTemplate");
+
+            // 1️⃣ Map headers to column indexes
+            int lastCol = ws.LastColumnUsed().ColumnNumber();
+            var headerMap = new Dictionary<string, int>();
+            for (int col = 1; col <= lastCol; col++)
+            {
+                var headerName = ws.Cell(1, col).GetValue<string>()?.Trim();
+                if (!string.IsNullOrEmpty(headerName))
+                    headerMap[headerName] = col;
+            }
+
+            var rowsData = new List<(int SlNo, string ItemCode, decimal IssueQty, decimal UnitPrice,
+                string Remark, string BatchNo, string Make, string RackNo)>();
+
+            int row = 2;
+            while (!ws.Cell(row, headerMap["SlNo"]).IsEmpty())
+            {
+                int.TryParse(ws.Cell(row, headerMap["SlNo"]).GetValue<string>(), out var slNo);
+                var itemCode = ws.Cell(row, headerMap["ItemCode"]).GetValue<string>()?.Trim();
+
+                decimal.TryParse(ws.Cell(row, headerMap["IssueQty"]).GetValue<string>(), out var issueQty);
+                decimal.TryParse(ws.Cell(row, headerMap["UnitPrice"]).GetValue<string>(), out var unitPrice);
+
+                string remark = headerMap.ContainsKey("Remark") ? ws.Cell(row, headerMap["Remark"]).GetValue<string>()?.Trim() : string.Empty;
+                string batchNo = headerMap.ContainsKey("BatchNo") ? ws.Cell(row, headerMap["BatchNo"]).GetValue<string>()?.Trim() : string.Empty;
+                string make = headerMap.ContainsKey("Make") ? ws.Cell(row, headerMap["Make"]).GetValue<string>()?.Trim() : string.Empty;
+                string rackNo = headerMap.ContainsKey("RackNo") ? ws.Cell(row, headerMap["RackNo"]).GetValue<string>()?.Trim() : string.Empty;
+
+                rowsData.Add((slNo, itemCode, issueQty, unitPrice, remark, batchNo, make, rackNo));
+                row++;
+            }
+
+            // 2️⃣ Validate ItemCodes & fetch ItemIds in bulk
+            var itemCodes = rowsData.Select(r => r.ItemCode).Distinct().ToList();
+            var itemIdDict = await _minService.GetItemIdsByItemCodesAsync(itemCodes);
+
+            var validItemIds = itemIdDict.Values.ToList();
+            var itemVMs = await _minService.GetItemVMsByItemIdsAsync(validItemIds);
+            var itemVMDict = itemVMs.ToDictionary(i => i.ItemId, i => i);
+
+            // 3️⃣ Get Stock quantities
+            int defaultStoreId = 1;
+            var stockDict = await _minService.GetStockForItemsAsync(validItemIds, defaultStoreId);
+
+            // 4️⃣ Build final uploaded rows
+            var uploadedRows = new List<MaterialIssNoteSubVM>();
+            foreach (var r in rowsData)
+            {
+                if (!itemIdDict.TryGetValue(r.ItemCode, out var itemId)) continue;
+                if (!itemVMDict.TryGetValue(itemId, out var itemVM)) continue;
+
+                uploadedRows.Add(new MaterialIssNoteSubVM
+                {
+                    SlNo = r.SlNo,
+                    ItemCode = r.ItemCode,
+                    ItemId = itemVM.ItemId,
+                    ItemName = itemVM.ItemName,
+                    UOM = itemVM.MeasureUnit,
+                    IssueQty = r.IssueQty,
+                    UnitPrice = r.UnitPrice,
+                    SelectedItemVMs = itemVM,
+                    StockQty = stockDict.ContainsKey(itemId) ? stockDict[itemId] : 0,
+                    Remark = r.Remark,
+                    BatchNo = r.BatchNo,
+                    Make = r.Make,
+                    RackNo = r.RackNo,
+                    IsEditable = true
+                });
+            }
+
+            MINVMs.MaterialIssNoteSubVMs = uploadedRows;
+
+            if (rowsData.Count != uploadedRows.Count)
+                await _js.ToastrWarning($"{rowsData.Count - uploadedRows.Count} rows were skipped because the ItemCode does not exist in Item Master.");
+            else
+                await _js.ToastrSuccess($"Successfully uploaded {uploadedRows.Count} rows.");
+
+            uploadMessage = $"Successfully uploaded {uploadedRows.Count} rows.";
+        }
+        catch (Exception ex)
+        {
+            uploadMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region OnWithBomToggle
+
+    private async Task OnWithBomToggle(ChangeEventArgs e)
+    {
+        isProcessing = true;
+        try
+        {
+            bool isChecked = e?.Value is bool value && value;
+            MINVMs.IsWithBom = isChecked;
+
+            if (!isChecked)
+            {
+                MINVMs.AssyId = 0;
+                MINVMs.AssyItemCode = string.Empty;
+                MINVMs.ReqQty = 0;
+                AssemblyList?.Clear();
+            }
+            else
+            {
+                AssemblyList = await _minService.GetAllAssembliesAsync();
+
+                if (AssemblyList == null || AssemblyList.Count == 0)
+                    await _js.ToastrInfo("No assemblies found.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Failed to process With BOM toggle.");
+            await _logs.LogDeveloperError(ex, "OnWithBomToggle failed!");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Store Handlers
+
+    private async Task OnStoreChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var newStoreId))
+                return;
+
+            MINVMs.StoreIssId = newStoreId;
+
+            if (newStoreId == 0)
+            {
+                await _js.ToastrWarning("Please select a valid Store. Store is required.");
+
+                if (MINVMs.MaterialIssNoteSubVMs != null)
+                {
+                    foreach (var sub in MINVMs.MaterialIssNoteSubVMs)
+                        sub.StockQty = 0;
+                }
+
+                StateHasChanged();
+                return;
+            }
+
+            if (MINVMs.MaterialIssNoteSubVMs != null && MINVMs.MaterialIssNoteSubVMs.Any())
+            {
+                var itemIds = MINVMs.MaterialIssNoteSubVMs
+                    .Where(s => s.ItemId.HasValue)
+                    .Select(s => s.ItemId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (itemIds.Count == 0)
+                {
+                    await _js.ToastrInfo("No items found to update stock for this store.");
+                    return;
+                }
+
+                var stockDict = await _minService.GetStockForItemsAsync(itemIds, newStoreId);
+
+                foreach (var sub in MINVMs.MaterialIssNoteSubVMs)
+                {
+                    if (sub.ItemId.HasValue && stockDict.TryGetValue(sub.ItemId.Value, out var qty))
+                        sub.StockQty = qty;
+                    else
+                        sub.StockQty = 0;
+                }
+
+                await _js.ToastrSuccess("Stock quantities updated based on selected store.");
+            }
+            else
+            {
+                await _js.ToastrInfo("No sub-items available to update stock.");
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error occurred in OnStoreChanged while updating stock quantities.");
+            await _js.ToastrError("An unexpected error occurred while updating stock. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region Assembly and Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _minService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(MaterialIssNoteSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItemVMs = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.UOM = item.MeasureUnit;
+
+                if (subitem.ItemId.HasValue)
+                {
+                    var rates = await _minService.GetBulkLastUnitPricesAsync(
+                        new List<int> { subitem.ItemId.Value }
+                    );
+
+                    if (rates.TryGetValue(subitem.ItemId.Value, out decimal rate))
+                    {
+                        subitem.UnitPrice = rate;
+                    }
+                }
+
+                // 🔹 Fetch stock quantity for the selected store
+                if (subitem.ItemId > 0 && MINVMs.StoreIssId.HasValue && MINVMs.StoreIssId.Value > 0)
+                {
+                    var stockDict = await _minService.GetStockForItemsAsync(
+                        new List<int> { subitem.ItemId.Value },
+                        MINVMs.StoreIssId.Value
+                    );
+
+                    subitem.StockQty = stockDict.TryGetValue(subitem.ItemId.Value, out var qty) ? qty : 0m;
+                }
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _minService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+                }
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItemVMs = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.UOM = null;
+                subitem.UnitPrice = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+
+    private async Task OnAssemblyChange(ChangeEventArgs e)
+    {
+        await OnAssemblyOrSubAssemblyChange(e, "Assembly");
+    }
+
+    private async Task OnSubAssemblyChange(ChangeEventArgs e)
+    {
+        await OnAssemblyOrSubAssemblyChange(e, "SubAssembly");
+    }
+
+    private async Task OnSubAssemblyChange2(ChangeEventArgs e)
+    {
+        await OnAssemblyOrSubAssemblyChange(e, "SubAssembly2");
+    }
+
+    private async Task OnSubAssemblyChange3(ChangeEventArgs e)
+    {
+        await OnAssemblyOrSubAssemblyChange(e, "SubAssembly3");
+    }
+
+    private async Task OnAssemblyOrSubAssemblyChange(ChangeEventArgs e, string changeType)
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (int.TryParse(e.Value?.ToString(), out int selectedId))
+            {
+                if (changeType == "Assembly")
+                    MINVMs.AssyId = selectedId;
+                else if (changeType == "SubAssembly")
+                    MINVMs.SubAssyId = selectedId;
+                else if (changeType == "SubAssembly2")
+                    MINVMs.SubAssyId2 = selectedId;
+                else if (changeType == "SubAssembly3")
+                    MINVMs.SubAssyId3 = selectedId;
+
+                var relatedItems = await _minService.GetAssemblyRelatedItemsAsync(
+                    selectedId,
+                    MINVMs.ReqQty,
+                    MINVMs.StoreIssId.GetValueOrDefault()
+                );
+
+                if (relatedItems != null && relatedItems.Any())
+                {
+                    var subVMTasks = relatedItems.Select(async item => new MaterialIssNoteSubVM
+                    {
+                        SelectedItemVMs = await _minService.GetItemByItemIdAsync(item.ItemId),
+                        ItemId = item.ItemId,
+                        ItemCode = item.ItemCode,
+                        ItemName = item.ItemName,
+                        UOM = item.UOM,
+                        UtlQty = item.UtlQty,
+                        IssueQty = item.IssueQty,
+                        StockQty = item.StockQty,
+                        UnitPrice = item.UnitPrice,
+                        BatchNo = item.BatchNo,
+                        RackNo = item.RackNo,
+                        Make = item.Make,
+                        Remark = item.Remark,
+                        CostId = item.CostId,
+                        ProjectNo = item.ProjectNo,
+                        IsEditable = true
+                    });
+
+                    MINVMs.MaterialIssNoteSubVMs = (await Task.WhenAll(subVMTasks)).ToList();
+                    await ResetSlno();
+                }
+                else
+                {
+                    if (changeType == "Assembly")
+                        MINVMs.AssyId = null;
+                    else if (changeType == "SubAssembly")
+                        MINVMs.SubAssyId = null;
+                    else if (changeType == "SubAssembly2")
+                        MINVMs.SubAssyId2 = null;
+                    else if (changeType == "SubAssembly3")
+                        MINVMs.SubAssyId3 = null;
+
+                    MINVMs.MaterialIssNoteSubVMs.Clear();
+                    await _js.ToastrInfo($"No related items found for the selected {changeType}.");
+                }
+
+                if (changeType == "Assembly")
+                {
+                    MINVMs.SubAssyId = null;
+                    SubAssyList.Clear();
+                    SubAssyList = await _minService.GetAllSubAssembliesByAssyIdAsync(selectedId);
+                }
+                else if (changeType == "SubAssembly")
+                {
+                    MINVMs.SubAssyId2 = null;
+                    SubAssyList2.Clear();
+                    SubAssyList2 = await _minService.GetAllSubAssembliesByAssyIdAsync(selectedId);
+                }
+                else if (changeType == "SubAssembly2")
+                {
+                    MINVMs.SubAssyId3 = null;
+                    SubAssyList3.Clear();
+                    SubAssyList3 = await _minService.GetAllSubAssembliesByAssyIdAsync(selectedId);
+                }
+            }
+            else
+            {
+                if (changeType == "Assembly")
+                    MINVMs.AssyId = 0;
+                else if (changeType == "SubAssembly")
+                    MINVMs.SubAssyId = 0;
+
+                MINVMs.MaterialIssNoteSubVMs.Clear();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError($"Failed to load {changeType} details.");
+            await _logs.LogDeveloperError(ex, $"On{changeType}Change failed");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+
+    #endregion
+
+
+    #region Quantity Handlers
+
+    private async Task UpdateSubItemQtyAsync(MaterialIssNoteSubVM subItem, decimal newQty)
+    {
+        // Validate positive quantity
+        if (newQty <= 0)
+        {
+            subItem.IssueQty = 0;
+            await _js.ToastrWarning("Issue Qty must be a positive number.");
+            return;
+        }
+
+        // NEW line (not saved yet)
+        if (subItem.MINSubId == 0)
+        {
+            if (newQty <= subItem.StockQty)
+            {
+                subItem.IssueQty = newQty;
+            }
+            else
+            {
+                subItem.IssueQty = subItem.StockQty;
+                await _js.ToastrWarning("Issue Qty cannot be greater than available Stock Qty.");
+            }
+            return;
+        }
+
+        // EXISTING line (already saved in MIN)
+        var original = await _minService.GetMINSubItemDetailByMINSubIdAsync(subItem.MINSubId);
+        if (original == null) return;
+
+        // Calculate max allowed quantity = previously issued + current stock
+        var maxAllowedQty = original.IssueQty + subItem.StockQty;
+
+        if (newQty <= maxAllowedQty)
+        {
+            subItem.IssueQty = newQty;
+        }
+        else
+        {
+            subItem.IssueQty = maxAllowedQty;
+            await _js.ToastrWarning($"Issue Qty cannot be greater than available stock ({maxAllowedQty}).");
+        }
+    }
+
+    private async Task OnQtyChange(ChangeEventArgs e, MaterialIssNoteSubVM subItem)
+    {
+        try
+        {
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty)) return;
+            await UpdateSubItemQtyAsync(subItem, newQty);
+            RecalculateReqQty();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnQtyChange failed for MINSubId: {subItem?.MINSubId}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    private async Task OnReqQtyChanged(ChangeEventArgs e)
+    {
+        if (!decimal.TryParse(e.Value?.ToString(), out var newReqQty)) return;
+
+        MINVMs.ReqQty = newReqQty;
+
+        if (MINVMs.MaterialIssNoteSubVMs == null || !MINVMs.MaterialIssNoteSubVMs.Any()) return;
+
+        foreach (var subItem in MINVMs.MaterialIssNoteSubVMs)
+        {
+            var intendedQty = subItem.UtlQty * newReqQty;
+            await UpdateSubItemQtyAsync(subItem, intendedQty.GetValueOrDefault());
+        }
+
+        RecalculateReqQty(); // Optional: recalc average ReqQty
+    }
+
+    private void RecalculateReqQty()
+    {
+        if (MINVMs.MaterialIssNoteSubVMs == null || !MINVMs.MaterialIssNoteSubVMs.Any()) return;
+
+        decimal totalReqQty = 0;
+        int count = 0;
+
+        foreach (var sub in MINVMs.MaterialIssNoteSubVMs)
+        {
+            if (sub.UtlQty.GetValueOrDefault() > 0)
+            {
+                totalReqQty += sub.IssueQty.GetValueOrDefault() / sub.UtlQty.GetValueOrDefault();
+                count++;
+            }
+        }
+
+        if (count > 0)
+            MINVMs.ReqQty = totalReqQty / count;
+    }
+
+    #endregion
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(MaterialIssNoteSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            // Basic validations
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.IssueQty <= 0)
+                errors.Add("Issue Quantity must be greater than 0.");
+
+            if (row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            // Stock validation
+            decimal maxAllowedQty = row.StockQty;
+
+            if (row.MINSubId > 0)
+            {
+                // Existing line: allow increasing up to current stock + previously issued quantity
+                var original = await _minService.GetMINSubItemDetailByMINSubIdAsync(row.MINSubId);
+                if (original != null)
+                    maxAllowedQty = original.IssueQty.GetValueOrDefault() + row.StockQty;
+            }
+
+            if (row.IssueQty > maxAllowedQty)
+            {
+                errors.Add($"Issue Qty cannot be greater than available stock ({maxAllowedQty}).");
+            }
+
+            // Show errors if any
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await _logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = MINVMs.MaterialIssNoteSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await _logs.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (!await ValidateLastRowAsync()) return;
+
+            MINVMs.MaterialIssNoteSubVMs.Add(new MaterialIssNoteSubVM
+            {
+                MINId = MINVMs.MINId,
+                IsEditable = true
+            });
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await _logs.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+    private async Task SaveRow(MaterialIssNoteSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            if (!MINVMs.MaterialIssNoteSubVMs.Any(x => x.IsEditable) && (MINVMs.AssyId == 0 || MINVMs.AssyId == null))
+            {
+                MINVMs.MaterialIssNoteSubVMs.Add(new MaterialIssNoteSubVM
+                {
+                    MINId = MINVMs.MINId,
+                    IsEditable = true
+                });
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SaveRow failed for MinSubId: {item?.MINSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(MaterialIssNoteSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItemVMs == null && item.ItemId > 0)
+            {
+                item.SelectedItemVMs = await _minService.GetItemByItemIdAsync(item.ItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"EditRowAsync failed for MinSubId: {item?.MINSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(MaterialIssNoteSubVM? item, MaterialIssNoteVM? parentMin)
+    {
+        try
+        {
+            if (item == null || parentMin == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.IssueQty.HasValue || item.IssueQty.Value <= 0) ||
+                (!item.UnitPrice.HasValue || item.UnitPrice.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentMin.MaterialIssNoteSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CancelEdit failed for MinSubId: {item?.MINSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(MaterialIssNoteSubVM item)
+    {
+        try
+        {
+            if (MINVMs.MaterialIssNoteSubVMs.Count == 1 && item.MINSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                MINVMs.MaterialIssNoteSubVMs.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                if (!MINVMs.MaterialIssNoteSubVMs.Any())
+                    MINVMs.MaterialIssNoteSubVMs = new List<MaterialIssNoteSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"RemoveRow failed for MinSubId: {item?.MINSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            if (MINVMs?.MaterialIssNoteSubVMs == null || !MINVMs.MaterialIssNoteSubVMs.Any())
+                return;
+
+            int counter = 1;
+            foreach (var sub in MINVMs.MaterialIssNoteSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Item" => "Add New Item",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.MINSubId > 0)
+            {
+                await _minService.DeleteAndResequenceAsync(rowToDelete, MINVMs, screenCode);
+
+                MINVMs.MaterialIssNoteSubVMs = await _minService.GetMINSubByMINIdAsync(MINVMs.MINId, MINVMs.StoreIssId.Value);
+            }
+            else
+            {
+                MINVMs.MaterialIssNoteSubVMs.Remove(rowToDelete);
+
+                if (!MINVMs.MaterialIssNoteSubVMs.Any())
+                {
+                    MINVMs.MaterialIssNoteSubVMs.Add(new MaterialIssNoteSubVM
+                    {
+                        MINId = MINVMs.MINId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < MINVMs.MaterialIssNoteSubVMs.Count; i++)
+                        MINVMs.MaterialIssNoteSubVMs[i].SlNo = i + 1;
+                }
+            }
+
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error confirming deletion for MINId: {MINVMs.MINId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _minService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+
+    #region CostCenter
+
+    private Task OnCostCenterChanged(ChangeEventArgs e, MaterialIssNoteSubVM row)
+    {
+        if (e?.Value != null && int.TryParse(e.Value.ToString(), out int selectedId))
+        {
+            row.CostId = selectedId;
+
+            var selectedCostCenter = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            row.ProjectNo = selectedCostCenter?.ProjectNo; // Will be null if not found
+        }
+        else
+        {
+            // No selection or invalid selection
+            row.CostId = null;
+            row.ProjectNo = null;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+
+    #region SCN Gen Operations
+
+    private async Task UpsertMIN()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            MINVMs.MaterialIssNoteSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.IssueQty.HasValue || x.IssueQty == 0) &&
+                (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (!MINVMs.MaterialIssNoteSubVMs.Any())
+            {
+                await _js.ToastrError("Cannot save a MIN without valid items.");
+                return;
+            }
+
+            // Validate each line
+            foreach (var line in MINVMs.MaterialIssNoteSubVMs)
+            {
+                bool isValid = await ValidateMINLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewMIN = MINVMs.MINId == 0;
+
+            try
+            {
+                await _minService.UpsertMINAsync(MINVMs, screenCode);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewMIN)
+                await _js.ToastrSuccess("Material Issue Note saved successfully.");
+            else
+                await _js.ToastrSuccess("Material Issue Note updated successfully.");
+
+            _navigationManager.NavigateTo("/minIssList");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "UpsertMIN failed.");
+            await _js.ToastrError("Error saving Material Issue Note.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidateMINLineAsync(MaterialIssNoteSubVM line)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (!line.ItemId.HasValue)
+                errors.Add("Item selection is required.");
+
+            if (!line.IssueQty.HasValue || line.IssueQty <= 0)
+                errors.Add($"Item {line.ItemCode}: Issue Quantity must be greater than 0.");
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+                errors.Add($"Item {line.ItemCode}: Unit Price must be greater than 0.");
+
+            decimal maxAllowedQty = line.StockQty;
+
+            if (line.MINSubId > 0)
+            {
+                var original = await _minService.GetMINSubItemDetailByMINSubIdAsync(line.MINSubId);
+                if (original != null)
+                    maxAllowedQty = original.IssueQty.GetValueOrDefault() + line.StockQty;
+            }
+
+            if (line.IssueQty > maxAllowedQty)
+                errors.Add($"Item {line.ItemCode}: Issue Qty cannot exceed available stock ({maxAllowedQty}).");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrError(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ValidateMINLineAsync failed.");
+            await _js.ToastrError("Error validating Material Issue Note line.");
+            return false;
+        }
+    }
+
+
+    #endregion
+
+    #region Formatting
+
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value)
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+
+    private async Task ShowStockRequestDetails()
+    {
+
+        try
+        {
+            isProcessing = true;
+            StockReqData = await _minService.GetStockIssueReqDetails();
+            IsStockRequestModalVisible = true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ShowEnquiryDetails failed.");
+            await _js.ToastrError("Error fetching enquiry details.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    private async Task OnEnquirySelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (MINVMs.MaterialIssNoteSubVMs == null)
+            MINVMs.MaterialIssNoteSubVMs = new List<MaterialIssNoteSubVM>();
+
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .ToList();
+
+            var priceDict = await _minService.GetBulkLastUnitPricesAsync(itemIds);
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                int? RequestSubId = item.ContainsKey("RequestSubId") && item["RequestSubId"] != null
+                    ? Convert.ToInt32(item["RequestSubId"])
+                    : (int?)null;
+
+                if (MINVMs.MaterialIssNoteSubVMs.Any(x => x.ItemId == itemId && x.RefRequestSubId == RequestSubId))
+                    continue;
+
+                // 🔹 Fetch stock quantity for the selected store
+                decimal stockQty = 0m;
+
+                if (itemId > 0 && MINVMs.StoreIssId.HasValue && MINVMs.StoreIssId.Value > 0)
+                {
+                    var stockDict = await _minService.GetStockForItemsAsync(
+                        new List<int> { itemId },
+                        MINVMs.StoreIssId.Value
+                    );
+
+                    stockQty = stockDict.TryGetValue(itemId, out var qty) ? qty : 0m;
+                }
+
+                var subVm = new MaterialIssNoteSubVM
+                {
+                    RefRequestSubId = RequestSubId,
+                    RefReqNo = item.ContainsKey("RequestNo") ? item["RequestNo"]?.ToString() : "",
+                    RefReqDate = item.ContainsKey("RequestDate") && item["RequestDate"] != null
+                        ? Convert.ToDateTime(item["RequestDate"])
+                        : null,
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    UOM = item.ContainsKey("UOM") ? item["UOM"]?.ToString() : "",
+
+                    IssueQty = item.ContainsKey("ReqBalQty") && item["ReqBalQty"] != null
+                            ? Convert.ToDecimal(item["ReqBalQty"])
+                            : (decimal?)0,
+
+                    UnitPrice = priceDict.TryGetValue(itemId, out var price) ? price : 0,
+                    CostId = item.ContainsKey("CostCenterId") && item["CostCenterId"] != null
+                            ? (Convert.ToInt32(item["CostCenterId"]) == 0 ? (int?)null : Convert.ToInt32(item["CostCenterId"]))
+                            : (int?)null,
+                    ProjectNo = item.ContainsKey("ProjectNo") ? item["ProjectNo"]?.ToString() : "",
+                    StockQty = stockQty,
+                    IsEditable = false
+                };
+
+                MINVMs.MaterialIssNoteSubVMs.Add(subVm);
+
+            }
+
+            await ResetSlno();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnEnquirySelectedAsync failed.");
+            await _js.ToastrError("Error processing selected enquiry items.");
+        }
+    }
+    #endregion
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            pdfBase64 = null;
+            var pdfBytes = await reportService.Generate_Report(MINId.GetValueOrDefault(), "MaterialIssueNoteReduction.frx", "MINId", false, ScreenName, "Sp_Print_MaterialIssueNoteReduction");
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf Material Issue Note");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in Material Issue Note.");
+        }
+    }
+}

@@ -1,0 +1,402 @@
+﻿@page "/hrMaster/holidayList"
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject CurrentUserService _userService
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+<BsModal OnModalConfirmation="ConfirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Row?">
+</BsModal>
+
+<style>
+    /* Sticky Header */
+    table thead th {
+        position: sticky;
+    }
+
+    /* Sticky Last Column (both th and td) */
+    table th:last-child,
+    table td:last-child {
+        position: sticky;
+        right: 0;
+        background-color: white;
+        z-index: 5;
+    }
+
+    /* Ensure last header cell stays above */
+    table thead th:last-child {
+        z-index: 15;
+    }
+
+    /* Table cell font size */
+    table td {
+        font-size: 12px;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <PageHeader TitleText="@holidayTitle"
+                            TitleIcon="@holidayIcon"
+                            Breadcrumbs="@holidayBreadcrumbs" />
+
+
+                <div class="card-body px-0">
+                    <div class="row mb-3 px-3">
+                        <div class="col-md-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input value="@ListNameFilter"
+                                       @oninput="OnSearchChanged"
+                                       class="form-control"
+                                       placeholder="Search by name, day, or description..." />
+                            </div>
+                        </div>
+                    </div>
+
+                    <EditForm Model="@holidayList">
+                        <DataAnnotationsValidator />
+                        <div class="mt-2 my-3 mx-3">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-sm align-middle text-center" style="table-layout: fixed; width: 100%;">
+                                    <thead class="custom-blue">
+                                        <tr>
+                                            <th style="width: 250px;">Holiday Name</th>
+                                            <th style="width: 130px;">Holiday Date</th>
+                                            <th style="width: 130px;">Holiday Day</th>
+                                            <th style="width: 350px;">Description</th>
+                                            <th style="width: 150px;">Created By</th>
+                                            <th style="width: 150px;">Created Date</th>
+                                            <th style="width: 150px;">Modified By</th>
+                                            <th style="width: 150px;">Modified Date</th>
+                                            <th style="width: 80px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var list in holidayList)
+                                        {
+                                            <tr>
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputText class="form-control form-control-sm text-truncate" @bind-Value="list.HolidayName" />
+                                                        <ValidationMessage For="@(() => list.HolidayName)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="d-block text-truncate">@list.HolidayName</span>
+                                                    }
+                                                </td>
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputDate TValue="DateTime"
+                                                                   class="form-control form-control-sm"
+                                                                   Value="list.HolidayDate"
+                                                                   ValueChanged="@(value => OnDateChanged((DateTime)value, list))"
+                                                                   ValueExpression="@(() => list.HolidayDate)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@list.HolidayDate.ToShortDateString()</span>
+                                                    }
+                                                </td>
+                                                <td class="align-middle">
+                                                    <span>@list.HolidayDay</span>
+                                                </td>
+                                                <td class="align-middle">
+                                                    @if (list.IsEditable)
+                                                    {
+                                                        <InputTextArea class="form-control form-control-sm" rows="1" @bind-Value="list.Description" />
+                                                        <ValidationMessage For="@(() => list.Description)" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="d-block text-truncate">@list.Description</span>
+                                                    }
+                                                </td>
+                                                <td class="align-middle"><span>@list.CreatedBy</span></td>
+                                                <td class="align-middle"><span>@list.CreatedDate.ToString("dd/MM/yyyy")</span></td>
+                                                <td class="align-middle"><span>@list.ModifiedBy</span></td>
+                                                <td class="align-middle"><span>@list.ModifiedDate?.ToString("dd/MM/yyyy")</span></td>
+                                                <td class="align-middle">
+                                                @if (list.IsEditable)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-success me-1" @onclick="() => ValidateAndSaveRow(list)">
+                                                        <i class="bi bi-check-lg"></i>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-info me-1" @onclick="() => EditRow(list)">
+                                                        <i class="bi bi-pencil-square"></i>
+                                                    </button>
+                                                }
+                                                <button type="button" class="btn btn-sm btn-danger" @onclick="() => DeleteRow(list)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-primary" @onclick="AddNewRow">
+                                    <i class="bi bi-plus-square me-1"></i> Add New Holiday
+                                </button>
+                            </div>
+
+                        </div>
+                    </EditForm>
+
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Holiday List";
+    private bool isProcessing = true;
+    private List<HolidayList> holidayList { get; set; } = new();
+    private HolidayList? _itemToDelete;
+    private string? ListNameFilter;
+    private Timer? debounceTimer;
+
+    private List<PageHeader.BreadcrumbItem> holidayBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Human Resource" },
+        new PageHeader.BreadcrumbItem { Text = "Holiday List", IsLast = true }
+    };
+
+    private string holidayIcon = "bi bi-calendar-event";
+    private string holidayTitle = "Holiday List";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadHolidayList();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadHolidayList()
+    {
+        try
+        {
+            var list = await _unitOfWork.HolidayLists.GetAllAsync();
+
+            if (string.IsNullOrWhiteSpace(ListNameFilter))
+            {
+                holidayList = list?.ToList() ?? new();
+            }
+            else
+            {
+                string keyword = ListNameFilter.Trim().ToLower();
+                holidayList = list.Where(l =>
+                    (!string.IsNullOrEmpty(l.HolidayName) && l.HolidayName.ToLower().Contains(keyword)) ||
+                    (!string.IsNullOrEmpty(l.Description) && l.Description.ToLower().Contains(keyword)) ||
+                    (!string.IsNullOrEmpty(l.CreatedBy) && l.CreatedBy.ToLower().Contains(keyword)) ||
+                    (!string.IsNullOrEmpty(l.ModifiedBy) && l.ModifiedBy.ToLower().Contains(keyword)) ||
+                    (!string.IsNullOrEmpty(l.HolidayDay) && l.HolidayDay.ToLower().Contains(keyword))
+                ).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadHolidayList()");
+            await _js.ToastrError("An error occurred while loading the holiday list.");
+        }
+    }
+
+    private Task OnDateChanged(DateTime value, HolidayList list)
+    {
+        list.HolidayDate = value;
+        list.HolidayDay = value.DayOfWeek.ToString();
+        return Task.CompletedTask;
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        ListNameFilter = e.Value?.ToString();
+
+        debounceTimer?.Dispose();
+        debounceTimer = new Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadHolidayList();
+                StateHasChanged();
+            });
+        }, null, 300, Timeout.Infinite);
+    }
+
+    private async Task AddNewRow()
+    {
+        if (holidayList.Any(x => x.IsEditable))
+        {
+            await _js.ToastrWarning("Please save or cancel the current row before adding a new one.");
+            return;
+        }
+
+        if (holidayList.Any(x => string.IsNullOrWhiteSpace(x.HolidayName)))
+        {
+            await _js.ToastrWarning("Holiday Name is required for all existing rows.");
+            return;
+        }
+
+        holidayList.Add(new HolidayList
+        {
+            IsEditable = true,
+            HolidayDate = DateTime.Today,
+            HolidayDay = DateTime.Today.DayOfWeek.ToString(),
+            CreatedBy = await _userService.GetUsernameAsync(),
+            CreatedDate = DateTime.Now
+        });
+        StateHasChanged();
+    }
+
+    private Task EditRow(HolidayList list)
+    {
+        list.IsEditable = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task ValidateAndSaveRow(HolidayList list)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(list.HolidayName))
+            {
+                await _js.ToastrError("Holiday Name is required.");
+                return;
+            }
+
+            var existing = await _unitOfWork.HolidayLists.GetAllAsync();
+            bool duplicate = existing.Any(x =>
+                x.HolidayName.Equals(list.HolidayName.Trim(), StringComparison.OrdinalIgnoreCase)
+                && x.Id != list.Id);
+            if (duplicate)
+            {
+                await _js.ToastrWarning("Holiday Name Already Exists!..");
+                return;
+            }
+
+            list.HolidayDay = list.HolidayDate.DayOfWeek.ToString();
+            list.IsEditable = false;
+
+            if (list.Id == 0)
+            {
+                await _unitOfWork.HolidayLists.CreateAsync(list);
+            }
+            else
+            {
+                list.ModifiedBy = await _userService.GetUsernameAsync();
+                list.ModifiedDate = DateTime.Now;
+                await _unitOfWork.HolidayLists.UpdateAsync(list);
+            }
+            await _unitOfWork.SaveAsync();
+            await LoggingService.LogUserAction(
+              UserName: await _userService.GetUsernameAsync(),
+              Machine: _userService.MachineName,
+              IP_Address: _userService.IpAddress,
+              screen: "Holiday List",
+              action: list.Id == 0
+                  ? $"Created Holiday List: {list.HolidayName}"
+                  : $"Updated Holiday List: {list.HolidayName}"
+          );
+            await _js.ToastrSuccess("Saved successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ValidateAndSaveRow()");
+            await _js.ToastrError("Save failed.");
+        }
+    }
+
+    private async Task DeleteRow(HolidayList list)
+    {
+        _itemToDelete = list;
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+
+        if (!isConfirmed || _itemToDelete == null)
+            return;
+
+        try
+        {
+            if (_itemToDelete.Id > 0)
+            {
+                await _unitOfWork.HolidayLists.DeleteAsync(_itemToDelete.Id);
+                await _unitOfWork.SaveAsync();
+
+                await LoggingService.LogUserAction(
+                    UserName: await _userService.GetUsernameAsync(),
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Holiday List",
+                    action: $"Deleted Holiday List: {_itemToDelete.HolidayName}"
+                );
+
+                await _js.ToastrSuccess("Deleted successfully.");
+            }
+
+            holidayList.Remove(_itemToDelete);
+            _itemToDelete = null;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ConfirmDelete_Click()");
+            await _js.ToastrError("Delete failed.");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+}

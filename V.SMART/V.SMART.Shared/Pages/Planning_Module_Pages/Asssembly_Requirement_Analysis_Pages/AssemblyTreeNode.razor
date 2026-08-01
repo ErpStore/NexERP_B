@@ -1,0 +1,61 @@
+﻿@using V.SMART.Shared.ViewModels.PlanningViewModel.AssyReqAnalysisVM
+
+
+<li class="list-group-item p-1">
+    <div class="d-flex align-items-center"
+         style="cursor:pointer"
+         @onclick="OnNodeClick">
+
+        @if (Node.Children.Any())
+        {
+            <span class="me-2"
+                  @onclick:stopPropagation="true"
+                  @onclick="Toggle">
+                @if (Node.IsExpanded)
+                {
+                    <i class="bi bi-dash-square"></i>
+                }
+                else
+                {
+                    <i class="bi bi-plus-square"></i>
+                }
+            </span>
+
+        }
+        else
+        {
+            <span class="me-2">•</span>
+        }
+
+        <span>@Node.ItemCode</span>
+    </div>
+
+    @if (Node.IsExpanded)
+    {
+        <ul class="list-group list-group-flush ms-4">
+            @foreach (var child in Node.Children)
+            {
+                <AssemblyTreeNode Node="child"
+                                  SelectedNodeId="SelectedNodeId"
+                                  OnSelect="OnSelect" />
+            }
+        </ul>
+    }
+</li>
+
+
+@code {
+    [Parameter] public TreeNode Node { get; set; }
+    [Parameter] public int? SelectedNodeId { get; set; }
+    [Parameter] public EventCallback<TreeNode> OnSelect { get; set; }
+
+    void Toggle()
+    {
+        Node.IsExpanded = !Node.IsExpanded;
+    }
+
+    async Task OnNodeClick()
+    {
+        await OnSelect.InvokeAsync(Node);
+    }
+}

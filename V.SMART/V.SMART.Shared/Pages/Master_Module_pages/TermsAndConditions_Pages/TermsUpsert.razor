@@ -1,0 +1,186 @@
+﻿@page "/terms-and-conditions/create"
+@page "/terms-and-conditions/update/{Id:int}"
+
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices
+@using V.SMART.Shared.Data.Master.MasterScreeenManagement_Module
+
+
+@inherits BaseUserRightsComponent
+
+@inject ITermsAndConditionsService termsService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            @if(!isModelVisible)
+            {
+            <PageHeader TitleText="@(Terms.Id > 0 ? "Update Terms & Conditions" : "Create Terms & Conditions")"
+                        TitleIcon="bi bi-journal-text"
+                        Breadcrumbs="@termsBreadcrumbs" />
+            }
+
+            <div class="card-body">
+                <EditForm Model="Terms" OnValidSubmit="SaveTerms">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-3 text-end">
+                        <!-- Title -->
+                        <div class="col-12">
+                            <div class="form-floating">
+                                <input type="text" @bind="Terms.Title"
+                                           Id="Title"
+                                           Placeholder="Title"
+                                           class="form-control" />
+                                <label for="Title">Title</label>
+                                <ValidationMessage For="@(() => Terms.Title)" />
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-12">
+                            <div class="form-floating">
+                                <InputTextArea @bind-Value="Terms.Details"
+                                               Id="Details"
+                                               Placeholder="Enter terms and conditions details"
+                                               class="form-control"
+                                               rows="5" />
+                                <label for="Details">Terms & Conditions</label>
+                                <ValidationMessage For="@(() => Terms.Details)" />
+                            </div>
+                        </div>
+
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(Terms.Id > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                        }
+
+                        @if (!isModelVisible)
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/terms-and-conditions" />
+                            </div>
+                        }
+                       
+                    </div>
+
+                    @if (Terms.Id > 0)
+                    {
+                        <div class="mt-4 small text-muted">
+                            <p><strong>Created By:</strong> @Terms.CreatedBy</p>
+                            <p><strong>Created Date:</strong> @Terms.CreatedDate.ToString("g")</p>
+                            <p><strong>Modified By:</strong> @Terms.ModifiedBy</p>
+                            <p><strong>Modified Date:</strong> @Terms.ModifiedDate?.ToString("g")</p>
+                        </div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Terms and Conditions";
+
+    [Parameter] public int? Id { get; set; }
+
+    [Parameter]
+    public bool isModelVisible { get; set; } = false;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private TermsAndConditions Terms { get; set; } = new();
+    private bool isProcessing = true;
+
+    private List<PageHeader.BreadcrumbItem> termsBreadcrumbs = new()
+    {
+        new() { Text = "Master" },
+        new() { Text = "Terms & Conditions", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        await LoadTerms();
+        isProcessing = false;
+    }
+
+    private async Task LoadTerms()
+    {
+        try
+        {
+            if (Id.HasValue && Id.Value > 0)
+            {
+                var existing = await termsService.GetByIdAsync(Id.Value);
+                Terms = existing ?? new TermsAndConditions();
+            }
+        }
+        catch (Exception)
+        {
+            await _js.ToastrError("Error loading Terms & Conditions.");
+        }
+    }
+
+    private async Task SaveTerms()
+    {
+        try
+        {
+            isProcessing = true;
+
+            if (Terms.Id == 0)
+                await termsService.CreateAsync(Terms);
+            else
+                await termsService.UpdateAsync(Terms);
+
+            await _js.ToastrSuccess($"Terms & Conditions {(Terms.Id == 0 ? "created" : "updated")} successfully.");
+
+             // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            if (!isModelVisible)
+            {
+                _navigationManager.NavigateTo("/terms-and-conditions");
+            }
+            else
+            {
+                await OnClose.InvokeAsync();
+
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch (Exception)
+        {
+            await _js.ToastrError("An error occurred while saving Terms & Conditions.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

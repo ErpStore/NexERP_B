@@ -1,0 +1,444 @@
+﻿@page "/hr-masterr"
+
+@inherits BaseUserRightsComponent
+
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject IHRMasterService _hrMasterService
+@inject ILoggingService _logs
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-4 mt-4">
+
+        <div class="card shadow-sm">
+
+           
+            <div class="card-header text-white" style="background-color:#902214;">
+                <h5 class="mb-0">
+                    <i class="bi bi-person-workspace me-2"></i>
+                    HR Master Settings
+                </h5>
+            </div>
+
+            <div class="card-body">
+
+                <EditForm Model="HRMasterSettings" OnValidSubmit="SaveHRMaster">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row g-2 align-items-stretch">
+
+                        <!-- CARD 1 -->
+                        <div class="col-lg-4 col-md-12 mb-2">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header" style="background-color:#DBC9EE; color:black;">
+                                    <span class="fw-bold small">PF Calculation Related To</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFBasic" />
+                                            <label class="form-check-label fw-semibold">PF Basic</label>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFDA" />
+                                            <label class="form-check-label fw-semibold">PF DA</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFHRA" />
+                                            <label class="form-check-label fw-semibold">PF HRA</label>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFConveyance" />
+                                            <label class="form-check-label fw-semibold">PF Conveyance</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFOTAmount" />
+                                            <label class="form-check-label fw-semibold">PF OT Amount</label>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFSplAllow" />
+                                            <label class="form-check-label fw-semibold">PF Special Allow</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFMedicalAllow" />
+                                            <label class="form-check-label fw-semibold">PF Medical Allow</label>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFLTA" />
+                                            <label class="form-check-label fw-semibold">PF LTA</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFEA" />
+                                            <label class="form-check-label fw-semibold">PF EA</label>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFMiscEarning" />
+                                            <label class="form-check-label fw-semibold">PF Misc Earning</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFOtherAllow" />
+                                            <label class="form-check-label fw-semibold">PF Other Allow</label>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.PFAttendBonus" />
+                                            <label class="form-check-label fw-semibold">PF Attend Bonus</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+
+                        <!-- CARD 2 -->
+                        <div class="col-lg-4 col-md-12 mb-2">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header" style="background-color:#EAEFFA; color:black;">
+                                    <span class="fw-bold small">ESI Calculation Related To</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIBasic" />
+                                            <label class="form-check-label fw-semibold">ESI Basic</label>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIDA" />
+                                            <label class="form-check-label fw-semibold">ESI DA</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIHRA" />
+                                            <label class="form-check-label fw-semibold">ESI HRA</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIConveyance" />
+                                            <label class="form-check-label fw-semibold">ESI Conveyance</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIOTAmt" />
+                                            <label class="form-check-label fw-semibold">ESI OT Amount</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESISplAllow" />
+                                            <label class="form-check-label fw-semibold">ESI Special Allow</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIMedicalAllow" />
+                                            <label class="form-check-label fw-semibold">ESI Medical Allow</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESILTA" />
+                                            <label class="form-check-label fw-semibold">ESI LTA</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIEA" />
+                                            <label class="form-check-label fw-semibold">ESI EA</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIMiscEarning" />
+                                            <label class="form-check-label fw-semibold">ESI Misc Earning</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIOtherAllow" />
+                                            <label class="form-check-label fw-semibold">ESI Other Allow</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.ESIAttBonus" />
+                                            <label class="form-check-label fw-semibold">ESI Attend Bonus</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- card 3 -->
+                        <div class="col-lg-4 col-md-12 mb-2">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header" style="background-color:#E2F0C6; color:black;">
+                                    <span class="fw-bold small">OT Calculation Related To</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTBasic" />
+                                            <label class="form-check-label fw-semibold">OT Basic</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTDA" />
+                                            <label class="form-check-label fw-semibold">OT DA</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTHRA" />
+                                            <label class="form-check-label fw-semibold">OT HRA</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTConveyance" />
+                                            <label class="form-check-label fw-semibold">OT Conveyance</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTSplAllow" />
+                                            <label class="form-check-label fw-semibold">OT SplAllow</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTMedicalAllow" />
+                                            <label class="form-check-label fw-semibold">OT MedicalAllow</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTLTA" />
+                                            <label class="form-check-label fw-semibold">OT LTA</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTEA" />
+                                            <label class="form-check-label fw-semibold">OT EA</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTMiscEarning" />
+                                            <label class="form-check-label fw-semibold">OT MiscEarning</label>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTOtherAllow" />
+                                            <label class="form-check-label fw-semibold">OT OtherAllow</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+
+                                        <div class="form-check">
+                                            <InputCheckbox class="form-check-input"
+                                                           @bind-Value="HRMasterSettings.OTAttendBonus" />
+                                            <label class="form-check-label fw-semibold">OT AttendBonus</label>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CARD 4 -->
+                        <div class="col-lg-4 col-md-12 mb-2">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header" style="background-color:#FEEBE7; color:black;">
+                                    <span class="fw-bold small">PF Salary Related</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-semibold">PF %</label>
+                                            <InputNumber TValue="decimal" class="form-control"
+                                                         @bind-Value="HRMasterSettings.EmpPF" />
+                                        </div>
+                                    </div>
+                                    <div class="row">
+
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-semibold">Max PF</label>
+                                            <InputNumber TValue="decimal" class="form-control"
+                                                         @bind-Value="HRMasterSettings.PFSealing" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CARD 5 -->
+                        <div class="col-lg-4 col-md-12 mb-2">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header" style="background-color:#F9F9BE; color:black;">
+                                    <span class="fw-bold small">ESI Salary Related</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-semibold">ESI %</label>
+                                            <InputNumber TValue="decimal" class="form-control"
+                                                         @bind-Value="HRMasterSettings.EmpESI" />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-semibold">Max ESI</label>
+                                            <InputNumber TValue="decimal" class="form-control"
+                                                         @bind-Value="HRMasterSettings.ESISealing" />
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-semibold">Employer ESI</label>
+                                            <InputNumber TValue="decimal" class="form-control"
+                                                         @bind-Value="HRMasterSettings.EmplrESI" />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Action Buttons -->
+                    <div class="row mt-3">
+
+                        <div class="col-md-3">
+                            <button type="submit"
+                                    class="btn btn-primary w-100"
+                                    disabled="@isProcessing">
+                                <i class="bi bi-save me-1"></i>
+                                Save
+                            </button>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="button">
+                                <a href="/generalSettings" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left me-1"></i> Back To List
+                                </a>
+                            </button>
+                        </div>
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "HRMaster";
+
+    private bool isProcessing = true;
+    private string searchText = string.Empty;
+
+    private List<PageHeader.BreadcrumbItem> hrMasterBreadcrumbs = new()
+    {
+        new() { Text = "Master" },
+        new() { Text = "General settings" },
+        new() { Text = "HRMaster", IsLast = true }
+    };
+
+    private HRMasterSetting HRMasterSettings { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        await LoadHRMSettings();
+
+        isProcessing = false;
+    }
+
+
+    private async Task SaveHRMaster()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await _hrMasterService.SaveHRSettingsAsync(HRMasterSettings);
+            await _js.ToastrSuccess("HR Master updated successfully.");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while saving hr master");
+            await _js.ToastrError("Failed to save hr master.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadHRMSettings()
+    {
+        try
+        {
+            HRMasterSettings = await _hrMasterService.GetHRMSettingAsync();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error while loading HR master settings");
+        }
+    }
+
+}

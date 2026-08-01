@@ -1,0 +1,2754 @@
+﻿@page "/materialRequisition/create"
+@page "/materialRequisition/update/{MreqId:int}"
+
+@using V.SMART.Shared.Repository.IRepository.IMasterRepository.IAdmins
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+
+@inject IMaterialReqService _mreqService
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject ReportService reportService
+@inject IUserAuthorityRepository userAuthority
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value" >
+</BsModal>
+
+<DetailsModal Title="Sales Order Details"
+              Columns="@PoColumns"
+              ColumnFields="@PoFields"
+              HiddenColumns="@PoHiddenColumns"
+              Data="@PoData"
+              IsVisible="@IsPoModalVisible"
+              IsVisibleChanged="@((val) => IsPoModalVisible = val)"
+              OnSelectedItems="OnPoSelectedAsync">
+</DetailsModal>
+
+<RolItemDetailModel Title="Indent For ROL Items"
+                    Columns="@RolItemColumns"
+                    ColumnFields="@RolItemFields"
+                    HiddenColumns="@RolItemHiddenColumns"
+                    Data="@RolItemData"
+                    IsVisible="@ISRolItemVisible"
+                    IsVisibleChanged="@((val) => ISRolItemVisible = val)"
+                    OnSelectedItems="OnrolItemSelectedAsync">
+</RolItemDetailModel>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Customer")
+    {
+        <CustomerUpsert isCustModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+            refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+<style>
+    .freeze-last-col {
+  position: sticky;
+  right: 0;
+  background-color: #f8f9fa;
+  z-index: 10;
+}
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <!-- Cancelled Watermark -->
+            @if (MaterialReqVMs.MreqCancel)
+            {
+                <div class="cancelWatermark">CANCELLED</div>
+            }
+
+            @if (MaterialReqVMs.ShortClose)
+            {
+                <div class="cancelWatermark">SHORT-CLOSED</div>
+            }
+
+            @if (IsIndentGeneratedFromBOM && !MaterialReqVMs.MreqCancel && !MaterialReqVMs.ShortClose)
+            {
+                <div class="cancelWatermark">From BOM</div>
+            }
+
+            @if (IsIndentGeneratedFromMRA && !MaterialReqVMs.MreqCancel && !MaterialReqVMs.ShortClose)
+            {
+                <div class="cancelWatermark">From MRA</div>
+            }
+
+            <PageHeader TitleText="@(MaterialReqVMs.MreqId > 0 ? "Update Material Requisition" : "Create Material Requisition")"
+                TitleIcon="bi bi-tag"
+                Breadcrumbs="@MaterialReqFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+
+                <EditForm Model="MaterialReqVMs" OnValidSubmit="UpsertMaterialRequisition">
+                    <ObjectGraphDataAnnotationsValidator  />
+                    <ValidationSummary />
+
+                    <div class="row g-3 mb-2 align-items-center">
+
+                        <!-- Purchase / Sub-Con Toggle -->
+                        <div class="col-12 col-md-6">
+                            <div class="card shadow-sm border-0 h-100">
+                                <div class="card-body d-flex justify-content-around align-items-center">
+
+                                    <!-- Purchase Toggle -->
+                                    <div class="form-check form-switch d-flex align-items-center">
+                                        <input class="form-check-input" type="checkbox" id="PurchaseSwitch"
+                                               checked="@MaterialReqVMs.IsPurchOrSubCon"
+                                               @onchange="OnPurchToggle"
+                                               disabled ="@IsSomeItemsTransMade"/>
+                                        <label class="form-check-label fw-semibold ms-2 @(MaterialReqVMs.IsPurchOrSubCon ? "text-success" : "text-muted")"
+                                               for="PurchaseSwitch">
+                                            <i class="bi bi-cart-fill me-1"></i> Purchase
+                                        </label>
+                                    </div>
+
+                                    <!-- Sub-Contract Toggle -->
+                                    <div class="form-check form-switch d-flex align-items-center">
+                                        <input class="form-check-input" type="checkbox" id="SubConSwitch"
+                                               checked="@(!MaterialReqVMs.IsPurchOrSubCon)"
+                                               @onchange="OnSubConToggle"
+                                               disabled ="@IsSomeItemsTransMade"/>
+                                        <label class="form-check-label fw-semibold ms-2 @(!MaterialReqVMs.IsPurchOrSubCon ? "text-danger" : "text-muted")"
+                                               for="SubConSwitch">
+                                            <i class="bi bi-people-fill me-1"></i> Sub-Contract
+                                        </label>
+                                    </div>
+
+                                </div>
+                                <ValidationMessage For="@(() => MaterialReqVMs.IsPurchOrSubCon)" />
+                            </div>
+                        </div>
+
+                        <!-- Open PO Toggle -->
+                        <div class="col-12 col-md-3 d-flex justify-content-end align-items-center">
+
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="IsManualSwitch"
+                                        disabled="@(MaterialReqVMs.MaterialReqSubVMs.Any(x => x.ItemId > 0))"
+                                        checked="@MaterialReqVMs.IsManual"
+                                        @onchange="(e) => ManualMaterialReqToggle(e)" />
+                                <label class="form-check-label fw-semibold @(MaterialReqVMs.IsManual ? "text-primary" : "")"
+                                        for="IsManualSwitch">
+                                    <i class="bi bi-folder2-open me-1"></i> Manual PR / General
+                                </label>
+                            </div>
+                            <ValidationMessage For="@(() => MaterialReqVMs.IsManual)" />
+                            
+                        </div>
+
+                        <!-- Correspondence Status -->
+                        <div class="col-12 col-md-3 d-flex justify-content-end align-items-center">
+                            @if (MaterialReqVMs.MreqId > 0 && !string.IsNullOrWhiteSpace(MaterialReqVMs.MReqNo))
+                            {
+                                <CorrespondenceStatus ReferenceType="@ScreenName"
+                                                      ReferenceId="@MaterialReqVMs.MreqId"
+                                                      ReferenceTypeName="@MaterialReqVMs.MReqNo" />
+                            }
+                        </div>
+
+                    </div>
+
+                    <div class="row g-3 mb-2">
+                        <!-- =================== Customer Information Card =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Document Details</span>
+                                    <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Customer")'>
+                                        <i class="bi bi-person-add me-1"></i> Add Customer
+                                    </button>
+                                </div>
+
+
+                                <div class="card-body">
+
+                                    <!--Mreq No -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Purchase Req No.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <div class="input-group input-group-sm w-100 rounded-3">
+                                                <InputText class="form-control form-control-sm rounded-3"
+                                                            placeholder="Purchase Req No."
+                                                            maxlength="30"
+                                                            @bind-Value="@MaterialReqVMs.MReqNo"
+                                                            readonly/>
+                                                <span class="input-group-text rounded-3">@MaterialReqVMs.Suffix</span>
+                                            </div>
+                                            <ValidationMessage For="@(() => MaterialReqVMs.MReqNo)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Mreq Date -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Purchase Req Dt.</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputDate class="form-control form-control-sm rounded-3"
+                                                        @bind-Value="@MaterialReqVMs.MreqDate" />
+                                            <ValidationMessage For="@(() => MaterialReqVMs.MreqDate)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Reference Sales order Det -->
+                                    @if (MaterialReqVMs != null && !MaterialReqVMs.MreqCancel && !MaterialReqVMs.ShortClose
+                                        && !MaterialReqVMs.IsManual && !IsIndentGeneratedFromMRA  && !IsIndentGeneratedFromBOM)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Ref. PO</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                        @onclick="ShowPoDetails"> 
+                                                    <i class="bi bi-list-ul me-1"></i> Sales Order Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Reference Re order  Item Det -->
+                                    @if (MaterialReqVMs != null && !MaterialReqVMs.MreqCancel && !MaterialReqVMs.ShortClose
+                                                                    && MaterialReqVMs.IsManual && !IsIndentGeneratedFromMRA && !IsIndentGeneratedFromBOM)
+                                    {
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small> For ROL Items</small>
+                                            </label>
+
+                                            <div class="col-12 col-sm-9 position-relative">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+                                                        @onclick="ShowRolItemDetails">
+                                                    <i class="bi bi-list-ul me-1"></i> ReOrder Level Item Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Material Requisition Detail =================== -->
+                        <div class="col-12 col-lg-6 mb-2">
+                            <div class="card h-100 shadow-sm">
+
+                                <!-- Header -->
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Store And Other Details</span>
+
+                                    @if (MaterialReqVMs.MreqId > 0 && (CanCreate || CanEdit))
+                                    {
+                                        <div class="d-flex gap-2">
+                                            @if (MaterialReqVMs.MaterialReqSubVMs == null ||
+                                                        !MaterialReqVMs.MaterialReqSubVMs.Any(x => x.ItemCancel))
+                                            {
+                                                <!-- Cancel / Revert -->
+                                                <button type="button"
+                                                class="btn btn-sm rounded-3 @(MaterialReqVMs.MreqCancel ? "btn-success" : "btn-danger")"
+                                                @onclick="Cancel"
+                                                disabled ="@MaterialReqVMs.ShortClose">
+
+                                                    @if (!MaterialReqVMs.MreqCancel)
+                                                    {
+                                                        <i class="bi bi-x-circle me-1"></i>
+                                                        <span>Cancel</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                        <span>Revert</span>
+                                                    }
+                                                </button>
+                                            }
+                                            <!-- Short Closed / Re-Open -->
+                                            <button type="button"
+                                                    class="btn btn-sm rounded-3 @(MaterialReqVMs.ShortClose ? "btn-success" : "btn-warning")"
+                                                    @onclick="() => AskToShortCloseAsync(MaterialReqVMs)"
+                                                    disabled="@(MaterialReqVMs.MreqCancel)">
+
+                                                @if (!MaterialReqVMs.ShortClose)
+                                                {
+                                                    <i class="bi bi-box-seam me-1"></i>
+                                                    <span>Short Closed</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                    <span>Re-Open</span>
+                                                }
+                                            </button>
+
+                                        </div>
+                                    }
+                                </div>
+
+
+                                <div class="card-body">
+                                    
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Stock Display Store</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <select value="@selectedStoreValue"
+                                                    @onchange="OnStoreChanged"
+                                                    class="form-select form-select-sm rounded-3 w-100"
+                                                    id="StoreId">
+                                                <option value="-1">-- All Stores --</option>
+                                                @foreach (var store in Stores)
+                                                {
+                                                    <option value="@store.StoreId">@store.StoreName</option>
+                                                }
+                                            </select>
+                                            <ValidationMessage For="@(() => MaterialReqVMs.StoreId)" />
+
+                                        </div>
+                                    </div>
+
+                                    <!-- Kind attention -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Person Name</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            @* <InputText list="personList" class="form-control form-control-sm rounded-3 w-100"
+                                                        placeholder="Select or enter Person"
+                                                        @bind-Value="MaterialReqVMs.KindAttn" />
+
+                                            <!-- Datalist for existing personList -->
+                                            <datalist id="personList">
+                                                @foreach (var user in UserList)
+                                                {
+                                                    <option value="@user"></option>
+                                                }
+                                            </datalist> *@
+
+                                            <MudAutocomplete T="Staff"
+                                                             Label="Person Name"
+                                                             Variant="Variant.Outlined"
+                                                             Dense="true"
+                                                             Clearable="true"
+                                                             ResetValueOnEmptyText="true"
+                                                             SearchFunc="SearchStaff"
+                                                             ToStringFunc="@(x => x?.StaffName ?? string.Empty)"
+                                                             @bind-Value="SelectedStaff"
+                                                             MaxItems="50" />
+
+                                            <ValidationMessage For="@(() => MaterialReqVMs.KindAttn)" />
+                                        </div>
+                                    </div>
+
+                                   <!-- Department -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Department</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <InputText list="departmentsList" class="form-control form-control-sm rounded-3 w-100"
+                                                        placeholder="Select or enter department"
+                                                        @bind-Value="MaterialReqVMs.Department" />
+                                            <datalist id="departmentsList">
+                                                @foreach (var dept in ExistingDepartments)
+                                                {
+                                                    <option value="@dept"></option>
+                                                }
+                                            </datalist>
+
+                                            <ValidationMessage For="@(() => MaterialReqVMs.Department)" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Remarks -->
+                                    <div class="mb-2 row">
+                                        <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                            <small>Remarks</small>
+                                        </label>
+                                        <div class="col-12 col-sm-9">
+                                            <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                        rows="1"
+                                                        @bind="MaterialReqVMs.MainRemark"></textarea>
+                                            <ValidationMessage For="@(() => MaterialReqVMs.MainRemark)" />
+
+                                        </div>
+                                    </div>
+
+                                    @if(MaterialReqVMs.MreqCancel)
+                                    {
+                                        <!-- Cancel Remarks -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-dark">
+                                                <small>Cancel Reason</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                            rows="1"
+                                                            @bind="MaterialReqVMs.CancelReason"></textarea>
+                                                <ValidationMessage For="@(() => MaterialReqVMs.CancelReason)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Cancel Date -->
+                                        <div class="mb-2 row">
+                                            <label class="col-12 col-sm-3 col-form-label pt-1 text-danger fw-bold">
+                                                <small>Cancel Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                            rows="1"
+                                                            @bind="MaterialReqVMs.CancelDate"></textarea>
+                                                <ValidationMessage For="@(() => MaterialReqVMs.CancelDate)" />
+                                            </div>
+                                        </div>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =================== Item Details =================== -->
+                        <div class="col-12">
+                            <div class="card shadow-sm border-1" 
+                                    style="background: linear-gradient(135deg, #f9f9f9, #ffffff); border: 1px solid #e0e6ed;">
+                               
+                                <div class="card-header bg-primary-subtle text-dark">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+
+                                        <!-- Title -->
+                                        <span class="fw-bold fs-6">Item Details</span>
+
+                                        <!-- Right Controls -->
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                            <!-- Due Date + Update -->
+                                            <div class="d-flex align-items-center gap-2">
+                                                <label class="mb-0 fw-semibold">Due Date:</label>
+                                                <InputDate @bind-Value="DueDate" class="form-control form-control-sm" style="width:150px;" />
+                                                <button type="button" class="btn btn-sm btn-primary" @onclick="UpdateDueDate">
+                                                    <i class="bi bi-pencil-square me-1"></i> Update
+                                                </button>
+                                            </div>
+
+                                            <!-- Add Item Button -->
+                                             <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                                <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                            </button>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                                <div class="card-body p-2">
+                                    <div class="table-responsive" style="overflow-x:auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" 
+                                               style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:50px;">Sl.No</th>
+                                                    <th style="width:250px;">Customer Name</th>
+                                                    <th style="width:250px;">Item Code/Part No.</th>
+                                                    <th style="width:170px;">Item Name</th>
+                                                    <th style="width:60px;">UOM</th>
+                                                    <th style="width:120px;">Qty Req.</th>
+                                                    <th style="width:130px;">Bal Qty</th>
+                                                    <th style="width:130px;">Stock Qty</th>
+                                                    <th style="width:170px;">Vendor</th>
+                                                    <th style="width:130px;">Category</th>
+                                                    <th style="width:130px;">Unit Price</th>
+                                                    <th style="width:130px;">Amount</th>
+                                                    <th style="width:130px;"> Due Date</th>
+                                                    <th style="width:200px;">Remarks</th>
+                                                    <th style="width:150px;">Cost-Center</th>
+                                                    <th style="width:170px;">Sales Order No.</th>
+                                                    <th style="width:150px;">Sales Order Dt. </th>
+                                                    @if (!MaterialReqVMs.MreqCancel && (MreqId.HasValue || MreqId > 0))
+                                                    {
+                                                        <th style="width:130px;">Item Cancel</th>
+                                                        <th style="width:180px">Cancel Reason</th>
+                                                    }
+                                                    @if (!MaterialReqVMs.MreqCancel && !MaterialReqVMs.ShortClose)
+                                                    {
+                                                        <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="custom-size">
+                                                @foreach (var subitem in MaterialReqVMs.MaterialReqSubVMs)
+                                                {
+                                                    <tr @key="subitem" class="@(subitem.ItemCancel ? "table-danger text-danger fw-bold" : "")">
+                                                        <td>@subitem.SlNo</td>
+                                                        <td>
+                                                            @if (subitem.IsEditable && subitem.CanEditItem)
+                                                            {
+                                                                <MudAutocomplete T="CustomerVM"
+                                                                    Value="subitem.SelectedCustomerVM"
+                                                                    ValueChanged="@(async item => await OnCustomerChanged(subitem, item))"
+                                                                    ToStringFunc="@(item => item?.CustName ?? string.Empty)"
+                                                                    SearchFunc="SearchCustomers"
+                                                                    Dense="true"
+                                                                    Variant="Variant.Outlined"
+                                                                    Placeholder="Search Customer"
+                                                                    Title="Search Atleast 3 Letters in Customer Name"
+                                                                    Class="w-100 autocomplete-sm"
+                                                                    MaxItems="50" />
+                                                                <ValidationMessage For="@(() => subitem.CustomerName)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.CustomerName</span>
+                                                            }
+                                                        </td>
+
+                                                        <!-- Item Code + Attachments -->
+                                                        <td>
+                                                            <div class="row g-1 align-items-center">
+                                                                <div class="col-10">
+                                                                    @if (subitem.IsEditable && subitem.CanEditItem)
+                                                                    {
+                                                                        <MudAutocomplete T="ItemVM"
+                                                                            Value="subitem.SelectedItemVM"
+                                                                            ValueChanged="@(async item => await OnItemChanged(subitem, item))"
+                                                                            ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                            SearchFunc="SearchItems"
+                                                                            Dense="true"
+                                                                            Variant="Variant.Outlined"
+                                                                            Placeholder="Search Item Code"
+                                                                            Title="Search Atleast 3 Letters in Item-Code"
+                                                                            Class="w-100 autocomplete-sm"
+                                                                            MaxItems="50" />
+                                                                        <ValidationMessage For="@(() => subitem.ItemId)" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @subitem.ItemCode
+                                                                    }
+                                                                </div>
+
+                                                                <div class="col-2 text-center">
+                                                                    @if (subitem.ItemId is not null && subitem.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(subitem.ItemId.Value, out var count) && count > 0)
+                                                                    {
+                                                                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                            Size="Size.Small"
+                                                                            Color="Color.Primary"
+                                                                            OnClick="@(async () => await OpenAttachmentButton(subitem.ItemId.Value, count))"
+                                                                            Edge="Edge.End"
+                                                                            Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>@subitem.ItemName</td>
+                                                        <td>@subitem.UOM</td>
+
+                                                        <!-- Purchase Qty -->
+                                                        <td>
+                                                            @if (subitem.IsEditable && !IsIndentGeneratedFromMRA && !IsIndentGeneratedFromBOM) 
+                                                            {
+                                                                  <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           placeholder="Purch Qty"
+                                                                           step="any"
+                                                                           title="Enter Purch Qty"
+                                                                           @bind="subitem.PurchQty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, subitem))" />
+                                                                <ValidationMessage For="@(() => subitem.PurchQty)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.PurchQty?.ToString("F3")</span>
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            <span>@subitem.BalQty?.ToString("F3")</span>
+                                                        </td>
+
+                                                        <td>
+                                                            <span class="text-danger">@subitem.StockQty.ToString("F3")</span>
+                                                        </td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable && subitem.CanEditItem)
+                                                            {
+                                                                <MudAutocomplete T="VendorVM"
+                                                                    Value="subitem.SelectedVendorVM"
+                                                                    ValueChanged="@(async item => await OnVendorChanged(subitem, item))"
+                                                                    ToStringFunc="@(item => item?.VendorName ?? string.Empty)"
+                                                                    SearchFunc="SearchVendors"
+                                                                    Dense="true"
+                                                                    Variant="Variant.Outlined"
+                                                                    Placeholder="Search Vendor Name"
+                                                                    Title="Search Atleast 3 Letters in Vendor Name"
+                                                                    Class="w-100 autocomplete-sm"
+                                                                    MaxItems="50" />
+                                                                <ValidationMessage For="@(() => subitem.VendorCode)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@subitem.VendorName</span>
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            <span>@subitem.CategoryName</span>
+                                                        </td>
+
+                                                        <!-- Unit Price -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <input type="number" step="any"
+                                                                        class="form-control form-control-sm" placeholder="Price" title="Enter Unit Price"
+                                                                        @bind="subitem.UnitPrice" />
+                                                                <ValidationMessage For="@(() => subitem.UnitPrice)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @FormatDecimal(subitem.UnitPrice)
+                                                            }
+                                                        </td>
+
+                                                        <!-- Line Gross -->
+                                                        <td>
+                                                            @FormatDecimal(subitem.TotalGross)
+                                                        </td>
+
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputDate @bind-Value="subitem.DueDate"
+                                                                    class="form-control form-control-sm" 
+                                                                    placeholder="Enter Due Date" />
+                                                                <ValidationMessage For="@(() => subitem.DueDate)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.DueDate.ToString("dd/MM/yyyy")
+                                                            }
+                                                        </td>
+
+                                                        <!-- Remarks -->
+                                                        <td>
+                                                            @if (subitem.IsEditable)
+                                                            {
+                                                                <InputTextArea @bind-Value="subitem.Remark"
+                                                                    class="form-control form-control-sm" 
+                                                                    rows="1"
+                                                                    placeholder="Enter Remarks" />
+                                                                <ValidationMessage For="@(() => subitem.Remark)" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subitem.Remark
+                                                            }
+                                                        </td>
+
+                                                        <!-- Cost Center -->
+                                                        <td>
+                                                            @subitem.ProjectNo
+                                                        </td>
+
+                                                        <td>
+                                                            @subitem.RefPoNo
+                                                        </td>
+
+                                                        <td>@(subitem.RefPoDate?.ToString("dd/MM/yyyy") ?? "")</td>
+
+                                                        @if (!MaterialReqVMs.MreqCancel  && (MreqId.HasValue || MreqId > 0))
+                                                        {
+                                                            <td class="text-center align-middle">
+                                                                <div class="form-check form-switch d-flex justify-content-center">
+                                                                    <InputCheckbox 
+                                                                        @bind-Value="subitem.ItemCancel"
+                                                                        @bind-Value:event="onchange"
+                                                                        ValueChanged="@(async (value) => await OnItemCancelChanged(subitem))"
+                                                                        class="form-check-input border border-2 shadow-lg focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                </div>
+                                                                <ValidationMessage For="@(() => subitem.ItemCancel)" 
+                                                                    class="text-danger fw-semibold small mt-2 d-block" />
+                                                            </td>
+
+                                                            <td>
+                                                                @subitem.ItemCancelReason 
+                                                            </td>
+                                                        }
+
+                                                        <!-- Action Buttons -->
+                                                        <td class="freeze-last-col text-end align-middle">
+                                                             @if (!MaterialReqVMs.MreqCancel && !MaterialReqVMs.ShortClose)
+                                                             {
+                                                                <div class="d-inline-flex gap-1 justify-content-end w-100">
+                                                                    @if (subitem.IsEditable)
+                                                                    {
+                                                                        <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                                @onclick="async () => await SaveRow(subitem)"
+                                                                                disabled="@subitem.ItemCancel">
+                                                                            <i class="bi bi-check-lg"></i>
+                                                                        </button>
+
+                                                                        <button type="button" class="btn btn-secondary btn-icon btn-sm" title="Cancel"
+                                                                                @onclick="async () => await CancelEdit(subitem, MaterialReqVMs)"
+                                                                                disabled="@subitem.ItemCancel">
+                                                                            <i class="bi bi-x-lg"></i>
+                                                                        </button>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                                @onclick="async () => await EditRowAsync(subitem)"
+                                                                                disabled="@subitem.ItemCancel">
+                                                                            <i class="bi bi-pencil"></i>
+                                                                        </button>
+
+                                                                        @if (!IsIndentGeneratedFromMRA)
+                                                                        {
+                                                                            <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete"
+                                                                                    @onclick="async () => await RemoveRow(subitem)"
+                                                                                    disabled="@subitem.ItemCancel">
+                                                                                <i class="bi bi-trash"></i>
+                                                                            </button>
+                                                                        }
+                                                                    }
+                                                                </div>
+                                                            }
+                                                        </td>   
+
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                            <!-- Totals -->
+                                            @if (MaterialReqVMs.MaterialReqSubVMs?.Any() == true)
+                                            {
+                                                <tfoot class="table-warning text-dark">
+                                                    <tr>
+                                                        <td colspan="5" class="text-end fw-bold">
+                                                            Totals:
+                                                        </td>
+                                                        <td>@MaterialReqVMs.MaterialReqSubVMs.Sum(x => x.PurchQty)?.ToString("F3")</td>
+                                                        <td>@MaterialReqVMs.MaterialReqSubVMs.Sum(x => x.BalQty)?.ToString("F3")</td>
+                                                        <td colspan="3"> </td>
+                                                        <td><span>Avg:</span> @FormatDecimal(MaterialReqVMs.MaterialReqSubVMs.Average(x => x.UnitPrice))</td>
+                                                        <td>@FormatDecimal(MaterialReqVMs.MaterialReqSubVMs.Sum(x => x.TotalGross))</td>
+                                                        <td colspan="8"> </td>
+                                                    </tr>
+                                                </tfoot>
+                                            }
+
+                                        </table>
+                                    </div>
+
+                                    @if(!MaterialReqVMs.MreqCancel && !IsIndentGeneratedFromMRA && !IsIndentGeneratedFromBOM && !MaterialReqVMs.ShortClose)
+                                    {
+                                        <div class="mt-2 text-start">
+                                            <button type="button" class="btn btn-success btn-sm" @onclick="AddRow">
+                                                <i class="bi bi-plus-circle me-1"></i> Add Item
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Action Buttons -->
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if(!MaterialReqVMs.MreqCancel && !MaterialReqVMs.ShortClose)
+                                {
+                                    <div class="col-6 col-md-3 mt-3">
+                                        <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i> @(MaterialReqVMs.MreqId > 0 ? "Update" : "Create")
+                                        </button>
+                                    </div>
+                                }
+                            }
+
+                            <div class="col-6 col-md-3 mt-3">
+                                <SmartBackButton Url="/materialRequisitionList" />
+                            </div>
+
+                            @if (MaterialReqVMs.MreqId > 0 && !MaterialReqVMs.IsAuthorized && !MaterialReqVMs.IsRejected)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <span class="badge bg-warning text-dark fs-6 px-3 py-2 rounded-3">
+                                        Pending Authorization
+                                    </span>
+                                </div>
+                            }
+                            else if(MaterialReqVMs.MreqId > 0 && MaterialReqVMs.IsRejected)
+                            {
+                                <div class="col-6 col-md-3 mt-3">
+                                    <span class="badge bg-danger text-dark fs-6 px-3 py-2 rounded-3">
+                                        PR Rejected
+                                    </span>
+                                </div>
+                            }
+                               
+                            @if ((MreqId > 0 && CanEdit && (!Autharization || MaterialReqVMs.IsAuthorized)))
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+                            else if (Autharization && !MaterialReqVMs.IsAuthorized)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button class="btn btn-danger" disabled title="Authorization required to generate PDF">
+                                        <i class="bi bi-file-earmark-pdf"></i> Authorization Required
+                                    </button>
+                                </div>
+                            }
+
+                        </div>
+                    </div>
+                   
+                </EditForm>
+
+            </div>
+        </div>
+    </div>
+} 
+
+
+@code {
+
+    #region Parameters & Properties
+
+    protected override string ScreenName => "Material Requisition";
+
+    [Parameter] public int? MreqId { get; set; }
+
+    private bool isProcessing = true;
+    private MaterialReqVM MaterialReqVMs { get; set; } = new();
+    private MaterialReqSubVM? rowToDelete;
+    private MaterialReqSubVM? rowToCancel;
+
+    private List<string> UserList = new();
+    private List<string> ExistingDepartments = new();
+    private List<(int StoreId, string StoreName)> Stores = new();
+
+    private string selectedStoreValue = "-1";
+
+    private string? pdfBase64;
+    public bool Autharization = false;
+
+    private DateTime? DueDate { get; set; } = DateTime.Today;
+    private bool IsSomeItemsTransMade { get; set; } = false;
+    private bool IsIndentGeneratedFromMRA {get; set;} = false;
+    private bool IsIndentGeneratedFromBOM {get; set;} = false;
+
+    private CustomerVM? SelectedCustomer;
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+
+    private ItemVM? AttachItemSelected = null;
+    private Dictionary<int, int> attachmentCounts = new();
+
+    private bool showCancelReasonBox = false;
+
+    public string? cancelReason { get; set; }
+
+    private bool IsPoModalVisible = false;
+    private List<Dictionary<string, object>>? PoData;
+
+    private List<string> PoColumns = new() {"RefPoId", "RefPoSubId","CustId","Customer Name","Sales Order No", "Order Date","ItemId", "Item Code", "Item Name","MeasureUnit", "Category","Qty","Bal Qty.","CostCenterId","Project No" };
+    private List<string> PoFields = new() { "RefPoId", "RefPoSubId","CustId","CustName","PoNo","PoDate","ItemId" ,"ItemCode", "ItemName","MeasureUnit", "Category","Qty", "BalQty","CostCenterId" ,"ProjectNo"};
+    private List<string> PoHiddenColumns = new() { "RefPoId","RefPoSubId", "CustId","ItemId", "CostCenterId" };
+
+    private bool ISRolItemVisible = false;
+    private List<Dictionary<string, object>>? RolItemData;
+
+    private List<string> RolItemColumns = new() { "ItemId", "Item Code", "Item Name", "MeasureUnit", "Category", "HSNCode", "ROL", "MOL", "StockQty", "CostCenterId", "StoreName", "Project No", "POBalQty" };
+    private List<string> RolItemFields = new() { "ItemId", "ItemCode", "ItemName", "MeasureUnit", "Category", "HSNCode", "ROL", "MOL", "StockQty", "CostCenterId", "StoreName", "ProjectNo", "POBalQty" };
+    private List<string> RolItemHiddenColumns = new() { "ItemId", "CostCenterId" };
+
+
+    private List<PageHeader.BreadcrumbItem> MaterialReqFormBreadcrumbs = new()
+    {
+        new() { Text = "Outsourcing" },
+        new() { Text = "Material-Requisiation", IsLast = true }
+    };
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private int DecimalPlaces { get; set; } = 2;
+
+    private List<Staff> StaffList = new();
+    private Staff? _selectedStaff;
+    public Staff? SelectedStaff
+    {
+        get => _selectedStaff;
+        set
+        {
+            _selectedStaff = value;
+
+            if (value != null)
+            {
+                MaterialReqVMs.KindAttn = value.StaffName;
+                
+            }
+            else
+            {
+                MaterialReqVMs.KindAttn = string.Empty;
+                
+            }
+        }
+    }
+
+    #endregion
+
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        isProcessing = true;
+
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            Stores = await _mreqService.GetAllStoreNameAndIdAsync();
+           // UserList = await _mreqService.GetAllActiveUserNamesAsync();
+            ExistingDepartments = await _mreqService.GetAllDepartment();
+            DecimalPlaces = await _mreqService.GetDecimalPlacesAsync();
+            StaffList = await _mreqService.GetAllStaffAsync();
+            if (MreqId.HasValue)
+                await LoadExistingMReq(MreqId.Value);
+            else
+                await InitializeNewMreq();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnInitializedAsync failed.");
+            await _js.ToastrError("Error during initialization.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingMReq(int mreqId)
+    {
+        try
+        {
+            MaterialReqVMs = await _mreqService.GetMreqByMreqIdAsync(mreqId);
+
+            SelectedStaff = StaffList.FirstOrDefault(x => x.StaffName == MaterialReqVMs.KindAttn);
+
+            if (MaterialReqVMs == null)
+            {
+                await _js.ToastrWarning("Material Requisition not found.");
+                return;
+            }
+
+            Autharization = (await userAuthority.GetAllWithUserAsync()).Any(x => x.IsPR == true);
+
+            var validSubs = MaterialReqVMs.MaterialReqSubVMs.Where(q => q.ItemId > 0).ToList();
+            var attachmentTasks = validSubs.Select(async mreqSub =>
+            {
+                attachmentCounts[mreqSub.ItemId.Value] =
+                    await _mreqService.GetCorrespondenceAttachmentsCountAsync(mreqSub.ItemId.Value, "Item");
+            });
+            await Task.WhenAll(attachmentTasks);
+
+            IsIndentGeneratedFromMRA = await CheckIsIndentGeneratedFromMRA();
+            IsIndentGeneratedFromBOM = await CheckIsIndentGeneratedFromBOM();
+
+            //Important
+            IsSomeItemsTransMade = await CheckIsTransMade();
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"LoadExistingMReq failed for MreqId: {mreqId}");
+            await _js.ToastrError("Failed to load existing Material Requisition.");
+        }
+    }
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        try
+        {
+            return await _mreqService.IsMreqTransactionsMatchedAsync(MreqId.Value, MaterialReqVMs);
+        }
+        catch(Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CheckIsTransMade failed for MReq No: {MaterialReqVMs.MReqNo}");
+            await _js.ToastrError("Failed to CheckIsTransMade Material Requisition.");
+            return false;
+        }
+    }
+
+    private async Task<bool> CheckIsIndentGeneratedFromMRA()
+    {
+        try
+        {
+            if (MaterialReqVMs?.MaterialReqSubVMs == null || MaterialReqVMs.MaterialReqSubVMs.Count == 0)
+                return false;
+
+            return MaterialReqVMs.MaterialReqSubVMs
+                .Any(sub => sub.RefPoSubId.HasValue && sub.RefPoSubId > 0
+                         && sub.MainAssyId.HasValue && sub.MainAssyId > 0);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CheckIsIndentGeneratedFromMRA failed for MReq No: {MaterialReqVMs.MReqNo}");
+            await _js.ToastrError("Failed to CheckIsIndentGeneratedFromMRA Material Requisition.");
+            return false;
+        }
+    }
+
+    private async Task<bool> CheckIsIndentGeneratedFromBOM()
+    {
+        try
+        {
+            if (MaterialReqVMs?.MaterialReqSubVMs == null || MaterialReqVMs.MaterialReqSubVMs.Count == 0)
+                return false;
+
+            return MaterialReqVMs.MaterialReqSubVMs
+                .Any(sub => sub.RefBomId.HasValue && sub.RefBomId > 0
+                         && sub.MainAssyId.HasValue && sub.MainAssyId > 0);
+
+        }
+        catch(Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CheckIsIndentGeneratedFromBOM failed for MReq No: {MaterialReqVMs.MReqNo}");
+            await _js.ToastrError("Failed to Get IsIndentGeneratedFromBOM Material Requisition.");
+            return false;
+        }
+
+    }
+
+    private async Task InitializeNewMreq()
+    {
+        try
+        {
+            MaterialReqVMs.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+            MaterialReqVMs.MReqNo = await _mreqService.GetMReqNumberAsync(MaterialReqVMs.Suffix);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"InitializeNewMreq failed");
+            await _js.ToastrError("Failed to initialize new Material Requisition.");
+        }
+    }
+
+    #endregion
+
+
+    #region ManualMaterialReqtoggle 
+
+    private void ManualMaterialReqToggle(ChangeEventArgs e)
+    {
+        bool newValue = e.Value is bool b && b;
+        MaterialReqVMs.IsManual = newValue;
+        StateHasChanged();
+    }
+
+    #endregion 
+
+    #region Customer data, Currency And Tax  Handlers
+
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3) 
+            return Enumerable.Empty<CustomerVM>();
+
+        try
+        {
+            var results = await _mreqService.SearchCustomersAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<CustomerVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<CustomerVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search customers. Please try again.");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+    private async Task OnCustomerChanged(MaterialReqSubVM subVM ,CustomerVM? customer)
+    {
+        try
+        {
+            subVM.SelectedCustomerVM = customer;
+            subVM.CustId = customer.CustId;
+            subVM.CustomerName = customer.CustName;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnCustomerChanged: {ex}");
+            await _logs.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting");
+        }
+    }
+
+    #endregion
+
+
+    #region Item Handlers
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+
+        try
+        {
+            var results = await _mreqService.SearchItemsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<ItemVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing too fast, search canceled - silently ignore
+            return Enumerable.Empty<ItemVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchItems failed for value: {value}");
+            await _js.ToastrError("Failed to search items. Please try again.");
+            return Enumerable.Empty<ItemVM>();
+        }
+    }
+
+    private async Task OnItemChanged(MaterialReqSubVM subitem, ItemVM? item)
+    {
+        try
+        {
+            if (item != null)
+            {
+                subitem.SelectedItemVM = item;
+                subitem.ItemId = item.ItemId;
+                subitem.ItemCode = item.ItemCode;
+                subitem.ItemName = item.ItemName;
+                subitem.CategoryName = item.CategoryName;
+                subitem.UOM = item.MeasureUnit;
+
+                if ( subitem.ItemId.HasValue)
+                {
+                    var rates = await _mreqService.GetBulkLastUnitPricesAsync(new List<int> { subitem.ItemId.Value },subitem.CustId.GetValueOrDefault());
+
+                    if (rates.TryGetValue(subitem.ItemId.Value, out decimal rate))
+                    {
+                        subitem.UnitPrice = rate;
+                    }
+                }
+
+                // 🔹 Fetch stock quantity for the selected store
+                if (subitem.ItemId > 0)
+                {
+                    var stockDict = await _mreqService.GetStockForItemsAsync(
+                        new List<int> { subitem.ItemId.Value },
+                        MaterialReqVMs.StoreId ?? null
+                    );
+
+                    subitem.StockQty = stockDict.TryGetValue(subitem.ItemId.Value, out var qty) ? qty : 0m;
+                }
+
+                if (subitem.ItemId > 0)
+                {
+                    var count = await _mreqService.GetCorrespondenceAttachmentsCountAsync(subitem.ItemId.Value, "Item");
+                    attachmentCounts[subitem.ItemId.Value] = count;
+                }
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedItemVM = null;
+                subitem.ItemId = null;
+                subitem.ItemCode = null;
+                subitem.ItemName = null;
+                subitem.CategoryName = null;
+                subitem.UOM = null;
+                subitem.UnitPrice = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnItemChanged failed for ItemId: {item?.ItemId}");
+            await _js.ToastrError("Failed to apply item selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Vendor Handlers
+
+    private async Task<IEnumerable<VendorVM>> SearchVendors(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<VendorVM>();
+
+        try
+        {
+            var results = await _mreqService.SearchVendorsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<VendorVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SearchVendors failed for value: {value}");
+            await _js.ToastrError("Failed to search vendors. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+
+    private async Task OnVendorChanged(MaterialReqSubVM subitem, VendorVM? vendorVM)
+    {
+        try
+        {
+            if (vendorVM != null)
+            {
+                subitem.SelectedVendorVM = vendorVM;
+                subitem.VendorCode = vendorVM.VendorCode;
+                subitem.VendorName = vendorVM.VendorName;
+            }
+            else
+            {
+                // Reset when deselected
+                subitem.SelectedVendorVM = null;
+                subitem.VendorCode = null;
+                subitem.VendorName = null;
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnVendorChanged failed for VenderCode: {vendorVM?.VendorCode}");
+            await _js.ToastrError("Failed to apply Vendor selection. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Quantity Handlers
+
+    private async Task OnQtyChange(ChangeEventArgs e, MaterialReqSubVM SubVM)
+    {
+        try
+        {
+            // Common validation: Qty must be positive
+            if (!decimal.TryParse(e.Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                SubVM.PurchQty = 0;
+                SubVM.BalQty = 0;
+                await _js.ToastrWarning("Qty must be a positive number.");
+                return;
+            }
+
+            // NEW Po line
+            if (SubVM.MreqSubId == 0)
+            {
+                if (SubVM.RefPoSubId > 0 && (!SubVM.MainAssyId.HasValue || SubVM.MainAssyId == 0))
+                {
+                    var poBalQty = await _mreqService.GetPOItemIndentBalQtyFromPoSubId(SubVM.RefPoSubId.Value);
+
+                    if (newQty <= poBalQty)
+                    {   
+                        SubVM.PurchQty  = newQty;
+                        SubVM.BalQty = newQty;
+                    }
+                    else
+                    {
+                        SubVM.PurchQty = poBalQty;
+                        SubVM.BalQty = poBalQty;
+                        await _js.ToastrWarning($"Qty can't be greater than Po Balance Qty ({poBalQty}).");
+                    }
+                }
+                else
+                {
+                    SubVM.PurchQty = newQty;
+                    SubVM.BalQty = newQty;
+                }
+            }
+
+            // EXISTING Indent line
+            else
+            {
+                var original = await _mreqService.GetMaterialReqSubItemDetailByMreqSubIdAsync(SubVM.MreqSubId);
+                if (original == null) return;
+
+                var alreadyTransacted = original.PurchQty - original.BalQty;
+
+                // Cannot decrease below transacted quantity
+                if (newQty < alreadyTransacted)
+                {
+                    SubVM.PurchQty = alreadyTransacted;
+                    SubVM.BalQty = 0;
+                    await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                    return;
+                }
+
+                if (SubVM.RefPoSubId > 0)
+                {
+                    var poBalQty = await _mreqService.GetPOItemIndentBalQtyFromPoSubId(SubVM.RefPoSubId.Value);
+                    var maxAllowedQty = original.PurchQty + poBalQty;
+
+                    if (newQty > maxAllowedQty)
+                    {
+                        SubVM.PurchQty = maxAllowedQty;
+                        SubVM.BalQty = maxAllowedQty - alreadyTransacted;
+                        await _js.ToastrWarning($"Qty cannot be greater than {maxAllowedQty}.");
+                    }
+                    else
+                    {
+                        SubVM.PurchQty = newQty;
+                        SubVM.BalQty = newQty - alreadyTransacted;
+                    }
+                }
+                else
+                {
+                    SubVM.PurchQty = newQty;
+                    SubVM.BalQty = newQty - alreadyTransacted;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OnQtyChange failed for MreqSubId: {SubVM?.MreqSubId}");
+            await _js.ToastrError("Failed to update quantity. Please try again.");
+        }
+    }
+
+    #endregion
+
+
+    #region Row Operations
+
+    private async Task<bool> ValidateRowAsync(MaterialReqSubVM row)
+    {
+        try
+        {
+            var errors = new List<string>();
+
+            if (row.ItemId == null)
+                errors.Add("Please select an Item.");
+
+            if (row.PurchQty == null || row.PurchQty <= 0)
+                errors.Add("Purchase Quantity must be greater than 0.");
+
+            if (row.UnitPrice == null || row.UnitPrice <= 0)
+                errors.Add("Unit Price must be greater than 0.");
+
+            if (errors.Any())
+            {
+                var message = string.Join("<br>", errors);
+                await _js.ToastrInfo(message);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating row.");
+            await _logs.LogDeveloperError(ex, "ValidateRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        try
+        {
+            var lastRow = MaterialReqVMs.MaterialReqSubVMs.LastOrDefault();
+            if (lastRow == null) return true;
+
+            if (!await ValidateRowAsync(lastRow)) return false;
+
+            lastRow.IsEditable = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error validating last row.");
+            await _logs.LogDeveloperError(ex, "ValidateLastRowAsync failed.");
+            return false;
+        }
+    }
+
+    private async Task AddRow()
+    {
+        try
+        {
+            if (IsIndentGeneratedFromMRA || IsIndentGeneratedFromBOM)
+                return;
+
+            if (!await ValidateLastRowAsync())
+                return;
+
+            // Get previous row (last row)
+            var lastRow = MaterialReqVMs.MaterialReqSubVMs.LastOrDefault();
+
+            var newRow = new MaterialReqSubVM
+            {
+                MreqId = MaterialReqVMs.MreqId,
+                CustId = lastRow?.CustId,
+                CustomerName = lastRow?.CustomerName,
+                SelectedCustomerVM = lastRow?.SelectedCustomerVM,
+
+                IsEditable = true
+            };
+
+            MaterialReqVMs.MaterialReqSubVMs.Add(newRow);
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error adding new row.");
+            await _logs.LogDeveloperError(ex, "AddRow failed.");
+        }
+    }
+
+
+    private async Task SaveRow(MaterialReqSubVM item)
+    {
+        try
+        {
+            if (!await ValidateRowAsync(item))
+            {
+                item.IsEditable = true;
+                return;
+            }
+
+            item.IsEditable = false;
+
+            if (IsIndentGeneratedFromMRA || IsIndentGeneratedFromBOM)
+                return;
+
+            if (!MaterialReqVMs.MaterialReqSubVMs.Any(x => x.IsEditable))
+            {
+                var lastRow = MaterialReqVMs.MaterialReqSubVMs.LastOrDefault();
+
+                var newRow = new MaterialReqSubVM
+                {
+                    MreqId = MaterialReqVMs.MreqId,
+                    CustId = lastRow?.CustId,
+                    CustomerName = lastRow?.CustomerName,
+                    SelectedCustomerVM = lastRow?.SelectedCustomerVM,
+
+                    IsEditable = true
+                };
+
+                MaterialReqVMs.MaterialReqSubVMs.Add(newRow);
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"SaveRow failed for MreqSubId: {item?.MreqSubId}");
+            await _js.ToastrError("Failed to save the row. Please try again.");
+        }
+    }
+
+    private async Task EditRowAsync(MaterialReqSubVM item)
+    {
+        try
+        {
+            item.IsEditable = true;
+
+            if (item.SelectedItemVM == null && item.ItemId > 0)
+            {
+                item.SelectedItemVM = await _mreqService.GetItemByItemIdAsync(item.ItemId);
+            }
+
+            if(item.SelectedVendorVM == null && item.VendorCode>0)
+            {
+                item.SelectedVendorVM = await _mreqService.GetVenderByVendorCodeAsync(item.VendorCode);
+            }
+
+            if(item.SelectedCustomerVM == null && item.CustId>0)
+            {
+                item.SelectedCustomerVM = await _mreqService.GetCustomerByIdAsync(item.CustId.Value);
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"EditRowAsync failed for MreqSubId: {item?.MreqSubId}");
+            await _js.ToastrError("Failed to edit the row. Please try again.");
+        }
+    }
+
+    private async Task CancelEdit(MaterialReqSubVM? item, MaterialReqVM? parentMaterialReq)
+    {
+        try
+        {
+            if (item == null || parentMaterialReq == null)
+                return;
+
+            bool isEmptyOrInvalid =
+                (item.ItemId <= 0) ||
+                (!item.PurchQty.HasValue || item.PurchQty.Value <= 0) ||
+                (!item.UnitPrice.HasValue || item.UnitPrice.Value <= 0);
+
+            if (isEmptyOrInvalid)
+            {
+                parentMaterialReq.MaterialReqSubVMs.Remove(item);
+                await ResetSlno();
+            }
+            else
+            {
+                item.IsEditable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CancelEdit failed for MreqSubId: {item?.MreqSubId}");
+            await _js.ToastrError("Failed to cancel edit. Please try again.");
+        }
+    }
+
+    private async Task RemoveRow(MaterialReqSubVM item)
+    {
+        try
+        {
+            if (MaterialReqVMs.MaterialReqSubVMs.Count == 1 && item.MreqSubId > 0)
+            {
+                await _js.ToastrWarning("At least 1 row item is required.");
+                return;
+            }
+
+            if ((item.PurchQty ?? 0) != (item.BalQty ?? 0))
+            {
+                await _js.ToastrWarning("This row cannot be deleted because some transactions are done.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction history.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                MaterialReqVMs.MaterialReqSubVMs.Remove(item);
+                await _js.ToastrSuccess("New item row removed successfully.");
+
+                if (!MaterialReqVMs.MaterialReqSubVMs.Any())
+                    MaterialReqVMs.MaterialReqSubVMs = new List<MaterialReqSubVM>();
+
+                await ResetSlno();
+                StateHasChanged();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this row?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "confirmDeleteRow_Click";
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"RemoveRow failed for MreqSubId: {item?.MreqSubId}");
+            await _js.ToastrError("Failed to remove the row. Please try again.");
+        }
+    }
+
+    private async Task ResetSlno()
+    {
+        try
+        {
+            int counter = 1;
+            foreach (var sub in MaterialReqVMs.MaterialReqSubVMs)
+            {
+                sub.SlNo = counter++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to reset row serial numbers.");
+        }
+    }
+
+    private async Task UpdateDueDate()
+    {
+        try
+        {
+            if (DueDate == null)
+                return;
+
+            foreach (var subItem in MaterialReqVMs.MaterialReqSubVMs)
+            {
+                subItem.DueDate = DueDate.Value;
+            }
+            StateHasChanged();
+        }
+        catch(Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ResetSlno failed.");
+            await _js.ToastrError("Failed to Update DueDate.");
+        }
+    }
+
+    #endregion
+
+
+    #region Modal Handlers
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "Customer" => "Add New Customer",
+                "Item" => "Add New Item",
+                "Attachments" => "Attached Drawings",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _js.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            if (ActiveModal == "Attachments")
+            {
+                AttachItemSelected = null;
+            }
+
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _js.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    private async Task AskToShortCloseAsync(MaterialReqVM materialReq)
+    {
+        try
+        {
+            if (materialReq == null)
+            {
+                await _js.ToastrError("Invalid Materail Requisition selected.");
+                return;
+            }
+
+            if (!MreqId.HasValue || MreqId == 0)
+            {
+                await _js.ToastrError("Short Closed is not allowed before saving the Material Requisition.");
+                return;
+            }
+
+            if (materialReq.PRTally)
+            {
+                await _js.ToastrWarning("This PR/Indent is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (materialReq.PRTally)
+            {
+                await _js.ToastrWarning("This Material Requisition is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (materialReq.MreqCancel)
+            {
+                var subs = await _mreqService.GetMaterialReqSubByMreqIdAsync(MaterialReqVMs.MreqId); 
+
+                foreach (var sub in subs)
+                {
+                    if(sub.RefBomId.GetValueOrDefault()> 0)
+                        await  _mreqService.ValidateBOMBalanceBeforeRevertAsync(sub);
+
+                    else if(sub.RefPoSubId > 0)
+                        await _mreqService.ValidatePoBalanceBeforeRevertAsync(sub);
+                }
+            }
+
+            if (!materialReq.ShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Material requisition?";
+                btnText = "Short Closed";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Material Requisition?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while AskToShortCloseAsync Material Requisition.");
+            await _logs.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+
+    private async Task Cancel()
+    {
+        try
+        {
+
+            if (!MreqId.HasValue || MreqId == 0)
+            {
+                await _js.ToastrError("Cancellation is not allowed before saving the Material Requisition.");
+                return;
+            }
+
+            if (MaterialReqVMs.ShortClose)
+            {
+                await _js.ToastrError("PR/Indent is already short closed. You can't cancel it.");
+                return;
+            }
+
+            if (MaterialReqVMs.MaterialReqSubVMs?.Any(x => x.ItemCancel) == true)
+            {
+                await _js.ToastrError("Some items are already cancelled. Complete PR/Indent cancellation is not allowed.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrError("Some items transactions are made! You can't cancel this Material Requisition.");
+                return;
+            }
+
+
+            if (MaterialReqVMs.MreqCancel)
+            {
+
+                var subs = await _mreqService.GetMaterialReqSubByMreqIdAsync(MaterialReqVMs.MreqId);
+
+                foreach (var sub in subs)
+                {
+                    if(sub.RefBomId.GetValueOrDefault()> 0)
+                        await  _mreqService.ValidateBOMBalanceBeforeRevertAsync(sub);
+
+                    else if (sub.RefPoSubId.GetValueOrDefault() > 0)
+                        await _mreqService.ValidatePoBalanceBeforeRevertAsync(sub);
+                }
+            }
+
+            if (!MaterialReqVMs.MreqCancel)
+            {
+                ModalTitle = "Are you sure you want to cancel this Material Requisition?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to revert this Material Requisition?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+         catch (InvalidOperationException ex)
+        {
+            if (MreqId.HasValue || MreqId > 0)
+                await LoadExistingMReq(MreqId.Value);
+
+            await _js.ToastrWarning(ex.Message);
+            await _logs.LogDeveloperError(ex, $"Qty miss-match While cancelling");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("Error while processing the Material Requisition cancel request.");
+            await _logs.LogDeveloperError(ex, "Error in Cancel() method");
+        }
+    }
+
+    private async Task OnItemCancelChanged(MaterialReqSubVM subitem)
+    {
+        try
+        {
+
+            if (subitem.MreqSubId == 0)
+            {
+                await _js.ToastrError("Kindly save the item before cancelling.");
+                return;
+            }
+
+            if (subitem.PurchQty.GetValueOrDefault() != subitem.BalQty.GetValueOrDefault())
+            {
+                await _js.ToastrError("Item cannot be cancelled — PR transactions have been made on it.");
+                return;
+            }
+
+            if (MaterialReqVMs.MreqCancel)
+            {
+                await _js.ToastrError("PR is already Cancel. You can't cancel Item.");
+                return;
+            }
+
+            if(subitem.ItemCancel)
+                await _mreqService.ValidateBeforeRevertAsync(subitem.MreqSubId);
+
+            var (CanItemCancel, message) = await _mreqService.CanPRItemCancelCheckAsync(subitem);
+
+            if (!CanItemCancel)
+            {
+                await _js.ToastrWarning(message);
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.ItemCancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = false;
+                }
+                rowToCancel = subitem;
+
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            await LoadExistingMReq(MaterialReqVMs.MreqId);
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Item.Cancel method");
+            await _logs.LogDeveloperError(ex, "Error in Item Cancel in Material Requisition");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "confirmDeleteRow_Click":
+                    await confirmDeleteRow_Click(true);
+                    break;
+
+                case "OpenFiles":
+                    if (AttachItemSelected != null)
+                        await OpenModal("Attachments");
+                    break;
+
+                case "Cancel":
+                case "Revert":
+                    await CancelPR();
+                    break;
+
+                case "ItemCancel":
+                    await CancelItem(rowToCancel);
+                    break;
+
+                case "ShortClose":
+                    await ShortCloseQuotation();
+                    break;
+
+                default:
+                    await _js.ToastrWarning("Unknown confirmation action.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _js.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task ShortCloseQuotation()
+    {
+        if (MaterialReqVMs == null)
+        {
+            await _js.ToastrError("No PR selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            MaterialReqVMs.ShortClose = !MaterialReqVMs.ShortClose;
+            await _mreqService.UpsertPRShortCloseAsync(MaterialReqVMs);
+            StateHasChanged();
+
+            string msg = MaterialReqVMs.ShortClose
+                 ? "PR/Indent ShortClose Successfully!"
+                 : "PR/Indent ReOpen Successfully!";
+            await _js.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while updating ShortClose.Material Requisition");
+            await _logs.LogDeveloperError(ex, "Error in ShortClose() Material Requisition");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task CancelItem(MaterialReqSubVM rowToCancel)
+    {
+        if (rowToCancel == null || isProcessing)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            bool isCancelling = !rowToCancel.ItemCancel;
+
+            if (isCancelling && string.IsNullOrWhiteSpace(cancelReason))
+            {
+                await _js.ToastrWarning("Cancel reason is required.");
+                return;
+            }
+
+            rowToCancel.ItemCancel = isCancelling;
+            rowToCancel.ItemCancelReason = isCancelling ? cancelReason : string.Empty;
+
+            await _mreqService.UpdateItemCancelAndAddorRevertAsync(rowToCancel);
+
+            string actionText = isCancelling ? "Cancelled" : "Reverted";
+
+            await _logs.LogUserAction(
+                username,
+                machine,
+                ip,
+                screen: "Material Requisition",
+                action: $"{actionText} Material Req No: {MaterialReqVMs.MReqNo}, ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: isCancelling
+                    ? $"Reason: {cancelReason}"
+                    : "Item revert operation"
+            );
+
+            MaterialReqVMs = await _mreqService.GetMreqByMreqIdAsync(MaterialReqVMs.MreqId);
+
+            await ResetSlno();
+
+            await _js.ToastrSuccess($"Item has been {actionText.ToLower()} successfully.");
+
+            cancelReason = string.Empty;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+
+            MaterialReqVMs = await _mreqService.GetMreqByMreqIdAsync(MaterialReqVMs.MreqId);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while cancelling/reverting the item.");
+            await _logs.LogDeveloperError(ex, $"Item Cancel/Revert failed for MreqId: {MaterialReqVMs?.MreqId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task CancelPR()
+    {
+         if (isProcessing)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (MaterialReqVMs == null || MaterialReqVMs.MreqId == 0)
+            {
+                await _js.ToastrWarning("Please select a valid Material Requsition.");
+                return;
+            }
+
+            bool isCancelling = !MaterialReqVMs.MreqCancel;
+
+            if (isCancelling && string.IsNullOrWhiteSpace(cancelReason))
+            {
+                await _js.ToastrWarning("Cancel reason is required.");
+                return;
+            }
+
+            MaterialReqVMs.MreqCancel = isCancelling;
+            MaterialReqVMs.CancelDate = isCancelling ? DateTime.Now : null;
+            MaterialReqVMs.CancelReason = isCancelling ? cancelReason : string.Empty;
+            MaterialReqVMs.CancelBy = isCancelling ? username : string.Empty;
+
+            await _mreqService.UpdatedCancelStatusAndAddOrRevertQty(MaterialReqVMs);
+
+            string actionText = isCancelling ? "Cancelled" : "Reverted";
+
+            await _logs.LogUserAction(
+                UserName: username,
+                Machine: machine,
+                IP_Address: ip,
+                screen: "Material Requisition",
+                action: $"{actionText} Mreq No: {MaterialReqVMs.MReqNo}",
+                additionalInfo: $"PR Id: {MaterialReqVMs.MreqId}"
+            );
+
+            await _js.ToastrSuccess($"Material Requisition has been {actionText.ToLower()} successfully.");
+
+            // Reload updated PO
+            MaterialReqVMs = await _mreqService.GetMreqByMreqIdAsync(MaterialReqVMs.MreqId);
+
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            MaterialReqVMs = await _mreqService.GetMreqByMreqIdAsync(MaterialReqVMs.MreqId);
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while cancelling/reverting the PR.");
+            await _logs.LogDeveloperError(ex, $"CancelPR failed for MreqId: {MaterialReqVMs?.MreqId}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            var deletedItemCode = rowToDelete.ItemCode;
+
+            if (rowToDelete.MreqSubId > 0)
+            {
+                await _mreqService.DeleteAndResequenceAsync(rowToDelete, MaterialReqVMs);
+
+                MaterialReqVMs = await _mreqService.GetMreqByMreqIdAsync(MaterialReqVMs.MreqId);
+            }
+            else
+            {
+                MaterialReqVMs.MaterialReqSubVMs.Remove(rowToDelete);
+
+                if (!MaterialReqVMs.MaterialReqSubVMs.Any())
+                {
+                    MaterialReqVMs.MaterialReqSubVMs.Add(new MaterialReqSubVM
+                    {
+                        MreqId = MaterialReqVMs.MreqId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    // Resequence remaining rows
+                    for (int i = 0; i < MaterialReqVMs.MaterialReqSubVMs.Count; i++)
+                        MaterialReqVMs.MaterialReqSubVMs[i].SlNo = i + 1;
+                }
+            }
+            await _js.ToastrSuccess($"{deletedItemCode} deleted successfully.");
+        }
+
+
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"Error confirming deletion for MreqId: {MaterialReqVMs.MreqId}");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await _mreqService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to open these attachments?";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "OpenFiles";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, $"OpenAttachmentButton failed for ItemId: {ItemId}");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region Toggles
+
+    private void OnPurchToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        MaterialReqVMs.IsPurchOrSubCon = isChecked;
+    }
+
+    private void OnSubConToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        MaterialReqVMs.IsPurchOrSubCon = !isChecked;
+    }
+
+    #endregion
+
+
+    #region Material Requisition Operations
+
+    private async Task UpsertMaterialRequisition()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Remove empty/invalid rows
+            MaterialReqVMs.MaterialReqSubVMs.RemoveAll(x =>
+                !x.ItemId.HasValue &&
+                (!x.PurchQty.HasValue || x.PurchQty == 0) &&
+                (!x.UnitPrice.HasValue || x.UnitPrice == 0));
+
+            if (! MaterialReqVMs.MaterialReqSubVMs.Any())
+            {
+                await _js.ToastrError("Cannot save a Material Requisition without valid items.");
+                return;
+            }
+
+            // Validate each line
+            foreach (var line in MaterialReqVMs.MaterialReqSubVMs)
+            {
+                bool isValid = await ValidatePRLineAsync(line);
+                if (!isValid) return;
+            }
+
+            // Save
+            var isNewPo = MaterialReqVMs.MreqId == 0;
+
+            try
+            {
+                await _mreqService.UpsertMaterialReqAsync(MaterialReqVMs);
+            }
+            catch (Exception ex)
+            {
+                await _js.ToastrError(ex.Message);
+                return;
+            }
+
+            if (isNewPo)
+                await _js.ToastrSuccess("PR/Indent saved successfully.");
+            else
+                await _js.ToastrSuccess("PR/Indent updated successfully.");
+
+            // Discard popup Clear
+            await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+            _navigationManager.NavigateTo("/materialRequisitionList");
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "UpsertMaterialRequisition failed.");
+            await _js.ToastrError("Error saving Material Requisition.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> ValidatePRLineAsync(MaterialReqSubVM line)
+    {
+        try
+        {
+            if (!line.ItemId.HasValue)
+            {
+                await _js.ToastrError("One or more items are missing Item selection.");
+                return false;
+            }
+
+
+            if (!line.PurchQty.HasValue || line.PurchQty <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemCode}: Purchase Quantity must be greater than 0.");
+                return false;
+            }
+
+            if (!line.UnitPrice.HasValue || line.UnitPrice <= 0)
+            {
+                await _js.ToastrError($"Item {line.ItemCode}: Unit Price must be greater than 0.");
+                return false;
+            }
+
+            // Qty vs Po / Already Transacted validation
+            if (line.MreqSubId == 0 && line.RefPoSubId > 0)
+            {
+                var poIndentBalQty = await _mreqService.GetPOItemIndentBalQtyFromPoSubId(line.RefPoSubId.Value);
+                if (line.PurchQty > poIndentBalQty)
+                {
+                    line.PurchQty = poIndentBalQty;
+                    line.BalQty = poIndentBalQty;
+                    await _js.ToastrWarning($"Qty cannot exceed PO Balance Qty ({poIndentBalQty}).");
+                    return false;
+                }
+            }
+            else if (line.MreqSubId > 0)
+            {
+                var original = await _mreqService.GetMaterialReqSubItemDetailByMreqSubIdAsync(line.MreqSubId);
+                if (original != null)
+                {
+                    decimal origBalQty = original.BalQty.GetValueOrDefault();
+                    decimal origQty = original.PurchQty.GetValueOrDefault();
+                    var alreadyTransacted = origQty - origBalQty;
+
+                    if (line.PurchQty < alreadyTransacted)
+                    {
+                        line.PurchQty = alreadyTransacted;
+                        line.BalQty = 0m;
+                        await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} (already transacted).");
+                        return false;
+                    }
+                    else
+                    {
+                        var difference = line.PurchQty.GetValueOrDefault() - origQty;
+                        line.BalQty = Math.Max(0m, origBalQty + difference);
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ValidatePRLineAsync failed.");
+            await _js.ToastrError("Error Validate Material-Requisition line.");
+            return false;
+        }
+    }
+
+    #endregion
+
+
+    #region Formatting
+    // Common decimal formatter
+    private string FormatDecimal(decimal? value) 
+    {
+        return value?.ToString($"F{DecimalPlaces}") ?? (0m).ToString($"F{DecimalPlaces}");
+    }
+    #endregion
+
+    #region Stock Based Store
+
+    private async Task OnStoreChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            selectedStoreValue = e.Value?.ToString() ?? "-1";
+
+            if (int.TryParse(selectedStoreValue, out var parsedId) && parsedId != -1)
+                MaterialReqVMs.StoreId = parsedId;
+            else
+                MaterialReqVMs.StoreId = null; // All Stores
+
+            if (MaterialReqVMs.MaterialReqSubVMs == null || !MaterialReqVMs.MaterialReqSubVMs.Any())
+            {
+                await _js.ToastrInfo("No sub-items available to update stock.");
+                return;
+            }
+
+            var itemIds = MaterialReqVMs.MaterialReqSubVMs
+                .Where(s => s.ItemId.HasValue)
+                .Select(s => s.ItemId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (itemIds.Count == 0)
+            {
+                await _js.ToastrInfo("No valid items found to update stock for this store.");
+                return;
+            }
+
+            var stockDict = await _mreqService.GetStockForItemsAsync(itemIds, MaterialReqVMs.StoreId);
+
+            foreach (var sub in MaterialReqVMs.MaterialReqSubVMs)
+            {
+                if (sub.ItemId.HasValue && stockDict.TryGetValue(sub.ItemId.Value, out var qty))
+                    sub.StockQty = qty;
+                else
+                    sub.StockQty = 0;
+            }
+
+            await _js.ToastrSuccess("Stock quantities updated based on selected store.");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error occurred in OnStoreChanged while updating stock quantities.");
+            await _js.ToastrError("An unexpected error occurred while updating stock. Please try again.");
+        }
+    }
+
+    #endregion 
+
+    #region Sales PO Selection
+
+    private async Task ShowPoDetails()
+    {
+        try
+        {
+            isProcessing = true;
+            PoData = await _mreqService.GetPoDetailsAsync();
+            IsPoModalVisible = true;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ShowPoDetails failed.");
+            await _js.ToastrError("Error fetching Sales Order details.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task OnPoSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        if (MaterialReqVMs.MaterialReqSubVMs == null)
+            MaterialReqVMs.MaterialReqSubVMs = new List<MaterialReqSubVM>();
+
+        try
+        {
+            var itemIds = selectedItems
+                .Where(i => i.ContainsKey("ItemId") && i["ItemId"] != null)
+                .Select(i => Convert.ToInt32(i["ItemId"]))
+                .Distinct()
+                .ToList();
+
+            if (!itemIds.Any())
+                return;
+
+            var stockDict = await _mreqService.GetStockForItemsAsync(itemIds, null);
+
+            foreach (var item in selectedItems)
+            {
+                int itemId = item.ContainsKey("ItemId") && item["ItemId"] != null
+                    ? Convert.ToInt32(item["ItemId"])
+                    : 0;
+
+                if (itemId == 0)
+                    continue;
+
+                int custId = item.ContainsKey("CustId") && item["CustId"] != null
+                    ? Convert.ToInt32(item["CustId"])
+                    : 0;
+
+                var priceDict = await _mreqService.GetBulkLastUnitPricesAsync(new List<int> { itemId }, custId);
+
+                int? RefPoSubId = item.ContainsKey("RefPoSubId") && item["RefPoSubId"] != null
+                    ? Convert.ToInt32(item["RefPoSubId"])
+                    : (int?)null;
+
+                int? RefPoId = item.ContainsKey("RefPoId") && item["RefPoId"] != null
+                    ? Convert.ToInt32(item["RefPoId"])
+                    : (int?)null;
+
+                if (MaterialReqVMs.MaterialReqSubVMs.Any(x => x.ItemId == itemId && x.RefPoSubId == RefPoSubId))
+                    continue;
+
+                decimal stockQty = stockDict.TryGetValue(itemId, out var stock) ? stock : 0;
+
+                var balQty = item.ContainsKey("BalQty") && item["BalQty"] != null
+                    ? Convert.ToDecimal(item["BalQty"])
+                    : 0;
+
+                var subVm = new MaterialReqSubVM
+                {
+                    RefPoId = RefPoId,
+                    RefPoSubId = RefPoSubId,
+                    CustId = custId,
+                    CustomerName = item.ContainsKey("CustName") ? item["CustName"]?.ToString() : "",
+                    RefPoNo = item.ContainsKey("PoNo") ? item["PoNo"]?.ToString() : "",
+                    RefPoDate = item.ContainsKey("PoDate") && item["PoDate"] != null
+                        ? Convert.ToDateTime(item["PoDate"])
+                        : null,
+
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    UOM = item.ContainsKey("MeasureUnit") ? item["MeasureUnit"]?.ToString() : "",
+                    CategoryName = item.ContainsKey("Category") ? item["Category"]?.ToString() : "",
+
+                    PurchQty = balQty,
+                    BalQty = balQty,
+
+                    StockQty = stockQty,
+
+                    UnitPrice = priceDict.TryGetValue(itemId, out var price) ? price : 0,
+
+                    CostId = item.ContainsKey("CostCenterId") && item["CostCenterId"] != null
+                        ? (Convert.ToInt32(item["CostCenterId"]) == 0 ? (int?)null : Convert.ToInt32(item["CostCenterId"]))
+                        : (int?)null,
+
+                    ProjectNo = item.ContainsKey("ProjectNo") ? item["ProjectNo"]?.ToString() : "",
+                    IsEditable = true
+                };
+
+                MaterialReqVMs.MaterialReqSubVMs.Add(subVm);
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPoSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected Sales Order items.");
+        }
+    }
+
+    #endregion
+
+    private async Task OnrolItemSelectedAsync(List<Dictionary<string, object>> selectedRolItems)
+    {
+        if (MaterialReqVMs.MaterialReqSubVMs == null)
+            MaterialReqVMs.MaterialReqSubVMs = new List<MaterialReqSubVM>();
+
+        try
+        {
+            var itemIds = selectedRolItems
+            .Where(i => i.ContainsKey("Itemid") && i["Itemid"] != null)
+            .Select(i => Convert.ToInt32(i["Itemid"]))
+            .Distinct()
+            .ToList();
+
+            if (!itemIds.Any())
+                return;
+
+            var stockDict = await _mreqService.GetStockForItemsAsync(itemIds, null);
+
+            foreach (var item in selectedRolItems)
+            {
+                int itemId = item.ContainsKey("Itemid") && item["Itemid"] != null
+                    ? Convert.ToInt32(item["Itemid"])
+                    : 0;
+
+                if (itemId == 0)
+                    continue;
+
+                int custId = item.ContainsKey("CustId") && item["CustId"] != null
+                    ? Convert.ToInt32(item["CustId"])
+                    : 0;
+
+                var priceDict = await _mreqService.GetBulkLastUnitPricesAsync(new List<int> { itemId }, custId);
+
+                int? RefPoSubId = item.ContainsKey("RefPoSubId") && item["RefPoSubId"] != null
+                    ? Convert.ToInt32(item["RefPoSubId"])
+                    : (int?)null;
+
+                int? RefPoId = item.ContainsKey("RefPoId") && item["RefPoId"] != null
+                    ? Convert.ToInt32(item["RefPoId"])
+                    : (int?)null;
+
+                if (MaterialReqVMs.MaterialReqSubVMs.Any(x => x.ItemId == itemId && x.RefPoSubId == RefPoSubId))
+                    continue;
+
+                decimal stockQty = stockDict.TryGetValue(itemId, out var stock) ? stock : 0;
+
+                var balQty = item.ContainsKey("ROL") && item["ROL"] != null
+                    ? Convert.ToDecimal(item["ROL"])
+                    : 0;
+                var pobalQty = item.ContainsKey("POBalQty") && item["POBalQty"] != null
+                ? Convert.ToDecimal(item["POBalQty"])
+                : 0;
+                var subVm = new MaterialReqSubVM
+                {
+                    RefPoId = RefPoId,
+                    RefPoSubId = RefPoSubId,
+                    CustId = null,
+                    CustomerName = item.ContainsKey("CustName") ? item["CustName"]?.ToString() : "",
+                    RefPoNo = item.ContainsKey("PoNo") ? item["PoNo"]?.ToString() : "",
+                    RefPoDate = item.ContainsKey("PoDate") && item["PoDate"] != null
+                        ? Convert.ToDateTime(item["PoDate"])
+                        : null,
+
+                
+
+                    ItemId = itemId,
+                    ItemCode = item.ContainsKey("ItemCode") ? item["ItemCode"]?.ToString() : "",
+                    ItemName = item.ContainsKey("ItemName") ? item["ItemName"]?.ToString() : "",
+                    UOM = item.ContainsKey("MeasureUnit") ? item["MeasureUnit"]?.ToString() : "",
+                    CategoryName = item.ContainsKey("Category") ? item["Category"]?.ToString() : "",
+
+                    PurchQty = balQty,
+                    BalQty = balQty,
+
+                    StockQty = stockQty,
+
+                    UnitPrice = priceDict.TryGetValue(itemId, out var price) ? price : 0,
+
+                    CostId = item.ContainsKey("CostCenterId") && item["CostCenterId"] != null
+                        ? (Convert.ToInt32(item["CostCenterId"]) == 0 ? (int?)null : Convert.ToInt32(item["CostCenterId"]))
+                        : (int?)null,
+
+                    ProjectNo = item.ContainsKey("ProjectNo") ? item["ProjectNo"]?.ToString() : "",
+
+                    POBalQty = pobalQty,
+
+                    IsEditable = false
+                };
+
+                MaterialReqVMs.MaterialReqSubVMs.Add(subVm);
+            }
+
+            await ResetSlno();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "OnPoSelectedAsync failed.");
+            await _js.ToastrError("Error processing selected Sales Order items.");
+        }
+    }
+    private async Task ShowRolItemDetails()
+    {
+        try
+        {
+            isProcessing = true;
+            int sid = MaterialReqVMs.StoreId ?? 0;
+            RolItemData = await _mreqService.GetRolitemDetailsAsync(sid);
+            ISRolItemVisible = true;
+            //StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "ShowPoDetails failed.");
+            await _js.ToastrError("Error fetching Sales Order details.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private Task<IEnumerable<Staff>> SearchStaff(string value, CancellationToken token)
+    {
+        IEnumerable<Staff> result = StaffList;
+
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            result = StaffList.Where(x => x.StaffName.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult(result);
+    }
+    private Task OnStaffChanged(Staff? staff)
+    {
+        if (staff != null)
+        {
+            MaterialReqVMs.KindAttn = staff.StaffName;
+
+        }
+
+        return Task.CompletedTask;
+    }
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            isProcessing = true;
+            pdfBase64 = null;
+
+            var pdfBytes = await reportService.Generate_Report(MreqId.GetValueOrDefault(), "PurchReq.frx", "MReqId", MaterialReqVMs.MreqCancel, ScreenName, "Sp_Print_MaterialReq");
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await _js.ToastrError("PDF generation failed.");
+                return;
+            }
+
+            pdfBase64 = Convert.ToBase64String(pdfBytes);
+            await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf in MaterialReq");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in MaterialReq.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

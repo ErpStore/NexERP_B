@@ -1,0 +1,1044 @@
+﻿@page "/bom-labour-upload"
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime JS
+@inject IJSRuntime _js
+@inject IUnitOfWork _unitOfWork
+@inject CurrentUserService _userService
+@inject IAssemblyDefService assemblyDefService
+@inject IAssemblyDefLabourService assemblyLabDefService
+@inject ICommonService commonService
+
+
+
+<BsModal OnModalConfirmation="confirmSave_Click"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-0">
+                <!-- Card Header -->
+                <PageHeader TitleText="BOM Labour Upload"
+                            TitleIcon="bi bi-upload"
+                            Breadcrumbs="@bomUploadBreadcrumbs" />
+
+                <div class="card-body">
+                    <!-- Upload and Statistics Section - Same height -->
+                    <div class="row g-3 mb-4">
+                        <!-- Upload Card -->
+                        <div class="col-md-8">
+                            <div class="upload-container p-4 border rounded-3 bg-light h-100 d-flex flex-column justify-content-center">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-7">
+                                        <label class="fw-semibold mb-2 d-block">Upload Excel File</label>
+                                        <div class="d-flex flex-wrap align-items-center gap-3">
+                                            <label class="btn btn-primary btn-sm px-4">
+                                                <i class="bi bi-cloud-upload me-2"></i> Choose File
+                                                <InputFile OnChange="HandleFileSelected" class="d-none" accept=".xlsx,.xls,.xlsm" />
+                                            </label>
+                                            <span class="text-muted small">@SelectedFileName</span>
+                                            @if (!string.IsNullOrEmpty(SelectedFileName) && SelectedFileName != "No file chosen")
+                                            {
+                                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Loaded</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5">
+                                        @if (SheetNames?.Count > 0)
+                                        {
+                                            <div>
+                                                <label class="fw-semibold mb-2 d-block">Select Sheet</label>
+                                                <select class="form-select form-select-sm" @onchange="OnSelectedSheetChanged">
+                                                    <option disabled value="">-- Select Sheet --</option>
+                                                    @foreach (var sheet in SheetNames)
+                                                    {
+                                                        <option value="@sheet" selected="@(sheet == SelectedSheet)">
+                                                            @sheet
+                                                        </option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Statistics Card -->
+                        <div class="col-md-4">
+                            <div class="stats-container p-3 border rounded-3 bg-primary bg-opacity-10 h-100 d-flex flex-column justify-content-center">
+                                <div class="row text-center">
+                                    <div class="col-12">
+                                        <span class="text-muted small text-uppercase">Total Records</span>
+                                        <h2 class="mb-0 fw-bold">@processedRows.Count</h2>
+                                    </div>
+                                </div>
+                                <hr class="my-2" />
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <span class="text-muted small">Valid</span>
+                                        <div><span class="badge bg-success fs-6 px-3 py-2">@processedRows.Count(r => !r.Errors.Any())</span></div>
+                                    </div>
+                                    <div class="col-6">
+                                        <span class="text-muted small">Errors</span>
+                                        <div><span class="badge bg-danger fs-6 px-3 py-2">@processedRows.Count(r => r.Errors.Any())</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Table Section -->
+                    @if (processedRows.Count > 0)
+                    {
+                        <div class="table-container mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0"><i class="bi bi-table me-2"></i>Data Preview</h5>
+                                <div class="d-flex gap-2">
+                                    <span class="badge bg-info">@processedRows.Count rows</span>
+                                    @if (processedRows.Any(r => r.Errors.Any()))
+                                    {
+                                        <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>@processedRows.Count(r => r.Errors.Any()) errors</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                                <table class="table table-hover table-bordered table-sm" style="table-layout: fixed; width: 100%;">
+                                    <thead class="table-dark" style="position: sticky; top: 0; z-index: 2;">
+                                        <tr>
+                                            <th style="width:50px;font-size:12px;">#</th>
+                                            <th style="width:120px;font-size:12px;">Assembly Code</th>
+                                            <th style="width:150px;font-size:12px;">Assembly Name</th>
+                                            <th style="width:70px;font-size:12px;">UOM</th>
+                                            <th style="width:90px;font-size:12px;">Unit Price</th>
+                                            <th style="width:70px;font-size:12px;">Util Qty</th>
+                                            <th style="width:120px;font-size:12px;">Part Code</th>
+                                            <th style="width:150px;font-size:12px;">Part Name</th>
+                                            <th style="width:70px;font-size:12px;">UOM</th>
+                                            <th style="width:90px;font-size:12px;">Unit Price</th>
+                                            <th style="width:90px;font-size:12px;">Labour Price</th>
+                                            <th style="width:90px;font-size:12px;">Assembly Price</th>
+                                            <th style="width:80px;font-size:12px;">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (processedRows != null && processedRows.Any())
+                                        {
+                                            @foreach (var row in processedRows)
+                                            {
+                                                var hasError = row.Errors.Any();
+                                                var isAssemblyMissing = string.IsNullOrEmpty(GetCellValue(row, "AssmblyID"));
+                                                var isPartMissing = string.IsNullOrEmpty(GetCellValue(row, "ItemId"));
+                                                var isUtilityMissing = string.IsNullOrEmpty(GetCellValue(row, "UtilQty")) ;
+
+                                                var isRowInvalid = isAssemblyMissing;
+                                                var rowErrorClass = isRowInvalid ? "table-danger" : "";
+
+                                                <tr class="@rowErrorClass">
+                                                    <td>@(processedRows.IndexOf(row) + 1)</td>
+
+                                                    <td class="text-truncate @(isAssemblyMissing ? "cell-error" : "")"
+                                                        title="@GetCellValue(row, "AssemblyItemCode")">
+                                                        @if (isAssemblyMissing)
+                                                        {
+                                                            <span class="text-danger fw-bold">
+                                                                <i class="bi bi-x-circle me-1"></i>@GetCellValue(row, "AssemblyItemCode")
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-success">
+                                                                <i class="bi bi-check-circle me-1"></i>@GetCellValue(row, "AssemblyItemCode")
+                                                            </span>
+                                                        }
+                                                    </td>
+
+                                                    <td class="text-truncate" title="@GetCellValue(row, "AssemblyItemName")">
+                                                        @GetCellValue(row, "AssemblyItemName")
+                                                    </td>
+
+                                                    <td>@GetCellValue(row, "AssemblyUOM")</td>
+
+                                                    <td>@GetCellValue(row, "AssemblyUnitPrice")</td>
+
+                                                    <td>@GetCellValue(row, "UtilQty")</td>
+
+                                                    <td class="text-truncate @(isPartMissing && !isAssemblyMissing ? "cell-warning" : "")"
+                                                        title="@GetCellValue(row, "PartItemCode")">
+                                                        @if (isPartMissing && !isAssemblyMissing)
+                                                        {
+                                                            <span class="text-warning fw-bold">
+                                                                <i class="bi bi-exclamation-triangle me-1"></i>@GetCellValue(row, "PartItemCode")
+                                                            </span>
+                                                        }
+                                                        else if (isPartMissing && isAssemblyMissing)
+                                                        {
+                                                            <span class="text-danger fw-bold">
+                                                                <i class="bi bi-x-circle me-1"></i>@GetCellValue(row, "PartItemCode")
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-success">
+                                                                <i class="bi bi-check-circle me-1"></i>@GetCellValue(row, "PartItemCode")
+                                                            </span>
+                                                        }
+                                                    </td>
+
+                                                    <td class="text-truncate" title="@GetCellValue(row, "PartItemName")">
+                                                        @GetCellValue(row, "PartItemName")
+                                                    </td>
+
+                                                    <td>@GetCellValue(row, "UOM")</td>
+
+                                                    <td>@GetCellValue(row, "UnitPrice")</td>
+
+                                                    <td>@GetCellValue(row, "LabourPrice")</td>
+
+                                                    <td>@GetCellValue(row, "AssemblyPrice")</td>
+
+                                                    <td>
+                                                        @if (isAssemblyMissing)
+                                                        {
+                                                            <span class="badge bg-danger" data-bs-toggle="tooltip" title="Assembly Item is missing from master">
+                                                                <i class="bi bi-exclamation-circle me-1"></i>Error
+                                                            </span>
+                                                        }
+                                                        else if (isPartMissing)
+                                                        {
+                                                            <span class="badge bg-warning text-dark" data-bs-toggle="tooltip" title="Part Item  is missing from master">
+                                                                <i class="bi bi-info-circle me-1"></i>Partial
+                                                            </span>
+                                                        }
+                                                        else if (isUtilityMissing)
+                                                        {
+                                                            <span class="badge bg-warning text-dark" data-bs-toggle="tooltip" title="Utility qty Not valid">
+                                                                <i class="bi bi-info-circle me-1"></i> Not Valid
+                                                            </span>
+                                                        }
+
+                                                        else
+                                                        {
+                                                            <span class="badge bg-success">
+                                                                <i class="bi bi-check-circle me-1"></i>Valid
+                                                            </span>
+                                                        }
+                                                    </td>
+                                                </tr>
+
+                                                @if (isAssemblyMissing)
+                                                {
+                                                    <tr class="table-danger">
+                                                        <td colspan="13" class="text-start text-danger small">
+                                                            <i class="bi bi-x-circle me-1"></i>
+                                                            <strong>Error:</strong> Assembly Item Code '@GetCellValue(row, "AssemblyItemCode")' not found in master. Please add it first.
+                                                            @if (isPartMissing)
+                                                            {
+                                                                <span> Part Item is also missing.</span>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                                else if (isPartMissing)
+                                                {
+                                                    <tr class="table-warning">
+                                                        <td colspan="13" class="text-start text-warning small">
+                                                            <i class="bi bi-info-circle me-1"></i>
+                                                            <strong>Warning:</strong> Part Item Code '@GetCellValue(row, "PartItemCode")' not found in master.Please add it first.
+                                                        </td>
+                                                    </tr>
+                                                }
+                                                else if (isUtilityMissing)
+                                                {
+                                                    <tr class="table-warning">
+                                                        <td colspan="13" class="text-start text-warning small">
+                                                            <i class="bi bi-info-circle me-1"></i>
+                                                            <strong>Warning:</strong> Utility Qty '@GetCellValue(row, "UtilQty")' , Plese enter Valid Utility Qty.
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td colspan="13" class="text-center text-muted py-4">
+                                                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                                    No data available. Please upload an Excel file.
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center mt-4">
+                            <div>
+                                <button class="btn btn-sm btn-success px-4"
+                                        @onclick="HandleUpsert"
+                                        disabled="@(!processedRows.Any() ||
+                                            processedRows.Any(r =>
+                                                string.IsNullOrEmpty(GetCellValue(r, "AssmblyID")) ||
+                                                                                            string.IsNullOrEmpty(GetCellValue(r, "ItemId")) ))">
+                        <i class="bi bi-save me-2"></i> Save All
+                    </button>
+                    @if (processedRows.Any(r => string.IsNullOrEmpty(GetCellValue(r, "AssmblyID"))))
+                                {
+                                    <span class="text-danger ms-3 small">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        Cannot save: Some rows have missing Assembly Items
+                                    </span>
+                                }
+                                else if (processedRows.Any(r => string.IsNullOrEmpty(GetCellValue(r, "ItemId"))))
+                                {
+                                    <span class="text-danger ms-3 small">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        Cannot save: Some rows have missing Part Items
+                                    </span>
+                                }
+                                else if (processedRows.Any(r => string.IsNullOrEmpty(GetCellValue(r, "UtilQty"))))
+                                {
+                                    <span class="text-danger ms-3 small">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        Cannot save: Some rows have missing Utility Qty or Utility Qty less than or equal to Zero
+                                    </span>
+                                }
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearAll">
+                                    <i class="bi bi-x-circle me-1"></i> Clear All
+                                </button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Empty State -->
+                        <div class="text-center py-5">
+                            <i class="bi bi-file-earmark-excel display-1 text-muted"></i>
+                            <h4 class="text-muted mt-3">No Data Loaded</h4>
+                            <p class="text-muted">Upload an Excel file to see the data preview here</p>
+                        </div>
+                    }
+
+                    <!-- Template Download -->
+                    <div class="mt-4 pt-3 border-top">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1"><i class="bi bi-download me-2"></i>Template</h6>
+                                <small class="text-muted">Download the sample template to get started</small>
+                            </div>
+                            <a class="btn btn-outline-primary btn-sm"
+                               href="_content/V.SMART.Shared/templates/BOMLabour.xlsx"
+                               download="BOMLabour.xlsx">
+                                <i class="bi bi-download me-2"></i> Download Template
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Instructions -->
+                    <div class="alert alert-info shadow-sm mt-3">
+                        <h6 class="fw-bold"><i class="bi bi-info-circle-fill text-primary me-2"></i>Upload Instructions</h6>
+                        <ul class="mb-0 small">
+                            <li>Download the template and fill in your data</li>
+                            <li>Only Excel files (<code>.xlsm</code>, <code>.xlsx</code>) are allowed</li>
+                            <li><span class="text-success">✓</span> <strong>Valid:</strong> Both Assembly and Part exist in master</li>
+                            <li><span class="text-warning">⚠</span> <strong>Partial:</strong> Assembly exists, Part will be created</li>
+                            <li><span class="text-danger">✗</span> <strong>Error:</strong> Assembly is missing - <u>must be fixed</u></li>
+                            <li>Rows with missing <span class="text-danger">Assembly</span> will be highlighted in <span class="text-danger">red</span></li>
+                            <li>Part items with <span class="text-warning">warning</span> will be created automatically</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .cell-error {
+        background-color: #f8d7da !important;
+        border-left: 3px solid #dc3545 !important;
+    }
+
+    .cell-warning {
+        background-color: #fff3cd !important;
+        border-left: 3px solid #ffc107 !important;
+    }
+
+    .table-danger td.cell-error {
+        background-color: #f5c6cb !important;
+    }
+
+    .table tbody tr:hover td.cell-error {
+        background-color: #f1b0b7 !important;
+    }
+
+    .table tbody tr:hover td.cell-warning {
+        background-color: #ffe69c !important;
+    }
+
+    /* Upload and Statistics containers - Same height */
+    .upload-container,
+    .stats-container {
+        min-height: 140px;
+        transition: all 0.3s ease;
+    }
+
+        .upload-container:hover {
+            border-color: #0d6efd !important;
+            background-color: #f8f9fa !important;
+        }
+
+        .stats-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+    .table th, .table td {
+        vertical-align: middle;
+        padding: 0.4rem 0.3rem;
+    }
+
+    .badge.fs-6 {
+        font-size: 1rem !important;
+        padding: 0.3rem 0.8rem !important;
+        min-width: 50px;
+        display: inline-block;
+    }
+
+    .stats-container .badge {
+        font-weight: 600;
+    }
+
+    /* Responsive adjustments */
+    @@media (max-width: 768px) {
+        .upload-container,
+        .stats-container {
+            min-height: auto;
+        }
+    }
+</style>
+
+@code {
+    protected override string ScreenName => "BOM";
+
+    private AssemblyDefLabourVM bomUploadRowViewModel = new();
+    private List<AssemblyDefLabourVM> BomList { get; set; } = new();
+    private List<string> SheetNames { get; set; } = new();
+    private Stream? FileStream;
+    private string? SelectedSheet;
+    private string? HeaderErrorMessage { get; set; }
+    private bool IsExcelFile { get; set; }
+    private bool isProcessing = true;
+    private IBrowserFile uploadedFile;
+    private string SelectedFileName = "No file chosen";
+    private List<string> headers = new();
+    private List<ExcelRowData> processedRows = new();
+    private List<List<string>> excelData = new();
+    private List<AssemblyDefLabour> UploadedItems = new List<AssemblyDefLabour>();
+
+    private List<PageHeader.BreadcrumbItem> bomUploadBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "BOM Labour Upload", IsLast = true }
+    };
+
+    private Dictionary<string, string> ExpectedHeaders = new()
+    {
+        { "AssemblyItemCode", "AssemblyItemCode" },
+        { "AssemblyItemName", "AssemblyItemName" },
+        { "UtilQty", "UtilQty" },
+        { "PartItemCode", "PartItemCode" },
+        { "PartItemName", "PartItemName" }
+    };
+
+    // Modal properties
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            await LoggingService.LogDeveloperError(ex, "Error initializing BOM_Upload page.");
+        }
+    }
+
+    private string Clean(string value)
+    {
+        return value?.ToLower()
+            .Replace(" ", "")
+            .Replace(".", "")
+            .Replace(",", "")
+            .Replace("/", "") ?? "";
+    }
+
+    private string GetValue(string columnName, List<string> rowData, Dictionary<string, int> columnIndex)
+    {
+        var key = Clean(columnName);
+        if (columnIndex.TryGetValue(key, out int index))
+        {
+            if (index < rowData.Count)
+                return rowData[index]?.Trim() ?? "";
+        }
+        return "";
+    }
+
+    private string GetCellValue(ExcelRowData row, string key)
+    {
+        return row.Data.TryGetValue(key, out var value) ? value : "";
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            uploadedFile = e.File;
+            if (uploadedFile != null)
+            {
+                SelectedFileName = uploadedFile.Name;
+                await ProcessExcelUploadAsync(uploadedFile);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error handling file selection in BOM Upload");
+            await _js.ToastrError("Error processing file selection.");
+        }
+    }
+
+    private async Task ProcessExcelUploadAsync(IBrowserFile file)
+    {
+        try
+        {
+            if (file == null)
+                return;
+
+            SelectedFileName = file.Name;
+
+            using var stream = file.OpenReadStream(10_000_000);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            using var reader = ExcelReaderFactory.CreateReader(memoryStream);
+
+            var result = reader.AsDataSet();
+            SelectedSheet = result.Tables[0].TableName;
+            SheetNames = result.Tables
+                .Cast<DataTable>()
+                .Select(t => t.TableName)
+                .Where(name => !string.Equals(name, "Sheet1", StringComparison.OrdinalIgnoreCase) &&
+                               !string.Equals(name, "Sheet2", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var table = result.Tables[SelectedSheet];
+
+            if (table.Rows.Count == 0)
+            {
+                await _js.ToastrError("Selected sheet is empty.");
+                return;
+            }
+
+            // Read headers
+            headers = table.Rows[0]
+                .ItemArray
+                .Select(x => x?.ToString()?.Trim() ?? "")
+                .ToList();
+
+            var columnIndex = headers
+                .Select((name, index) => new { Name = Clean(name), Index = index })
+                .ToDictionary(x => x.Name, x => x.Index);
+
+            var normalizedHeaders = headers.Select(Clean).ToList();
+
+            // Validate headers
+            var missingHeaders = ExpectedHeaders
+                .Where(h => !normalizedHeaders.Contains(Clean(h.Value)))
+                .Select(h => h.Value)
+                .ToList();
+
+            if (missingHeaders.Any())
+            {
+                await _js.ToastrError($"Missing Columns: {string.Join(", ", missingHeaders)}");
+                return;
+            }
+
+            excelData.Clear();
+            processedRows.Clear();
+
+            // Read data rows
+            for (int i = 1; i < table.Rows.Count; i++)
+            {
+                var rowData = table.Rows[i]
+                    .ItemArray
+                    .Select(x => x?.ToString()?.Trim() ?? "")
+                    .ToList();
+                excelData.Add(rowData);
+            }
+
+            if (!excelData.Any())
+            {
+                await _js.ToastrError("No data found.");
+                return;
+            }
+
+            // Process each row
+            foreach (var data in excelData)
+            {
+                var row = new ExcelRowData();
+                row.Data = new Dictionary<string, string>();
+
+                // Extract all data
+                string assemblyCode = GetValue("AssemblyItemCode", data, columnIndex).Trim();
+                string partCode = GetValue("PartItemCode", data, columnIndex).Trim();
+
+                // Store raw data first
+                row.Data["AssemblyItemCode"] = assemblyCode;
+                row.Data["AssemblyItemName"] = GetValue("AssemblyItemName", data, columnIndex);
+                row.Data["PartItemCode"] = partCode;
+                row.Data["PartItemName"] = GetValue("PartItemName", data, columnIndex);
+                row.Data["UtilQty"] = GetValue("UtilQty", data, columnIndex);
+
+                // Check if Assembly Item exists in master - THIS IS MANDATORY
+                int? AssmlyId = null;
+                bool isAssemblyMissing = false;
+                if (!string.IsNullOrEmpty(assemblyCode))
+                {
+                    AssmlyId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(assemblyCode);
+                    if (!AssmlyId.HasValue)
+                    {
+                        isAssemblyMissing = true;
+                        row.Errors.Add($"Assembly Item Code '{assemblyCode}' not found in master. Please add it first.");
+                    }
+                }
+                else
+                {
+                    isAssemblyMissing = true;
+                    row.Errors.Add("Assembly Item Code is required.");
+                }
+
+                // Check if Part Item exists in master - THIS IS OPTIONAL (will be created)
+                int? PartId = null;
+                bool isPartMissing = false;
+                if (!string.IsNullOrEmpty(partCode))
+                {
+                    PartId = await _unitOfWork.ItemRepositories.GetItemIdByCodeAsync(partCode);
+                    if (!PartId.HasValue)
+                    {
+                        isPartMissing = true;
+                        // This is just a warning, not an error
+                    }
+                }
+                else
+                {
+                    isPartMissing = true;
+                    // This is just a warning, not an error
+                }
+
+                var assemblyItem = AssmlyId.HasValue ? await assemblyLabDefService.GetItemByItemIdAsync(AssmlyId.Value) : null;
+                var partItem = PartId.HasValue ? await assemblyLabDefService.GetItemByItemIdAsync(PartId.Value) : null;
+
+                // Map Assembly Item
+                row.Data["AssmblyID"] = assemblyItem != null ? assemblyItem.ItemId.ToString() : "";
+                row.Data["AssemblyItemName"] = assemblyItem != null ? assemblyItem.ItemName : row.Data["AssemblyItemName"];
+                row.Data["AssemblyUOM"] = assemblyItem != null ? assemblyItem.MeasureUnit : "";
+                row.Data["AssemblyUnitPrice"] = assemblyItem != null ? assemblyItem.Rate.ToString() : "";
+                row.Data["AssemblyCategoryName"] = assemblyItem != null ? assemblyItem.CategoryName : "";
+
+                // Map Part Item
+                row.Data["ItemId"] = partItem != null ? partItem.ItemId.ToString() : "";
+                row.Data["PartItemName"] = partItem != null ? partItem.ItemName : row.Data["PartItemName"];
+                row.Data["UOM"] = partItem != null ? partItem.MeasureUnit : "";
+                row.Data["UnitPrice"] = partItem != null ? partItem.Rate.ToString() : "";
+                row.Data["CategoryName"] = partItem != null ? partItem.CategoryName : "";
+
+                // Labour and Assembly Price
+                row.Data["LabourPrice"] = partItem != null ? partItem.LabourPrice.ToString() : "0";
+                row.Data["AssemblyPrice"] = assemblyItem != null ? assemblyItem.AssemblyPrice.ToString() : "0";
+
+                // Validate UtilQty
+                if (!decimal.TryParse(row.Data["UtilQty"], out var utilQty) || utilQty <= 0)
+                {
+                    row.Errors.Add("UtilQty must be a valid positive number");
+                }
+
+                // Validate that Assembly and Part are different (only if both exist)
+                if (!string.IsNullOrEmpty(assemblyCode) && !string.IsNullOrEmpty(partCode) &&
+                    assemblyCode.Equals(partCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    row.Errors.Add("Assembly and Part Item Codes cannot be the same");
+                }
+
+                // Check for duplicates in the uploaded file (only if both exist)
+                if (!string.IsNullOrEmpty(assemblyCode) && !string.IsNullOrEmpty(partCode))
+                {
+                    bool duplicate = processedRows.Any(r =>
+                        GetCellValue(r, "AssemblyItemCode") == assemblyCode &&
+                        GetCellValue(r, "PartItemCode") == partCode);
+
+                    if (duplicate)
+                    {
+                        row.Errors.Add("Duplicate Assembly + Part combination in file");
+                    }
+                }
+
+                processedRows.Add(row);
+            }
+
+            if (processedRows.Any(x => x.Errors.Any()))
+            {
+                await _js.ToastrWarning($"Uploaded with {processedRows.Count(r => r.Errors.Any())} error(s)");
+            }
+            else
+            {
+                await _js.ToastrSuccess($"Successfully loaded {processedRows.Count} records");
+            }
+
+            await LoggingService.LogUserAction(
+                UserName: await _userService.GetUsernameAsync(),
+                Machine: _userService.MachineName,
+                IP_Address: _userService.IpAddress,
+                screen: "BOM Upload",
+                action: "BOM Labour uploaded successfully.",
+                additionalInfo: $"File: {SelectedFileName}");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in ProcessExcelUploadAsync");
+            await _js.ToastrError("Error processing Excel file.");
+        }
+    }
+
+    private async Task OnSelectedSheetChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            SelectedSheet = e.Value?.ToString();
+            if (!string.IsNullOrEmpty(SelectedSheet) && uploadedFile != null)
+            {
+                await ProcessExcelUploadAsync(uploadedFile);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnSelectedSheetChanged");
+        }
+    }
+
+    private async Task HandleUpsert()
+    {
+        try
+        {
+            ModalTitle = "Are you sure you want to Save this Labour BOM?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Save";
+            confirmation = "Upsert";
+            showCancelReasonBox = false;
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in HandleUpsert");
+        }
+    }
+
+
+    private async Task confirmSave_Click(bool isConfirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+        if (!isConfirmed)
+            return;
+
+
+
+        switch (confirmation)
+        {
+
+            case "Clear":
+                await ClearAlData();
+                break;
+
+
+            case "Upsert":
+                await UpsertLabBbom();
+                break;
+
+
+            default:
+                await _js.ToastrWarning("Unknown confirmation action.");
+                break;
+        }
+
+    }
+
+    public async Task UpsertLabBbom()
+    {
+
+        try
+        {
+            isProcessing = true;
+            string createdBy = await _userService.GetUsernameAsync();
+
+            // Get valid records only (exclude rows where Assembly is missing)
+            var validRecords = processedRows
+                .Where(r => !string.IsNullOrEmpty(GetCellValue(r, "AssmblyID")))
+                .Select(r => new AssemblyDefLabourVM
+                {
+                    AssmblyID = int.TryParse(GetCellValue(r, "AssmblyID"), out var assemblyId) ? assemblyId : (int?)null,
+                    AssemblyItemCode = GetCellValue(r, "AssemblyItemCode"),
+                    AssemblyItemName = GetCellValue(r, "AssemblyItemName"),
+                    AssemblyUOM = GetCellValue(r, "AssemblyUOM"),
+                    AssemblyUnitPrice = decimal.TryParse(GetCellValue(r, "AssemblyUnitPrice"), out var assmPrice) ? assmPrice : (decimal?)null,
+                    AssemblyCategoryName = GetCellValue(r, "AssemblyCategoryName"),
+                    ItemId = int.TryParse(GetCellValue(r, "ItemId"), out var itemId) ? itemId : (int?)null,
+                    PartItemCode = GetCellValue(r, "PartItemCode"),
+                    PartItemName = GetCellValue(r, "PartItemName"),
+                    UOM = GetCellValue(r, "UOM"),
+                    UnitPrice = decimal.TryParse(GetCellValue(r, "UnitPrice"), out var partPrice) ? partPrice : (decimal?)null,
+                    CategoryName = GetCellValue(r, "CategoryName"),
+                    UtilQty = decimal.TryParse(GetCellValue(r, "UtilQty"), out var qty) ? qty : 0,
+                    BalQty = decimal.TryParse(GetCellValue(r, "UtilQty"), out var balqty) ? balqty : 0,
+                    ReqQty = decimal.TryParse(GetCellValue(r, "UtilQty"), out var reqqty) ? reqqty : 0,
+                    LabourPrice = decimal.TryParse(GetCellValue(r, "LabourPrice"), out var labour) ? labour : 0,
+                    AssemblyPrice = decimal.TryParse(GetCellValue(r, "AssemblyPrice"), out var assm) ? assm : 0,
+                    CreatedBy = createdBy,
+                    CreatedDate = DateTime.Now,
+                })
+                .ToList();
+
+            if (!validRecords.Any())
+            {
+                await _js.ToastrError("No valid records to save. Please fix Assembly Item errors.");
+                return;
+            }
+
+            // Group records by Assembly ID to assign SlNo per Assembly
+            var groupedByAssembly = validRecords
+                .Where(r => r.AssmblyID.HasValue)
+                .GroupBy(r => r.AssmblyID.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            int savedCount = 0;
+            int updatedCount = 0;
+            int skippedCount = 0;
+            var duplicateRecords = new List<string>();
+
+            foreach (var assemblyGroup in groupedByAssembly)
+            {
+                int assemblyId = assemblyGroup.Key;
+                var records = assemblyGroup.Value;
+
+                int currentMaxSlNo = await assemblyLabDefService.GetMaxSlNoByAssemblyIdAsync(assemblyId);
+                int slNoCounter = currentMaxSlNo + 1;
+                int MaxSlNoassembly = await assemblyDefService.GetMaxSlNoByAssemblyIdAsync(assemblyId);
+                int slNoCount = MaxSlNoassembly + 1;
+
+                foreach (var vm in records.OrderBy(r => r.PartItemCode))
+                {
+                    bool exists = await _unitOfWork.AssmblyDefLabs.ExistsAsync(
+                        vm.AssmblyID ?? 0,
+                        vm.ItemId ?? 0);
+
+                    if (exists)
+                    {
+
+                        var existingEntity = await assemblyLabDefService.GetByAssemblyAndItemAsync(
+                            vm.AssmblyID ?? 0,
+                            vm.ItemId ?? 0);
+
+                        if (existingEntity != null)
+                        {
+
+                            existingEntity.UtilQty = vm.UtilQty ?? 0;
+                            existingEntity.BalQty = vm.BalQty ?? 0;
+                            existingEntity.ModifiedBy = createdBy;
+                            existingEntity.ModifiedDate = DateTime.Now;
+
+                            await _unitOfWork.AssmblyDefLabs.UpdateAsync(existingEntity);
+
+                        }
+
+                    }
+                    else
+                    {
+
+                        var entity = new AssemblyDefLabour
+                        {
+                            AssmblyID = vm.AssmblyID ?? 0,
+                            ItemId = vm.ItemId ?? 0,
+                            UtilQty = vm.UtilQty ?? 0,
+                            BalQty = vm.BalQty ?? 0,
+
+                            // Assign next SlNo
+                            SlNo = slNoCounter,
+
+                            CreatedBy = createdBy,
+                            CreatedDate = DateTime.Now
+                        };
+
+                        await _unitOfWork.AssmblyDefLabs.CreateAsync(entity);
+
+                        slNoCounter++;
+                        savedCount++;
+                    }
+                    bool existAssembly = await _unitOfWork.AssmblyDefs.ExistsAsync(vm.AssmblyID ?? 0, vm.ItemId ?? 0);
+                    var partItem = vm.ItemId.HasValue ? await assemblyDefService.GetItemByItemIdAsync(vm.ItemId.Value) : null;
+                    bool isLabour = partItem.IsLabourItem;
+                    if (existAssembly)
+                    {
+
+                        var existingEntity = await assemblyDefService.GetByAssemblyAndItemAsync(vm.AssmblyID ?? 0, vm.ItemId ?? 0);
+                        if (!isLabour)
+                        {
+                            var existingEntityass = await assemblyDefService.GetByAssemblyAndItemAsync(
+                                vm.AssmblyID ?? 0,
+                                vm.ItemId ?? 0);
+                            if (existingEntityass != null)
+                            {
+
+                                existingEntityass.UtilQty = vm.UtilQty ?? 0;
+                                existingEntityass.BalQty = vm.BalQty ?? 0;
+                                existingEntityass.ModifiedBy = createdBy;
+                                existingEntityass.ModifiedDate = DateTime.Now;
+
+
+                                await _unitOfWork.AssmblyDefs.UpdateAsync(existingEntityass);
+
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (!isLabour)
+                        {
+                            var entityAssmbly = new AssmblyDef
+                            {
+                                AssmblyID = vm.AssmblyID ?? 0,
+                                ItemId = vm.ItemId ?? 0,
+                                UtilQty = vm.UtilQty ?? 0,
+                                BalQty = vm.BalQty ?? 0,
+                                SlNo = slNoCount,
+                                CreatedBy = createdBy,
+                                CreatedDate = DateTime.Now
+                            };
+                            await _unitOfWork.AssmblyDefs.CreateAsync(entityAssmbly);
+                        }
+                        slNoCount++;
+
+                    }
+                }
+            }
+
+            // Save all changes
+            await _unitOfWork.SaveAsync();
+
+            // Show success message
+            string message = $"BOM records processed successfully!";
+            if (savedCount > 0) message += $" {savedCount} new record(s) saved.";
+            if (updatedCount > 0) message += $" {updatedCount} record(s) updated.";
+            if (skippedCount > 0) message += $" {skippedCount} record(s) skipped.";
+
+            await JS.ToastrSuccess(message);
+
+            // Log the action
+            await LoggingService.LogUserAction(
+                UserName: await _userService.GetUsernameAsync(),
+                Machine: _userService.MachineName,
+                IP_Address: _userService.IpAddress,
+                screen: "BOM Upload",
+                action: $"BOM Labour processed: {savedCount} saved, {updatedCount} updated, {skippedCount} skipped",
+                additionalInfo: $"File: {SelectedFileName}");
+
+            _navigationManager.NavigateTo("/bomLabourList");
+        }
+        catch (Exception ex)
+        {
+            await JS.ToastrError("An error occurred while saving BOM.");
+            await LoggingService.LogDeveloperError(ex, "SaveBOM");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+        
+    }
+
+
+
+
+    private async Task ClearAll()
+    {
+        ModalTitle = "Are you sure you want to Clear this Labour BOM?";
+        btnColor = "btn-danger";
+        btnText = "Yes! Clear";
+        confirmation = "Clear";
+        showCancelReasonBox = false;
+
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+    private async Task ClearAlData()
+    {
+      
+            processedRows.Clear();
+            excelData.Clear();
+            SelectedFileName = "No file chosen";
+            uploadedFile = null;
+
+            await _js.ToastrSuccess("All data cleared");
+       
+    }
+
+    private decimal TODecimal(string input) => decimal.TryParse(input, out var val) ? val : 0;
+
+    public class ExcelRowData
+    {
+        public int RowIndex { get; set; }
+        public Dictionary<string, string> Data { get; set; } = new();
+        public List<string> Errors { get; set; } = new();
+    }
+
+ 
+   
+}

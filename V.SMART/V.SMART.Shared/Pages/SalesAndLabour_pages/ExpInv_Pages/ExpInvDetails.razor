@@ -1,0 +1,542 @@
+﻿@page "/expInv/details/{ExpInvId:int}"
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.ExpInv_VM
+
+
+@inherits BaseUserRightsComponent
+
+@inject IExpInvService _expInvService
+@inject IJSRuntime _js
+@inject ILoggingService LoggingService
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    <div class="container border rounded-3 shadow-lg bg-body my-5 mx-auto p-5" style="max-width: 1000px;">
+
+        <!-- Company Details Section -->
+        <MyCompanyDetails />
+
+        <hr class="border-2 border-primary-subtle mb-4" />
+
+        @if ((ExpInvVMs?.IsCancel ?? false))
+        {
+            <div class="cancelWatermark">CANCELLED</div>
+        }
+        else if (ExpInvVMs?.InvShortClose == true)
+        {
+            <div class="cancelWatermark">SHORT CLOSED</div>
+        }
+
+        <!-- Customer & Document Details Section -->
+        <div class="row g-3 mb-4">
+            <!-- Customer Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Customer Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.CustName) ? ExpInvVMs.CustName : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.CustAddress) ? ExpInvVMs.CustAddress : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.GSTNo) ? ExpInvVMs.GSTNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.ContactNo) ? ExpInvVMs.ContactNo : "N/A")</td></tr>
+                                <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.KindOfAttention) ? ExpInvVMs.KindOfAttention : "N/A")</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold p-2 small">
+                        Document Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>ExpInvoice No</strong></td>
+                                    <td>@(ExpInvVMs != null ? $"{ExpInvVMs.Prefix}{ExpInvVMs.ExpInvNo}{ExpInvVMs.Suffix}" : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>ExpInvoice Date</strong></td>
+                                    <td>@(ExpInvVMs?.ExpInvDate.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Currency</strong></td>
+                                    <td>@(!string.IsNullOrEmpty(ExpInvVMs?.CurrName) ? ExpInvVMs.CurrName : "N/A")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Issue From Store</strong></td>
+                                    <td>@ExpInvVMs.StoreIssueName</td>
+                                </tr>
+
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Consignee & Other Terms Section -->
+        <div class="row g-3 mb-4">
+            <!-- Consignee Details -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                        Consignee Details
+                    </div>
+                    <div class="card-body p-2 small">
+                        @if (ExpInvVMs.IsSameAsShipping)
+                        {
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.CustName) ? ExpInvVMs.CustName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.CustAddress) ? ExpInvVMs.CustAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.GSTNo) ? ExpInvVMs.GSTNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.ContactNo) ? ExpInvVMs.ContactNo : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact Person</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.KindOfAttention) ? ExpInvVMs.KindOfAttention : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Name</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.ShippingName) ? ExpInvVMs.ShippingName : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Address</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.ShippingAddress) ? ExpInvVMs.ShippingAddress : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>GST No.</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.ShippingGstin) ? ExpInvVMs.ShippingGstin : "N/A")</td></tr>
+                                    <tr><td class="text-secondary" style="width: 40%;"><strong>Contact No.</strong></td><td>@(!string.IsNullOrEmpty(ExpInvVMs?.ShippingContactNo) ? ExpInvVMs.ShippingContactNo : "N/A")</td></tr>
+                                </tbody>
+                            </table>
+                        }
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment, Delivery, and Other Terms -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                        Payment, Delivery, and Other Terms
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Payment Terms</strong></td>
+                                    <td>@(ExpInvVMs?.PayTerms ?? "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Delivery Terms</strong></td>
+                                    <td>@(ExpInvVMs?.DeliveryTems ?? "N/A")</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="text-secondary" style="width: 40%;"><strong>Main Remarks</strong></td>
+                                    <td>@(ExpInvVMs?.MainRemark ?? "N/A")</td>
+                                </tr>
+                               
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Transporter Details -->
+        @if (ExpInvVMs.DcCumInv)
+        {
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Mode Of Transport
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>E-Way No.</strong></td>
+                                        <td>@(ExpInvVMs?.EWayNo ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>E-Way Date</strong></td>
+                                        <td>@(ExpInvVMs?.EWayDate?.ToString("dd/MM/yyyy") ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Mode Of Transport</strong></td>
+                                        @if (ExpInvVMs?.TransportMode == 1)
+                                        {
+                                            <td>By Road</td>
+                                        }
+                                        else if (ExpInvVMs?.TransportMode == 2)
+                                        {
+                                            <td>By Railway</td>
+                                        }
+                                        else if (ExpInvVMs?.TransportMode == 3)
+                                        {
+                                            <td>By Airway</td>
+                                        }
+                                        else if (ExpInvVMs?.TransportMode == 4)
+                                        {
+                                            <td>By Seaway</td>
+                                        }
+
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Vehicle No</strong></td>
+                                        <td>@(ExpInvVMs?.VehicleNo ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Transport From</strong></td>
+                                        <td>@(ExpInvVMs?.TransFrom ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Transport To</strong></td>
+                                        <td>@(ExpInvVMs?.TransTo ?? "N/A")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2 small">
+                            Transporter Details
+                        </div>
+                        <div class="card-body p-2 small">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Sub Supply Type.</strong></td>
+                                        @if (ExpInvVMs.SubSupplyType == 1)
+                                        {
+                                            <td>Supply</td>
+                                        }
+                                        else if (ExpInvVMs.SubSupplyType == 5)
+                                        {
+                                            <td>ForOwnUse</td>
+                                        }
+                                        else if (ExpInvVMs.SubSupplyType == 8)
+                                        {
+                                            <td>Others</td>
+                                        }
+
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Transporter Id</strong></td>
+                                        <td>@(ExpInvVMs?.TransId ?? "N/A")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Transporter Document No.</strong></td>
+                                        <td>@(ExpInvVMs?.TransDocNo ?? "N/A")</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="text-secondary" style="width: 40%;"><strong>Transporter Name.</strong></td>
+                                        <td>@(ExpInvVMs?.TransName ?? "N/A")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        }
+
+
+        <!-- Quotation Items Section -->
+        <div class="card border-1 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-info-subtle text-info-emphasis fw-semibold p-2">
+                Invoice Items
+            </div>
+            <div class="table-responsive" style="overflow-x:auto;">
+                <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                    <thead class="custom-blue">
+                        <tr>
+                            <th class="text-center">Sl No.</th>
+                            <th>Item Code</th>
+                            <th>Description</th>
+                            <th class="text-center">UOM</th>
+                            <th class="text-center">HSN</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Discount</th>
+                            <th class="text-end">Basic Amount</th>
+                            @if (CustomerVMs.TaxValidate == false)
+                            {
+                                @if (CustomerVMs.BusiType == "Local")
+                                {
+                                    <th class="text-end">CGST</th>
+                                    <th class="text-end">SGST</th>
+                                }
+                                else if (CustomerVMs.BusiType == "InterState")
+                                {
+                                    <th class="text-end">IGST</th>
+                                }
+                            }
+                            <th>Remarks</th>
+                            @if (!ExpInvVMs.DcCumInv)
+                            {
+                                <th style="width:110px;"> Dc Bal Qty</th>
+                                <th style="width:110px;">Ref Dc No.</th>
+                                <th style="width:110px;">Ref Dc Date</th>
+                            }
+                            else
+                            {
+                                <th style="width:110px;">Stock Qty</th>
+                                <th style="width:110px;"> PO Bal Qty</th>
+                                <th style="width:110px;">Ref PO No.</th>
+                                <th style="width:110px;">Ref PO Date</th>
+                                <th style="width:110px;">Type Of PO</th>
+                            }
+
+                        </tr>
+                    </thead>
+                    <tbody class="custom-size">
+                        @if (ExpInvVMs?.ExpSubInvVMs != null && ExpInvVMs.ExpSubInvVMs.Any())
+                        {
+                            @foreach (var item in ExpInvVMs.ExpSubInvVMs)
+                            {
+                                <tr>
+                                    <td class="text-center">@item.SlNo</td>
+                                    <td>@(item.ItemCode ?? "—")</td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td class="text-center">@item.MeasureUnit</td>
+                                    <td class="text-center">@item.HsnCode</td>
+                                    <td class="text-end">@FormatDecimal(item.Qty)</td>
+                                    <td class="text-end">@FormatDecimal(item.UnitPrice)</td>
+                                    <td class="text-end">@FormatDecimal(item.LineDiscountAmount)</td>
+                                    <td class="text-end">@FormatDecimal(item.LineBasicAmount)</td>
+
+                                    @if (CustomerVMs.TaxValidate == false)
+                                    {
+                                        @if (CustomerVMs.BusiType == "Local")
+                                        {
+                                            <td class="text-end">@FormatDecimal(item.LineCGSTAmount)</td>
+                                            <td class="text-end">@FormatDecimal(item.LineSGSTAmount)</td>
+                                        }
+                                        else if (CustomerVMs.BusiType == "InterState")
+                                        {
+                                            <td class="text-end">@FormatDecimal(item.LineIGSTAmount)</td>
+                                        }
+                                    }
+
+                                    <td>@item.Remarks</td>
+
+                                    @if (!ExpInvVMs.DcCumInv)
+                                    {
+                                        <td>@item.DcBalQty</td>
+                                        <td>@item.RefDcNo</td>
+                                        <td>@item.RefDcDate?.ToString("dd/MM/yyyy")</td>
+                                    }
+                                    else
+                                    {
+                                        <td class="text-danger">@item.StockQty</td>
+                                        <td>@item.PoBalQty</td>
+                                        <td>@item.RefPoNo</td>
+                                        <td>@item.RefPoDate?.ToString("dd/MM/yyyy")</td>
+                                        <td>General Po</td>
+                                    }
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="13" class="text-center text-muted">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Due Date & Tax Totals Section -->
+        <div class="row g-3 mb-4">
+            <!-- Due Date & Terms and Conditions -->
+            <div class="col-12 col-lg-6 mb-3">
+            </div>
+
+            <!-- Tax Totals -->
+            <div class="col-md-6">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-success-subtle text-success-emphasis fw-semibold p-2 small">
+                        Totals & Taxes
+                    </div>
+                    <div class="card-body p-2 small">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-secondary">Total Gross Amount</td><td class="text-end">@FormatDecimal(ExpInvVMs.TotalGrossAmount)</td></tr>
+                                <tr><td class="text-secondary">Total Discount</td><td class="text-end">@FormatDecimal(ExpInvVMs.DiscountAmount)</td></tr>
+                                <tr><td class="text-secondary">Total Basic Amount</td><td class="text-end">@FormatDecimal(ExpInvVMs.TotalBasicAmount)</td></tr>
+                                <tr><td class="text-secondary">Freight Charges</td><td class="text-end">@FormatDecimal(ExpInvVMs.FreightCharges)</td></tr>
+                                <tr><td class="text-secondary">Packing Charges</td><td class="text-end">@FormatDecimal(ExpInvVMs.PackingCharges)</td></tr>
+                                <tr><td class="text-secondary">Insurance Charges</td><td class="text-end">@FormatDecimal(ExpInvVMs.InsuranceCharges)</td></tr>
+                                <tr><td class="text-secondary">Total Taxable</td><td class="text-end">@FormatDecimal(ExpInvVMs.TotalTaxable)</td></tr>
+                                @if (CustomerVMs.TaxValidate == false)
+                                {
+                                    @if (CustomerVMs.BusiType == "Local")
+                                    {
+                                        <tr><td class="text-secondary">Total CGST</td><td class="text-end">@FormatDecimal(ExpInvVMs.TotalCGSTAmount)</td></tr>
+                                        <tr><td class="text-secondary">Total SGST</td><td class="text-end">@FormatDecimal(ExpInvVMs.TotalSGSTAmount)</td></tr>
+                                    }
+                                    else if (CustomerVMs.BusiType == "InterState")
+                                    {
+                                        <tr><td class="text-secondary">Total IGST</td><td class="text-end">@FormatDecimal(ExpInvVMs.TotalIGSTAmount)</td></tr>
+                                    }
+                                }
+                                <tr><td class="text-secondary">TCS</td><td class="text-end">@FormatDecimal(ExpInvVMs.TCSAmount)</td></tr>
+                                <tr><td class="text-secondary">Other Charges</td><td class="text-end">@FormatDecimal(ExpInvVMs.OtherCharges)</td></tr>
+                                <tr><td class="text-secondary">Round Off</td><td class="text-end">@FormatDecimal(ExpInvVMs.RoundOff)</td></tr>
+                                <tr class="fw-bold fs-6 text-primary">
+                                    <td>Grand Total</td>
+                                    <td class="text-end">@FormatDecimal(ExpInvVMs.GrandTotal)</td>
+                                </tr>
+
+                                @if (ExpInvVMs.CurrId > 1)
+                                {
+                                    <tr>
+                                        <td colspan="2" class="text-end">
+                                            <small class="text-muted d-block">
+                                                Today's value: @ExpInvVMs.TodayVal
+                                            </small>
+                                            <small class="fw-bold text-success d-block">
+                                                Converted Value in Rs: @((ExpInvVMs.GrandTotal * ExpInvVMs.TodayVal).ToString("0.00"))
+                                            </small>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <!-- Due Date & Terms and Conditions -->
+            <div class="col-md-12">
+                <div class="card border-1 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-warning-subtle text-warning-emphasis fw-semibold p-2 small">
+                        Total Amount in Words
+                    </div>
+                    <div class="card-body p-2 small">
+                        <p class="mb-0">
+                            @if (ExpInvVMs.CurrId > 1 && ExpInvVMs.TodayVal > 0)
+                            {
+                                <small class="fw-bold text-success d-block">
+                                    Converted Value in Rs:
+                                    @NumberToWordsHelper.ConvertNumberToWords(ExpInvVMs.GrandTotal * ExpInvVMs.TodayVal)
+                                </small>
+                            }
+                            else
+                            {
+                                <strong>@NumberToWordsHelper.ConvertNumberToWords(ExpInvVMs.GrandTotal)</strong>
+                            }
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="@($"/expInvList?currentPage={currentPage}")" class="btn btn-secondary  rounded-3" disabled="@isProcessing">
+                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+            </a>
+            <a href="@($"/expInv/update/{ExpInvId}")" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i> Modify
+            </a>
+            <button class="btn btn-outline-success" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+    </div>
+}
+
+@code
+{
+
+    protected override string ScreenName => "Export Invoice";
+    [Parameter]
+    public int ExpInvId { get; set; }
+
+    private bool isProcessing { get; set; } = true;
+    private ExpInvVM ExpInvVMs { get; set; } = new ExpInvVM();
+    private CustomerVM CustomerVMs { get; set; } = new CustomerVM();
+
+    private Companydetails company { get; set; } = new Companydetails();
+    private List<ExpInvSubVM> refEnquiries = new();
+ 
+    private int Decimalplaces { get; set; } = 2;
+
+    //Sathish
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private string FormatDecimal(decimal? value)
+    {
+        if (value == null) return "0";
+        return Math.Round(value.Value, Decimalplaces).ToString($"N{Decimalplaces}");
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        company = await _expInvService.GetCompanyDetailsAsync();
+        await LoadExportInvoice();
+        isProcessing = false;
+    }
+
+    private async Task LoadExportInvoice()
+    {
+        try
+        {
+            if (ExpInvId > 0)
+            {
+                var invoice = await _expInvService.GetExpInvoiceByExpInvIdAsync(ExpInvId);
+                if (invoice != null)
+                {
+                    ExpInvVMs = invoice;
+                    foreach (var savedSub in ExpInvVMs.ExpSubInvVMs.Where(q => q.ItemId > 0))
+                    {
+
+                        if (ExpInvVMs.DcCumInv)
+                        {
+                            savedSub.StockQty = await _expInvService.GetStockQtyFromStockManager(savedSub.ItemId, ExpInvVMs.StoreIssId.Value);
+                        }
+
+                    }
+                }
+
+                Decimalplaces = await _expInvService.GetDecimalPlacesAsync();
+                CustomerVMs = await _expInvService.GetCustomerByIdAsync(ExpInvVMs.CustId.Value);
+                
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"LoadExportInvoice({ExpInvId})");
+
+        }
+    }
+
+}

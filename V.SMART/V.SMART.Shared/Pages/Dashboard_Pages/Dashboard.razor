@@ -1,0 +1,3278 @@
+﻿@page "/dashboard"
+@using ApexCharts
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IDashboardService
+@using V.SMART.Shared.ViewModels.DashboadrViewModel
+
+
+@inherits BaseUserRightsComponent
+@inject ThemeStateService ThemeStateService
+@inject IDashboardService DashboardService
+@inject NavigationManager Nav
+@inject ILoggingService LoggingService
+
+<PageTitle>ERP Dashboard</PageTitle>
+
+<div class="@($"erp-root {(isDark ? "dark" : "light")}")">
+
+    <!-- Background Orbs -->
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <div class="container-fluid py-3 px-3 px-xl-4 position-relative">
+        <div class="row g-3">
+
+            <!-- ── TOP NAV ─────────────────────────────────────────── -->
+            <div class="col-12">
+                <nav class="glass-nav d-flex align-items-center gap-1 px-2 px-md-3 flex-wrap">
+                    @foreach (var tab in topTabs)
+                    {
+                        <a href="#"
+                           class="@($"erp-tab{(activeTopTab == tab ? " active" : "")}")"
+                           @onclick="() => SetActiveTab(tab)"
+                           @onclick:preventDefault>
+                            <i class="@($"bi {GetTabIcon(tab)} me-1")"></i>@tab
+                        </a>
+                    }
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        <button class="glass-icon-btn pos-rel" title="Notifications">
+                            <i class="bi bi-bell"></i>
+                            <span class="notif-dot"></span>
+                        </button>
+                        <button class="theme-toggle glass-icon-btn" @onclick="ToggleTheme" title="Toggle Theme">
+                            <i class="@($"bi {(isDark ? "bi-sun-fill" : "bi-moon-stars-fill")}")"></i>
+                        </button>
+                    </div>
+                </nav>
+            </div>
+
+            <!-- ── HERO (Overview only) ────────────────────────────── -->
+            @if (activeTopTab == "Overview")
+            {
+                <div class="col-12">
+                    <div class="glass-hero d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+                        <div>
+                            <div class="hero-eyebrow"><i class="bi bi-building me-1"></i>Enterprise Resource Planning</div>
+                            <h1 class="hero-title mb-1">Welcome Back, Admin</h1>
+                            <p class="hero-sub mb-0">
+                                <i class="bi bi-clock me-1 opacity-50"></i>
+                                Real-time overview &mdash;
+                                <span class="hero-date">@DateTime.Now.ToString("dddd, MMMM d, yyyy")</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            }
+
+
+            <!-- ── PERIOD FILTER ───────────────────────────────────── -->
+            <div class="col-12">
+                <div class="glass-pill-bar d-flex align-items-center flex-wrap gap-2">
+                    <span class="period-label"><i class="bi bi-calendar3 me-1"></i>Period:</span>
+                    @foreach (var p in periods)
+                    {
+                        <button class="@($"period-pill {(activePeriod == p ? "active" : "")}")"
+                                @onclick="() => SetPeriod(p)">
+                            @if (activePeriod == p)
+                            {
+                                <i class="bi bi-check2-circle me-1"></i>
+                            }
+                            @p
+                        </button>
+                    }
+                    <div class="custom-range-wrap d-flex align-items-center gap-2 flex-wrap">
+                        <div class="date-box">
+                            <i class="bi bi-calendar-event"></i>
+                            <input type="date" class="glass-date" @bind="fromDate" />
+                        </div>
+                        <span class="range-separator">to</span>
+                        <div class="date-box">
+                            <i class="bi bi-calendar-event"></i>
+                            <input type="date" class="glass-date" @bind="toDate" />
+                        </div>
+                        <button class="btn btn-sm btn-glass-primary" @onclick="ApplyCustomRange">
+                            <i class="bi bi-check2 me-1"></i>Apply
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════
+                 OVERVIEW TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Overview")
+            {
+                <!-- Summary Cards -->
+                <div class="col-12">
+                    @if (isLoadingSummary)
+                    {
+                        <div class="summary-track">
+                            @for (int i = 0; i < 8; i++)
+                            {
+                                <div class="glass-summary-card skeleton-card">
+                                    <div class="skeleton-line w-50 mb-2"></div>
+                                    <div class="skeleton-line w-75"></div>
+                                    <div class="skeleton-line w-60"></div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="summary-track">
+                            @foreach (var card in summaryCards)
+                            {
+                                <div class="glass-summary-card" style="--acc:@card.Accent">
+                                    <div class="gsc-head">
+                                        <div class="gsc-icon"><i class="@($"bi {card.Icon}")"></i></div>
+                                        <h6 class="gsc-title">@card.Title</h6>
+                                    </div>
+                                    @foreach (var row in card.Rows)
+                                    {
+                                        <div class="@($"gsc-row{(row.IsTotal ? " total" : "")}")">
+                                            <span>@row.Label</span>
+                                            <strong>@GetSummaryValue(card.Title, row.Key, row.FallbackValue)</strong>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+                else if (overviewData is not null)
+                {
+                    <!-- Business Trend Chart -->
+                    <div class="col-lg-8">
+                        <div class="glass-card h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                                <div>
+                                    <h5 class="gc-title mb-0">Business Trend</h5>
+                                    <small class="gc-sub">@activePeriod — @GetGroupByLabel() &nbsp;·&nbsp; Sales · Purchase · Export · Labour · Sub-Con</small>
+                                </div>
+                                <div class="d-flex flex-column gap-2 align-items-end">
+                                    <div class="d-flex gap-1 flex-wrap justify-content-end">
+                                        @foreach (var gb in availableGroupBys)
+                                        {
+                                            <button class="btn btn-sm @(activeGroupBy == gb.Key ? "btn-glass-primary" : "btn-glass-outline")"
+                                                    @onclick="() => SetGroupBy(gb.Key)">
+                                                @gb.Label
+                                            </button>
+                                        }
+                                    </div>
+                                    <div class="chart-type-bar d-flex gap-1">
+                                        @foreach (var ct in chartTypes)
+                                        {
+                                            <button class="chart-type-btn @(trendChartType == ct.Key ? "active" : "")"
+                                                    title="@ct.Label" @onclick="() => SetTrendChartType(ct.Key)">
+                                                <i class="bi @ct.Icon"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (overviewData.SalesTrend.Any())
+                            {
+                                @if (trendChartType == "bar")
+                                {
+                                    <ApexChart TItem="ChartPointDto" Height="290" Title="" Options="GetBarOptions()">
+                                        @foreach (var series in overviewData.SalesTrend)
+                                        {
+                                            <ApexPointSeries TItem="ChartPointDto" Items="series.Data" Name="@series.Name"
+                                                             SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                        }
+                                    </ApexChart>
+                                }
+                                else if (trendChartType == "area")
+                                {
+                                    <ApexChart TItem="ChartPointDto" Height="290" Title="" Options="GetAreaOptions()">
+                                        @foreach (var series in overviewData.SalesTrend)
+                                        {
+                                            <ApexPointSeries TItem="ChartPointDto" Items="series.Data" Name="@series.Name"
+                                                             SeriesType="SeriesType.Area" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                        }
+                                    </ApexChart>
+                                }
+                                else
+                                {
+                                    <ApexChart TItem="ChartPointDto" Height="290" Title="" Options="GetLineOptions()">
+                                        @foreach (var series in overviewData.SalesTrend)
+                                        {
+                                            <ApexPointSeries TItem="ChartPointDto" Items="series.Data" Name="@series.Name"
+                                                             XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                        }
+                                    </ApexChart>
+                                }
+                            }
+                            else
+                            {
+                                <div class="text-center text-muted py-5">
+                                    <i class="bi bi-graph-up fs-2 opacity-30"></i>
+                                    <p class="mt-2 small">No transactions in the selected period.</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Business Split Chart -->
+                    <div class="col-lg-4">
+                        <div class="glass-card h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                                <div>
+                                    <h5 class="gc-title mb-0">Business Split</h5>
+                                    <small class="gc-sub">By category</small>
+                                </div>
+                                <div class="chart-type-bar d-flex gap-1">
+                                    <button class="chart-type-btn @(splitChartType == "donut" ? "active" : "")" title="Donut" @onclick='() => splitChartType = "donut"'><i class="bi bi-circle-half"></i></button>
+                                    <button class="chart-type-btn @(splitChartType == "pie" ? "active" : "")" title="Pie" @onclick='() => splitChartType = "pie"'><i class="bi bi-pie-chart-fill"></i></button>
+                                    <button class="chart-type-btn @(splitChartType == "bar" ? "active" : "")" title="Bar" @onclick='() => splitChartType = "bar"'><i class="bi bi-bar-chart-fill"></i></button>
+                                </div>
+                            </div>
+                            @if (overviewData.BusinessSplit.Any())
+                            {
+                                @if (splitChartType == "pie")
+                                {
+                                    <ApexChart TItem="BusinessDataDto" Height="290" Title="" Options="GetPieOptions()">
+                                        <ApexPointSeries TItem="BusinessDataDto" Items="overviewData.BusinessSplit" Name="Amount"
+                                                         SeriesType="SeriesType.Pie" XValue="@(e => e.Category)" YValue="@(e => e.Value)" />
+                                    </ApexChart>
+                                }
+                                else if (splitChartType == "bar")
+                                {
+                                    <ApexChart TItem="BusinessDataDto" Height="290" Title="" Options="GetSplitBarOptions()">
+                                        <ApexPointSeries TItem="BusinessDataDto" Items="overviewData.BusinessSplit" Name="Amount"
+                                                         SeriesType="SeriesType.Bar" XValue="@(e => e.Category)" YValue="@(e => e.Value)" />
+                                    </ApexChart>
+                                }
+                                else
+                                {
+                                    <ApexChart TItem="BusinessDataDto" Height="290" Title="" Options="GetDonutOptions()">
+                                        <ApexPointSeries TItem="BusinessDataDto" Items="overviewData.BusinessSplit" Name="Amount"
+                                                         SeriesType="SeriesType.Donut" XValue="@(e => e.Category)" YValue="@(e => e.Value)" />
+                                    </ApexChart>
+                                }
+                            }
+                            else
+                            {
+                                <div class="text-center text-muted py-5">
+                                    <i class="bi bi-pie-chart fs-2 opacity-30"></i>
+                                    <p class="mt-2 small">No data for this period.</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Recent Transactions -->
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <h5 class="gc-title mb-0">Recent Transactions</h5>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <div class="input-group input-group-sm glass-search" style="max-width:220px">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text" class="form-control" placeholder="Search doc / party / type…"
+                                               @bind="searchQuery" @bind:event="oninput" />
+                                    </div>
+                                    <button class="btn btn-sm btn-glass-outline"><i class="bi bi-funnel me-1"></i>Filter</button>
+                                    <button class="btn btn-sm btn-glass-outline"><i class="bi bi-download me-1"></i>CSV</button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table align-middle glass-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Doc No</th>
+                                            <th>Party</th>
+                                            <th>Type</th>
+                                            <th>Date</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="custom-size">
+                                        @foreach (var tx in FilteredTransactions)
+                                        {
+                                            <tr>
+                                                <td><span class="doc-chip">@tx.DocNo</span></td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="party-av">@(tx.Party?.Length > 0 ? tx.Party[0] : '?')</div>
+                                                        <span>@tx.Party</span>
+                                                    </div>
+                                                </td>
+                                                <td><span class="type-badge">@tx.Type</span></td>
+                                                <td class="text-muted small">@tx.Date</td>
+                                                <td class="fw-semibold">@tx.Amount</td>
+                                                <td><span class="@($"status-badge {tx.StatusClass}")">@tx.Status</span></td>
+                                                <td><button class="glass-icon-btn-sm"><i class="bi bi-three-dots"></i></button></td>
+                                            </tr>
+                                        }
+                                        @if (!FilteredTransactions.Any())
+                                        {
+                                            <tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>No transactions found.</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                                <small class="text-muted">Showing @FilteredTransactions.Count() of @overviewData.Transactions.Count</small>
+                                <nav>
+                                    <ul class="pagination pagination-sm mb-0 glass-pagination">
+                                        <li class="page-item disabled"><a class="page-link" href="#">&laquo;</a></li>
+                                        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                        <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                        <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                        <li class="page-item"><a class="page-link" href="#">&raquo;</a></li>
+                                    </ul>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+
+
+            <!-- ════════════════════════════════════════════════════════
+                 SALES TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Sales")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+                else if (salesData is not null)
+                {
+
+                    @foreach (var section in salesSections)
+                    {
+                        <KpiSection Section="section" />
+                    }
+
+                    <!-- Sales Trend -->
+                    <div class="col-lg-8">
+                        <TrendChartComponent Title="Sales Trend"
+                                             Icon="bi bi-bar-chart-line"
+                                             IconColor="#0891b2"
+                                             Series1="@salesData.ActualSales"
+                                             Series2="@salesData.TargetSales"
+                                             Series1Name="Invoice Value"
+                                             Series2Name="PO Value"
+                                             SelectedType="@globalTrendChartType"
+                                             SelectedTypeChanged="@(v => globalTrendChartType = v)"
+                                             LineOptions="@GetLineOptions()"
+                                             AreaOptions="@GetAreaOptions()"
+                                             BarOptions="@GetBarOptions()" />
+
+                    </div>
+
+                    <div class="col-lg-4">
+
+                        <SplitChartComponent Title="Payment Split"
+                                             Data="@salesData.PaymentSplit"
+                                             SelectedType="@globalSplitChartType"
+                                             SelectedTypeChanged="@(v => globalSplitChartType = v)"
+                                             PieOptions="@GetPieOptions()"
+                                             DonutOptions="@GetDonutOptions()"
+                                             BarOptions="@GetSplitBarOptions()" />
+
+                    </div>
+
+
+
+                    <div class="col-lg-4">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3">Top Customers</h5>
+                            <ul class="list-group list-group-flush erp-list">
+                                @foreach (var c in salesData.TopCustomers)
+                                {
+                                    <li class="list-group-item erp-list-item d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="party-av sm-av">@c.Name[0]</div>
+                                            <div>
+                                                <div class="small fw-semibold">@c.Name</div>
+                                                <div style="font-size:11px;color:var(--text-sub)">@c.Orders orders</div>
+                                            </div>
+                                        </div>
+                                        <span class="fw-bold small">@c.Revenue</span>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Sales Orders Table -->
+                    <div class="col-lg-8">
+                        <div class="glass-card">
+                            <h5 class="gc-title mb-3">Sales Orders</h5>
+                            <div class="table-responsive">
+                                <table class="table align-middle glass-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Inv No.</th>
+                                            <th>Inv Date</th>
+                                            <th>Customer</th>
+                                            <th>No. of Items</th>
+                                            <th>Value</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var so in salesData.Orders)
+                                        {
+                                            <tr>
+                                                <td><span class="doc-chip">@so.InvNo</span></td>
+                                                <td class="text-muted small">@so.InvDate</td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="party-av">@so.CustName[0]</div>
+                                                        <span>@so.CustName</span>
+                                                    </div>
+                                                </td>
+                                                <td class="text-muted small">@so.NoOfItems</td>
+                                                <td class="fw-semibold">@so.GrandTotal</td>
+                                                <td>
+                                                    @if (so.IsCancel)
+                                                    {
+                                                        <span class="status-badge failed">Cancelled</span>
+                                                    }
+                                                    else if (so.PoShortClose)
+                                                    {
+
+                                                        <span class="status-badge" style="background:rgba(100,116,139,0.15);color:#64748b">Short Closed</span>
+                                                    }
+                                                    else if (so.InvTally)
+                                                    {
+
+                                                        <span class="status-badge done">Completed</span>
+                                                    }
+                                                    else
+                                                    {
+
+                                                        <span class="status-badge pending">Pending</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+
+
+            <!-- ════════════════════════════════════════════════════════
+                 LABOUR / JOB WORK TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Labour/Job Work")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+                else if (labourData is not null)
+                {
+
+                    @foreach (var section in labourSections)
+                    {
+                        <KpiSection Section="section" />
+                    }
+
+                    <div class="col-lg-8">
+                        <TrendChartComponent Title="Labour Trend"
+                                             Icon="bi bi-bar-chart-steps"
+                                             IconColor="#0ea5e9"
+                                             Series1="@labourData.TargetLabour"
+                                             Series2="@labourData.ActualLabour"
+                                             Series1Name="PO Value"
+                                             Series2Name="Invoice Value"
+                                             SelectedType="@globalTrendChartType"
+                                             SelectedTypeChanged="@(v => globalTrendChartType = v)"
+                                             LineOptions="@GetLineOptions()"
+                                             AreaOptions="@GetAreaOptions()"
+                                             BarOptions="@GetBarOptions()" />
+                    </div>
+
+                    <div class="col-lg-4">
+                        <SplitChartComponent Title="Payment Split"
+                                             Data="@labourData.PaymentSplit"
+                                             SelectedType="@globalSplitChartType"
+                                             SelectedTypeChanged="@(v => globalSplitChartType = v)"
+                                             PieOptions="@GetPieOptions()"
+                                             DonutOptions="@GetDonutOptions()"
+                                             BarOptions="@GetSplitBarOptions()" />
+
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3">Top Customers</h5>
+                            <ul class="list-group list-group-flush erp-list">
+                                @foreach (var c in labourData.TopCustomers)
+                                {
+                                    <li class="list-group-item erp-list-item d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="party-av sm-av">@c.Name[0]</div>
+                                            <div>
+                                                <div class="small fw-semibold">@c.Name</div>
+                                                <div style="font-size:11px;color:var(--text-sub)">@c.Orders orders</div>
+                                            </div>
+                                        </div>
+                                        <span class="fw-bold small">@c.Revenue</span>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+
+
+                    <div class="col-lg-8">
+                        <div class="glass-card">
+                            <h5 class="gc-title mb-3">Labour Invoices</h5>
+
+                            <div class="table-responsive">
+                                <table class="table align-middle glass-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Inv No.</th>
+                                            <th>Inv Date</th>
+                                            <th>Customer</th>
+                                            <th>Value</th>
+                                            <th>Balance</th>
+                                            <th>Status</th>
+                                            <th>Created By</th>
+                                            <th>Created Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (labourData?.Orders?.Any() == true)
+                                        {
+                                            @foreach (var inv in labourData.Orders)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <span class="doc-chip">@inv.LabInvNo</span>
+                                                    </td>
+
+                                                    <td class="text-muted small">
+                                                        @inv.LabInvDate
+                                                    </td>
+
+                                                    <td>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <div class="party-av">
+                                                                @(string.IsNullOrWhiteSpace(inv.CustName)
+                                                                                                                ? "?"
+                                                                                                                : inv.CustName.Substring(0, 1).ToUpper())
+                                            </div>
+                                            <span>@inv.CustName</span>
+                                        </div>
+                                    </td>
+
+                                                    <td class="fw-semibold">
+                                                        @inv.GrandTotal
+                                                    </td>
+
+                                                    <td class="fw-semibold @(inv.Balance == 0 ? "text-success" : "text-warning")">
+                                                        @inv.Balance
+                                                    </td>
+
+                                                    <td>
+                                                        <span class="status-badge @(inv.InvCancel ? "cancelled" : "completed")">
+                                                            @(inv.InvCancel ? "Cancelled" : "Completed")
+                                                        </span>
+                                                    </td>
+
+                                                    <td class="text-muted small">
+                                                        @inv.CreatedBy
+                                                    </td>
+
+                                                    <td class="text-muted small">
+                                                        @inv.CreatedDate
+                                                    </td>
+                                                </tr>
+                                                                }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td colspan="8" class="text-center text-muted py-4">
+                                                    <i class="bi bi-inbox me-2"></i>
+                                                    No records found.
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+
+            <!-- ════════════════════════════════════════════════════════
+                 PURCHASE TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Purchase")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+                else if (purchaseData is not null)
+                {
+                    @foreach (var section in purchaseSections)
+                    {
+                        <KpiSection Section="section" />
+                    }
+
+                    <div class="row g-4">
+
+                        <!-- Purchase vs Expense Trend -->
+                        <div class="col-lg-8">
+                            <TrendChartComponent Title="Purchase & Expense Trend"
+                                                 Icon="bi bi-bar-chart-steps"
+                                                 IconColor="#0ea5e9"
+                                                 Series1="@purchaseData.PurchaseTrend"
+                                                 Series2="@purchaseData.ExpenseTrend"
+                                                 Series1Name="Purchase Orders"
+                                                 Series2Name="Expenses"
+                                                 SelectedType="@globalTrendChartType"
+                                                 SelectedTypeChanged="@(v => globalTrendChartType = v)"
+                                                 LineOptions="@GetLineOptions()"
+                                                 AreaOptions="@GetAreaOptions()"
+                                                 BarOptions="@GetBarOptions()" />
+                        </div>
+
+                        <!-- Vendor Split -->
+                        <div class="col-lg-4">
+                            <SplitChartComponent Title="Vendor Distribution"
+                                                 Data="@purchaseData.VendorSplit"
+                                                 SelectedType="@globalSplitChartType"
+                                                 SelectedTypeChanged="@(v => globalSplitChartType = v)"
+                                                 PieOptions="@GetPieOptions()"
+                                                 DonutOptions="@GetDonutOptions()"
+                                                 BarOptions="@GetSplitBarOptions()" />
+                        </div>
+
+                        <!-- Expense Category Split -->
+                        <div class="col-lg-6">
+                            <SplitChartComponent Title="Expense Category Split"
+                                                 Data="@purchaseData.ExpenseCategorySplit"
+                                                 SelectedType="@globalSplitChartType"
+                                                 SelectedTypeChanged="@(v => globalSplitChartType = v)"
+                                                 PieOptions="@GetPieOptions()"
+                                                 DonutOptions="@GetDonutOptions()"
+                                                 BarOptions="@GetSplitBarOptions()" />
+                        </div>
+
+                        <div class="col-lg-6">
+                            <div class="glass-card h-100">
+                                <h5 class="gc-title mb-3">Top Vendors</h5>
+
+                                <ul class="list-group list-group-flush erp-list">
+                                    @foreach (var vendor in purchaseData.TopVendors)
+                                    {
+                                        <li class="list-group-item erp-list-item d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="party-av sm-av">
+                                                    @(string.IsNullOrWhiteSpace(vendor.Name) ? "?" : vendor.Name[0])
+                                                </div>
+
+                                                <div>
+                                                    <div class="small fw-semibold">@vendor.Name</div>
+                                                    <div style="font-size:11px;color:var(--text-sub)">
+                                                        @vendor.Orders Purchase Orders
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <span class="fw-bold small">
+                                                @vendor.Revenue
+                                            </span>
+                                        </li>
+                                    }
+
+                                    @if (!purchaseData.TopVendors.Any())
+                                    {
+                                        <li class="list-group-item text-center text-muted py-4">
+                                            <i class="bi bi-building me-2"></i>
+                                            No vendor data available
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="col-lg-12">
+                        <div class="glass-card">
+                            <h5 class="gc-title mb-3">Purchase Invoices</h5>
+
+                            <div class="table-responsive">
+                                <table class="table align-middle glass-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Inv No.</th>
+                                            <th>Inv Date</th>
+                                            <th>Vendor</th>
+                                            <th>Value</th>
+                                            <th>Balance</th>
+                                            <th>Status</th>
+                                            <th>Created By</th>
+                                            <th>Created Date</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        @foreach (var inv in purchaseData.Invoices)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <span class="doc-chip">@inv.InvNo</span>
+                                                </td>
+
+                                                <td class="text-muted small">
+                                                    @inv.InvDate
+                                                </td>
+
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="party-av"
+                                                             style="background:rgba(22,163,74,.15);color:#16a34a">
+                                                            @(string.IsNullOrWhiteSpace(inv.VendorName)
+                                                                                                            ? '?'
+                                                                                                            : inv.VendorName[0])
+                                            </div>
+
+                                                        <span>@inv.VendorName</span>
+                                                    </div>
+                                                </td>
+
+                                                <td class="fw-semibold">
+                                                    @inv.GrandTotal
+                                                </td>
+
+                                                <td class="@(inv.Balance == 0 ? "text-success" : "text-warning") fw-semibold">
+                                                    @inv.Balance
+                                                </td>
+
+                                                <td>
+                                                    <span class="status-badge @(inv.InvCancel
+                                                                                                                              ? "cancelled"
+                                                                                                                              : inv.Balance == 0
+                                                                                                                                  ? "completed"
+                                                                                                                                  : "pending")">
+
+                                            @(inv.InvCancel
+                                                                                        ? "Cancelled"
+                                                                                        : inv.Balance == 0
+                                                                                        ? "Paid"
+                                                                                        : "Pending")
+                                        </span>
+                                    </td>
+
+                                                <td>
+                                                    <span class="doc-chip">
+                                                        @inv.CreatedBy
+                                                    </span>
+                                                </td>
+
+                                                <td class="text-muted small">
+                                                    @inv.CreatedDate
+                                                </td>
+                                            </tr>
+                                                                }
+
+                                        @if (!purchaseData.Invoices.Any())
+                                        {
+                                            <tr>
+                                                <td colspan="8" class="text-center text-muted py-4">
+                                                    <i class="bi bi-inbox me-2"></i>
+                                                    No records found.
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                }
+            }
+
+
+            <!-- ════════════════════════════════════════════════════════
+                 SUBCONTRACT TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Subcontract")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+                else if (subcontractData is not null)
+                {
+                    @foreach (var section in subcontractSections)
+                    {
+                        <KpiSection Section="section" />
+                    }
+
+                    <div class="row g-4">
+
+                        <!-- Subcontract Order vs Invoice Trend -->
+                        <div class="col-lg-8">
+                            <TrendChartComponent Title="Subcontract Order & Invoice Trend"
+                                                 Icon="bi bi-diagram-3"
+                                                 IconColor="#0ea5e9"
+                                                 Series1="@subcontractData.OrderTrend"
+                                                 Series2="@subcontractData.InvoiceTrend"
+                                                 Series1Name="Subcontract Orders"
+                                                 Series2Name="Subcontract Invoices"
+                                                 SelectedType="@globalTrendChartType"
+                                                 SelectedTypeChanged="@(v => globalTrendChartType = v)"
+                                                 LineOptions="@GetLineOptions()"
+                                                 AreaOptions="@GetAreaOptions()"
+                                                 BarOptions="@GetBarOptions()" />
+                        </div>
+
+                        <!-- Contractor Split -->
+                        <div class="col-lg-4">
+                            <SplitChartComponent Title="Contractor Distribution"
+                                                 Data="@subcontractData.ContractorSplit"
+                                                 SelectedType="@globalSplitChartType"
+                                                 SelectedTypeChanged="@(v => globalSplitChartType = v)"
+                                                 PieOptions="@GetPieOptions()"
+                                                 DonutOptions="@GetDonutOptions()"
+                                                 BarOptions="@GetSplitBarOptions()" />
+                        </div>
+
+                        <!-- Work Category Split -->
+                        <div class="col-lg-6">
+                            <SplitChartComponent Title="Work Category Split"
+                                                 Data="@subcontractData.WorkCategorySplit"
+                                                 SelectedType="@globalSplitChartType"
+                                                 SelectedTypeChanged="@(v => globalSplitChartType = v)"
+                                                 PieOptions="@GetPieOptions()"
+                                                 DonutOptions="@GetDonutOptions()"
+                                                 BarOptions="@GetSplitBarOptions()" />
+                        </div>
+
+                        <!-- Top Contractors -->
+                        <div class="col-lg-6">
+                            <div class="glass-card h-100">
+                                <h5 class="gc-title mb-3">Top Contractors</h5>
+
+                                <ul class="list-group list-group-flush erp-list">
+                                    @foreach (var contractor in subcontractData.TopContractors)
+                                    {
+                                        <li class="list-group-item erp-list-item d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="party-av sm-av">
+                                                    @(string.IsNullOrWhiteSpace(contractor.Name)
+                                                                                            ? "?"
+                                                                                            : contractor.Name[0])
+                                    </div>
+
+                                                <div>
+                                                    <div class="small fw-semibold">
+                                                        @contractor.Name
+                                                    </div>
+
+                                                    <div style="font-size:11px;color:var(--text-sub)">
+                                                        @contractor.Orders Jobs / Invoices
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <span class="fw-bold small">
+                                                @contractor.Revenue
+                                            </span>
+                                        </li>
+                                                        }
+
+                                    @if (!subcontractData.TopContractors.Any())
+                                    {
+                                        <li class="list-group-item text-center text-muted py-4">
+                                            <i class="bi bi-person-workspace me-2"></i>
+                                            No contractor data available
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <h5 class="gc-title mb-3">Subcontract Invoices</h5>
+
+                            <div class="table-responsive">
+                                <table class="table align-middle glass-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Inv No.</th>
+                                            <th>Inv Date</th>
+                                            <th>Contractor</th>
+                                            <th>Value</th>
+                                            <th>Balance</th>
+                                            <th>Status</th>
+                                            <th>Created By</th>
+                                            <th>Created Date</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        @foreach (var inv in subcontractData.Invoices)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <span class="doc-chip">
+                                                        @inv.InvNo
+                                                    </span>
+                                                </td>
+
+                                                <td class="text-muted small">
+                                                    @inv.InvDate
+                                                </td>
+
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="party-av"
+                                                             style="background:rgba(34,197,94,0.15);color:#22c55e">
+                                                            @(string.IsNullOrWhiteSpace(inv.VendorName)
+                                                                                                            ? "?"
+                                                                                                            : inv.VendorName[0])
+                                            </div>
+
+                                                        <span>@inv.VendorName</span>
+                                                    </div>
+                                                </td>
+
+                                                <td class="fw-semibold">
+                                                    @inv.GrandTotal
+                                                </td>
+
+                                                <td class="@(inv.Balance == 0 ? "text-success" : "text-warning") fw-semibold">
+                                                    @inv.Balance
+                                                </td>
+
+                                                <td>
+                                                    <span class="status-badge @(inv.InvCancel
+                                                                                                                                ? "cancelled"
+                                                                                                                                : inv.Balance == 0
+                                                                                                                                    ? "completed"
+                                                                                                                                    : "pending")">
+
+                                            @(inv.InvCancel
+                                                                                        ? "Cancelled"
+                                                                                        : inv.Balance == 0
+                                                                                        ? "Paid"
+                                                                                        : "Pending")
+                                        </span>
+                                    </td>
+
+                                                <td>
+                                                    <span class="doc-chip">
+                                                        @inv.CreatedBy
+                                                    </span>
+                                                </td>
+
+                                                <td class="text-muted small">
+                                                    @inv.CreatedDate
+                                                </td>
+                                            </tr>
+                                                                }
+
+                                        @if (!subcontractData.Invoices.Any())
+                                        {
+                                            <tr>
+                                                <td colspan="8" class="text-center text-muted py-4">
+                                                    <i class="bi bi-inbox me-2"></i>
+                                                    No records found.
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+
+            <!-- ════════════════════════════════════════════════════════
+                 JOB CARD TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Job Card")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border text-primary"></div>
+                    </div>
+                }
+                else if (jobCardData is not null)
+                {
+                    @foreach (var section in jobCardSections)
+                    {
+                        <KpiSection Section="section" />
+                    }
+
+                    <div class="row g-4">
+
+                        <!-- Job Order Trend -->
+                        <div class="col-lg-8">
+                            <TrendChartComponent Title="Job Order Trend"
+                                                 Icon="bi bi-bar-chart-steps"
+                                                 IconColor="#7c3aed"
+                                                 Series1="@jobCardData.JobOrderTrend"
+                                                 Series1Name="Job Orders"
+                                                 SelectedType="@globalTrendChartType"
+                                                 SelectedTypeChanged="@(v => globalTrendChartType = v)"
+                                                 LineOptions="@GetLineOptions()"
+                                                 AreaOptions="@GetAreaOptions()"
+                                                 BarOptions="@GetBarOptions()" />
+                        </div>
+
+                        <!-- Status Split -->
+                        <div class="col-lg-4">
+                            <SplitChartComponent Title="Job Status Distribution"
+                                                 Data="@jobCardData.JobStatusSplit"
+                                                 SelectedType="@globalSplitChartType"
+                                                 SelectedTypeChanged="@(v => globalSplitChartType = v)"
+                                                 PieOptions="@GetPieOptions()"
+                                                 DonutOptions="@GetDonutOptions()"
+                                                 BarOptions="@GetSplitBarOptions()" />
+                        </div>
+
+                        <!-- Issue Trend -->
+                        <div class="col-lg-6">
+                            <TrendChartComponent Title="Issue Trend"
+                                                 Icon="bi bi-box-arrow-right"
+                                                 IconColor="#f59e0b"
+                                                 Series1="@jobCardData.IssueTrend"
+                                                 Series1Name="Issues"
+                                                 SelectedType="@globalTrendChartType"
+                                                 SelectedTypeChanged="@(v => globalTrendChartType = v)"
+                                                 LineOptions="@GetLineOptions()"
+                                                 AreaOptions="@GetAreaOptions()"
+                                                 BarOptions="@GetBarOptions()" />
+                        </div>
+
+                        <!-- Return Trend -->
+                        <div class="col-lg-6">
+                            <TrendChartComponent Title="Return Trend"
+                                                 Icon="bi bi-arrow-return-left"
+                                                 IconColor="#16a34a"
+                                                 Series1="@jobCardData.ReturnTrend"
+                                                 Series1Name="Returns"
+                                                 SelectedType="@globalTrendChartType"
+                                                 SelectedTypeChanged="@(v => globalTrendChartType = v)"
+                                                 LineOptions="@GetLineOptions()"
+                                                 AreaOptions="@GetAreaOptions()"
+                                                 BarOptions="@GetBarOptions()" />
+                        </div>
+
+                        <!-- SCN Trend -->
+                        <div class="col-lg-6">
+                            <TrendChartComponent Title="SCN Trend"
+                                                 Icon="bi bi-truck"
+                                                 IconColor="#0891b2"
+                                                 Series1="@jobCardData.SCNTrend"
+                                                 Series1Name="SCNs"
+                                                 SelectedType="@globalTrendChartType"
+                                                 SelectedTypeChanged="@(v => globalTrendChartType = v)"
+                                                 LineOptions="@GetLineOptions()"
+                                                 AreaOptions="@GetAreaOptions()"
+                                                 BarOptions="@GetBarOptions()" />
+                        </div>
+
+                        <!-- Top Assemblies -->
+                        <div class="col-lg-6">
+                            <div class="glass-card h-100">
+                                <h5 class="gc-title mb-3">
+                                    Top Assemblies
+                                </h5>
+
+                                <ul class="list-group list-group-flush erp-list">
+                                    @foreach (var item in jobCardData.TopAssemblies)
+                                    {
+                                        <li class="list-group-item erp-list-item d-flex justify-content-between align-items-center">
+
+                                            <div>
+                                                <div class="fw-semibold small">
+                                                    @item.ItemName
+                                                </div>
+
+                                                <div style="font-size:11px;color:var(--text-sub)">
+                                                    @item.ItemCode
+                                                </div>
+                                            </div>
+
+                                            <div class="text-end">
+                                                <div class="fw-bold">
+                                                    @item.PlannedQty
+                                                </div>
+
+                                                <small class="text-muted">
+                                                    @item.CompletionPercentage.ToString("N1")%
+                                                </small>
+                                            </div>
+
+                                        </li>
+                                    }
+
+                                    @if (!jobCardData.TopAssemblies.Any())
+                                    {
+                                        <li class="list-group-item text-center text-muted py-4">
+                                            No assembly data available
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Job Orders -->
+                    <div class="col-12 mt-4">
+                        <div class="glass-card">
+
+                            <h5 class="gc-title mb-3">
+                                Job Orders
+                            </h5>
+
+                            <div class="table-responsive">
+
+                                <table class="table align-middle glass-table mb-0">
+
+                                    <thead>
+                                        <tr>
+                                            <th>Job No</th>
+                                            <th>PO No</th>
+                                            <th>Item Code</th>
+                                            <th>Job Qty</th>
+                                            <th>Balance Qty</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+
+                                        @foreach (var job in jobCardData.JobOrders)
+                                        {
+                                            <tr>
+
+                                                <td>
+                                                    <span class="doc-chip">
+                                                        @job.JobNo
+                                                    </span>
+                                                </td>
+
+                                                <td>
+                                                    @job.RefPoNo
+                                                </td>
+
+                                                <td>
+                                                    @job.AssemblyItemCode
+                                                </td>
+
+                                                <td>
+                                                    @job.JobOrderQty
+                                                </td>
+
+                                                <td>
+                                                    @job.JobBalQty
+                                                </td>
+
+                                                <td>
+                                                    <span class="status-badge @(job.JobTally ? "completed" : "pending")">
+                                                        @(job.JobTally ? "Completed" : "Pending")
+                                                    </span>
+                                                </td>
+
+                                            </tr>
+                                        }
+
+                                        @if (!jobCardData.JobOrders.Any())
+                                        {
+                                            <tr>
+                                                <td colspan="7" class="text-center text-muted py-4">
+                                                    <i class="bi bi-inbox me-2"></i>
+                                                    No job orders found.
+                                                </td>
+                                            </tr>
+                                        }
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent SCNs -->
+                    <div class="col-12 mt-4">
+                        <div class="glass-card">
+
+                            <h5 class="gc-title mb-3">
+                                Recent SCNs
+                            </h5>
+
+                            <div class="table-responsive">
+
+                                <table class="table align-middle glass-table mb-0">
+
+                                    <thead>
+                                        <tr>
+                                            <th>SCN No</th>
+                                            <th>Date</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+
+                                        @foreach (var scn in jobCardData.RecentSCNs)
+                                        {
+                                            <tr>
+                                                <td>@scn.SCNNo</td>
+                                                <td>@scn.SCNDateNow</td>
+                                                <td>
+                                                    <span class="status-badge completed">
+                                                        Processed
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+
+                                        @if (!jobCardData.RecentSCNs.Any())
+                                        {
+                                            <tr>
+                                                <td colspan="3" class="text-center text-muted py-4">
+                                                    No SCNs found.
+                                                </td>
+                                            </tr>
+                                        }
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+
+                        </div>
+                    </div>
+                }
+            }
+
+           
+ <!-- ════════════════════════════════════════════════════════
+                 ROUTE CARD TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Route Card")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+
+
+                else if (routeCardData is not null)
+                {
+                    <!-- KPI Row -->
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                                <h5 class="gc-title mb-0"><i class="bi bi-signpost-2-fill me-2 text-info"></i>Route Card Overview</h5>
+                                <span class="badge bg-info-subtle text-info px-3 py-2">Total: @routeCardData.TotalRouteCards</span>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-6 col-md-4 col-lg-2">
+                                    <div class="kpi-card" style="--kc:#0891b2">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-signpost-2-fill"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@routeCardData.TotalRouteCards</span><span class="kpi-card-lbl">Total</span></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4 col-lg-2">
+                                    <div class="kpi-card" style="--kc:#10b981">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-check2-all"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@routeCardData.Completed</span><span class="kpi-card-lbl">Completed</span></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4 col-lg-2">
+                                    <div class="kpi-card" style="--kc:#f59e0b">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-arrow-repeat"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@routeCardData.InProcess</span><span class="kpi-card-lbl">In Process</span></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4 col-lg-2">
+                                    <div class="kpi-card" style="--kc:#8b5cf6">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-diagram-3-fill"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@routeCardData.TotalOperations</span><span class="kpi-card-lbl">Operations</span></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4 col-lg-2">
+                                    <div class="kpi-card" style="--kc:#ef4444">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-clock-history"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@routeCardData.Pending</span><span class="kpi-card-lbl">Pending</span></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4 col-lg-2">
+                                    <div class="kpi-card" style="--kc:#22c55e">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-percent"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@routeCardData.AvgCompletionPct%</span><span class="kpi-card-lbl">Avg Completion</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trend + Operations Split Charts -->
+                    <div class="col-lg-8">
+                        <div class="glass-card h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <div>
+                                    <h5 class="gc-title mb-0"><i class="bi bi-activity me-2" style="color:#0891b2"></i>Route Card Trend</h5>
+                                    <small class="gc-sub">@activePeriod — @GetGroupByLabel() · Created vs Completed</small>
+                                </div>
+                                <div class="chart-type-bar d-flex gap-1">
+                                    @foreach (var ct in chartTypes)
+                                    {
+                                        <button class="chart-type-btn @(routeCardChartType == ct.Key ? "active" : "")"
+                                                title="@ct.Label" @onclick="() => routeCardChartType = ct.Key">
+                                            <i class="bi @ct.Icon"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                            @if (routeCardChartType == "bar")
+                            {
+                                <ApexChart TItem="ChartPointDto" Height="280" Title="" Options="GetBarOptions()">
+                                    <ApexPointSeries TItem="ChartPointDto" Items="routeCardData.CreatedTrend" Name="Created" SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                    <ApexPointSeries TItem="ChartPointDto" Items="routeCardData.CompletedTrend" Name="Completed" SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                </ApexChart>
+                            }
+                            else if (routeCardChartType == "area")
+                            {
+                                <ApexChart TItem="ChartPointDto" Height="280" Title="" Options="GetAreaOptions()">
+                                    <ApexPointSeries TItem="ChartPointDto" Items="routeCardData.CreatedTrend" Name="Created" SeriesType="SeriesType.Area" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                    <ApexPointSeries TItem="ChartPointDto" Items="routeCardData.CompletedTrend" Name="Completed" SeriesType="SeriesType.Area" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                </ApexChart>
+                            }
+                            else
+                            {
+                                <ApexChart TItem="ChartPointDto" Height="280" Title="" Options="GetLineOptions()">
+                                    <ApexPointSeries TItem="ChartPointDto" Items="routeCardData.CreatedTrend" Name="Created" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                    <ApexPointSeries TItem="ChartPointDto" Items="routeCardData.CompletedTrend" Name="Completed" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                </ApexChart>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="glass-card h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="gc-title mb-0">Operations Split</h5>
+                                <div class="chart-type-bar d-flex gap-1">
+                                    <button class="chart-type-btn @(routeCardSplitType == "donut" ? "active" : "")" title="Donut" @onclick='() => routeCardSplitType = "donut"'><i class="bi bi-circle-half"></i></button>
+                                    <button class="chart-type-btn @(routeCardSplitType == "pie" ? "active" : "")" title="Pie" @onclick='() => routeCardSplitType = "pie"'><i class="bi bi-pie-chart-fill"></i></button>
+                                    <button class="chart-type-btn @(routeCardSplitType == "bar" ? "active" : "")" title="Bar" @onclick='() => routeCardSplitType = "bar"'><i class="bi bi-bar-chart-fill"></i></button>
+                                </div>
+                            </div>
+                            @if (routeCardData.OperationSplit.Any())
+                            {
+                                @if (routeCardSplitType == "pie")
+                                {
+                                    <ApexChart TItem="BusinessDataDto" Height="260" Title="" Options="GetPieOptions()"><ApexPointSeries TItem="BusinessDataDto" Items="routeCardData.OperationSplit" Name="Count" SeriesType="SeriesType.Pie" XValue="@(e => e.Category)" YValue="@(e => e.Value)" /></ApexChart>
+                                }
+                                else if (routeCardSplitType == "bar")
+                                {
+
+                                    <ApexChart TItem="BusinessDataDto" Height="260" Title="" Options="GetSplitBarOptions()"><ApexPointSeries TItem="BusinessDataDto" Items="routeCardData.OperationSplit" Name="Count" SeriesType="SeriesType.Bar" XValue="@(e => e.Category)" YValue="@(e => e.Value)" /></ApexChart>
+                                }
+                                else
+                                {
+
+                                    <ApexChart TItem="BusinessDataDto" Height="260" Title="" Options="GetDonutOptions()"><ApexPointSeries TItem="BusinessDataDto" Items="routeCardData.OperationSplit" Name="Count" SeriesType="SeriesType.Donut" XValue="@(e => e.Category)" YValue="@(e => e.Value)" /></ApexChart>
+                                }
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Workstation Performance -->
+                    @if (routeCardData.WorkstationStats.Any())
+                    {
+                        <div class="col-12">
+                            <div class="glass-card">
+                                <h5 class="gc-title mb-3"><i class="bi bi-cpu-fill me-2" style="color:#8b5cf6"></i>Workstation Performance</h5>
+                                <div class="rc-workstation-grid">
+                                    @foreach (var ws in routeCardData.WorkstationStats)
+                                    {
+                                        var wsPct = ws.AssignedCount > 0 ? (ws.CompletedCount * 100 / ws.AssignedCount) : 0;
+                                        <div class="rc-ws-card">
+                                            <div class="rc-ws-header">
+                                                <div class="rc-ws-icon"><i class="bi bi-tools"></i></div>
+                                                <div>
+                                                    <div class="rc-ws-name">@ws.WorkstationName</div>
+                                                    <div class="rc-ws-sub">@ws.OperationType</div>
+                                                </div>
+                                            </div>
+                                            <div class="rc-ws-stat-row"><span>Assigned</span><strong>@ws.AssignedCount</strong></div>
+                                            <div class="rc-ws-stat-row"><span>Completed</span><strong class="text-success">@ws.CompletedCount</strong></div>
+                                            <div class="rc-ws-stat-row"><span>Pending</span><strong class="text-warning">@ws.PendingCount</strong></div>
+                                            <div class="rc-ws-progress-wrap mt-2">
+                                                <div class="rc-ws-progress-track">
+                                                    <div class="rc-ws-progress-fill" style="width:@wsPct%"></div>
+                                                </div>
+                                                <span class="rc-ws-pct">@wsPct%</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Route Cards Table -->
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <h5 class="gc-title mb-0"><i class="bi bi-signpost-2-fill me-2" style="color:#0891b2"></i>Route Cards</h5>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <div class="input-group input-group-sm glass-search" style="max-width:220px">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text" class="form-control" placeholder="Search route no / item…"
+                                               @bind="routeCardSearchQuery" @bind:event="oninput" />
+                                    </div>
+                                    <button class="btn btn-sm btn-glass-outline"><i class="bi bi-download me-1"></i>CSV</button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table align-middle glass-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Route Card No</th>
+                                            <th>Job Card</th>
+                                            <th>Item / Product</th>
+                                            <th>Operation</th>
+                                            <th>Workstation</th>
+                                            <th>Operator</th>
+                                            <th>Planned Qty</th>
+                                            <th>Completed Qty</th>
+                                            <th>Completion %</th>
+                                            <th>Status</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var rc in FilteredRouteCards)
+                                        {
+                                            var pct = rc.PlannedQty > 0 ? (int)Math.Round((double)rc.CompletedQty / rc.PlannedQty * 100) : 0;
+                                            <tr>
+                                                <td><span class="doc-chip">@rc.RouteCardNo</span></td>
+                                                <td>
+                                                    @if (!string.IsNullOrWhiteSpace(rc.JobCardNo))
+                                                    {
+                                                        <span class="doc-chip purch-chip">@rc.JobCardNo</span>
+                                                    }
+                                                    else
+                                                    {
+
+                                                        <span class="text-muted small">—</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <div class="fw-semibold small">@rc.ItemName</div>
+                                                    <div style="font-size:11px;color:var(--text-sub)">@rc.ItemCode</div>
+                                                </td>
+                                                <td><span class="type-badge">@rc.OperationName</span></td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="rc-ws-dot"></div>
+                                                        <span class="small">@rc.WorkstationName</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="party-av sm-av">@(rc.OperatorName?.Length > 0 ? rc.OperatorName[0] : '?')</div>
+                                                        <span class="small">@rc.OperatorName</span>
+                                                    </div>
+                                                </td>
+                                                <td class="fw-semibold">@rc.PlannedQty</td>
+                                                <td class="fw-semibold">@rc.CompletedQty</td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2" style="min-width:80px">
+                                                        <div class="rc-inline-bar">
+                                                            <div class="rc-inline-fill @(pct >= 100 ? "fill-done" : pct >= 50 ? "fill-mid" : "fill-low")"
+                                                                 style="width:@(Math.Min(pct, 100))%"></div>
+                                                        </div>
+                                                        <small class="fw-semibold">@pct%</small>
+                                                    </div>
+                                                </td>
+                                                <td><span class="@($"status-badge {rc.StatusClass}")">@rc.Status</span></td>
+                                                <td><button class="glass-icon-btn-sm"><i class="bi bi-three-dots"></i></button></td>
+                                            </tr>
+                                        }
+                                        @if (!FilteredRouteCards.Any())
+                                        {
+                                            <tr><td colspan="11" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>No route cards found.</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <small class="text-muted">Showing @FilteredRouteCards.Count() of @routeCardData.RouteCards.Count</small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+
+            <!-- ════════════════════════════════════════════════════════
+                 INVENTORY TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Inventory")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+                else if (inventoryData is not null)
+                {
+                    <div class="col-lg-8">
+                        <div class="glass-card h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <h5 class="gc-title mb-0"><i class="bi bi-boxes me-2" style="color:#2563eb"></i>Inventory Levels</h5>
+                                <div class="chart-type-bar d-flex gap-1">
+                                    @foreach (var ct in chartTypes)
+                                    {
+                                        <button class="chart-type-btn @(inventoryChartType == ct.Key ? "active" : "")"
+                                                title="@ct.Label" @onclick="() => inventoryChartType = ct.Key">
+                                            <i class="bi @ct.Icon"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                            @if (inventoryChartType == "bar")
+                            {
+                                <ApexChart TItem="ChartPointDto" Height="290" Title="" Options="GetBarOptions()"><ApexPointSeries TItem="ChartPointDto" Items="inventoryData.LevelChart" Name="Stock" SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Value)" /></ApexChart>
+                            }
+                            else if (inventoryChartType == "area")
+                            {
+
+                                <ApexChart TItem="ChartPointDto" Height="290" Title="" Options="GetAreaOptions()"><ApexPointSeries TItem="ChartPointDto" Items="inventoryData.LevelChart" Name="Stock" SeriesType="SeriesType.Area" XValue="@(e => e.Label)" YValue="@(e => e.Value)" /></ApexChart>
+                            }
+                            else
+                            {
+
+                                <ApexChart TItem="ChartPointDto" Height="290" Title="" Options="GetLineOptions()"><ApexPointSeries TItem="ChartPointDto" Items="inventoryData.LevelChart" Name="Stock" XValue="@(e => e.Label)" YValue="@(e => e.Value)" /></ApexChart>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3"><i class="bi bi-exclamation-circle-fill text-warning me-2"></i>Low Stock Alerts</h5>
+                            <ul class="list-group list-group-flush erp-list">
+                                @foreach (var item in inventoryData.LowStock)
+                                {
+                                    <li class="list-group-item erp-list-item d-flex justify-content-between align-items-center">
+                                        <span><i class="bi bi-box me-2 text-muted"></i>@item.Name</span>
+                                        <span class="badge @(item.Qty <= 2 ? "bg-danger" : item.Qty <= 5 ? "bg-warning text-dark" : "bg-secondary") rounded-pill">@item.Qty Qty</span>
+                                    </li>
+                                }
+                            </ul>
+                            <div class="mt-3"><a href="#" class="btn btn-sm btn-glass-outline w-100">View All Inventory</a></div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <h5 class="gc-title mb-3">Inventory Transactions</h5>
+                            <div class="table-responsive">
+                                <table class="table align-middle glass-table mb-0">
+                                    <thead><tr><th>Code</th><th>Item Name</th><th>Category</th><th>In</th><th>Out</th><th>Balance</th><th>Location</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var inv in inventoryData.Items)
+                                        {
+                                            <tr>
+                                                <td><span class="doc-chip">@inv.Code</span></td>
+                                                <td>@inv.Name</td>
+                                                <td><span class="type-badge">@inv.Category</span></td>
+                                                <td class="text-success fw-semibold">+@inv.In</td>
+                                                <td class="text-danger fw-semibold">-@inv.Out</td>
+                                                <td class="fw-bold">@inv.Balance</td>
+                                                <td class="text-muted small">@inv.Location</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+
+            <!-- ════════════════════════════════════════════════════════
+                 FINANCE TAB
+            ════════════════════════════════════════════════════════ -->
+            @if (activeTopTab == "Finance")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+                else if (financeData is not null)
+                {
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                                <h5 class="gc-title mb-0"><i class="bi bi-cash-stack me-2 text-success"></i>Finance Overview</h5>
+                                <span class="badge bg-success-subtle text-success px-3 py-2">Financial Summary</span>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-6 col-md-4">
+                                    <div class="kpi-card" style="--kc:#16a34a">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-graph-up"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@financeData.NetProfit</span><span class="kpi-card-lbl">Net Profit</span></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4">
+                                    <div class="kpi-card" style="--kc:#ef4444">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-graph-down"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@financeData.TotalExpense</span><span class="kpi-card-lbl">Total Expense</span></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4">
+                                    <div class="kpi-card" style="--kc:#f59e0b">
+                                        <div class="kpi-card-scan"></div>
+                                        <div class="kpi-card-icon"><i class="bi bi-clock-history"></i></div>
+                                        <div class="kpi-card-body"><span class="kpi-card-val">@financeData.ArPending</span><span class="kpi-card-lbl">AR Pending</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="glass-card h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <h5 class="gc-title mb-0"><i class="bi bi-cash-coin me-2" style="color:#10b981"></i>Cash Flow</h5>
+                                <div class="chart-type-bar d-flex gap-1">
+                                    @foreach (var ct in chartTypes)
+                                    {
+                                        <button class="chart-type-btn @(financeChartType == ct.Key ? "active" : "")"
+                                                title="@ct.Label" @onclick="() => financeChartType = ct.Key">
+                                            <i class="bi @ct.Icon"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                            @if (financeChartType == "bar")
+                            {
+                                <ApexChart TItem="ChartPointDto" Height="270" Title="" Options="GetBarOptions()">
+                                    <ApexPointSeries TItem="ChartPointDto" Items="financeData.CashflowIn" Name="Inflow" SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                    <ApexPointSeries TItem="ChartPointDto" Items="financeData.CashflowOut" Name="Outflow" SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                </ApexChart>
+                            }
+                            else if (financeChartType == "area")
+                            {
+                                <ApexChart TItem="ChartPointDto" Height="270" Title="" Options="GetAreaOptions()">
+                                    <ApexPointSeries TItem="ChartPointDto" Items="financeData.CashflowIn" Name="Inflow" SeriesType="SeriesType.Area" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                    <ApexPointSeries TItem="ChartPointDto" Items="financeData.CashflowOut" Name="Outflow" SeriesType="SeriesType.Area" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                </ApexChart>
+                            }
+                            else
+                            {
+                                <ApexChart TItem="ChartPointDto" Height="270" Title="" Options="GetLineOptions()">
+                                    <ApexPointSeries TItem="ChartPointDto" Items="financeData.CashflowIn" Name="Inflow" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                    <ApexPointSeries TItem="ChartPointDto" Items="financeData.CashflowOut" Name="Outflow" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                </ApexChart>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="glass-card h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <h5 class="gc-title mb-0"><i class="bi bi-pie-chart me-2" style="color:#7c3aed"></i>Expense Breakdown</h5>
+                                <div class="chart-type-bar d-flex gap-1">
+                                    <button class="chart-type-btn @(expenseChartType == "donut" ? "active" : "")" title="Donut" @onclick='() => expenseChartType = "donut"'><i class="bi bi-circle-half"></i></button>
+                                    <button class="chart-type-btn @(expenseChartType == "pie" ? "active" : "")" title="Pie" @onclick='() => expenseChartType = "pie"'><i class="bi bi-pie-chart-fill"></i></button>
+                                    <button class="chart-type-btn @(expenseChartType == "bar" ? "active" : "")" title="Bar" @onclick='() => expenseChartType = "bar"'><i class="bi bi-bar-chart-fill"></i></button>
+                                </div>
+                            </div>
+                            @if (expenseChartType == "pie")
+                            {
+                                <ApexChart TItem="BusinessDataDto" Height="270" Title="" Options="GetPieOptions()"><ApexPointSeries TItem="BusinessDataDto" Items="financeData.ExpenseBreak" Name="Amount" SeriesType="SeriesType.Pie" XValue="@(e => e.Category)" YValue="@(e => e.Value)" /></ApexChart>
+                            }
+                            else if (expenseChartType == "bar")
+                            {
+
+                                <ApexChart TItem="BusinessDataDto" Height="270" Title="" Options="GetSplitBarOptions()"><ApexPointSeries TItem="BusinessDataDto" Items="financeData.ExpenseBreak" Name="Amount" SeriesType="SeriesType.Bar" XValue="@(e => e.Category)" YValue="@(e => e.Value)" /></ApexChart>
+                            }
+                            else
+                            {
+
+                                <ApexChart TItem="BusinessDataDto" Height="270" Title="" Options="GetDonutOptions()"><ApexPointSeries TItem="BusinessDataDto" Items="financeData.ExpenseBreak" Name="Amount" SeriesType="SeriesType.Donut" XValue="@(e => e.Category)" YValue="@(e => e.Value)" /></ApexChart>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+
+
+            @if (activeTopTab == "Analytics")
+            {
+                @if (isLoadingTab)
+                {
+                    <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+                }
+                else if (analyticsData is not null)
+                {
+                    <!-- ── Radial Gauges ─────────────────────────────── -->
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                                <div>
+                                    <h5 class="gc-title mb-0"><i class="bi bi-speedometer2 me-2 text-primary"></i>KPI Target Gauges</h5>
+                                    <small class="gc-sub">Achievement vs target for the period</small>
+                                </div>
+                            </div>
+                            <div class="row g-3">
+                                @foreach (var g in analyticsData.Gauges)
+                                {
+                                    var r = 38; var cx = 48; var cy = 48; var sw = 7;
+                                    var circ = 2 * Math.PI * r;
+                                    var dash = (g.Value / 100.0) * circ;
+                                    var offset = circ * 0.25;
+                                    <div class="col-6 col-md-3">
+                                        <div class="d-flex flex-column align-items-center gap-1 p-2">
+                                            <svg width="96" height="96" viewBox="0 0 96 96">
+                                                <circle cx="@cx" cy="@cy" r="@r" fill="none" stroke="@(g.Color + "22")" stroke-width="@sw" />
+                                                <circle cx="@cx" cy="@cy" r="@r" fill="none" stroke="@g.Color" stroke-width="@sw"
+                                                        stroke-linecap="round"
+                                                        stroke-dasharray="@dash.ToString("F2") @circ.ToString("F2")"
+                                                        stroke-dashoffset="@offset.ToString("F2")"
+                                                        transform="rotate(-90 @cx @cy)" />
+                                            </svg>
+                                            <div style="margin-top:-28px;font-size:22px;font-weight:500">@g.Value%</div>
+                                            <div style="font-size:11px;color:var(--text-sub)">@g.Label</div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Sparklines ───────────────────────────────── -->
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <h5 class="gc-title mb-3"><i class="bi bi-activity me-2" style="color:#0891b2"></i>Module Sparklines</h5>
+                            @foreach (var s in analyticsData.Sparklines)
+                            {
+                                var changeClass = s.ChangePercent >= 0 ? "text-success" : "text-danger";
+                                var arrow = s.ChangePercent >= 0 ? "↑" : "↓";
+                                <div class="d-flex align-items-center gap-3 mb-2">
+                                    <div style="min-width:120px">
+                                        <div class="small fw-semibold">@s.Name</div>
+                                        <div class="@($"{changeClass} small")">@arrow @Math.Abs(s.ChangePercent).ToString("F0")%</div>
+                                    </div>
+                                    <div class="flex-grow-1" style="height:32px">
+                                        <ApexChart TItem="ChartPointDto" Height="32" Options="GetSparklineOptions(s.Color)">
+                                            <ApexPointSeries TItem="ChartPointDto"
+                                                             Items="@s.Values.Select((v,i) => new ChartPointDto { Label = i.ToString(), Value = v }).ToList()"
+                                                             Name="@s.Name" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                        </ApexChart>
+                                    </div>
+                                    <div class="fw-semibold small" style="min-width:56px;text-align:right">@s.DisplayValue</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- ── Funnel + Customer Scatter ────────────────── -->
+                    <div class="col-lg-5">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3"><i class="bi bi-filter me-2" style="color:#7c3aed"></i>Sales Funnel</h5>
+                            @{
+                                var maxCount = analyticsData.Funnel.FirstOrDefault()?.Count ?? 1;
+                            }
+                            @foreach (var stage in analyticsData.Funnel)
+                            {
+                                var widthPct = maxCount > 0 ? (stage.Count * 100 / maxCount) : 0;
+                                var convPct = analyticsData.Funnel[0].Count > 0
+                                ? (stage.Count * 100 / analyticsData.Funnel[0].Count) : 0;
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div style="min-width:96px;font-size:12px;color:var(--text-sub);text-align:right">@stage.Label</div>
+                                    <div style="flex:1;height:32px;display:flex;align-items:center">
+                                        <div style="width:@widthPct%;height:28px;background:@(stage.Color + "22");
+                                                                                                                    border:0.5px solid @(stage.Color + "66");border-radius:4px;
+                                                                                                                    display:flex;align-items:center;justify-content:center;
+                                                                                                                    font-size:12px;font-weight:500;color:@stage.Color;min-width:36px">
+                                            @stage.Count
+                                        </div>
+                                    </div>
+                                    <div style="min-width:36px;font-size:11px;color:var(--text-sub)">
+                                        @(stage == analyticsData.Funnel[0] ? "" : convPct + "%")
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-lg-7">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3">
+                                <i class="bi bi-people me-2" style="color:#3b82f6"></i>Top Customers by Revenue
+                            </h5>
+                            @if (analyticsData.CustomerBubbles.Any())
+                            {
+                                <ApexChart TItem="CustomerBubbleDto" Height="260" Options="GetCustomerBarOptions()">
+                                    <ApexPointSeries TItem="CustomerBubbleDto"
+                                                     Items="@analyticsData.CustomerBubbles.Take(10).ToList()"
+                                                     Name="Revenue (₹L)"
+                                                     SeriesType="SeriesType.Bar"
+                                                     XValue="@(e => e.Name)"
+                                                     YValue="@(e => (decimal?)e.Revenue)" />
+                                </ApexChart>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- ── Waterfall + Heatmap ───────────────────────── -->
+                    <div class="col-lg-6">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3"><i class="bi bi-bar-chart-steps me-2 text-success"></i>Cash Flow Waterfall</h5>
+                            <ApexChart TItem="WaterfallPointDto" Height="260" Options="GetWaterfallOptions()">
+                                <ApexPointSeries TItem="WaterfallPointDto" Items="analyticsData.Waterfall"
+                                                 Name="Inflow" SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Inflow)" />
+                                <ApexPointSeries TItem="WaterfallPointDto" Items="analyticsData.Waterfall"
+                                                 Name="Outflow" SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Outflow)" />
+                                <ApexPointSeries TItem="WaterfallPointDto" Items="analyticsData.Waterfall"
+                                                 Name="Net" SeriesType="SeriesType.Bar" XValue="@(e => e.Label)" YValue="@(e => e.Net)" />
+                            </ApexChart>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3"><i class="bi bi-grid-3x3 me-2" style="color:#0891b2"></i>Activity Heatmap</h5>
+                            <!-- Heatmap is best rendered via JS — use a canvas or third-party component -->
+                            <!-- See CSS/JS implementation above for the standalone version -->
+                            <div id="activity-heatmap-@(Guid.NewGuid().ToString("N").Substring(0, 8))">
+                                @{
+                                    var days2 = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+                                    var hourLabels = new[] { "8am", "10am", "12pm", "2pm", "4pm", "6pm" };
+                                    var cells = analyticsData.HeatmapCells;
+                                    var maxCell = cells.Any() ? cells.Max(c => c.Count) : 1;
+                                }
+                                <div style="display:grid;grid-template-columns:36px repeat(7,1fr);gap:3px">
+                                    <div></div>
+                                    @foreach (var d in days2)
+                                    {
+                                        <div style="font-size:10px;color:var(--text-sub);text-align:center">@d</div>
+                                    }
+                                    @for (int h = 0; h < hourLabels.Length; h++)
+                                    {
+                                        <div style="font-size:10px;color:var(--text-sub);display:flex;align-items:center;justify-content:flex-end;padding-right:4px">@hourLabels[h]</div>
+                                        @for (int d = 0; d < 7; d++)
+                                        {
+                                            var cell = cells.FirstOrDefault(c => c.Hour == h && c.DayOfWeek == d);
+                                            var intensity = cell is not null && maxCell > 0 ? (cell.Count * 100 / maxCell) : 0;
+                                            var bg = intensity > 80 ? "#0369a1" : intensity > 60 ? "#0284c7"
+                                            : intensity > 40 ? "#0ea5e9" : intensity > 20 ? "#38bdf8"
+                                            : intensity > 5 ? "#bae6fd" : "var(--glass-bg)";
+                                            <div style="height:26px;border-radius:3px;background:@bg" title="@hourLabels[h] @days2[d]: @(cell?.Count ?? 0)"></div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Radar + Budget Progress ───────────────────── -->
+                    <div class="col-lg-6">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3"><i class="bi bi-broadcast me-2" style="color:#7c3aed"></i>Dept Performance Radar</h5>
+                            <ApexChart TItem="ChartPointDto" Height="280" Options="GetRadarOptions()">
+                                @foreach (var ds in analyticsData.RadarDatasets)
+                                {
+                                    <ApexPointSeries TItem="ChartPointDto"
+                                                     Items="@ds.Values.Select((v,i) => new ChartPointDto { Label = analyticsData.RadarAxes[i], Value = v }).ToList()"
+                                                     Name="@ds.Label" SeriesType="SeriesType.Radar"
+                                                     XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                                }
+                            </ApexChart>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="glass-card h-100">
+                            <h5 class="gc-title mb-3"><i class="bi bi-wallet2 me-2 text-warning"></i>Module Budget Utilisation</h5>
+                            @foreach (var m in analyticsData.BudgetModules)
+                            {
+                                var pct = m.Allocated > 0 ? (int)Math.Round(m.Spent / m.Allocated * 100) : 0;
+                                var overBudget = pct > 85;
+                                var barColor = overBudget ? "#ef4444" : m.Color;
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span class="fw-semibold">@m.Name</span>
+                                        <span class="@(overBudget ? "text-danger fw-semibold" : "text-muted")">
+                                            ₹@m.Spent.ToString("F0")L / ₹@m.Allocated.ToString("F0")L &nbsp; @pct%
+                                        </span>
+                                    </div>
+                                    <div style="height:6px;background:var(--glass-bg);border-radius:3px;overflow:hidden">
+                                        <div style="width:@(Math.Min(pct, 100))%;height:100%;background:@barColor;border-radius:3px"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+
+        </div>
+    </div>
+</div>
+
+@code {
+
+    protected override string ScreenName => "Dashboard";
+
+    // ── Theme ────────────────────────────────────────────────────────────────
+    private bool isDark = false;
+    private void ToggleTheme() => isDark = !isDark;
+
+    // ── Period / Date ────────────────────────────────────────────────────────
+    private DateTime? fromDate = DateTime.Today.AddDays(-7);
+    private DateTime? toDate = DateTime.Today;
+    private string activePeriod = "This Week";
+    private string searchQuery = "";
+
+    // ── GroupBy ──────────────────────────────────────────────────────────────
+    private string activeGroupBy = "Day";
+
+    private List<(string Key, string Label)> availableGroupBys =>
+        activePeriod switch
+        {
+            "Today" => new() { ("Hour", "Hourly") },
+            "This Week" => new() { ("Day", "Daily"), ("Week", "Weekly") },
+            "This Month" => new() { ("Day", "Daily"), ("Week", "Weekly") },
+            "Quarter" => new() { ("Week", "Weekly"), ("Month", "Monthly") },
+            "Year" => new() { ("Month", "Monthly") },
+            _ => new() { ("Hour", "Hourly"), ("Day", "Daily"), ("Week", "Weekly"), ("Month", "Monthly") }
+        };
+
+
+
+
+    // ── Chart type state ─────────────────────────────────────────────────────
+
+    private string globalTrendChartType = "line";
+    private string globalSplitChartType = "donut";
+
+    private string trendChartType = "line";
+    private string splitChartType = "donut";
+
+
+    private string subconChartType = "bar";
+    private string subconSplitType = "donut";
+    private string inventoryChartType = "bar";
+    private string financeChartType = "area";
+    private string expenseChartType = "donut";
+    private string hrChartType = "bar";
+    private string jobCardChartType = "bar";
+    private string jobCardSplitType = "donut";
+    private string routeCardChartType = "bar";
+    private string routeCardSplitType = "donut";
+
+    private string jobCardSearchQuery = "";
+    private string routeCardSearchQuery = "";
+
+    // ── Chart type definitions ───────────────────────────────────────────────
+    private List<(string Key, string Label, string Icon)> chartTypes = new()
+    {
+        ("line", "Line Chart", "bi-graph-up"),
+        ("bar",  "Bar Chart",  "bi-bar-chart-fill"),
+        ("area", "Area Chart", "bi-reception-4"),
+    };
+
+    // ── Loading flags ────────────────────────────────────────────────────────
+    private bool isLoadingSummary = false;
+    private bool isLoadingTab = false;
+
+    // ── Service results ──────────────────────────────────────────────────────
+    private DashboardSummaryDto? summaryResult;
+    private OverviewDto? overviewData;
+    private InventoryDto? inventoryData;
+    private FinanceDto? financeData;
+    private HrDto? hrData;
+    private SalesDto? salesData;
+    private LabourDto? labourData;
+    private PurchaseDto? purchaseData;
+    private SubcontractDto? subcontractData;
+    private JobCardDto? jobCardData;
+    private RouteCardDto? routeCardData;
+    private AnalyticsDto? analyticsData;
+
+    private string analyticsChartType = "bar";
+
+    // -- KpiSection  ---------------------------
+    private List<DashboardKpiSection> salesSections = new();
+    private List<DashboardKpiSection> labourSections = new();
+    private List<DashboardKpiSection> purchaseSections = new();
+    private List<DashboardKpiSection> subcontractSections = new();
+    private List<DashboardKpiSection> jobCardSections = new();
+
+    // ── Tab list ─────────────────────────────────────────────────────────────
+    private string activeTopTab = "Overview";
+    private string[] topTabs = { "Overview", "Sales", "Labour/Job Work", "Purchase",
+    "Subcontract", "Job Card", "Route Card", "Inventory", "Finance", "Analytics" };
+
+
+    private List<string> periods = new() { "Today", "This Week", "This Month", "Quarter", "Year", "Custom" };
+
+    private string GetTabIcon(string tab) => tab switch
+    {
+        "Overview" => "bi-grid-fill",
+        "Sales" => "bi-bar-chart-line-fill",
+        "Labour/Job Work" => "bi-people-fill",
+        "Purchase" => "bi-cart-check-fill",
+        "Subcontract" => "bi-tools",
+        "Job Card" => "bi-card-checklist",
+        "Route Card" => "bi-signpost-2-fill",
+        "Inventory" => "bi-boxes",
+        "Finance" => "bi-cash-coin",
+        "HR" => "bi-person-badge-fill",
+        _ => "bi-circle"
+    };
+
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isDark = ThemeStateService.IsDarkMode;
+            ThemeStateService.OnChange += ThemeChanged;
+            await LoadRightsAsync();
+            if (!CanView) { Nav.NavigateTo("/access-denied"); return; }
+            await LoadAllAsync();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Dashboard OnInitializedAsync failed.");
+        }
+    }
+
+    public void Dispose() => ThemeStateService.OnChange -= ThemeChanged;
+
+    private void ThemeChanged()
+    {
+        isDark = ThemeStateService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Loaders ──────────────────────────────────────────────────────────────
+    private async Task LoadAllAsync() => await LoadTabAsync(BuildFilter());
+
+    private async Task LoadSummaryAsync(DashboardFilterDto filter)
+    {
+        try
+        {
+            isLoadingSummary = true; StateHasChanged();
+            summaryResult = await DashboardService.GetSummaryAsync(filter);
+        }
+        catch (Exception ex) { await LoggingService.LogDeveloperError(ex, "LoadSummaryAsync failed."); }
+        finally { isLoadingSummary = false; StateHasChanged(); }
+    }
+
+    private async Task LoadTabAsync(DashboardFilterDto filter)
+    {
+        try
+        {
+            isLoadingTab = true; StateHasChanged();
+            switch (activeTopTab)
+            {
+                case "Overview":
+                    await LoadSummaryAsync(filter);
+                    overviewData = await DashboardService.GetOverviewAsync(filter); break;
+
+                case "Sales":
+                    salesData = await DashboardService.GetSalesAsync(filter);
+                    if (salesData != null)
+                    {
+                        BuildSalesKpis();
+                    }
+                    break;
+
+                case "Labour/Job Work":
+                    labourData = await DashboardService.GetLabourAsync(filter);
+                    if (labourData != null)
+                    {
+                        BuildLabourKpis();
+                    }
+                    break;
+
+                case "Purchase":
+                    purchaseData = await DashboardService.GetPurchaseAsync(filter);
+                    if (purchaseData != null)
+                    {
+                        BuildPurchaseKpis();
+                    }
+                    break;
+
+                case "Subcontract":
+                    subcontractData = await DashboardService.GetSubcontractAsync(filter);
+                    if (subcontractData != null)
+                    {
+                        BuildSubcontractKpis();
+                    }
+                    break;
+
+                case "Job Card":
+                    jobCardData = await DashboardService.GetJobCardAsync(filter);
+                    if (jobCardData != null)
+                    {
+                        BuildJobCardKpis();
+                    }
+                    break;
+
+                case "Route Card":
+                    Nav.NavigateTo("/under-construction");
+                    return;
+                    // routeCardData = await DashboardService.GetRouteCardAsync(filter); break;
+
+                case "Inventory":
+                    Nav.NavigateTo("/under-construction");
+                    return;
+                    //inventoryData = await DashboardService.GetInventoryAsync(filter); break;
+
+                case "Finance":
+                    Nav.NavigateTo("/under-construction");
+                    return;
+                    //financeData = await DashboardService.GetFinanceAsync(filter); break;
+
+
+                case "Analytics":
+                    analyticsData = await DashboardService.GetAnalyticsAsync(filter); break;
+
+                default:
+                    await LoadSummaryAsync(filter);
+                    overviewData = await DashboardService.GetOverviewAsync(filter); break;
+            }
+        }
+        catch (Exception ex) { await LoggingService.LogDeveloperError(ex, $"LoadTabAsync ({activeTopTab}) failed."); }
+        finally { isLoadingTab = false; StateHasChanged(); }
+    }
+
+    // ── Tab / Period / GroupBy switches ──────────────────────────────────────
+    private async Task SetActiveTab(string tab) { activeTopTab = tab; await LoadTabAsync(BuildFilter()); }
+    private async Task SetGroupBy(string groupBy) { activeGroupBy = groupBy; await LoadTabAsync(BuildFilter()); }
+    private void SetTrendChartType(string type) => trendChartType = type;
+
+    private async Task SetPeriod(string p)
+    {
+        activePeriod = p;
+        activeGroupBy = p switch { "Today" => "Hour", "This Week" => "Day", "This Month" => "Week", "Quarter" => "Month", "Year" => "Month", _ => "Day" };
+        (fromDate, toDate) = p switch
+        {
+            "Today" => (DateTime.Today, DateTime.Today),
+            "This Week" => (DateTime.Today.AddDays(-7), DateTime.Today),
+            "This Month" => (new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1), DateTime.Today),
+            "Quarter" => (DateTime.Today.AddMonths(-3), DateTime.Today),
+            "Year" => (new DateTime(DateTime.Today.Year, 1, 1), DateTime.Today),
+            _ => (fromDate, toDate)
+        };
+        if (p != "Custom") await LoadAllAsync();
+    }
+
+    private async Task ApplyCustomRange() { activePeriod = "Custom"; activeGroupBy = "Day"; await LoadAllAsync(); }
+
+
+
+    // ── Filter builder ───────────────────────────────────────────────────────
+    private DashboardFilterDto BuildFilter() => new()
+    {
+        Period = activePeriod,
+        FromDate = fromDate ?? DateTime.Today.AddDays(-7),
+        ToDate = toDate ?? DateTime.Today,
+        GroupBy = activeGroupBy,
+    };
+
+    private string GetGroupByLabel() => activeGroupBy switch
+    {
+        "Hour" => "Hourly",
+        "Day" => "Daily",
+        "Week" => "Weekly",
+        "Month" => "Monthly",
+        _ => activeGroupBy
+    };
+
+    // ── Filtered collections ─────────────────────────────────────────────────
+    private IEnumerable<TransactionDto> FilteredTransactions =>
+        overviewData?.Transactions is null ? Enumerable.Empty<TransactionDto>()
+        : string.IsNullOrWhiteSpace(searchQuery) ? overviewData.Transactions
+        : overviewData.Transactions.Where(t =>
+            (t.DocNo ?? "").Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+            (t.Party ?? "").Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+            (t.Type ?? "").Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+
+
+
+    private IEnumerable<RouteCardRowDto> FilteredRouteCards =>
+        routeCardData?.RouteCards is null ? Enumerable.Empty<RouteCardRowDto>()
+        : string.IsNullOrWhiteSpace(routeCardSearchQuery) ? routeCardData.RouteCards
+        : routeCardData.RouteCards.Where(r =>
+            (r.RouteCardNo ?? "").Contains(routeCardSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+            (r.ItemName ?? "").Contains(routeCardSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+            (r.OperationName ?? "").Contains(routeCardSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+            (r.WorkstationName ?? "").Contains(routeCardSearchQuery, StringComparison.OrdinalIgnoreCase));
+
+
+
+    private ApexChartOptions<CustomerBubbleDto> GetCustomerBarOptions() => new()
+    {
+        Chart = new Chart
+        {
+            Type = ChartType.Bar,
+            Toolbar = new Toolbar { Show = false },
+            Background = "transparent"
+        },
+        PlotOptions = new PlotOptions
+        {
+            Bar = new PlotOptionsBar
+            {
+                BorderRadius = 4,
+                Horizontal = true,
+                ColumnWidth = "60%"
+            }
+        },
+        Colors = new List<string> { "#3b82f6" },
+        Grid = new Grid { BorderColor = "rgba(148,163,184,0.12)" },
+        Xaxis = new XAxis
+        {
+            Labels = new XAxisLabels
+            {
+                Style = new AxisLabelStyle { Colors = "#94a3b8" }
+            }
+        },
+        Yaxis = new List<YAxis>
+    {
+        new()
+        {
+            Labels = new YAxisLabels
+            {
+                Style = new AxisLabelStyle { Colors = "#94a3b8" }
+            }
+        }
+    },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    // ── Summary value resolver ───────────────────────────────────────────────
+    private string GetSummaryValue(string cardTitle, string key, string fallback)
+    {
+        if (summaryResult is null) return fallback;
+        var card = cardTitle switch
+        {
+            "Payment" => summaryResult.Payment,
+            "Receipt" => summaryResult.Receipt,
+            "Sales Enquiry & Quote" => summaryResult.SalesEnquiryQuote,
+            "Sales" => summaryResult.Sales,
+            "Labour" => summaryResult.Labour,
+            "Purchase" => summaryResult.Purchase,
+            "Sub Contract" => summaryResult.SubContract,
+            "Export" => summaryResult.Export,
+            _ => null
+        };
+        if (card is null) return fallback;
+        return key switch { "v1" => card.V1, "v2" => card.V2, "v3" => card.V3, "v4" => card.V4, _ => fallback };
+    }
+
+    // ── Summary card definitions ─────────────────────────────────────────────
+    record SummaryRow(string Label, string Key, string FallbackValue, bool IsTotal = false);
+    record SummaryCardDef(string Title, string Icon, string Accent, List<SummaryRow> Rows);
+
+    List<SummaryCardDef> summaryCards = new()
+    {
+        new("Payment",               "bi-wallet2",          "#7c3aed", new() { new("No of Expense","v1","—"), new("Total Expense","v2","—"), new("Pending Invoices","v3","—"), new("Pending Amount","v4","—",true) }),
+        new("Receipt",               "bi-receipt-cutoff",   "#ef4444", new() { new("No of Income","v1","—"),  new("Total Income","v2","—"),  new("Pending Invoices","v3","—"), new("Pending Amount","v4","—",true) }),
+        new("Sales Enquiry & Quote", "bi-chat-quote",       "#2563eb", new() { new("No of Enquiries","v1","—"), new("Pending Enquiries","v2","—"), new("No of Quotations","v3","—"), new("Quote Total","v4","—",true) }),
+        new("Sales",                 "bi-graph-up-arrow",   "#0891b2", new() { new("No Of POs","v1","—"),      new("PO Total Value","v2","—"),    new("No Of Invoices","v3","—"),   new("Invoice Total","v4","—",true) }),
+        new("Labour",                "bi-people-fill",      "#0ea5e9", new() { new("No Of POs","v1","—"),      new("PO Total Value","v2","—"),    new("No Of Invoices","v3","—"),   new("Invoice Total","v4","—",true) }),
+        new("Purchase",              "bi-cart-check",       "#16a34a", new() { new("No Of POs","v1","—"),      new("PO Total Value","v2","—"),    new("No Of Invoices","v3","—"),   new("Invoice Total","v4","—",true) }),
+        new("Sub Contract",          "bi-tools",            "#22c55e", new() { new("No Of Orders","v1","—"),   new("Contract Value","v2","—"),    new("Completed Works","v3","—"),  new("Pending Amount","v4","—",true) }),
+        new("Export",                "bi-airplane",         "#f59e0b", new() { new("No Of POs","v1","—"),      new("PO Total Value","v2","—"),    new("No Of Invoices","v3","—"),   new("Invoice Total","v4","—",true) }),
+    };
+
+
+    #region Sales Related OverView
+
+    private void BuildSalesKpis()
+    {
+        if (salesData is null)
+            return;
+
+        salesSections = new()
+        {
+            // =========================
+            // ENQUIRY
+            // =========================
+            new()
+            {
+                Title = "Enquiry Overview",
+                HeaderIcon = "bi bi-search text-primary",
+                BadgeText = $"Total : {salesData.TotalEnquiries}",
+                BadgeClass = "bg-primary-subtle text-primary",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=salesData.CompletedEnquiries, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=salesData.PendingEnquiries, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=salesData.CancelledEnquiries, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=salesData.ShortClosedEnquiries, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // =========================
+            // QUOTATION
+            // =========================
+            new()
+            {
+                Title = "Quotation Overview",
+                HeaderIcon = "bi bi-file-earmark-text text-info",
+                BadgeText = $"Total : {salesData.TotalQuotations}",
+                BadgeClass = "bg-info-subtle text-info",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=salesData.CompletedQuotations, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=salesData.PendingQuotations, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=salesData.CancelledQuotations, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=salesData.ShortClosedQuotations, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // =========================
+            // PURCHASE ORDERS
+            // =========================
+            new()
+            {
+                Title = "Purchase Order Overview",
+                HeaderIcon = "bi bi-cart-check text-warning",
+                BadgeText = $"Total : {salesData.TotalPurchaseOrders}",
+                BadgeClass = "bg-warning-subtle text-warning",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=salesData.CompletedPurchaseOrders, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=salesData.PendingPurchaseOrders, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=salesData.CancelledPurchaseOrders, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=salesData.ShortClosedPurchaseOrders, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // =========================
+            // INVOICE
+            // =========================
+            new()
+            {
+                Title = "Invoice Overview",
+                HeaderIcon = "bi bi-receipt text-success",
+                BadgeText = $"Total : {salesData.TotalInvoices}",
+                BadgeClass = "bg-success-subtle text-success",
+
+                Cards = new()
+                {
+                    new() { Title="Paid", Value=salesData.PaidInvoices, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=salesData.PendingInvoices, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=salesData.CancelledInvoices, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Value", Value=salesData.TotalInvoiceValue.ToString("N0"), Icon="bi bi-currency-rupee", Color="#0891b2" }
+                }
+            },
+
+            // =========================
+            // REVENUE
+            // =========================
+            new()
+            {
+                Title = "Revenue Overview",
+                HeaderIcon = "bi bi-graph-up-arrow text-danger",
+                BadgeText = $"₹ {salesData.TotalRevenue:N0}",
+                BadgeClass = "bg-danger-subtle text-danger",
+
+                Cards = new()
+                {
+                    new() { Title="Total Revenue", Value=salesData.TotalRevenue.ToString("N0"), Icon="bi bi-cash-stack", Color="#7c3aed" },
+                    new() { Title="Collected", Value=salesData.CollectedRevenue.ToString("N0"), Icon="bi bi-wallet2", Color="#16a34a" },
+                    new() { Title="Pending", Value=salesData.PendingRevenue.ToString("N0"), Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Invoice Pending", Value=salesData.PendingInvoiceValue.ToString("N0"), Icon="bi bi-receipt-cutoff", Color="#ef4444" }
+                }
+            },
+
+            // =========================
+            // CUSTOMER
+            // =========================
+            new()
+            {
+                Title = "Customer Overview",
+                HeaderIcon = "bi bi-people-fill text-secondary",
+                BadgeText = $"Total : {salesData.TotalCustomers}",
+                BadgeClass = "bg-secondary-subtle text-secondary",
+
+                Cards = new()
+                {
+                    new() { Title="Total", Value=salesData.TotalCustomers, Icon="bi bi-people-fill", Color="#7c3aed" },
+                    new() { Title="New", Value=salesData.NewCustomers, Icon="bi bi-person-plus-fill", Color="#16a34a" },
+                    new() { Title="Repeat", Value=salesData.RepeatCustomers, Icon="bi bi-arrow-repeat", Color="#0891b2" },
+                    new() { Title="Orders", Value=salesData.TotalPurchaseOrders, Icon="bi bi-cart-fill", Color="#f59e0b" }
+                }
+            },
+
+            // =========================
+            // SALES ANALYTICS
+            // =========================
+            new()
+            {
+                Title = "Sales Analytics",
+                HeaderIcon = "bi bi-bar-chart-fill text-dark",
+                BadgeText = "Performance",
+                BadgeClass = "bg-dark-subtle text-dark",
+
+                Cards = new()
+                {
+                    new() { Title="Avg Order", Value=salesData.AverageOrderValue.ToString("N0"), Icon="bi bi-graph-up", Color="#7c3aed" },
+                    new() { Title="Avg Invoice", Value=salesData.AverageInvoiceValue.ToString("N0"), Icon="bi bi-receipt", Color="#16a34a" },
+                    new() { Title="Items Sold", Value=salesData.TotalItemsSold, Icon="bi bi-box-seam", Color="#0891b2" },
+                    new() { Title="Revenue", Value=salesData.TotalRevenue.ToString("N0"), Icon="bi bi-cash-stack", Color="#f59e0b" }
+                }
+            }
+        };
+    }
+
+    #endregion Sales Related OverView
+
+
+    #region Labour Related OverView
+
+    private void BuildLabourKpis()
+    {
+        if (labourData is null)
+            return;
+
+        labourSections = new()
+        {
+            // ENQUIRY
+            new()
+            {
+                Title = "Enquiry Overview",
+                HeaderIcon = "bi bi-search text-primary",
+                BadgeText = $"Total : {labourData.TotalEnquiries}",
+                BadgeClass = "bg-primary-subtle text-primary",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=labourData.CompletedEnquiries, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=labourData.PendingEnquiries, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=labourData.CancelledEnquiries, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=labourData.ShortClosedEnquiries, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // QUOTATION
+            new()
+            {
+                Title = "Quotation Overview",
+                HeaderIcon = "bi bi-file-earmark-text text-info",
+                BadgeText = $"Total : {labourData.TotalQuotations}",
+                BadgeClass = "bg-info-subtle text-info",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=labourData.CompletedQuotations, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=labourData.PendingQuotations, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=labourData.CancelledQuotations, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=labourData.ShortClosedQuotations, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // LABOUR ORDERS
+            new()
+            {
+                Title = "Labour Order Overview",
+                HeaderIcon = "bi bi-tools text-warning",
+                BadgeText = $"Total : {labourData.TotalPurchaseOrders}",
+                BadgeClass = "bg-warning-subtle text-warning",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=labourData.CompletedPurchaseOrders, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=labourData.PendingPurchaseOrders, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=labourData.CancelledPurchaseOrders, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=labourData.ShortClosedPurchaseOrders, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // INVOICE
+            new()
+            {
+                Title = "Invoice Overview",
+                HeaderIcon = "bi bi-receipt text-success",
+                BadgeText = $"Total : {labourData.TotalInvoices}",
+                BadgeClass = "bg-success-subtle text-success",
+
+                Cards = new()
+                {
+                    new() { Title="Paid", Value=labourData.PaidInvoices, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=labourData.PendingInvoices, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=labourData.CancelledInvoices, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Value", Value=labourData.TotalInvoiceValue.ToString("N0"), Icon="bi bi-currency-rupee", Color="#0891b2" }
+                }
+            },
+
+            // REVENUE
+            new()
+            {
+                Title = "Revenue Overview",
+                HeaderIcon = "bi bi-graph-up-arrow text-danger",
+                BadgeText = $"₹ {labourData.TotalRevenue:N0}",
+                BadgeClass = "bg-danger-subtle text-danger",
+
+                Cards = new()
+                {
+                    new() { Title="Total Revenue", Value=labourData.TotalRevenue.ToString("N0"), Icon="bi bi-cash-stack", Color="#7c3aed" },
+                    new() { Title="Collected", Value=labourData.CollectedRevenue.ToString("N0"), Icon="bi bi-wallet2", Color="#16a34a" },
+                    new() { Title="Pending", Value=labourData.PendingRevenue.ToString("N0"), Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Invoice Pending", Value=labourData.PendingInvoiceValue.ToString("N0"), Icon="bi bi-receipt-cutoff", Color="#ef4444" }
+                }
+            },
+
+            // CUSTOMER
+            new()
+            {
+                Title = "Customer Overview",
+                HeaderIcon = "bi bi-people-fill text-secondary",
+                BadgeText = $"Total : {labourData.TotalCustomers}",
+                BadgeClass = "bg-secondary-subtle text-secondary",
+
+                Cards = new()
+                {
+                    new() { Title="Total", Value=labourData.TotalCustomers, Icon="bi bi-people-fill", Color="#7c3aed" },
+                    new() { Title="New", Value=labourData.NewCustomers, Icon="bi bi-person-plus-fill", Color="#16a34a" },
+                    new() { Title="Repeat", Value=labourData.RepeatCustomers, Icon="bi bi-arrow-repeat", Color="#0891b2" },
+                    new() { Title="Orders", Value=labourData.TotalPurchaseOrders, Icon="bi bi-tools", Color="#f59e0b" }
+                }
+            },
+
+            // LABOUR ANALYTICS
+            new()
+            {
+                Title = "Labour Analytics",
+                HeaderIcon = "bi bi-bar-chart-fill text-dark",
+                BadgeText = "Performance",
+                BadgeClass = "bg-dark-subtle text-dark",
+
+                Cards = new()
+                {
+                    new() { Title="Avg Order", Value=labourData.AverageOrderValue.ToString("N0"), Icon="bi bi-graph-up", Color="#7c3aed" },
+                    new() { Title="Avg Invoice", Value=labourData.AverageInvoiceValue.ToString("N0"), Icon="bi bi-receipt", Color="#16a34a" },
+                    new() { Title="Jobs Completed", Value=labourData.TotalJobsCompleted, Icon="bi bi-check2-square", Color="#0891b2" },
+                    new() { Title="Labour Hours", Value=labourData.TotalLabourHours, Icon="bi bi-clock-history", Color="#f59e0b" }
+                }
+            }
+        };
+    }
+
+    #endregion Labour Related OverView
+
+
+    #region Purchase Related OverView
+
+    private void BuildPurchaseKpis()
+    {
+        if (purchaseData is null)
+            return;
+
+        purchaseSections = new()
+        {
+            // PURCHASE REQUISITION
+            new()
+            {
+                Title = "Purchase Requisition Overview",
+                HeaderIcon = "bi bi-file-earmark-text text-info",
+                BadgeText = $"Total : {purchaseData.TotalPurchaseRequisitions}",
+                BadgeClass = "bg-info-subtle text-info",
+
+                Cards = new()
+                {
+                    new() { Title="Approved", Value=purchaseData.ApprovedPurchaseRequisitions, Icon="bi bi-patch-check-fill", Color="#16a34a" },
+                    new() { Title="Completed", Value=purchaseData.CompletedPurchaseRequisitions, Icon="bi bi-check-circle-fill", Color="#0891b2" },
+                    new() { Title="Pending", Value=purchaseData.PendingPurchaseRequisitions, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=purchaseData.CancelledPurchaseRequisitions, Icon="bi bi-x-circle-fill", Color="#ef4444" }
+                }
+            },
+
+            // PURCHASE ENQUIRY
+            new()
+            {
+                Title = "Purchase Enquiry Overview",
+                HeaderIcon = "bi bi-search text-primary",
+                BadgeText = $"Total : {purchaseData.TotalEnquiries}",
+                BadgeClass = "bg-primary-subtle text-primary",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=purchaseData.CompletedEnquiries, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=purchaseData.PendingEnquiries, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=purchaseData.CancelledEnquiries, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=purchaseData.ShortClosedEnquiries, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // PURCHASE ORDER
+            new()
+            {
+                Title = "Purchase Order Overview",
+                HeaderIcon = "bi bi-cart-check text-warning",
+                BadgeText = $"Total : {purchaseData.TotalPurchaseOrders}",
+                BadgeClass = "bg-warning-subtle text-warning",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=purchaseData.CompletedPurchaseOrders, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=purchaseData.PendingPurchaseOrders, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=purchaseData.CancelledPurchaseOrders, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=purchaseData.ShortClosedPurchaseOrders, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // PURCHASE INVOICE
+            new()
+            {
+                Title = "Purchase Invoice Overview",
+                HeaderIcon = "bi bi-receipt text-success",
+                BadgeText = $"Total : {purchaseData.TotalInvoices}",
+                BadgeClass = "bg-success-subtle text-success",
+
+                Cards = new()
+                {
+                    new() { Title="Paid", Value=purchaseData.PaidInvoices, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=purchaseData.PendingInvoices, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=purchaseData.CancelledInvoices, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Value", Value=purchaseData.TotalInvoiceValue.ToString("N0"), Icon="bi bi-currency-rupee", Color="#0891b2" }
+                }
+            },
+
+            // EXPENSE
+            new()
+            {
+                Title = "Expense Overview",
+                HeaderIcon = "bi bi-cash-stack text-danger",
+                BadgeText = $"₹ {purchaseData.TotalExpense:N0}",
+                BadgeClass = "bg-danger-subtle text-danger",
+
+                Cards = new()
+                {
+                    new() { Title="Total Expense", Value=purchaseData.TotalExpense.ToString("N0"), Icon="bi bi-cash-stack", Color="#7c3aed" },
+                    new() { Title="Paid", Value=purchaseData.PaidExpense.ToString("N0"), Icon="bi bi-wallet2", Color="#16a34a" },
+                    new() { Title="Outstanding", Value=purchaseData.OutstandingExpense.ToString("N0"), Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Invoice Pending", Value=purchaseData.PendingInvoiceValue.ToString("N0"), Icon="bi bi-receipt-cutoff", Color="#ef4444" }
+                }
+            },
+
+            // VENDOR
+            new()
+            {
+                Title = "Vendor Overview",
+                HeaderIcon = "bi bi-building text-secondary",
+                BadgeText = $"Total : {purchaseData.TotalVendors}",
+                BadgeClass = "bg-secondary-subtle text-secondary",
+
+                Cards = new()
+                {
+                    new() { Title="Total Vendors", Value=purchaseData.TotalVendors, Icon="bi bi-buildings-fill", Color="#7c3aed" },
+                    new() { Title="Active", Value=purchaseData.ActiveVendors, Icon="bi bi-check2-circle", Color="#16a34a" },
+                    new() { Title="New Vendors", Value=purchaseData.NewVendors, Icon="bi bi-building-add", Color="#0891b2" },
+                    new() { Title="PO Count", Value=purchaseData.TotalPurchaseOrders, Icon="bi bi-cart-check", Color="#f59e0b" }
+                }
+            },
+
+            // PURCHASE ANALYTICS
+            new()
+            {
+                Title = "Purchase Analytics",
+                HeaderIcon = "bi bi-bar-chart-fill text-dark",
+                BadgeText = "Performance",
+                BadgeClass = "bg-dark-subtle text-dark",
+
+                Cards = new()
+                {
+                    new() { Title="Avg PO Value", Value=purchaseData.AveragePOValue.ToString("N0"), Icon="bi bi-graph-up", Color="#7c3aed" },
+                    new() { Title="Avg Invoice", Value=purchaseData.AverageInvoiceValue.ToString("N0"), Icon="bi bi-receipt", Color="#16a34a" },
+                    new() { Title="Items Purchased", Value=purchaseData.TotalItemsPurchased, Icon="bi bi-box-seam", Color="#0891b2" },
+                    new() { Title="PO Value", Value=purchaseData.TotalPurchaseOrderValue.ToString("N0"), Icon="bi bi-currency-rupee", Color="#f59e0b" }
+                }
+            }
+        };
+    }
+
+    #endregion Purchase Related OverView
+
+
+    #region Subcontract Related OverView
+
+    private void BuildSubcontractKpis()
+    {
+        if (subcontractData is null)
+            return;
+
+        subcontractSections = new()
+        {
+            // SUBCONTRACT ENQUIRY
+            new()
+            {
+                Title = "Subcontract Enquiry Overview",
+                HeaderIcon = "bi bi-search text-primary",
+                BadgeText = $"Total : {subcontractData.TotalEnquiries}",
+                BadgeClass = "bg-primary-subtle text-primary",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=subcontractData.CompletedEnquiries, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=subcontractData.PendingEnquiries, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=subcontractData.CancelledEnquiries, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=subcontractData.ShortClosedEnquiries, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // SUBCONTRACT QUOTATION
+            new()
+            {
+                Title = "Subcontract Quotation Overview",
+                HeaderIcon = "bi bi-file-earmark-text text-info",
+                BadgeText = $"Total : {subcontractData.TotalQuotations}",
+                BadgeClass = "bg-info-subtle text-info",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=subcontractData.CompletedQuotations, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=subcontractData.PendingQuotations, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=subcontractData.CancelledQuotations, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=subcontractData.ShortClosedQuotations, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // SUBCONTRACT ORDER
+            new()
+            {
+                Title = "Subcontract Order Overview",
+                HeaderIcon = "bi bi-tools text-warning",
+                BadgeText = $"Total : {subcontractData.TotalOrders}",
+                BadgeClass = "bg-warning-subtle text-warning",
+
+                Cards = new()
+                {
+                    new() { Title="Completed", Value=subcontractData.CompletedOrders, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=subcontractData.PendingOrders, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=subcontractData.CancelledOrders, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Short Closed", Value=subcontractData.ShortClosedOrders, Icon="bi bi-stop-circle-fill", Color="#64748b" }
+                }
+            },
+
+            // SUBCONTRACT INVOICE
+            new()
+            {
+                Title = "Subcontract Invoice Overview",
+                HeaderIcon = "bi bi-receipt text-success",
+                BadgeText = $"Total : {subcontractData.TotalInvoices}",
+                BadgeClass = "bg-success-subtle text-success",
+
+                Cards = new()
+                {
+                    new() { Title="Paid", Value=subcontractData.PaidInvoices, Icon="bi bi-check-circle-fill", Color="#16a34a" },
+                    new() { Title="Pending", Value=subcontractData.PendingInvoices, Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Cancelled", Value=subcontractData.CancelledInvoices, Icon="bi bi-x-circle-fill", Color="#ef4444" },
+                    new() { Title="Value", Value=subcontractData.TotalInvoiceValue.ToString("N0"), Icon="bi bi-currency-rupee", Color="#0891b2" }
+                }
+            },
+
+            // =========================
+            // CONTRACT VALUE
+            // =========================
+            new()
+            {
+                Title = "Contract Value Overview",
+                HeaderIcon = "bi bi-cash-stack text-danger",
+                BadgeText = $"₹ {subcontractData.TotalContractValue:N0}",
+                BadgeClass = "bg-danger-subtle text-danger",
+
+                Cards = new()
+                {
+                    new() { Title="Contract Value", Value=subcontractData.TotalContractValue.ToString("N0"), Icon="bi bi-cash-stack", Color="#7c3aed" },
+                    new() { Title="Paid", Value=subcontractData.PaidAmount.ToString("N0"), Icon="bi bi-wallet2", Color="#16a34a" },
+                    new() { Title="Outstanding", Value=subcontractData.OutstandingAmount.ToString("N0"), Icon="bi bi-hourglass-split", Color="#f59e0b" },
+                    new() { Title="Pending Invoice", Value=subcontractData.PendingInvoiceValue.ToString("N0"), Icon="bi bi-receipt-cutoff", Color="#ef4444" }
+                }
+            },
+
+            // =========================
+            // CONTRACTOR
+            // =========================
+            new()
+            {
+                Title = "Contractor Overview",
+                HeaderIcon = "bi bi-person-workspace text-secondary",
+                BadgeText = $"Total : {subcontractData.TotalContractors}",
+                BadgeClass = "bg-secondary-subtle text-secondary",
+
+                Cards = new()
+                {
+                    new() { Title="Total Contractors", Value=subcontractData.TotalContractors, Icon="bi bi-people-fill", Color="#7c3aed" },
+                    new() { Title="Active", Value=subcontractData.ActiveContractors, Icon="bi bi-check2-circle", Color="#16a34a" },
+                    new() { Title="New", Value=subcontractData.NewContractors, Icon="bi bi-person-plus-fill", Color="#0891b2" },
+                    new() { Title="Orders", Value=subcontractData.TotalContractors, Icon="bi bi-tools", Color="#f59e0b" }
+                }
+            },
+
+            // =========================
+            // SUBCONTRACT ANALYTICS
+            // =========================
+            new()
+            {
+                Title = "Subcontract Analytics",
+                HeaderIcon = "bi bi-bar-chart-fill text-dark",
+                BadgeText = "Performance",
+                BadgeClass = "bg-dark-subtle text-dark",
+
+                Cards = new()
+                {
+                    new() { Title="Avg Order", Value=subcontractData.AverageOrderValue.ToString("N0"), Icon="bi bi-graph-up", Color="#7c3aed" },
+                    new() { Title="Avg Invoice", Value=subcontractData.AverageInvoiceValue.ToString("N0"), Icon="bi bi-receipt", Color="#16a34a" },
+                    new() { Title="Jobs Assigned", Value=subcontractData.TotalJobsAssigned, Icon="bi bi-hammer", Color="#0891b2" },
+                    new() { Title="Order Value", Value=subcontractData.TotalOrderValue.ToString("N0"), Icon="bi bi-currency-rupee", Color="#f59e0b" }
+                }
+            }
+        };
+    }
+
+    #endregion
+
+
+    #region Job Card Related OverView
+
+    private void BuildJobCardKpis()
+    {
+        if (jobCardData is null)
+            return;
+
+        jobCardSections = new()
+        {
+            // =========================================================
+            // JOB ORDER OVERVIEW
+            // =========================================================
+            new()
+            {
+                Title = "Job Order Overview",
+                HeaderIcon = "bi bi-clipboard-check text-primary",
+                BadgeText = $"Total : {jobCardData.TotalJobOrders}",
+                BadgeClass = "bg-primary-subtle text-primary",
+
+                Cards = new()
+                {
+                    new()
+                    {
+                        Title = "Completed",
+                        Value = jobCardData.CompletedJobOrders,
+                        Icon = "bi bi-check-circle-fill",
+                        Color = "#16a34a"
+                    },
+                    new()
+                    {
+                        Title = "In Progress",
+                        Value = jobCardData.InProgressJobOrders,
+                        Icon = "bi bi-hourglass-split",
+                        Color = "#f59e0b"
+                    },
+                    new()
+                    {
+                        Title = "Pending",
+                        Value = jobCardData.PendingJobOrders,
+                        Icon = "bi bi-clock-history",
+                        Color = "#0891b2"
+                    },
+                    new()
+                    {
+                        Title = "Total Orders",
+                        Value = jobCardData.TotalJobOrders,
+                        Icon = "bi bi-list-check",
+                        Color = "#7c3aed"
+                    }
+                }
+            },
+
+            // =========================================================
+            // ASSEMBLY OVERVIEW
+            // =========================================================
+            new()
+            {
+                Title = "Assembly Overview",
+                HeaderIcon = "bi bi-gear-wide-connected text-info",
+                BadgeText = $"Planned : {jobCardData.PlannedAssemblyQty:N0}",
+                BadgeClass = "bg-info-subtle text-info",
+
+                Cards = new()
+                {
+                    new()
+                    {
+                        Title = "Planned Qty",
+                        Value = jobCardData.PlannedAssemblyQty.ToString("N0"),
+                        Icon = "bi bi-box-seam",
+                        Color = "#0891b2"
+                    },
+                    new()
+                    {
+                        Title = "Produced Qty",
+                        Value = jobCardData.ProducedAssemblyQty.ToString("N0"),
+                        Icon = "bi bi-box-fill",
+                        Color = "#16a34a"
+                    },
+                    new()
+                    {
+                        Title = "Balance Qty",
+                        Value = jobCardData.BalanceAssemblyQty.ToString("N0"),
+                        Icon = "bi bi-box",
+                        Color = "#f59e0b"
+                    },
+                    new()
+                    {
+                        Title = "Efficiency",
+                        Value = $"{jobCardData.ProductionEfficiency:N1}%",
+                        Icon = "bi bi-graph-up-arrow",
+                        Color = "#7c3aed"
+                    }
+                }
+            },
+
+            // =========================================================
+            // ISSUE OVERVIEW
+            // =========================================================
+            new()
+            {
+                Title = "Material Issue Overview",
+                HeaderIcon = "bi bi-box-arrow-up-right text-warning",
+                BadgeText = $"Issues : {jobCardData.TotalIssues}",
+                BadgeClass = "bg-warning-subtle text-warning",
+
+                Cards = new()
+                {
+                    new()
+                    {
+                        Title = "Total Issues",
+                        Value = jobCardData.TotalIssues,
+                        Icon = "bi bi-list-check",
+                        Color = "#0891b2"
+                    },
+                    new()
+                    {
+                        Title = "Completed",
+                        Value = jobCardData.CompletedIssues,
+                        Icon = "bi bi-check-circle-fill",
+                        Color = "#16a34a"
+                    },
+                    new()
+                    {
+                        Title = "Issued Qty",
+                        Value = jobCardData.IssuedQty.ToString("N0"),
+                        Icon = "bi bi-box-arrow-right",
+                        Color = "#7c3aed"
+                    },
+                    new()
+                    {
+                        Title = "Consumption",
+                        Value = jobCardData.MaterialConsumption.ToString("N0"),
+                        Icon = "bi bi-pie-chart-fill",
+                        Color = "#f59e0b"
+                    }
+                }
+            },
+
+            // =========================================================
+            // RETURN OVERVIEW
+            // =========================================================
+            new()
+            {
+                Title = "Material Return Overview",
+                HeaderIcon = "bi bi-arrow-return-left text-success",
+                BadgeText = $"Returns : {jobCardData.TotalReturns}",
+                BadgeClass = "bg-success-subtle text-success",
+
+                Cards = new()
+                {
+                    new()
+                    {
+                        Title = "Total Returns",
+                        Value = jobCardData.TotalReturns,
+                        Icon = "bi bi-arrow-counterclockwise",
+                        Color = "#0891b2"
+                    },
+                    new()
+                    {
+                        Title = "Completed",
+                        Value = jobCardData.CompletedReturns,
+                        Icon = "bi bi-check-circle-fill",
+                        Color = "#16a34a"
+                    },
+                    new()
+                    {
+                        Title = "Returned Qty",
+                        Value = jobCardData.ReturnedQty.ToString("N0"),
+                        Icon = "bi bi-box-arrow-in-left",
+                        Color = "#7c3aed"
+                    },
+                    new()
+                    {
+                        Title = "Return %",
+                        Value = $"{jobCardData.ReturnPercentage:N1}%",
+                        Icon = "bi bi-percent",
+                        Color = "#f59e0b"
+                    }
+                }
+            },
+
+            // =========================================================
+            // SCN OVERVIEW
+            // =========================================================
+            new()
+            {
+                Title = "SCN Overview",
+                HeaderIcon = "bi bi-truck text-secondary",
+                BadgeText = $"Total : {jobCardData.TotalSCNs}",
+                BadgeClass = "bg-secondary-subtle text-secondary",
+
+                Cards = new()
+                {
+                    new()
+                    {
+                        Title = "Total SCNs",
+                        Value = jobCardData.TotalSCNs,
+                        Icon = "bi bi-list-check",
+                        Color = "#0891b2"
+                    },
+                    new()
+                    {
+                        Title = "SCN Qty",
+                        Value = jobCardData.SCNQty.ToString("N0"),
+                        Icon = "bi bi-boxes",
+                        Color = "#16a34a"
+                    },
+                    new()
+                    {
+                        Title = "Returns",
+                        Value = jobCardData.TotalReturns,
+                        Icon = "bi bi-arrow-return-left",
+                        Color = "#f59e0b"
+                    },
+                    new()
+                    {
+                        Title = "Issues",
+                        Value = jobCardData.TotalIssues,
+                        Icon = "bi bi-box-arrow-right",
+                        Color = "#7c3aed"
+                    }
+                }
+            },
+
+            // =========================================================
+            // PRODUCTION ANALYTICS
+            // =========================================================
+            new()
+            {
+                Title = "Production Analytics",
+                HeaderIcon = "bi bi-bar-chart-fill text-dark",
+                BadgeText = "Performance",
+                BadgeClass = "bg-dark-subtle text-dark",
+
+                Cards = new()
+                {
+                    new()
+                    {
+                        Title = "Efficiency",
+                        Value = $"{jobCardData.ProductionEfficiency:N1}%",
+                        Icon = "bi bi-graph-up-arrow",
+                        Color = "#16a34a"
+                    },
+                    new()
+                    {
+                        Title = "Consumption",
+                        Value = jobCardData.MaterialConsumption.ToString("N0"),
+                        Icon = "bi bi-pie-chart-fill",
+                        Color = "#0891b2"
+                    },
+                    new()
+                    {
+                        Title = "Return %",
+                        Value = $"{jobCardData.ReturnPercentage:N1}%",
+                        Icon = "bi bi-percent",
+                        Color = "#f59e0b"
+                    },
+                    new()
+                    {
+                        Title = "Produced Qty",
+                        Value = jobCardData.ProducedAssemblyQty.ToString("N0"),
+                        Icon = "bi bi-box-fill",
+                        Color = "#7c3aed"
+                    }
+                }
+            }
+        };
+    }
+
+    #endregion
+
+
+
+
+    // ── ApexCharts Options ───────────────────────────────────────────────────
+    private ApexChartOptions<ChartPointDto> GetLineOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Line, Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false }, Background = "transparent" },
+        Stroke = new Stroke { Curve = Curve.Smooth, Width = new List<double> { 2.5, 2.5, 2.5, 2.5, 2.5 } },
+        Fill = new Fill { Type = FillType.Solid, Opacity = new Opacity(1) },
+        Grid = new Grid { BorderColor = "rgba(148,163,184,0.12)" },
+        Xaxis = new XAxis { Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = new List<string> { "#94a3b8" } } } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } } },
+        Legend = new Legend { Position = LegendPosition.Top },
+        Colors = new List<string> { "#3b82f6", "#10b981", "#f59e0b", "#0ea5e9", "#22c55e" },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<ChartPointDto> GetBarOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Bar, Toolbar = new Toolbar { Show = false }, Background = "transparent" },
+        Grid = new Grid { BorderColor = "rgba(148,163,184,0.12)" },
+        Xaxis = new XAxis { Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } } },
+        PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { BorderRadius = 5, ColumnWidth = "55%", DataLabels = new PlotOptionsBarDataLabels { Position = BarDataLabelPosition.Top } } },
+        Legend = new Legend { Position = LegendPosition.Top },
+        Colors = new List<string> { "#3b82f6", "#10b981", "#f59e0b", "#0ea5e9", "#22c55e" },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<ChartPointDto> GetAreaOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Area, Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false }, Background = "transparent" },
+        Stroke = new Stroke { Curve = Curve.Smooth, Width = new List<double> { 2, 2, 2, 2, 2 } },
+        Fill = new Fill { Type = FillType.Gradient, Gradient = new FillGradient { ShadeIntensity = 1, OpacityFrom = new Opacity(0.40), OpacityTo = new Opacity(0.02), Stops = new List<double> { 0, 100 } } },
+        Grid = new Grid { BorderColor = "rgba(148,163,184,0.12)" },
+        Xaxis = new XAxis { Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = new List<string> { "#94a3b8" } } } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } } },
+        Legend = new Legend { Position = LegendPosition.Top },
+        Colors = new List<string> { "#3b82f6", "#10b981", "#f59e0b", "#0ea5e9", "#22c55e" },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<BusinessDataDto> GetDonutOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Donut, Toolbar = new Toolbar { Show = false }, Background = "transparent" },
+        Legend = new Legend { Position = LegendPosition.Bottom },
+        DataLabels = new DataLabels { Enabled = true },
+        Stroke = new Stroke { Width = 2 },
+        PlotOptions = new PlotOptions { Pie = new PlotOptionsPie { Donut = new PlotOptionsDonut { Size = "65%" } } },
+        Colors = new List<string> { "#3b82f6", "#10b981", "#f59e0b", "#0ea5e9", "#22c55e", "#7c3aed", "#ef4444" },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<BusinessDataDto> GetPieOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Pie, Toolbar = new Toolbar { Show = false }, Background = "transparent" },
+        Legend = new Legend { Position = LegendPosition.Bottom },
+        DataLabels = new DataLabels { Enabled = true },
+        Stroke = new Stroke { Width = 2 },
+        Colors = new List<string> { "#3b82f6", "#10b981", "#f59e0b", "#0ea5e9", "#22c55e", "#7c3aed", "#ef4444" },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<BusinessDataDto> GetSplitBarOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Bar, Toolbar = new Toolbar { Show = false }, Background = "transparent" },
+        Grid = new Grid { BorderColor = "rgba(148,163,184,0.12)" },
+        Xaxis = new XAxis { Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } } },
+        PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { BorderRadius = 5, Horizontal = false } },
+        Colors = new List<string> { "#3b82f6", "#10b981", "#f59e0b", "#0ea5e9", "#22c55e", "#7c3aed", "#ef4444" },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<ChartPointDto> GetSparklineOptions(string color) => new()
+    {
+        Chart = new Chart { Type = ChartType.Line, Sparkline = new ChartSparkline { Enabled = true }, Background = "transparent" },
+        Stroke = new Stroke { Curve = Curve.Smooth, Width = new List<double> { 1.5 } },
+        Fill = new Fill { Type = FillType.Gradient, Gradient = new FillGradient { OpacityFrom = new Opacity(0.3), OpacityTo = new Opacity(0.0) } },
+        Colors = new List<string> { color },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<CustomerBubbleDto> GetBubbleOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Bubble, Toolbar = new Toolbar { Show = false }, Background = "transparent" },
+        Colors = new List<string> { "#3b82f6", "#10b981", "#f59e0b", "#7c3aed" },
+        Xaxis = new XAxis { Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } } },
+        Grid = new Grid { BorderColor = "rgba(148,163,184,0.12)" },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<WaterfallPointDto> GetWaterfallOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Bar, Toolbar = new Toolbar { Show = false }, Background = "transparent" },
+        Colors = new List<string> { "#16a34a", "#ef4444", "#3b82f6" },
+        PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { BorderRadius = 3, ColumnWidth = "55%" } },
+        Grid = new Grid { BorderColor = "rgba(148,163,184,0.12)" },
+        Xaxis = new XAxis { Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Style = new AxisLabelStyle { Colors = "#94a3b8" } } } },
+        Legend = new Legend { Position = LegendPosition.Top },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+    };
+
+    private ApexChartOptions<ChartPointDto> GetRadarOptions() => new()
+    {
+        Chart = new Chart { Type = ChartType.Radar, Toolbar = new Toolbar { Show = false }, Background = "transparent" },
+        Colors = new List<string> { "#3b82f6", "#10b981", "#f59e0b" },
+        Fill = new Fill { Opacity = new Opacity(0.18) },
+        Stroke = new Stroke { Width = new List<double> { 1.5, 1.5, 1.5 } },
+        Markers = new Markers { Size = 3 },
+        Legend = new Legend { Position = LegendPosition.Top },
+        Tooltip = new Tooltip { Theme = isDark ? Mode.Dark : Mode.Light },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Show = false } } },
+    };
+
+}

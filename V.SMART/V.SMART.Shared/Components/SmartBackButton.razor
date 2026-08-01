@@ -1,0 +1,101 @@
+﻿@implements IDisposable
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject ThemeStateService ThemeStateService
+
+<div class="clann-guard-root @(_isDark ? "theme-dark" : "theme-light")">
+    @if (RenderAsLink)
+    {
+        <a href="javascript:void(0)" class="@CssClass" @onclick="GoBack">
+            @ChildContent
+        </a>
+    }
+    else
+    {
+        <button type="button" class="glass-back-btn" @onclick="GoBack">
+            <span class="btn-shimmer"></span>
+            <span class="btn-top-edge"></span>
+            <i class="bi bi-arrow-left-circle-fill btn-icon"></i>
+            <span class="btn-label">Back To List</span>
+        </button>
+    }
+</div>
+
+@* Outside the root div — IsDark passed so modal has correct tokens *@
+@if (_showModal)
+{
+    <UnsavedChangesModal Visible="_showModal"
+                         Animate="_animateIn"
+                         IsDark="_isDark"
+                         OnContinue="ContinueEditing"
+                         OnDiscard="Discard"
+                         OnCancel="ContinueEditing" />
+}
+
+@code {
+    [Parameter] public string Url { get; set; } = "";
+    [Parameter] public EventCallback OnNavigate { get; set; }
+    [Parameter] public bool RenderAsLink { get; set; }
+    [Parameter] public string CssClass { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private bool _isDark;
+    private bool _showModal;
+    private bool _animateIn;
+    private readonly string _instanceId = Guid.NewGuid().ToString("N")[..8];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _isDark = ThemeStateService.IsDarkMode;
+        ThemeStateService.OnChange += ThemeChanged;
+        await JS.InvokeVoidAsync("ClannGuard.spawnParticles", $"clann-particles-{_instanceId}");
+    }
+
+    private void ThemeChanged()
+    {
+        _isDark = ThemeStateService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task GoBack()
+    {
+        bool dirty = await JS.InvokeAsync<bool>("NavigationGuard.hasChanges");
+        if (dirty)
+        {
+            _showModal = true;
+            _animateIn = false;
+            StateHasChanged();
+            await Task.Delay(20);
+            _animateIn = true;
+            StateHasChanged();
+        }
+        else
+        {
+            await NavigateInternal();
+        }
+    }
+
+    private void ContinueEditing() => _showModal = false;
+
+    private async Task Discard()
+    {
+        await JS.InvokeVoidAsync("NavigationGuard.clear");
+        _showModal = false;
+        if (OnConfirm.HasDelegate)
+            await OnConfirm.InvokeAsync();
+        else
+            await NavigateInternal();
+    }
+
+    private async Task NavigateInternal()
+    {
+        if (OnNavigate.HasDelegate)
+            await OnNavigate.InvokeAsync();
+        else if (!string.IsNullOrWhiteSpace(Url))
+            Nav.NavigateTo(Url);
+    }
+
+    public void Dispose() => ThemeStateService.OnChange -= ThemeChanged;
+}

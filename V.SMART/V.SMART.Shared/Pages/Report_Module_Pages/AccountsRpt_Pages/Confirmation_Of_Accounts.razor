@@ -1,0 +1,923 @@
+﻿@page "/confirmationaccounts"
+
+@using MudBlazor
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IReportService.IAccountReportService
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.ReportViewModel.AccountsVM
+
+@inherits BaseUserRightsComponent
+@inject IAccountReportService AccountReportService
+@inject NavigationManager _navigation
+@inject ILoggingService _loggingService
+@inject IJSRuntime _js
+@inject IExcelTemplateService excelTemplateService
+
+<style>
+    @* income switch CSS *@
+    .custom-switch .form-check-input {
+        width: 3rem;
+        height: 1.5rem;
+        cursor: pointer;
+        background-color: #dcdcdc;
+        border-color: #dcdcdc;
+        transition: all 0.3s ease;
+        box-shadow: none;
+    }
+
+        .custom-switch .form-check-input:checked {
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+
+        .custom-switch .form-check-input:focus {
+            box-shadow: 0 0 0 0.15rem rgba(40, 167, 69, 0.35);
+        }
+</style>
+
+
+@* Expense Switch CSS *@
+
+<style>
+    .red-switch .form-check-input {
+        width: 3.2rem;
+        height: 1.7rem;
+        cursor: pointer;
+        border: none;
+        background-color: #dcdcdc;
+        border-color: #dcdcdc;
+        transition: all 0.3s ease;
+        box-shadow: none;
+    }
+
+        .red-switch .form-check-input:checked {
+            background-color: #ef4444;
+        }
+
+        .red-switch .form-check-input:focus {
+            box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.25);
+        }
+</style>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+
+<div class="container-fluid px-2 px-md-5 mt-4">
+    <div class="card shadow-sm border-1">
+
+        <PageHeader TitleText="Confirmation Of Accounts"
+                    TitleIcon="bi bi-list-check"
+                    Breadcrumbs="@CAA" />
+
+        <div class="card border-0 shadow-sm mb-4">
+
+            <div class="card-body">
+
+                <div class="row g-3 mb-2">
+
+                    <!-- Income Card -->
+
+                    <div class="col-12 col-sm-6 col-lg-4">
+
+                        <div class="card border-0 shadow-sm rounded-4 h-100">
+
+                            <div class="card-body d-flex justify-content-between align-items-center p-4">
+
+                                <div>
+
+                                    <h6 class="fw-bold mb-1 text-dark">
+                                        Income / Receipts
+                                    </h6>
+
+                                    <small class="text-muted">
+                                        View income transactions
+                                    </small>
+
+                                </div>
+
+                                <div class="form-check form-switch m-0 custom-switch">
+
+                                    <input type="checkbox"
+                                           class="form-check-input fs-4"
+                                           id="MFG"
+                                           checked="@IsIncome"
+                                           @onchange="ToggleIncome" />
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Expense Card -->
+
+                    <div class="col-12 col-sm-6 col-lg-4">
+
+                        <div class="card border-0 shadow-sm rounded-4 h-100">
+
+                            <div class="card-body d-flex justify-content-between align-items-center p-4">
+
+                                <div>
+
+                                    <h6 class="fw-bold mb-1 text-dark">
+                                        Expense / Payments
+                                    </h6>
+
+                                    <small class="text-muted">
+                                        View expense transactions
+                                    </small>
+
+                                </div>
+
+                                <div class="form-check form-switch m-0 red-switch">
+
+                                    <input type="checkbox"
+                                           class="form-check-input"
+                                           id="BO"
+                                           checked="@IsExpense"
+                                           @onchange="ToggleExpense" />
+                                </div>
+
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+        <!-- Filters -->
+
+        <div class="card border-0 shadow-sm mb-4">
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+
+                    <div class="col-md-2">
+
+                        <label class="form-label fw-semibold">
+                            From Date
+                        </label>
+
+                        <input type="date"
+                               class="form-control" @bind="FromDate" />
+
+                    </div>
+
+
+                    <div class="col-md-2">
+
+                        <label class="form-label fw-semibold">
+                            To Date
+                        </label>
+
+                        <input type="date"
+                               class="form-control" @bind="ToDate" />
+
+                    </div>
+
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">
+                            @selecttype
+                        </label>
+
+                        <select class="form-select" @onchange="OnTypeChanged">
+                            <option value="" disabled selected>Select Type</option>
+                            @foreach (var item in AccountTypes)
+                            {
+                                <option value="@item.Value">@item.Value</option>
+                            }
+
+                        </select>
+
+                    </div>
+
+                    <div class="col-md-3">
+                        @if (IsIncome)
+                        {
+                            <label class="form-label fw-semibold">
+                                Select Vendor/Supplier
+                            </label>
+
+                            <select class="form-select" @onchange="OnCustomerChanged">
+                                <option value="" disabled selected>Select Type</option>
+                                @foreach (var item in allCustomers)
+                                {
+                                    <option value="@item.CustId">@item.CustName</option>
+                                }
+
+                            </select>
+                        }
+                        else
+                        {
+                            <label class="form-label fw-semibold">
+                                Select Vendor/Supplier
+                            </label>
+
+                            <select class="form-select" @onchange="OnVendorChanged">
+                                <option value="" disabled selected>Select Type</option>
+                                @foreach (var item in allVendors)
+                                {
+                                    <option value="@item.VendorCode">@item.VendorName</option>
+                                }
+
+                            </select>
+
+                        }
+
+                    </div>
+
+
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+
+                        <button class="btn btn-outline-success w-100"
+                                @onclick="PrintAccounts">
+                            <i class="bi bi-file-earmark-excel-fill"></i>
+                            Export To Excel
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Summary Cards -->
+
+        <div class="row g-4 mb-4">
+
+            <div class="col-md-3">
+
+                <div class="card border-0 shadow-sm h-100">
+
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <!-- Balance Details -->
+
+                            <div>
+
+                                <div class="text-muted small mb-1">
+                                    Opening Balance
+                                </div>
+
+                                <h3 class="text-primary fw-bold mb-0">
+
+                                    <i class="bi bi-currency-rupee"></i>
+
+                                    @OpeningBalance
+
+                                </h3>
+
+                            </div>
+
+
+                            <!-- Icon Circle -->
+
+                            <div class="bg-info-subtle rounded-circle d-flex align-items-center justify-content-center"
+                                 style="width:60px;height:60px;">
+
+                                <i class="bi bi-wallet2 text-primary fs-3"></i>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="card border-0 shadow-sm h-100">
+
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <!-- Balance Details -->
+                            <div>
+
+                                <div class="text-muted small mb-1">
+                                    Inflow Total
+                                </div>
+
+                                <h3 class="text-success fw-bold mb-0">
+                                    <i class="bi bi-currency-rupee"></i>
+                                    @TotalInflow
+                                </h3>
+
+                            </div>
+
+                            <!-- Icon Circle -->
+                            <div class="bg-success-subtle rounded-circle d-flex align-items-center justify-content-center"
+                                 style="width:60px;height:60px;">
+                                <i class="bi bi-arrow-down text-success"></i>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="card border-0 shadow-sm h-100">
+
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <!-- Balance Details -->
+                            <div>
+
+                                <div class="text-muted small mb-1">
+                                    Outflow Total
+                                </div>
+
+                                <h3 class="text-danger fw-bold mb-0">
+                                    <i class="bi bi-currency-rupee"></i>
+                                    @TotalOutflow
+                                </h3>
+
+                            </div>
+
+                            <!-- Icon Circle -->
+                            <div class="bg-danger-subtle rounded-circle d-flex align-items-center justify-content-center"
+                                 style="width:60px;height:60px;">
+                                <i class="bi bi-arrow-up text-danger"></i>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="card border-0 shadow-sm h-100">
+
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <!-- Balance Details -->
+                            <div>
+
+                                <div class="text-muted small mb-1">
+                                    Closing Balance
+                                </div>
+
+                                <h3 class="text-primary fw-bold mb-0">
+
+                                    <i class="bi bi-currency-rupee"></i>
+                                    @ClosingBalance
+                                </h3>
+                            </div>
+
+
+                            <!-- Icon Circle -->
+
+                            <div class="bg-info-subtle rounded-circle d-flex align-items-center justify-content-center"
+                                 style="width:60px;height:60px;">
+
+                                <i class="bi bi-wallet2 text-primary fs-3"></i>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Table -->
+
+        <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+
+            <!-- Header -->
+            <div class="card-header bg-warning-subtle border-bottom py-3">
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <h5 class="mb-0 fw-semibold text-dark">
+                        <i class="bi bi-cash-stack me-2 text-primary"></i>
+                        Transaction Summary
+                    </h5>
+
+                    <span class="badge bg-primary-subtle text-primary px-3 py-2">
+                        Total : @Transactions.Count
+                    </span>
+
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="card-body p-0">
+
+                <div style="max-height: 550px; overflow-y: auto; overflow-x: auto;">
+
+                    <table class="table table-hover align-middle mb-0"
+                           style="min-width: 1100px; font-size: 15px;">
+
+                        <thead class="table-light" style="position: sticky; top: 0; z-index: 10;">
+
+                            <tr class="text-nowrap">
+
+                                <th class="px-4 py-3 text-center" style="width: 130px;">
+                                    Date
+                                </th>
+
+                                <th class="px-4 py-3" style="min-width: 320px;">
+                                    Particulars
+                                </th>
+
+                                <th class="px-4 py-3 text-center" style="width: 150px;">
+                                    Type
+                                </th>
+
+                                <th class="px-4 py-3 text-center" style="width: 180px;">
+                                    Ref No
+                                </th>
+
+                                <th class="px-4 py-3 text-end" style="width: 180px;">
+                                    In Flow
+                                </th>
+
+                                <th class="px-4 py-3 text-end" style="width: 180px;">
+                                    Out Flow
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+                            @if (Transactions != null && Transactions.Any())
+                            {
+                                @foreach (var item in Transactions)
+                                {
+                                    <tr>
+
+                                        <!-- Date -->
+                                        <td class="px-4 py-3 text-center text-nowrap fw-semibold">
+                                            @item.Date
+                                        </td>
+
+                                        <!-- Particulars -->
+                                        <td class="px-4 py-3">
+                                            <div class="fw-semibold text-dark">
+                                                @item.Particulars
+                                            </div>
+                                        </td>
+
+                                        <!-- Type -->
+                                        <td class="px-4 py-3 text-center">
+
+                                            @if (IsIncome)
+                                            {
+                                                <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">
+                                                    @item.Type
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill">
+                                                    @item.Type
+                                                </span>
+                                            }
+
+                                        </td>
+
+                                        <!-- Ref No -->
+                                        <td class="px-4 py-3 text-center text-muted fw-semibold">
+                                            @item.RefNo
+                                        </td>
+
+                                        <!-- Inflow -->
+                                        <td class="px-4 py-3 text-end">
+
+                                            @if (item.Inflow > 0)
+                                            {
+                                                <span class="fw-bold fs-6 text-success">
+                                                    ₹ @item.Inflow
+                                                </span>
+                                            }
+
+                                        </td>
+
+                                        <!-- Outflow -->
+                                        <td class="px-4 py-3 text-end">
+
+                                            @if (item.Outflow > 0)
+                                            {
+                                                <span class="fw-bold fs-6 text-danger">
+                                                    ₹ @item.Outflow
+                                                </span>
+                                            }
+
+                                        </td>
+
+                                    </tr>
+                                }
+
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-5">
+                                        No transactions found for the selected criteria.
+                                    </td>
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+</div>
+}
+
+@code {
+
+    protected override string ScreenName => "Confirmation Of Accounts";
+
+    private bool isProcessing = true;
+
+    private List<PageHeader.BreadcrumbItem> CAA = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Reports" },
+        new PageHeader.BreadcrumbItem { Text = "Confirmation Of Accounts", IsLast = true }
+    };
+
+    private List<ConfirmationOfAccountsVM> Transactions = new();
+
+    private List<ExpenseVM> Expenses = new();
+    private List<IncomeVM> Incomes = new();
+    private List<KeyValuePair<int, string>> AccountTypes = new();
+
+    private DateTime? FromDate = DateTime.Now.AddDays(-7);
+    private DateTime? ToDate = DateTime.Now;
+
+    private decimal TotalInflow { get; set; }
+    private decimal TotalOutflow { get; set; }
+    private decimal ClosingBalance { get; set; }
+    private decimal OpeningBalance { get; set; }
+
+    private bool IsExpense = true;
+
+    private bool IsIncome = false;
+
+    private List<CustomerVM> allCustomers = new();
+    private List<VendorVM> allVendors = new();
+
+    private CustomerVM? SelectedCustomer;
+    private VendorVM? SelectedVendor;
+    public string? selectedType { get; set; }
+
+    private string? selecttype { get; set; } = "Select Expense Type";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+            AccountTypes = await AccountReportService.GetAllExpenseList();
+            allCustomers = await AccountReportService.GetAllCustomersAsync(selectedType, FromDate ?? DateTime.Now.AddDays(-7), ToDate ?? DateTime.Now);
+            allVendors = await AccountReportService.GetAllVendorsAsync(selectedType, FromDate ?? DateTime.Now.AddDays(-7), ToDate ?? DateTime.Now);
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, "Error loading data");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    private async Task ToggleExpense(ChangeEventArgs e)
+    {
+        try
+        {
+            IsExpense = (bool)e.Value;
+
+            if (IsExpense)
+            {
+                IsIncome = false;
+            }
+            //Sathish
+            else
+            {
+                IsIncome = true;
+            }
+            Transactions.Clear();
+            OpeningBalance = 0;
+            ClosingBalance = 0;
+            TotalInflow = 0;
+            TotalOutflow = 0;
+            selectedType = null;
+            SelectedVendor = null;
+            StateHasChanged();
+            selecttype = "Select Expense Type";
+            AccountTypes = await AccountReportService.GetAllExpenseList();
+        }
+        catch (Exception ex)
+        {
+            // Handle exceptions (e.g., log the error, show a notification, etc.)
+            await _loggingService.LogDeveloperError(ex, "Error toggling expense");
+        }
+    }
+
+    private async Task ToggleIncome(ChangeEventArgs e)
+    {
+        try
+        {
+            IsIncome = (bool)e.Value;
+
+            if (IsIncome)
+            {
+                IsExpense = false;
+            }
+            //Sathish
+            else
+            {
+                IsExpense = true;
+            }
+            Transactions.Clear();
+            OpeningBalance = 0;
+            ClosingBalance = 0;
+            TotalInflow = 0;
+            TotalOutflow = 0;
+            selectedType = null;
+            SelectedCustomer = null;
+            StateHasChanged();
+            selecttype = "Select Income Type";
+            AccountTypes = await AccountReportService.GetAllIncomeList();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, "Error toggling income");
+        }
+    }
+
+    private async Task OnTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            selectedType = e.Value.ToString();
+            allCustomers = await AccountReportService.GetAllCustomersAsync(selectedType, FromDate ?? DateTime.Now.AddDays(-7), ToDate ?? DateTime.Now);
+            allVendors = await AccountReportService.GetAllVendorsAsync(selectedType, FromDate ?? DateTime.Now.AddDays(-7), ToDate ?? DateTime.Now);
+
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, "Error loading OnTypeChanged");
+        }
+    }
+
+    private async Task OnCustomerChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var customerId = e.Value.ToString();
+            var customer = allCustomers.FirstOrDefault(c => c.CustId.ToString() == customerId);
+
+            if (selectedType == null)
+            {
+                await _js.ToastrWarning("Please select income type first.");
+                return;
+            }
+            await ApplyCustomerSelectionAsync(customer);
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, "Error in OnCustomerChanged");
+            await _js.ToastrError("Error while selecting");
+        }
+    }
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+            SelectedCustomer = customer;
+            if (SelectedCustomer == null)
+            {
+                Transactions.Clear();
+                OpeningBalance = 0;
+                StateHasChanged();
+                return;
+            }
+
+            if (selectedType == "SALES")
+            {
+                OpeningBalance = await AccountReportService.GetCustSalesOpeningBalance(SelectedCustomer.CustId, FromDate ?? DateTime.Now);
+            }
+            else if (selectedType == "LABOUR WORK")
+            {
+                OpeningBalance = await AccountReportService.GetCustOpeningBalance(SelectedCustomer.CustId, FromDate ?? DateTime.Now);
+            }
+
+            Transactions = await AccountReportService.GetAccountsAsync("Income", selectedType, FromDate, ToDate, SelectedCustomer.CustId);
+            TotalInflow = Transactions.Sum(t => t.Inflow ?? 0);
+            TotalOutflow = Transactions.Sum(t => t.Outflow ?? 0);
+            ClosingBalance = OpeningBalance + TotalInflow - TotalOutflow;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, $"ApplyCustomerSelectionAsync failed for CustId: {customer?.CustId}");
+            await _js.ToastrError("Failed to apply customer selection. Please try again.");
+        }
+    }
+
+    private async Task ApplyVendorSelectionAsync(VendorVM? vendor)
+    {
+        try
+        {
+            SelectedVendor = vendor;
+
+            if (SelectedVendor == null)
+            {
+                Transactions.Clear();
+                OpeningBalance = 0;
+                StateHasChanged();
+                return;
+            }
+
+            if (selectedType == "PURCHASE")
+            {
+                OpeningBalance = await AccountReportService.GetVendorOpeningBalance(SelectedVendor.VendorCode, FromDate ?? DateTime.Now);
+            }
+            else if (selectedType == "SUBCONTRACT")
+            {
+                OpeningBalance = await AccountReportService.GetSubcontractOpeningBalance(SelectedVendor.VendorCode, FromDate ?? DateTime.Now);
+            }
+
+            Transactions = await AccountReportService.GetAccountsAsync("Expense", selectedType, FromDate, ToDate, SelectedVendor.VendorCode);
+            TotalInflow = Transactions.Sum(t => t.Inflow ?? 0);
+            TotalOutflow = Transactions.Sum(t => t.Outflow ?? 0);
+            ClosingBalance = OpeningBalance + TotalInflow - TotalOutflow;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, $"ApplyVendorSelectionAsync failed for VendorCode: {vendor?.VendorCode}");
+            await _js.ToastrError("Failed to apply vendor selection. Please try again.");
+        }
+    }
+
+    private async Task OnVendorChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var vendorId = e.Value.ToString();
+            var vendor = allVendors.FirstOrDefault(v => v.VendorCode.ToString() == vendorId);
+
+            if (vendor == null)
+            {
+                await _js.ToastrWarning("Please select vendor or supplier first.");
+                return;
+            }
+            await ApplyVendorSelectionAsync(vendor);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnVendorChanged: {ex}");
+            await _loggingService.LogDeveloperError(ex, "Error in OnVendorChanged");
+            await _js.ToastrError("Error while selecting");
+        }
+    }
+
+    private async Task<IEnumerable<VendorVM>> SearchVendors(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<VendorVM>();
+
+        try
+        {
+            var results = await AccountReportService.SearchVendorsAsync(value);
+            return results?.Take(50) ?? Enumerable.Empty<VendorVM>();
+        }
+        catch (OperationCanceledException)
+        {
+            return Enumerable.Empty<VendorVM>();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, $"SearchCustomers failed for value: {value}");
+            await _js.ToastrError("Failed to search vendors. Please try again.");
+            return Enumerable.Empty<VendorVM>();
+        }
+    }
+
+    private async Task PrintAccounts()
+    {
+        try
+        {
+            if (Transactions == null || !Transactions.Any())
+            {
+                await _js.InvokeVoidAsync(
+                    "alert",
+                    "No Details found."
+                );
+                return;
+            }
+
+            // Excel Headers → must be string[]
+            string[] headers =
+            {
+                "Date",
+                "Particulars",
+                "Type",
+                "RefNo",
+                "Inflow",
+                "Outflow"
+            };
+
+            // Excel Data Mapping → must be List<string[]>
+            var exportData = Transactions
+                 .Select(x => new
+                 {
+                     x.Date,
+                     x.Particulars,
+                     x.Type,
+                     x.RefNo,
+                     x.Inflow,
+                     x.Outflow
+                 })
+                .ToList();
+
+            // Generate Excel File
+            var fileBytes = await excelTemplateService.CreateTemplateAsync(
+                sheetName: "Confirmation Of Accounts",
+                headers: headers,
+                sampleData: exportData
+            );
+
+
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                await _js.InvokeVoidAsync("alert", "Failed to generate Excel file.");
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(fileBytes);
+
+            // Download Excel
+            await _js.InvokeVoidAsync("downloadExcelFile", base64, "Confirmation Of Accounts.xlsx");
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogDeveloperError(ex, "Error while exporting Pending Bills Excel");
+
+            await _js.InvokeVoidAsync("alert", "Error occurred while exporting Excel.");
+        }
+    }
+
+}

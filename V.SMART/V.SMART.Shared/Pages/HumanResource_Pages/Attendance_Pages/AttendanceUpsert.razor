@@ -1,0 +1,2888 @@
+﻿@page "/attendance/create"
+@page "/attendance/update/{Id:int}"
+
+@using MudBlazor
+@using System.Globalization;
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService.IAttendanceService
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IHRMasterservice
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.AttendanceeVM
+@using static V.SMART.Shared.ViewModels.HumanResourceViewModel.AttendanceeVM.DayCheck
+
+
+@inherits BaseUserRightsComponent
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject IAttendanceService _attendanceService
+@inject IJSRuntime _js
+@inject ILeaveApplicationService leaveApplicationService
+@inject IBiometricExcelSettingService biometricExcelSettingService
+@inject ILeaveTypeService leaveTypeService
+@inject IEmployeeLeavebalanceService leaveBalanceService
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+<style>
+    /* ================= WRAPPER ================= */
+    .attendance-wrapper {
+        overflow-x: auto;
+        width: 100%;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .attendance-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #111827;
+        display: block;
+        margin-bottom: 10px;
+        padding-left: 6px;
+        border-left: 4px solid #2563eb;
+    }
+
+    .attendance-toggle {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    /* option style */
+    .toggle-option {
+        padding: 8px 18px;
+        border: 1px solid #d1d5db;
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: 600;
+        background: #fff;
+        transition: 0.2s;
+        user-select: none;
+    }
+
+        /* hover */
+        .toggle-option:hover {
+            border-color: #60a5fa;
+            background: #eff6ff;
+        }
+
+        /* selected style */
+        .toggle-option:has(input:checked) {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+
+
+    /* ================= TABLE ================= */
+    .attendance-table {
+        border-collapse: collapse;
+        min-width: max-content;
+        font-size: 13px;
+    }
+
+    /* ================= STICKY COLUMNS ================= */
+    .sticky-col {
+        position: sticky;
+        background: #fff;
+        z-index: 2;
+    }
+
+    /* SL NO */
+    .sl-col {
+        width: 40px;
+        min-width: 40px;
+        left: 0;
+        text-align: center;
+        z-index: 4;
+        box-shadow: inset -1px 0 0 #dee2e6;
+    }
+
+    /* NAME */
+    .name-col {
+        width: 170px;
+        min-width: 170px;
+        left: 40px;
+        font-weight: 600;
+        z-index: 4;
+        box-shadow: inset -1px 0 0 #dee2e6;
+    }
+
+
+    /* ================= DAY COLUMN SIZE ================= */
+    .day-col {
+        width: 60px;
+        min-width: 60px;
+        max-width: 60px;
+        padding: 0 !important;
+    }
+
+        .day-col input {
+            width: 100%;
+            height: 30px;
+            padding: 0;
+            font-size: 15px;
+            text-align: center;
+        }
+
+    /* ================= HEADER ================= */
+    thead th.sticky-col {
+        background-color: #1d7f36;
+        color: white;
+        z-index: 5;
+    }
+
+
+    /* ================= INPUT ================= */
+    .attendance-table input.form-control {
+        height: 30px;
+        padding: 0;
+        background: transparent;
+    }
+
+    /* PRESENT */
+    .status-present {
+        background-color: #dcfce7 !important;
+    }
+
+        .status-present input {
+            color: #166534 !important;
+        }
+
+
+    /* ABSENT */
+    .status-absent {
+        background-color: #fee2e2 !important;
+    }
+
+        .status-absent input {
+            color: #991b1b !important;
+        }
+
+
+    /* LEAVE */
+    .status-leave {
+        background-color: #ede9fe !important;
+    }
+
+        .status-leave input {
+            color: #5b21b6 !important;
+        }
+
+    /* ONLY HOLIDAY STYLE */
+    .status-holiday {
+        background-color: #fef3c7 !important;
+    }
+
+        .status-holiday input {
+            background-color: transparent !important;
+            color: #92400e !important;
+            font-weight: 600;
+            border: none !important;
+        }
+
+    /* WEEK OFF */
+    .status-weekoff {
+        background-color: #e0f2fe !important;
+    }
+
+        .status-weekoff input {
+            color: #0369a1 !important;
+            font-weight: 600;
+        }
+
+    .status-halfdayabsent {
+        background-color: #ffe4e6 !important;
+    }
+
+        .status-halfdayabsent input {
+            color: cadetblue !important;
+        }
+
+    .status-halfdayleave {
+        background-color: #dbeafe !important;
+    }
+
+        .status-halfdayleave input {
+            color: darksalmon !important;
+        }
+
+    .status-onduty {
+        background-color: #ccfbf1 !important;
+    }
+
+        .status-onduty input {
+            color: lightcoral !important;
+        }
+
+</style>
+
+<!-- MODAL -->
+@if (IsLeaveModalVisible)
+{
+    <div class="modal fade show d-block"
+         tabindex="-1"
+         style="background-color:rgba(0,0,0,0.5);">
+
+        <!-- INCREASE MODAL SIZE -->
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+
+            <div class="modal-content shadow-lg border-0">
+
+                <!-- HEADER -->
+                <div class="modal-header text-white" style="background-color:#53C2CA">
+
+                    <h5 class="modal-title fw-bold">
+                        Leave History
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseLeaveModal">
+                    </button>
+
+                </div>
+
+                <!-- BODY -->
+                <div class="modal-body p-3">
+
+                    @if (LeaveHistoryList.Any())
+                    {
+                        <div class="table-responsive">
+
+                            <table class="table table-bordered table-striped table-hover align-middle">
+
+                                <thead class="table-dark text-center">
+
+                                    <tr>
+                                        <th style="min-width:120px;">Employee ID</th>
+                                        <th style="min-width:220px;">Staff Name</th>
+                                        <th style="min-width:220px;">Designation</th>
+                                        <th style="min-width:100px;">Year</th>
+                                        <th style="min-width:150px;">Total Leave</th>
+                                        <th style="min-width:150px;">Leaves Taken</th>
+                                        <th style="min-width:150px;">Balance</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody>
+
+                                    @foreach (var item in LeaveHistoryList)
+                                    {
+                                        <tr>
+                                            <td class="text-center fw-semibold">
+                                                @item.EmployeeID
+                                            </td>
+
+                                            <td>
+                                                @item.Staff?.StaffName
+                                            </td>
+
+                                            <td>
+                                                @item.Staff?.Designation
+                                            </td>
+
+                                            <td class="text-center">
+                                                @item.Year
+                                            </td>
+
+                                            <td class="text-center">
+                                                @item.TotalAllocatedLeave
+                                            </td>
+
+                                            <td class="text-center">
+                                                @item.LeavesTaken
+                                            </td>
+
+                                            <td class="text-center fw-bold text-success">
+                                                @item.Balance
+                                            </td>
+                                        </tr>
+                                    }
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-danger fw-bold p-3">
+                            No leave history found.
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@if (isProcessing)
+{
+    <div class="position-fixed top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+         style="width: 100vw; height: 100vh; background-color: rgba(255,255,255,0.5); z-index: 1050;">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="Loading..." />
+    </div>
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@(AttendanceVM.Id > 0 ? "Update Attendance" : "Create Attendance")"
+                        TitleIcon="bi bi-tag"
+                        Breadcrumbs="@AttendanceFormBreadcrumbs" />
+
+            <div class="card-body bg-light">
+
+                <EditForm Model="AttendanceVM" OnValidSubmit="UpsertAttendance">
+                    <ObjectGraphDataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="mb-3 p-2 border rounded bg-white">
+                        <label class="fw-bold text-primary">Attendance Mode</label>
+
+                        <InputRadioGroup @bind-Value="AttendanceVM.AttendanceSource">
+                            <label class="me-4 fw-bold">
+                                <InputRadio Value="@("Manual")" /> Manual Attendance
+                            </label>
+
+                        </InputRadioGroup>
+
+                        <!-- Manual Attendance Screen -->
+                        @if (AttendanceVM.AttendanceSource == "Manual")
+                        {
+                            <div class="row">
+
+                                <!-- CARD 1 -->
+                                <div class="col-lg-4 col-md-12 mb-3">
+                                    <div class="card shadow-sm h-100">
+                                        <div class="card-header" style="background-color:#AA336A; color:white;">
+                                            <span class="fw-bold small">Select Year</span>
+                                        </div>
+
+                                        <div class="card-body p-2">
+
+                                            <div class="row mb-1">
+                                                <label class="col-4 col-form-label pt-1 text-dark"><small>For The Year</small></label>
+                                                <div class="col-5">
+                                                    <input type="number"
+                                                           class="form-control form-control-sm rounded-3"
+                                                           value="@AttendanceVM.Year"
+                                                           @onchange="OnYearChanged" />
+                                                </div>
+                                            </div>
+
+                                            <div class="row mb-1">
+                                                <label class="col-4 col-form-label pt-1 text-dark">
+                                                    <small>Month Name</small>
+                                                </label>
+                                                <div class="col-5">
+                                                    <input type="text"
+                                                           class="form-control form-control-sm rounded-3"
+                                                           value="@AttendanceVM.MonthName"
+                                                           readonly />
+                                                </div>
+                                            </div>
+
+                                            <div class="row mb-1">
+                                                <label class="col-4 col-form-label pt-1 text-dark">
+                                                    <small>Select Month</small>
+                                                </label>
+                                                <div class="col-5">
+                                                    <select class="form-select form-select-sm rounded-3"
+                                                            @onchange="OnMonthChanged">
+                                                        <option value="0">-- Select Month --</option>
+
+                                                        @foreach (var m in Months)
+                                                        {
+                                                            <option value="@m.Id" selected="@(AttendanceVM.MonthId == m.Id)">
+                                                                @m.Name
+                                                            </option>
+                                                        }
+                                                    </select>
+                                                    <ValidationMessage For="@(() => AttendanceVM.MonthId)" />
+                                                </div>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-12 mb-1">
+                                                    <label class="col-form-label pt-0 text-black"><small><strong>Note:-</strong></small></label>
+                                                </div>
+                                                <div class="col-12 mb-1">
+                                                    <label class="col-form-label pt-0 text-primary"><small><strong>1. Enter In & Out Time in HH:mm format only to calculate OT automatically.</strong></small></label>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="col-form-label pt-0 text-primary"><small><strong>2. Enter InTime & OutTime make setting and Click InTime & OutTime cell to auto-fill.</strong></small></label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CARD 2 -->
+                                <div class="col-lg-4 col-md-6 mb-3">
+                                    <div class="card shadow-sm h-100">
+                                        <div class="card-header" style="background-color:#008080; color:white;">
+                                            <span class="fw-bold small">Shortcut Alphabets</span>
+                                        </div>
+
+                                        <div class="card-body p-2">
+                                            <table class="table table-sm table-bordered mb-0 small">
+                                                <tbody>
+                                                    <tr><td class="text-center fw-bold">A</td><td>Absent</td><td class="text-center fw-bold">P</td><td>Present</td></tr>
+                                                    <tr><td class="text-center fw-bold">L</td><td>Leave</td><td class="text-center fw-bold">N</td><td>Half-Day Absent</td></tr>
+                                                    <tr><td class="text-center fw-bold">H</td><td>Holiday</td><td class="text-center fw-bold">M</td><td>Half-Day Leave</td></tr>
+                                                    <tr><td class="text-center fw-bold">W</td><td>Week Off</td><td class="text-center fw-bold">O</td><td>On Duty</td></tr>
+                                                </tbody>
+                                            </table>
+
+                                            <div class="mt-2">
+                                                <label class="form-label text-primary small fw-bolder">Select Employee For Leave Status</label>
+                                                <select class="form-select form-select-sm mb-2" @onchange="OnStaffChangedHandler">
+                                                    <option value="0">-- Select Employee --</option>
+                                                    @foreach (var s in Employees)
+                                                    {
+                                                        <option value="@s.StaffID">@s.StaffName</option>
+                                                    }
+                                                </select>
+
+                                                <label class="form-label text-success small fw-bold">Select Status & DB click header</label>
+                                                <select class="form-select form-select-sm mt-1" @bind="SelectedStatus">
+                                                    <option value="">-- Select Option --</option>
+                                                    <option value="P">P</option>
+                                                    <option value="L">L</option>
+                                                    <option value="A">A</option>
+                                                    <option value="H">H</option>
+                                                    <option value="W">W</option>
+                                                    <option value="O">O</option>
+
+                                                    @* <option value="N">N</option>
+                                                    <option value="M">M</option> *@
+                                                </select>
+
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CARD 3 -->
+                                <div class="col-lg-4 col-md-6 mb-3">
+                                    <div class="card shadow-sm h-100">
+
+                                        <div class="card-header" style="background-color:#808080; color:white;">
+                                            <span class="fw-bold small">Mark Holidays</span>
+                                        </div>
+
+                                        <div class="card-body p-2">
+                                            @if (AttendanceVM.CalendarHolidayList?.Any() == true)
+                                            {
+                                                @foreach (var row in AttendanceVM.CalendarHolidayList)
+                                                {
+                                                    <div class="d-flex align-items-center mb-1">
+                                                        <div style="width:60px; font-weight:bold;">
+                                                            @row.WeekDay.ToString().Substring(0, 3)
+                                                        </div>
+
+                                                        @foreach (var d in row.Days)
+                                                        {
+                                                            <div style="width:60px;">
+                                                                <label class="form-check-label">
+                                                                    <input type="checkbox" class="form-check-input"
+                                                                           checked="@d.IsChecked"
+                                                                           @onchange="(e) => OnHolidayCheckboxChanged(d.Day, (bool)e.Value)" />
+
+                                                                    @d.Day
+                                                                </label>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="text-muted small">
+                                                    Select Year & Month to load calendar.
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+
+                                <!-- Employee Type -->
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                    <label class="fw-bold mb-0 text-dark">
+                                        👨‍💼 Employee Type
+                                    </label>
+
+                                    <InputRadioGroup @bind-Value="SelectedEmployeeType">
+
+                                        <div class="row g-2">
+
+                                            <!-- ON ROLE -->
+                                            <div class="col-6 col-md-auto">
+
+                                                <label class="d-flex align-items-center justify-content-center gap-1
+                                                                          px-2 py-2 rounded border
+                                                                          bg-primary-subtle text-primary
+                                                                          fw-semibold small w-100">
+
+                                                    <InputRadio Value='("On Role")'
+                                                                class="d-none" />
+
+                                                    <span>💼</span>
+                                                    <span>On Role</span>
+
+                                                </label>
+
+                                            </div>
+
+                                            <!-- TRAINEE -->
+                                            <div class="col-6 col-md-auto">
+
+                                                <label class="d-flex align-items-center justify-content-center gap-1
+                                                                          px-2 py-2 rounded border
+                                                                          bg-success-subtle text-success
+                                                                          fw-semibold small w-100">
+
+                                                    <InputRadio Value='("Trainee")'
+                                                                class="d-none" />
+
+                                                    <span>🎓</span>
+                                                    <span>Trainee</span>
+
+                                                </label>
+
+                                            </div>
+
+                                            <!-- OUT SOURCED -->
+                                            <div class="col-12 col-md-auto">
+
+                                                <label class="d-flex align-items-center justify-content-center gap-1
+                                                                          px-2 py-2 rounded border
+                                                                          bg-danger-subtle text-danger
+                                                                          fw-semibold small w-100">
+
+                                                    <InputRadio Value='("Out Sourced")'
+                                                                class="d-none" />
+
+                                                    <span>🌐</span>
+                                                    <span>Out Sourced</span>
+
+                                                </label>
+
+                                            </div>
+
+                                        </div>
+
+                                    </InputRadioGroup>
+                                </div>
+
+                                <div class="row g-2 align-items-center">
+
+                                    <!-- In Time -->
+                                    <div class="col-12 col-sm-auto">
+
+                                        <div class="d-flex align-items-center gap-2">
+
+                                            <label class="fw-semibold text-primary small mb-0">
+                                                InTime
+                                            </label>
+
+                                            <input type="text"
+                                                   class="form-control form-control-sm"
+                                                   style="width:85px"
+                                                   @bind="InTime"
+                                                   placeholder="HH:mm" />
+
+                                        </div>
+
+                                    </div>
+
+                                    <!-- Out Time -->
+                                    <div class="col-12 col-sm-auto">
+
+                                        <div class="d-flex align-items-center gap-2">
+
+                                            <label class="fw-semibold text-danger small mb-0">
+                                                OutTime
+                                            </label>
+
+                                            <input type="text"
+                                                   class="form-control form-control-sm"
+                                                   style="width:85px"
+                                                   @bind="OutTime"
+                                                   placeholder="HH:mm" />
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="col-12 col-sm-auto ms-sm-auto">
+                                        <button type="button"
+                                                class="btn btn-success btn-sm w-100 w-sm-auto mb-0"
+                                                @onclick="UpdateAllTimes">
+                                            Update
+                                        </button>
+                                    </div>
+
+                                    <!-- Excel Upload -->
+                                    <div class="col-12 col-sm-auto ms-sm-auto">
+
+                                        <label class="btn btn-primary btn-sm w-100 w-sm-auto mb-0">
+
+                                            <i class="bi bi-upload me-1"></i>
+                                            Excel Import
+
+                                            <InputFile OnChange="HandleFileSelected"
+                                                       accept=".xlsx,.xls,.xlsm"
+                                                       class="d-none" />
+
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <!-- ATTENDANCE GRID -->
+                            <div class="card mt-3 shadow-sm">
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Attendance Sheet</span>
+                                </div>
+                                <div class="attendance-wrapper">
+                                    <table class="attendance-table table table-bordered table-sm mb-0">
+                                        <thead class="custom-blue">
+                                            <tr>
+                                                <th class="sticky-col sl-col">Sl</th>
+                                                <th class="sticky-col name-col">Name</th>
+
+                                                @foreach (var d in Days.Where(d => d <= AttendanceVM.TotalDays))
+                                                {
+                                                    <th class="day-col text-center bg-success text-white"
+                                                        @ondblclick="() => OnHeaderDoubleClick(d)">
+                                                        @d
+                                                    </th>
+                                                }
+
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            @if (AttendanceVM.EmployeeList != null)
+                                            {
+                                                int sl = 1;
+
+                                                foreach (var emp in AttendanceVM.EmployeeList)
+                                                {
+                                                    var isSelected = emp.StaffId == HighlightedStaffId;
+                                                    <!-- STATUS ROW -->
+                                                    <tr>
+
+                                                        <td class="sticky-col sl-col @(isSelected ? "bg-primary fw-bold text-white" : "")">
+                                                            @sl
+                                                        </td>
+                                                        <td class="sticky-col name-col fw-bold @(isSelected ? "bg-primary fw-bold text-white" : "")">
+                                                            @*  @emp.Name *@
+                                                             @emp.Name (@emp.StaffId)
+                                                           
+                                                        </td>
+                                                        
+                                                        @foreach (var d in GetVisibleDays())
+                                                        {
+                                                            var status = emp.DailyStatus.ContainsKey(d)
+                                                            ? emp.DailyStatus[d]
+                                                            : "";
+
+                                                            var mappedStatus = MapStatus(status, biometricExcelSetting);
+                                                            var isFuture = IsFutureDay(d);
+
+                                                            <td class="day-col
+                                                                        @(mappedStatus == "P" ? "status-present" : "")
+                                                                        @(mappedStatus == "A" ? "status-absent" : "")
+                                                                        @(mappedStatus == "L" ? "status-leave" : "")
+                                                                        @(mappedStatus == "H" ? "status-holiday" : "")
+                                                                        @(mappedStatus == "W" ? "status-weekoff" : "")
+                                                                        @(mappedStatus == "O" ? "status-onduty" : "")">
+
+                                                               @*  
+                                                                @(mappedStatus == "M" ? "status-halfdayleave" : "") 
+                                                                @(mappedStatus == "N" ? "status-halfdayabsent" : "")*@
+                                                               
+                                                                <input type="text"
+                                                                       maxlength="5"
+                                                                       class="form-control text-center p-0"
+                                                                       @bind-value="emp.DailyStatus[d]"
+                                                                       @bind-value:event="onchange"
+                                                                       @bind-value:after="async () => await ValidateStatus(emp, d)"
+                                                                       disabled="@isFuture" />
+                                                                
+                                                            </td>
+                                                        }
+                                                    </tr>
+
+                                                    <tr class="bg-light">
+
+                                                        <td class="sticky-col sl-col"></td>
+                                                        <td class="sticky-col name-col text-primary">InTime</td>
+
+                                                        @foreach (var d in GetVisibleDays())
+                                                        {
+                                                            var isFuture = IsFutureDay(d);
+
+                                                            <td class="day-col @(isFuture ? "bg-light" : "")">
+                                                                <input class="form-control text-center"
+                                                                       disabled="@isFuture"
+                                                                       @bind-value="emp.InTime[d]"
+                                                                       @bind-value:event="oninput"
+                                                                       @onblur="async () => await OnTimeChanged(emp, d, true)"
+                                                                       @onfocus="async () =>
+                                                                       {
+                                                                           if (!isFuture && string.IsNullOrWhiteSpace(emp.InTime[d]))
+                                                                           {
+                                                                               emp.InTime[d] = InTime;
+                                                                           }
+                                                                       }" />
+                                                            </td>
+                                                        }
+
+                                                    </tr>
+
+
+                                                    <tr>
+
+                                                        <td class="sticky-col sl-col"></td>
+
+                                                        <td class="sticky-col name-col text-primary">
+                                                            OutTime
+                                                        </td>
+
+                                                        @foreach (var d in GetVisibleDays())
+                                                        {
+                                                            var isFuture = IsFutureDay(d);
+
+                                                            <td class="day-col @(isFuture ? "bg-light" : "")">
+                                                                <input class="form-control text-center"
+                                                                       disabled="@isFuture"
+                                                                       @bind-value="emp.OutTime[d]"
+                                                                       @bind-value:event="oninput"
+                                                                       @onblur="async () => await OnTimeChanged(emp, d, false)"
+                                                                       @onfocus="async () =>
+                                                                       {
+                                                                           if (!isFuture && string.IsNullOrWhiteSpace(emp.OutTime[d]))
+                                                                           {
+                                                                               emp.OutTime[d] = OutTime;
+                                                                           }
+                                                                       }" />
+                                                            </td>
+                                                        }
+
+                                                    </tr>
+
+                                                    <!-- OT ROW -->
+                                                    <tr class="@(emp.OtCount ? "" : "table-secondary")">
+                                                        <td class="sticky-col sl-col"></td>
+
+                                                        <td class="sticky-col name-col text-primary">
+                                                            OT
+
+                                                            @if (!emp.OtCount)
+                                                            {
+                                                                <span class="badge bg-secondary ms-2">Disabled</span>
+                                                            }
+                                                        </td>
+
+                                                        @foreach (var d in GetVisibleDays())
+                                                        {
+                                                            <td class="day-col">
+                                                                @*  <input class="form-control text-center"
+                                                                       value="@(emp.OtCount? GetOT(emp, d) : "0")"
+                                                                       readonly /> *@
+                                                                <input class="form-control text-center"
+                                                                       value="@GetOT(emp, d)"
+                                                                       readonly />
+                                                            </td>
+                                                        }
+                                                    </tr>
+
+                                                    sl++;
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+
+                    </div>
+                    @if (AttendanceVM.Id > 0)
+                    {
+                        <div class="card shadow-sm mb-3">
+                            <div class="row g-3">
+
+                                <!-- Created By -->
+                                <div class="col-md-3">
+                                    <div class="form-floating">
+                                        <InputText class="form-control"
+                                                   @bind-Value="AttendanceVM.CreatedBy"
+                                                   disabled />
+                                        <label>Created By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               value="@AttendanceVM.CreatedDate?.ToString("dd/MM/yyyy HH:mm:ss")"
+                                               disabled />
+                                        <label>Created Date</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified By -->
+                                <div class="col-md-3">
+                                    <div class="form-floating">
+                                        <InputText class="form-control"
+                                                   @bind-Value="AttendanceVM.ModifiedBy"
+                                                   disabled />
+                                        <label>Modified By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified Date -->
+                                <div class="col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               value="@AttendanceVM.ModifiedDate?.ToString("dd/MM/yyyy HH:mm:ss")"
+                                               disabled />
+                                        <label>Modified Date</label>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    }
+
+                    <!-- ACTIONS -->
+                    <div class="row mt-3">
+                        @if (CanCreate || CanEdit)
+                        {
+                            <div class="col-6 col-md-3 mt-3">
+                                <button type="submit" class="btn btn-primary w-100 rounded-3" disabled="@isProcessing">
+                                    <i class="bi bi-floppy2-fill me-1"></i> @(AttendanceVM.Id > 0 ? "Update" : "Create")
+                                </button>
+                            </div>
+                        }
+
+                        <div class="col-6 col-md-3 mt-3">
+                            <a href="/attendanceList" class="btn btn-secondary w-100 rounded-3" disabled="@isProcessing">
+                                <i class="bi bi-arrow-bar-left me-1"></i> Back To List
+                            </a>
+                        </div>
+                    </div>
+
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override string ScreenName => "Attendance";
+
+    [Parameter] public int? Id { get; set; }
+    private AttendanceVM AttendanceVM { get; set; } = new();
+    private bool isProcessing = true;
+    private List<Staff> Employees { get; set; } = new();
+    private string SelectedStatus { get; set; } = "";
+    private bool _isLoadingExistingAttendance = false;
+    private int HighlightedStaffId = 0;
+
+    private bool _statusWarningShown = false;
+    private bool _aOrLWarningShown = false;
+
+    private string InTime = "09:00";
+    private string OutTime = "18:00";
+    List<int> inTimeRows;
+    private Dictionary<string, ElementReference> inputRefs = new();
+
+    private List<BiometricRow> BiometricList { get; set; } = new();
+    private int DaysInMonth => AttendanceVM.MonthId > 0 ? DateTime.DaysInMonth(AttendanceVM.Year, AttendanceVM.MonthId) : 0;
+
+    private List<MonthItem> Month = Enumerable.Range(1, 12)
+        .Select(m => new MonthItem
+        {
+            Id = m,
+            Name = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)
+        })
+        .ToList();
+
+    private InputFile excelInputFile;
+    private IBrowserFile SelectedFile;
+    private string SelectedFileName;
+    private List<string> SheetNames = new();
+    private string SelectedSheet;
+    private BiometricExcelSetting biometricExcelSetting { get; set; } = new();
+
+    private List<int> Days = new();
+    private int SelectedEmployeeId { get; set; }
+    public List<Staff> AllEmployees { get; set; } = new();
+    public List<Staff> FilteredEmployees { get; set; } = new();
+    private int selectedMonthId = 1;
+    private string selectedMonthName => System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(selectedMonthId);
+    // private string _selectedEmployeeType = "Trainee";
+    private string _selectedEmployeeType = "";
+    private string SelectedEmployeeType
+    {
+        get => _selectedEmployeeType;
+        set
+        {
+            if (_selectedEmployeeType != value)
+            {
+                _selectedEmployeeType = value;
+                _ = InvokeAsync(LoadEmployeesAndBuildGrid);
+            }
+        }
+    }
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    private bool IsLeaveModalVisible = false;
+    private List<EmployeeLeaveBalance> LeaveHistoryList = new();
+    private int SelectedStaffId;
+    private List<Dictionary<string, object>>? LeaveData;
+    private List<string> LeaveColumns = new() { "Employee ID", "Leave Allocated", "Leave Taken", "Leave Remaining" };
+    private List<string> LeaveFields = new() { "EmployeeID", "TotalAllocatedLeave", "LeavesTaken", "Balance" };
+    private List<string> LeaveHiddenColumns = new() { "", "", "" };
+
+    private List<(int Id, string Name)> Months = new()
+    {
+        (1, "January"),(2, "February"),(3, "March"),(4, "April"),(5, "May"),(6, "June"),(7, "July"),
+        (8, "August"),(9, "September"),(10, "October"),(11, "November"),(12, "December")
+    };
+
+    private List<PageHeader.BreadcrumbItem> AttendanceFormBreadcrumbs = new()
+    {
+        new() { Text = "Human-Resource" },
+        new() { Text = "Attendance", IsLast = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            biometricExcelSetting = await biometricExcelSettingService.GetBiometricExcelSetAsync();
+
+            // Ensure ViewModel exists
+            AttendanceVM ??= new AttendanceVM();
+
+            if (Id.HasValue)
+            {
+                // Edit Mode
+                AttendanceVM = await _attendanceService.GetAttendanceByIdAsync(Id.Value)
+                               ?? new AttendanceVM();
+
+                // Safety defaults
+                if (AttendanceVM.Year <= 0)
+                    AttendanceVM.Year = DateTime.Now.Year;
+
+                if (AttendanceVM.MonthId <= 0)
+                    AttendanceVM.MonthId = DateTime.Now.Month;
+
+                AttendanceVM.TotalDays = DateTime.DaysInMonth(
+                    AttendanceVM.Year,
+                    AttendanceVM.MonthId);
+
+                _selectedEmployeeType = AttendanceVM.Reporting;
+
+                await LoadExistingAttendance(Id.Value);
+            }
+            else
+            {
+                // Create Mode
+                AttendanceVM = new AttendanceVM
+                {
+                    AttendanceSource = "Manual",
+                    Year = DateTime.Now.Year,
+                    MonthId = DateTime.Now.Month,
+                    TotalDays = DateTime.DaysInMonth(
+                        DateTime.Now.Year,
+                        DateTime.Now.Month)
+                };
+
+                _selectedEmployeeType = SelectedEmployeeType;
+            }
+
+            // Build calendar/day headers
+            RebuildDays();
+
+            // Load holidays
+            LoadHolidayCalendar(
+                AttendanceVM.Year,
+                AttendanceVM.MonthId);
+
+            // Load employees
+            Employees = await LoadAllStaff();
+            FilteredEmployees = Employees;
+
+            // Build employee grid
+            BuildEmployeeGridFromFiltered();
+
+            // Load existing attendance details
+            if (Id.HasValue)
+            {
+                var detailRows = await _attendanceService
+                    .GetAttendanceDetailsByAttendanceIdAsync(Id.Value);
+
+                BuildGridFromSavedData(detailRows);
+
+                RestoreHolidayChecks();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Initialization error.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task UpdateAllTimes()
+    {
+        _statusWarningShown = false;
+        _aOrLWarningShown = false;
+        if (AttendanceVM.EmployeeList == null)
+            return;
+
+        foreach (var emp in AttendanceVM.EmployeeList)
+        {
+            foreach (var d in GetVisibleDays())
+            {
+                if (IsFutureDay(d))
+                    continue;
+
+                var status = emp.DailyStatus.TryGetValue(d, out var st) ? st : "";
+
+                // Skip auto-fill for Holiday
+                if (status == "H" || status == "L")
+                {
+                    emp.InTime[d] = "";
+                    emp.OutTime[d] = "";
+                    emp.OT[d] = 0;
+                    continue;
+                }
+
+                // InTime
+                emp.InTime[d] = InTime ?? "";
+
+                // OutTime
+                emp.OutTime[d] = OutTime ?? "";
+
+                // Recalculate if needed
+                await OnTimeChanged(emp, d, true);
+                await OnTimeChanged(emp, d, false);
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ValidateStatus(EmployeeAttendanceRow emp, int day)
+    {
+        var value = emp.DailyStatus[day]?.Trim().ToUpper() ?? "";
+
+        if (!IsValidStatus(value))
+        {
+            emp.DailyStatus[day] = "";
+
+            await _js.ToastrWarning("Invalid attendance code.");
+
+            StateHasChanged();
+            return;
+        }
+
+        // ==========================================
+        // CHECK APPROVED LEAVE FOR THIS DATE
+        // ==========================================
+        bool hasApprovedLeave = await HasApprovedLeaveAsync(emp.StaffId, day);
+
+        if (hasApprovedLeave)
+        {
+            var mapped = MapStatus(value, biometricExcelSetting);
+
+            // Only Leave or Absent is allowed
+            if (mapped != "L" && mapped != "A")
+            {
+                emp.DailyStatus[day] = "";
+
+                await _js.ToastrWarning("Leave is already approved for this date. Only Leave or Absent is allowed.");
+
+                StateHasChanged();
+                return;
+            }
+        }
+
+
+        //leave Balance Validation
+        if (await IsLeaveBalanceExceeded(emp.StaffId, value))
+        {
+            emp.DailyStatus[day] = "";
+
+            await _js.ToastrWarning($"{value} leave balance exceeded.");
+
+            StateHasChanged();
+            return;
+        }
+
+        emp.DailyStatus[day] = value;
+
+        // NEW: If it is any Leave code (SL, CL, EL, LOP...)
+        if (MapStatus(value, biometricExcelSetting) == "L")
+        {
+            emp.InTime[day] = "";
+            emp.OutTime[day] = "";
+            emp.OT[day] = 0;
+        }
+
+        StateHasChanged();
+    }
+
+    private bool IsValidStatus(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+            return true;
+
+        status = status.Trim().ToUpper();
+
+        return IsMatch(status, biometricExcelSetting.P)
+            || IsMatch(status, biometricExcelSetting.A)
+            || IsMatch(status, biometricExcelSetting.L)
+            || IsMatch(status, biometricExcelSetting.H)
+            || IsMatch(status, biometricExcelSetting.W)
+            || IsMatch(status, biometricExcelSetting.O);
+            
+            // || IsMatch(status, biometricExcelSetting.M)
+            // || IsMatch(status, biometricExcelSetting.N);
+    }
+
+    private bool IsMatch(string value, string dbValue)
+    {
+        if (string.IsNullOrWhiteSpace(dbValue))
+            return false;
+
+        return dbValue
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim().ToUpper())
+            .Contains(value.Trim().ToUpper());
+    }
+
+    private string MapStatus(string status, BiometricExcelSetting setting)
+    {
+        if (IsMatch(status, setting.P))
+            return "P";
+
+        if (IsMatch(status, setting.A))
+            return "A";
+
+        if (IsMatch(status, setting.L))
+            return "L";
+
+        if (IsMatch(status, setting.H))
+            return "H";
+
+        if (IsMatch(status, setting.W))
+            return "W";
+
+        // if (IsMatch(status, setting.M))
+        //     return "M";
+
+        // if (IsMatch(status, setting.N))
+        //     return "N";
+
+        if (IsMatch(status, setting.O))
+            return "O";
+
+        return status;
+    }
+
+    private async Task<bool> HasApprovedLeaveAsync(int staffId, int day)
+    {
+        var attendanceDate = new DateTime(
+            AttendanceVM.Year,
+            AttendanceVM.MonthId,
+            day);
+
+        return await _unitOfWork.LeaveApplications
+            .GetQueryable()
+            .AnyAsync(x =>
+                x.EmployeeID == staffId &&
+                x.LeaveStatus == "Approved" &&
+                x.FromDate.Date <= attendanceDate.Date &&
+                x.ToDate.Date >= attendanceDate.Date);
+    }
+
+    private async Task<bool> IsLeaveBalanceExceeded(int employeeId, string status)
+    {
+        status = status?.Trim().ToUpper() ?? "";
+
+        if (string.IsNullOrWhiteSpace(status))
+            return false;
+
+        // Determine whether it's half-day
+        bool isHalfDay = status.StartsWith("1/2");
+
+        // Get actual attendance code
+        string attendanceCode = isHalfDay
+            ? status.Replace("1/2", "")
+            : status;
+
+        // Find Leave Type
+        var leaveType = await leaveTypeService.GetByAttendanceCode(attendanceCode);
+
+        if (leaveType == null)
+            return false;
+
+        // Unpaid leave - no balance validation
+        if (!leaveType.PaidLeave && leaveType.DeductSalary)
+            return false;
+
+        var balance = await leaveBalanceService.GetBalanceAsync(
+            employeeId,
+            leaveType.LeaveTypeId,
+            AttendanceVM.Year);
+
+        if (balance == null)
+            return true;
+
+        decimal used = 0m;
+
+        var employee = AttendanceVM.EmployeeList
+            .FirstOrDefault(x => x.StaffId == employeeId);
+
+        if (employee == null)
+            return true;
+
+        foreach (var value in employee.DailyStatus.Values)
+        {
+            string s = (value ?? "").Trim().ToUpper();
+
+            // Full-day leave
+            if (s == attendanceCode)
+            {
+                used += 1m;
+            }
+            // Half-day leaveUpdateLeaveBalanceFromAttendanceAsync
+            else if (s.StartsWith("1/2") &&
+                     s.Substring(3).Equals(attendanceCode, StringComparison.OrdinalIgnoreCase))
+            {
+                used += 0.5m;
+            }
+        }
+        
+
+        return used > balance.Balance;
+    }
+
+    private async Task LoadExistingAttendance(int attendanceId)
+    {
+        try
+        {
+            isProcessing = true;
+            _isLoadingExistingAttendance = true;
+
+            AttendanceVM = await _attendanceService.GetAttendanceByIdAsync(attendanceId);
+
+            AttendanceVM.TotalDays = DateTime.DaysInMonth(AttendanceVM.Year, AttendanceVM.MonthId);
+
+            // ✅ LOAD CALENDAR FIRST
+            LoadHolidayCalendar(AttendanceVM.Year, AttendanceVM.MonthId);
+
+            _selectedEmployeeType = AttendanceVM.Reporting;
+
+            var detailRows = await _attendanceService
+                .GetAttendanceDetailsByAttendanceIdAsync(attendanceId);
+
+
+            //BuildEmployeeGridFromFiltered();
+
+            BuildGridFromSavedData(detailRows);
+
+            RestoreHolidayChecks();
+            RestoreSelectedStatusFromGrid();
+        }
+        finally
+        {
+            _isLoadingExistingAttendance = false;
+            isProcessing = false;
+        }
+    }
+
+    private DateTime? ParseTime(string time)
+    {
+        if (string.IsNullOrWhiteSpace(time))
+            return null;
+
+        if (DateTime.TryParseExact(
+            time,
+            "HH:mm",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var result))
+        {
+            return DateTime.Today.Add(result.TimeOfDay);
+        }
+
+        return null;
+    }
+
+    private void RebuildDays()
+    {
+        Days = Enumerable.Range(1, AttendanceVM.TotalDays).ToList();
+    }
+
+    private async Task OnMonthChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e?.Value?.ToString(), out int monthId))
+        {
+            AttendanceVM.MonthId = monthId;
+
+            if (AttendanceVM.Year <= 0)
+                AttendanceVM.Year = DateTime.Now.Year;
+
+            await ApplyMonthYearChange();
+        }
+    }
+
+    private void BuildGridFromSavedData(List<AttendanceVM> dbRows)
+    {
+        var activeIds = Employees.Select(x => x.StaffID).ToHashSet();
+
+        AttendanceVM.EmployeeList = new List<EmployeeAttendanceRow>();
+
+        foreach (var s in dbRows)
+        {
+            // 🔥 BLOCK INACTIVE STAFF
+            if (!activeIds.Contains(s.StaffId))
+                continue;
+
+            var staffMaster = Employees.FirstOrDefault(x => x.StaffID == s.StaffId);
+
+            var row = new EmployeeAttendanceRow
+            {
+                StaffId = s.StaffId,
+                Name = s.StaffName,
+                WorkingHrs = s.WorkingHrs,
+                AttendanceSource = s.AttendanceSource,
+
+                // ✅ FIXED: TAKE FROM MASTER STAFF (MOST RELIABLE)
+                OtCount = staffMaster?.OtCount ?? false,
+                DailyStatus = new(),
+                InTime = new(),
+                OutTime = new(),
+                OT = new()
+            };
+
+            for (int d = 1; d <= AttendanceVM.TotalDays; d++)
+            {
+                row.DailyStatus[d] = "";
+                row.InTime[d] = "";
+                row.OutTime[d] = "";
+                row.OT[d] = 0m;
+            }
+
+            var statusArr = (s.Ldetail ?? "").Split(',');
+            var inArr = (s.InTime ?? "").Split(',');
+            var outArr = (s.OutTime ?? "").Split(',');
+            var otArr = (s.OtDetail ?? "").Split(',');
+
+            for (int d = 1; d <= AttendanceVM.TotalDays; d++)
+            {
+                if (d <= statusArr.Length)
+                    row.DailyStatus[d] = statusArr[d - 1];
+
+                if (d <= inArr.Length)
+                    row.InTime[d] = inArr[d - 1];
+
+                if (d <= outArr.Length)
+                    row.OutTime[d] = outArr[d - 1];
+
+                if (d <= otArr.Length &&
+                    decimal.TryParse(otArr[d - 1], out var ot))
+                {
+                    row.OT[d] = ot;
+                }
+            }
+
+            AttendanceVM.EmployeeList.Add(row);
+        }
+    }
+
+
+    private void RestoreSelectedStatusFromGrid()
+    {
+        if (AttendanceVM.EmployeeList == null || !AttendanceVM.EmployeeList.Any())
+            return;
+
+        // Take first non-empty, non-holiday status
+        SelectedStatus = AttendanceVM.EmployeeList
+            .SelectMany(e => e.DailyStatus.Values)
+            .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s) && s != "H")
+            ?? "";
+    }
+
+    private void RestoreHolidayChecks()
+    {
+        if (AttendanceVM?.EmployeeList == null || !AttendanceVM.EmployeeList.Any())
+            return;
+
+        foreach (var group in AttendanceVM.CalendarHolidayList)
+        {
+            foreach (var day in group.Days)
+            {
+                day.IsChecked = AttendanceVM.EmployeeList.Any(emp =>
+                    emp.DailyStatus.TryGetValue(day.Day, out var status) &&
+                    MapStatus(status, biometricExcelSetting) == "H");
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private decimal CalculateOT(string inTimeStr, string outTimeStr, decimal minimumWorkingHrs)
+    {
+        var inTime = ParseTime(inTimeStr);
+        var outTime = ParseTime(outTimeStr);
+
+        if (!inTime.HasValue || !outTime.HasValue)
+            return 0;
+
+        var actualIn = inTime.Value;
+        var actualOut = outTime.Value;
+
+        // Night shift support
+        if (actualOut < actualIn)
+            actualOut = actualOut.AddDays(1);
+
+        var workedHours = (decimal)(actualOut - actualIn).TotalHours;
+
+        var ot = workedHours - minimumWorkingHrs;
+        return ot > 0 ? Math.Round(ot, 2) : 0;
+    }
+
+    private static decimal ParseWorkingHours(string? workingHrs)
+    {
+        if (string.IsNullOrWhiteSpace(workingHrs))
+            return 0;
+
+        // HH:mm format (e.g., "08:00")
+        if (TimeSpan.TryParse(workingHrs, out var ts))
+            return (decimal)ts.TotalHours;
+
+        // Plain number format (e.g., "7.5")
+        if (decimal.TryParse(workingHrs, NumberStyles.Number, CultureInfo.InvariantCulture, out var hrs))
+            return hrs;
+
+        return 0;
+    }
+
+    private async Task OnEmployeeTypeChanged(string value)
+    {
+        SelectedEmployeeType = value;
+        await LoadEmployeesAndBuildGrid();
+    }
+   
+    private async Task LoadEmployeesAndBuildGrid()
+    {
+        AttendanceVM.EmployeeList = new List<EmployeeAttendanceRow>();
+
+        Employees = await LoadAllStaff();
+        FilteredEmployees = Employees;
+
+        if (AttendanceVM.MonthId <= 0 || AttendanceVM.Year <= 0)
+        {
+            BuildEmployeeGridFromFiltered();
+            StateHasChanged();
+            return;
+        }
+
+        var detailRows = await _attendanceService
+            .GetAttendanceByMonthYearAsync(
+                AttendanceVM.MonthId,
+                AttendanceVM.Year,
+                SelectedEmployeeType);
+
+        // 🔥 Keep only active staff attendance
+        var activeIds = Employees.Select(x => x.StaffID).ToHashSet();
+
+        detailRows = detailRows
+            .Where(x => activeIds.Contains(x.StaffId))
+            .ToList();
+
+        if (detailRows.Any())
+        {
+            BuildGridFromSavedData(detailRows);
+            RestoreHolidayChecks();
+        }
+        else
+        {
+            BuildEmployeeGridFromFiltered();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task OnHeaderDoubleClick(int day)
+    {
+        if (IsFutureMonth())
+        {
+            await _js.ToastrWarning("You cannot enter attendance for future month");
+            return;
+        }
+
+        if (IsFutureDay(day))
+        {
+            await _js.ToastrWarning("Future date not allowed");
+            return;
+        }
+        string status = string.IsNullOrWhiteSpace(SelectedStatus) ? "P" : SelectedStatus;
+       
+        // Check Approved Leave
+        List<string> skippedEmployees = new();
+
+        foreach (var emp in AttendanceVM.EmployeeList)
+        {
+            bool hasApprovedLeave = await HasApprovedLeaveAsync(emp.StaffId, day);
+
+            if (hasApprovedLeave)
+            {
+                var mapped = MapStatus(status, biometricExcelSetting);
+
+                if (mapped != "L" && mapped != "A")
+                {
+                    skippedEmployees.Add(emp.Name);
+                    continue;
+                }
+            }
+
+            emp.DailyStatus[day] = IsHoliday(day) ? "H" : status;
+
+            if (MapStatus(emp.DailyStatus[day], biometricExcelSetting) == "L")
+            {
+                emp.InTime[day] = "";
+                emp.OutTime[day] = "";
+                emp.OT[day] = 0;
+            }
+        }
+
+        if (skippedEmployees.Any())
+        {
+            await _js.ToastrWarning(
+                $"Approved leave exists for: {string.Join(", ", skippedEmployees)}.");
+        }
+
+        SyncHolidayFromGrid(day);
+    }
+
+    private string GetInTime(EmployeeAttendanceRow emp, int day)
+    {
+        return emp.InTime.TryGetValue(day, out var v) ? v : "";
+    }
+
+    private string GetOutTime(EmployeeAttendanceRow emp, int day)
+    {
+        return emp.OutTime.TryGetValue(day, out var v) ? v : "";
+    }
+
+
+    private async Task OnTimeChanged(EmployeeAttendanceRow emp, int day, bool isInTime)
+    {
+        // MONTH VALIDATION
+        if (AttendanceVM.MonthId <= 0)
+        {
+            await _js.ToastrWarning("Please select month first");
+
+            emp.InTime[day] = string.Empty;
+            emp.OutTime[day] = string.Empty;
+
+            StateHasChanged();
+            return;
+        }
+
+        // FUTURE MONTH
+        if (IsFutureMonth())
+        {
+            await _js.ToastrWarning("You cannot enter attendance for future month");
+            return;
+        }
+
+        // FUTURE DAY
+        if (IsFutureDay(day))
+        {
+            await _js.ToastrWarning("Future date attendance is not allowed");
+            return;
+        }
+
+        // STATUS CHECK
+        var status = emp.DailyStatus.TryGetValue(day, out var st) ? st : "";
+        var mappedStatus = MapStatus(status, biometricExcelSetting);
+
+        // Status is mandatory
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            emp.InTime[day] = "";
+            emp.OutTime[day] = "";
+            emp.OT[day] = 0;
+
+            if (!_statusWarningShown)
+            {
+                _statusWarningShown = true;
+                await _js.ToastrWarning("Please fill Attendance Status first.");
+            }
+
+            StateHasChanged();
+            return;
+        }
+
+        // A or L status
+        if (mappedStatus == "A" || mappedStatus == "L")
+        {
+            emp.InTime[day] = "";
+            emp.OutTime[day] = "";
+            emp.OT[day] = 0;
+
+            if (!_aOrLWarningShown)
+            {
+                _aOrLWarningShown = true;
+                await _js.ToastrWarning("In Time and Out Time are not allowed for A or L.");
+            }
+
+            StateHasChanged();
+            return;
+        }
+
+
+        // PICK FIELD
+        var input = isInTime ? emp.InTime[day] : emp.OutTime[day];
+
+        if (!string.IsNullOrWhiteSpace(input))
+        {
+            // Keep only digits
+            var digits = new string(input.Where(char.IsDigit).ToArray());
+
+            // Maximum 4 digits
+            if (digits.Length > 4)
+                digits = digits.Substring(0, 4);
+
+            string formatted = "";
+
+            switch (digits.Length)
+            {
+                case 0:
+                    formatted = "";
+                    break;
+
+                case 1:
+                    formatted = digits;
+                    break;
+
+                case 2:
+                    formatted = digits;
+                    break;
+
+                case 3:
+                    formatted = $"{digits.Substring(0, 2)}:{digits.Substring(2, 1)}";
+                    break;
+
+                case 4:
+                    formatted = $"{digits.Substring(0, 2)}:{digits.Substring(2, 2)}";
+                    break;
+            }
+
+            // Assign formatted value
+            if (isInTime)
+                emp.InTime[day] = formatted;
+            else
+                emp.OutTime[day] = formatted;
+
+            // Don't calculate until full HH:mm entered
+            if (digits.Length < 4)
+            {
+                StateHasChanged();
+                return;
+            }
+
+            // Validate HH:mm
+            if (!TimeSpan.TryParse(formatted, out var ts))
+            {
+                return;
+            }
+
+            if (ts.Hours > 23 || ts.Minutes > 59)
+            {
+                await _js.ToastrWarning("Invalid Time");
+
+                if (isInTime)
+                    emp.InTime[day] = "";
+                else
+                    emp.OutTime[day] = "";
+
+                StateHasChanged();
+                return;
+            }
+        }
+
+        // CALCULATE OT
+        await CalculateOTForDay(emp, day);
+
+        AttendanceVM.BuildCommaDataFromEmployee();
+
+        StateHasChanged();
+    }
+
+
+    private void OnInTimeClick(EmployeeAttendanceRow emp, int day)
+    {
+        if (day > AttendanceVM.TotalDays) return;
+
+        if (!emp.InTime.ContainsKey(day) || string.IsNullOrWhiteSpace(emp.InTime[day]))
+            emp.InTime[day] = "09:00";
+
+        CalculateOTForDay(emp, day);
+        StateHasChanged();
+    }
+
+
+    private async Task CalculateOTForDay(EmployeeAttendanceRow emp, int day)
+    {
+        // Ensure keys exist
+        if (!emp.InTime.ContainsKey(day))
+            emp.InTime[day] = "";
+
+        if (!emp.OutTime.ContainsKey(day))
+            emp.OutTime[day] = "";
+
+        if (!emp.DailyStatus.ContainsKey(day))
+            emp.DailyStatus[day] = "";
+
+        var inTime = emp.InTime[day];
+        var outTime = emp.OutTime[day];
+        var status = emp.DailyStatus[day];
+
+        // For Absent and Leave
+        if (status == "A" || status == "L")
+        {
+            emp.InTime[day] = "";
+            emp.OutTime[day] = "";
+            emp.OT[day] = 0;
+
+            StateHasChanged();
+            return;
+        }
+
+        // If InTime or OutTime is empty, clear OT
+        if (string.IsNullOrWhiteSpace(inTime) || string.IsNullOrWhiteSpace(outTime))
+        {
+            emp.OT[day] = 0;
+            StateHasChanged();
+            return;
+        }
+
+        // Status mandatory
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            emp.InTime[day] = "";
+            emp.OutTime[day] = "";
+            emp.OT[day] = 0;
+
+            await _js.ToastrWarning("Please fill Attendance Status first.");
+            StateHasChanged();
+            return;
+        }
+
+        // Validate times
+        if (!TimeSpan.TryParse(inTime, out var inT) ||
+            !TimeSpan.TryParse(outTime, out var outT))
+        {
+            emp.OT[day] = 0;
+            StateHasChanged();
+            return;
+        }
+
+        bool isHoliday = status == "H";
+
+        // Overnight shift
+        if (outT < inT)
+            outT = outT.Add(TimeSpan.FromDays(1));
+
+        decimal totalHours = (decimal)(outT - inT).TotalHours;
+
+        if (isHoliday)
+        {
+            // Holiday = all hours are OT
+            emp.OT[day] = totalHours;
+        }
+        else
+        {
+            decimal minWorkingHours = ParseWorkingHours(emp.WorkingHrs);
+
+            if (minWorkingHours <= 0)
+            {
+                emp.OT[day] = 0;
+                StateHasChanged();
+                return;
+            }
+
+            emp.OT[day] = Math.Max(0, totalHours - minWorkingHours);
+        }
+
+        StateHasChanged();
+    }
+
+    private string GetOT(EmployeeAttendanceRow emp, int day)
+    {
+        if (!emp.OtCount)
+            return "0";
+
+        return emp.OT.TryGetValue(day, out var ot) && ot > 0
+            ? ot.ToString("0.##")
+            : "";
+    }
+
+    private void OnOutTimeClick(EmployeeAttendanceRow emp, int day)
+    {
+        if (day > AttendanceVM.TotalDays) return;
+
+        if (!emp.OutTime.ContainsKey(day) || string.IsNullOrWhiteSpace(emp.OutTime[day]))
+            emp.OutTime[day] = "18:00";
+
+        CalculateOTForDay(emp, day);
+        StateHasChanged();
+    }
+
+    private void EnsureDayKeys(EmployeeAttendanceRow emp, int day)
+    {
+        if (!emp.DailyStatus.ContainsKey(day))
+            emp.DailyStatus[day] = "";
+
+        if (!emp.InTime.ContainsKey(day))
+            emp.InTime[day] = "";
+
+        if (!emp.OutTime.ContainsKey(day))
+            emp.OutTime[day] = "";
+    }
+
+
+    private void OnHolidayCheckboxChanged(int day, bool isChecked)
+    {
+        // update calendar model
+        foreach (var grp in AttendanceVM.CalendarHolidayList)
+        {
+            var chk = grp.Days.FirstOrDefault(x => x.Day == day);
+            if (chk != null)
+                chk.IsChecked = isChecked;
+        }
+
+        // sync attendance grid
+        foreach (var emp in AttendanceVM.EmployeeList)
+        {
+            emp.DailyStatus[day] = isChecked ? "H" : "";
+        }
+
+        StateHasChanged();
+
+    }
+
+    private async Task OnStatusCellClick(EmployeeAttendanceRow emp, int day)
+    {
+        // Future month
+        if (IsFutureMonth())
+        {
+            await _js.ToastrWarning("You cannot enter attendance for future month.");
+            return;
+        }
+
+        // Future day
+        if (IsFutureDay(day))
+        {
+            await _js.ToastrWarning("Future date attendance is not allowed.");
+            return;
+        }
+
+        // Status not selected
+        if (string.IsNullOrWhiteSpace(SelectedStatus))
+        {
+            await _js.ToastrWarning("Please select status P/H/W first.");
+            return;
+        }
+
+        string status = SelectedStatus;
+
+        if (IsHoliday(day))
+            emp.DailyStatus[day] = "H";
+        else
+            emp.DailyStatus[day] = status;
+
+        StateHasChanged();
+    }
+
+    private bool IsHoliday(int day)
+    {
+        return AttendanceVM.CalendarHolidayList
+            .Any(g => g.Days.Any(dd => dd.Day == day && dd.IsChecked));
+    }
+
+    private void SyncHolidayFromGrid(int day)
+    {
+        bool anyHoliday = AttendanceVM.EmployeeList
+            .Any(e => e.DailyStatus.ContainsKey(day) && e.DailyStatus[day] == "H");
+
+        foreach (var grp in AttendanceVM.CalendarHolidayList)
+        {
+            var chk = grp.Days.FirstOrDefault(x => x.Day == day);
+            if (chk != null)
+            {
+                chk.IsChecked = anyHoliday;
+            }
+        }
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        if (file == null)
+            return;
+
+        await ProcessAttendanceExcelUploadAsync(file);
+    }
+
+    private List<int> FindAllRows(DataTable table, string text)
+    {
+        var rows = new List<int>();
+
+        for (int r = 0; r < table.Rows.Count; r++)
+        {
+            for (int c = 0; c < table.Columns.Count; c++)
+            {
+                var value = GetCell(table.Rows[r], c);
+
+                if (!string.IsNullOrWhiteSpace(value) &&
+                    value.Trim().Equals(text, StringComparison.OrdinalIgnoreCase))
+                {
+                    rows.Add(r);
+                    break;
+                }
+            }
+        }
+
+        return rows;
+    }
+
+    private int FindFirstDayColumn(DataTable table, int headerRow)
+    {
+        for (int c = 0; c < table.Columns.Count; c++)
+        {
+            var val = table.Rows[headerRow][c]?.ToString();
+
+            if (TimeSpan.TryParse(val, out _) || val.Contains(":"))
+            {
+                return c; // first time value column
+            }
+        }
+
+        return -1;
+    }
+
+    private string GetCell(DataRow row, int col)
+    {
+        if (row == null || col < 0 || col >= row.ItemArray.Length)
+            return "";
+
+        return row[col]?.ToString()?.Trim() ?? "";
+    }
+
+    private decimal ConvertOtToDecimal(string otValue)
+    {
+        if (string.IsNullOrWhiteSpace(otValue))
+            return 0;
+
+        if (TimeSpan.TryParse(otValue, out var ts))
+            return (decimal)ts.TotalHours;
+
+        if (decimal.TryParse(otValue, out var dec))
+            return dec;
+
+        return 0;
+    }
+
+
+    private async Task ProcessAttendanceExcelUploadAsync(IBrowserFile file)
+    {
+        try
+        {
+            if (AttendanceVM.Year == 0 || AttendanceVM.MonthId == 0)
+            {
+                await _js.ToastrError("Select Year & Month");
+                return;
+            }
+            var setting = await biometricExcelSettingService.GetBiometricExcelSetAsync();
+            if (setting == null)
+            {
+                await _js.ToastrError("Biometric Excel Settings not configured.");
+                return;
+            }
+            using var stream = file.OpenReadStream(10_000_000);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            using var reader = ExcelReaderFactory.CreateReader(ms);
+            var ds = reader.AsDataSet();
+            if (ds.Tables.Count == 0)
+            {
+                await _js.ToastrError("Excel file is empty.");
+                return;
+            }
+            var table = ds.Tables[0];
+
+            // ============================
+            // Validate Excel Month & Year
+            // ============================
+
+            string excelDateValue = GetCell(
+                table.Rows[setting.MonthDateRow],
+                setting.MonthDateColumn);
+
+            if (string.IsNullOrWhiteSpace(excelDateValue))
+            {
+                await _js.ToastrError("Month/Date cell is empty in the Excel file.");
+                return;
+            }
+
+            // Example Cell:
+            // Attendance Report From Date: 01/01/2026 To Date: 31/01/2026
+
+            var matches = Regex.Matches(
+                excelDateValue,
+                @"\b\d{1,2}/\d{1,2}/\d{4}\b");
+
+            if (matches.Count == 0)
+            {
+                await _js.ToastrError("Unable to find the attendance month in the Excel file.");
+                return;
+            }
+
+            // Take the first date (From Date)
+            if (!DateTime.TryParse(matches[0].Value, out DateTime excelDate))
+            {
+                await _js.ToastrError("Invalid attendance date found in the Excel file.");
+                return;
+            }
+
+            // Compare with selected Month & Year
+            if (excelDate.Month != AttendanceVM.MonthId ||
+                excelDate.Year != AttendanceVM.Year)
+            {
+                await _js.ToastrError(
+                    $"Selected Month/Year ({AttendanceVM.MonthId}/{AttendanceVM.Year}) does not match Excel ({excelDate:MMMM yyyy}).");
+
+                return;
+            }
+
+            List<int> inTimeRows = new();
+
+            if (setting.InTimeNameStartRow > 0)
+            {
+                int labelCol = 0;   // Column where "InTime" is present
+
+                for (int r = setting.InTimeNameStartRow; r < table.Rows.Count; r++)
+                {
+                    string value = GetCell(table.Rows[r], labelCol);
+
+                    if (value.Trim().Equals(setting.InTimeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        inTimeRows.Add(r);
+                    }
+                }
+            }
+            else
+            {
+                inTimeRows = FindAllRows(table, setting.InTimeName);
+            }
+
+            if (inTimeRows == null || inTimeRows.Count == 0)
+            {
+                await _js.ToastrError("InTime row not found.");
+                return;
+            }
+
+            int startCol = setting.InTimeDataStartCol;
+            AttendanceVM.EmployeeList = new List<EmployeeAttendanceRow>();
+            // GET EMPLOYEE CODE FROM EXCEL
+            // // LOAD ATTENDANCE
+
+            // // WORKING HOURS
+
+            int totalDays = DateTime.DaysInMonth(AttendanceVM.Year, AttendanceVM.MonthId);
+
+            AttendanceVM.TotalDays = totalDays;
+
+            foreach (int inTimeRow in inTimeRows)
+            {
+                int employeeRow = inTimeRow + setting.EmpCodeIndexFromInTime; // -2
+                int outTimeRow = inTimeRow + setting.OutTimeIndexFromInTime;
+                int statusRow = inTimeRow + setting.StatusNameIndexFromInTime;
+                int otRow = inTimeRow + setting.OTNameIndexFromInTime;
+                int workHourRow = inTimeRow + setting.TotalWorkHrsIndexFromInTime;
+
+                int employeeCol = setting.EmpIdColIndex;
+
+                if (employeeRow < 0 || employeeRow >= table.Rows.Count)
+                    continue;
+
+                string employeeCode = GetCell(table.Rows[employeeRow], employeeCol)?.Trim() ?? "";
+
+                Match match = Regex.Match(employeeCode, @"\d+");
+                employeeCode = match.Success ? match.Value : "";
+
+                // ============================
+                // Employee Code
+                // ============================
+                if (string.IsNullOrWhiteSpace(employeeCode))
+                    continue;
+
+                // ============================
+                // Find Staff
+                // ============================
+
+                var staff = await _unitOfWork.Staffs.GetQueryable()
+                    .FirstOrDefaultAsync(x =>
+                        x.StaffRefId == employeeCode ||
+                        x.StaffID.ToString() == employeeCode);
+
+                if (staff == null)
+                {
+                    await _js.ToastrWarning($"Staff not found : {employeeCode}");
+                    continue;
+                }
+
+                // ============================
+                // Create Employee
+                // ============================
+
+                var emp = new EmployeeAttendanceRow
+                {
+                    StaffId = staff.StaffID,
+                    StaffRefId = staff.StaffRefId,
+                    Name = staff.StaffName,
+                    Reporting = staff.Reporting,
+                    AttendanceSource = "Excel",
+                    WorkingHrs = staff.WorkingHrs,
+                    OtCount = staff.OtCount
+                };
+
+                // ============================
+                // Initialize Days
+                // ============================
+
+                for (int d = 1; d <= totalDays; d++)
+                {
+                    emp.InTime[d] = "";
+                    emp.OutTime[d] = "";
+                    emp.OT[d] = 0;
+                    emp.DailyStatus[d] = "";
+                }
+
+                // ============================
+                // Load Attendance
+                // ============================
+
+                for (int day = 1; day <= totalDays; day++)
+                {
+                    int col = startCol + (day - 1);
+
+                    if (col >= table.Columns.Count)
+                        break;
+
+                    // In Time
+                    if (inTimeRow < table.Rows.Count)
+                    {
+                        emp.InTime[day] = GetCell(table.Rows[inTimeRow], col);
+                    }
+
+                    // Out Time
+                    if (outTimeRow < table.Rows.Count)
+                    {
+                        emp.OutTime[day] = GetCell(table.Rows[outTimeRow], col);
+                    }
+
+                    // OT
+                    if (otRow < table.Rows.Count)
+                    {
+                        emp.OT[day] = ConvertOtToDecimal(GetCell(table.Rows[otRow], col));
+                    }
+
+                    // Status
+                    if (statusRow < table.Rows.Count)
+                    {
+                        string excelStatus = GetCell(table.Rows[statusRow], col).Trim();
+
+                        if (!IsValidStatus(excelStatus))
+                        {
+                            await _js.ToastrError(
+                                $"Attendance status '{excelStatus}' is not configured in Biometric Excel Settings.");
+
+                            return;
+                        }
+
+                        // Use mapped status only for leave balance check
+                        string mappedStatus = MapStatus(excelStatus, setting);
+
+                        if (!await IsLeaveBalanceExceeded(emp.StaffId, mappedStatus))
+                        {
+                            // Store the ORIGINAL Excel value
+                            emp.DailyStatus[day] = excelStatus;
+                        }
+                        else
+                        {
+                            emp.DailyStatus[day] = "";
+
+                            await _js.ToastrWarning(
+                                $"Employee {emp.Name}: {excelStatus} leave balance exceeded on {day}.");
+                        }
+                    }
+                }
+
+                // ============================
+                // Working Hours
+                // ============================
+
+                if (workHourRow < table.Rows.Count)
+                {
+                    emp.WorkingHrs = string.Join(",",
+                        Enumerable.Range(1, totalDays)
+                            .Select(d =>
+                            {
+                                int col = startCol + (d - 1);
+
+                                return col < table.Columns.Count
+                                    ? GetCell(table.Rows[workHourRow], col)
+                                    : "";
+                            }));
+                }
+
+                // ============================
+                // Add Employee
+                // ============================
+
+                AttendanceVM.EmployeeList.Add(emp);
+            }
+            // BIND GRID
+
+            //AttendanceVM.EmployeeList = new List<EmployeeAttendanceRow> { emp };
+            await InvokeAsync(StateHasChanged);
+            await _js.ToastrSuccess("Excel uploaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+            await _js.ToastrError($"Upload failed : {ex.Message}");
+        }
+    }
+
+    private async Task OnYearChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e?.Value?.ToString(), out int year))
+        {
+            AttendanceVM.Year = year;
+
+            if (AttendanceVM.MonthId <= 0)
+                AttendanceVM.MonthId = DateTime.Now.Month;
+
+            await ApplyMonthYearChange();
+        }
+    }
+
+
+    private async Task ApplyMonthYearChange()
+    {
+        AttendanceVM.EmployeeList = new List<EmployeeAttendanceRow>();
+
+        AttendanceVM.TotalDays =
+            DateTime.DaysInMonth(AttendanceVM.Year, AttendanceVM.MonthId);
+
+        LoadHolidayCalendar(AttendanceVM.Year, AttendanceVM.MonthId);
+        RebuildDays();
+
+        Employees = await LoadAllStaff();
+        FilteredEmployees = Employees;
+
+        StateHasChanged();
+
+        var detailRows = await _attendanceService
+            .GetAttendanceByMonthYearAsync(
+                AttendanceVM.MonthId,
+                AttendanceVM.Year,
+                SelectedEmployeeType);
+
+        var activeIds = Employees.Select(x => x.StaffID).ToHashSet();
+
+        detailRows = detailRows
+            .Where(x => activeIds.Contains(x.StaffId))
+            .ToList();
+
+        if (detailRows.Any())
+        {
+            BuildGridFromSavedData(detailRows);
+            RestoreHolidayChecks();
+            RestoreSelectedStatusFromGrid();
+        }
+        else
+        {
+            BuildEmployeeGridFromFiltered();
+        }
+
+        StateHasChanged();
+    }
+
+    private bool IsFutureMonth()
+    {
+        var today = DateTime.Today;
+
+        //Prevent invalid DateTime
+        if (AttendanceVM.Year <= 0 || AttendanceVM.MonthId <= 0)
+            return false;
+
+        var selected = new DateTime(AttendanceVM.Year, AttendanceVM.MonthId, 1);
+        var current = new DateTime(today.Year, today.Month, 1);
+
+        return selected > current;
+    }
+
+    private bool IsCurrentMonth()
+    {
+        var today = DateTime.Today;
+
+        if (AttendanceVM.Year <= 0 || AttendanceVM.MonthId <= 0)
+            return false;
+
+        return AttendanceVM.Year == today.Year &&
+               AttendanceVM.MonthId == today.Month;
+    }
+
+    private bool IsFutureDay(int day)
+    {
+        var today = DateTime.Today;
+
+        //Block entire future month
+        if (IsFutureMonth())
+            return true;
+
+        //Block future days in current month
+        if (IsCurrentMonth() && day > today.Day)
+            return true;
+
+        //Past months fully allowed
+        return false;
+    }
+
+    private IEnumerable<int> GetVisibleDays()
+    {
+        var today = DateTime.Today;
+
+        // Future month → show but disabled
+        if (IsFutureMonth())
+            return Days.Where(d => d <= AttendanceVM.TotalDays);
+
+        // Current month → show till today only
+        if (IsCurrentMonth())
+            return Days.Where(d => d <= today.Day);
+
+        // Past months → full
+        return Days.Where(d => d <= AttendanceVM.TotalDays);
+    }
+
+    private async Task OnStaffChangedHandler(ChangeEventArgs e)
+    {
+        try
+        {
+            LeaveHistoryList.Clear();
+
+            if (int.TryParse(e?.Value?.ToString(), out var id))
+            {
+                // Store selected employee id
+                SelectedStaffId = id;
+
+                // Configure confirmation modal
+                ModalTitle = "Are you sure you want to view the Employee Leave Status?";
+                btnColor = "btn-primary";
+                btnText = "Yes, View";
+                confirmation = "ViewLeaveStatus";
+                showCancelReasonBox = false;
+
+                // Show confirmation popup
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "Error loading leave history.");
+
+            await _js.ToastrError(
+                "Failed to load leave history.");
+        }
+    }
+
+    #region === Modal Management ===
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            switch (confirmation)
+            {
+                case "ViewLeaveStatus":
+                    await ConfirmViewLeaveStatus();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Modal confirmation error");
+            await _js.ToastrError("Something went wrong");
+        }
+    }
+
+    private async Task ConfirmViewLeaveStatus()
+    {
+        try
+        {
+            HighlightedStaffId = SelectedStaffId;
+
+            var selectedEmployee = AttendanceVM.EmployeeList
+                .FirstOrDefault(x => x.StaffId == SelectedStaffId);
+
+            AttendanceVM.StaffId = SelectedStaffId;
+            AttendanceVM.StaffName = selectedEmployee?.Name;
+
+            LeaveHistoryList = await leaveApplicationService.GetLeaveHistoryByStaffIdAsync(SelectedStaffId);
+
+            IsLeaveModalVisible = true;
+
+            await LoadEmployeesAndBuildGrid();
+
+            // 🔥 ABSOLUTE FINAL OVERRIDE (IMPORTANT)
+            AttendanceVM.EmployeeList = AttendanceVM.EmployeeList
+                .OrderByDescending(x => x.StaffId == SelectedStaffId)
+                .ToList();
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading leave status");
+            await _js.ToastrError("Failed to load leave status");
+        }
+    }
+    #endregion
+
+    private void CloseLeaveModal()
+    {
+        IsLeaveModalVisible = false;
+    }
+
+    private void LoadHolidayCalendar(int year, int month)
+    {
+        AttendanceVM.CalendarHolidayList = Enumerable.Range(1, DateTime.DaysInMonth(year, month))
+            .GroupBy(d => new DateTime(year, month, d).DayOfWeek)
+            .Select(g => new WeekDayGroup
+            {
+                WeekDay = g.Key,
+                Days = g.Select(d => new DayCheck
+                {
+                    Day = d,
+                    IsChecked = false,
+                    OnChanged = OnHolidayCheckboxChanged
+                }).ToList()
+            }).ToList();
+    }
+
+    private void BuildEmployeeGridFromFiltered()
+    {
+        var rows = Employees.Select(s =>
+        {
+            var row = new EmployeeAttendanceRow
+            {
+                StaffId = s.StaffID,
+                StaffRefId = s.StaffRefId,
+                Name = s.StaffName,
+                WorkingHrs = s.WorkingHrs,
+                AttendanceSource = AttendanceVM.AttendanceSource,
+                DailyStatus = new(),
+                InTime = new(),
+                OutTime = new(),
+                OT = new()
+            };
+
+            for (int d = 1; d <= AttendanceVM.TotalDays; d++)
+            {
+                row.DailyStatus[d] = "";
+                row.InTime[d] = "";
+                row.OutTime[d] = "";
+                row.OT[d] = 0m;
+            }
+
+            return row;
+        }).ToList();
+
+        AttendanceVM.EmployeeList = rows;
+    }
+
+    private async Task<List<Staff>> LoadAllStaff()
+    {
+        var staffList = await _unitOfWork.Staffs.GetAllAsync();
+
+        return staffList
+            .Where(x =>
+                string.Equals(x.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(x.Reporting) &&
+                string.Equals(x.Reporting, _selectedEmployeeType, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.StaffName)
+            .Select(x => new Staff
+            {
+                StaffID = x.StaffID,
+                StaffName = x.StaffName,
+                WorkingHrs = x.WorkingHrs,
+                Status = x.Status,
+                OtCount = x.OtCount
+            })
+            .ToList();
+    }
+
+    private bool IsFutureDate(int day)
+    {
+        if (AttendanceVM.Year <= 0 || AttendanceVM.MonthId <= 0)
+            return false;
+
+        int maxDay = DateTime.DaysInMonth(AttendanceVM.Year, AttendanceVM.MonthId);
+
+        if (day < 1 || day > maxDay)
+            return false;
+
+        var date = new DateTime(AttendanceVM.Year, AttendanceVM.MonthId, day);
+
+        return date.Date > DateTime.Today;
+    }
+
+    private async Task UpsertAttendance()
+    {
+        try
+        {
+            isProcessing = true;
+
+            var master = new AttendanceVM
+            {
+                Id = AttendanceVM.Id,
+                Year = AttendanceVM.Year,
+                MonthId = AttendanceVM.MonthId,
+                Reporting = SelectedEmployeeType,
+                CreatedDate = DateTime.Now,
+                BioMetricId = AttendanceVM.BioMetricId,
+                AttendanceSource = AttendanceVM.AttendanceSource,
+                TotalDays = AttendanceVM.TotalDays
+            };
+
+            var detailRows = new List<AttendanceVM>();
+
+            foreach (var emp in AttendanceVM.EmployeeList)
+            {
+                for (int d = 1; d <= master.TotalDays; d++)
+                {
+                    // Ignore future dates
+                    if (IsFutureDate(d))
+                        continue;
+
+                    string inTime = emp.InTime.TryGetValue(d, out var it)
+                        ? (it ?? "").Trim()
+                        : "";
+
+                    string outTime = emp.OutTime.TryGetValue(d, out var ot)
+                        ? (ot ?? "").Trim()
+                        : "";
+
+                    string status = emp.DailyStatus.TryGetValue(d, out var st)
+                        ? st
+                        : "";
+
+                    // Upload mode:
+                    // If status is empty, derive it from In/Out.
+                    if (AttendanceVM.AttendanceSource != "Manual")
+                    {
+                        if (string.IsNullOrWhiteSpace(status))
+                        {
+                            status = (!string.IsNullOrWhiteSpace(inTime) &&
+                                      !string.IsNullOrWhiteSpace(outTime))
+                                        ? "P"
+                                        : "";
+                        }
+                    }
+
+                    status = status?.Trim().ToUpper() ?? "";
+
+
+                    if (string.IsNullOrWhiteSpace(status))
+                        status = "";
+
+                    // Check leave balance
+                    //Pooja commented for multiple emp upload
+                    if (await IsLeaveBalanceExceeded(emp.StaffId, status))
+                    {
+                        await _js.ToastrWarning(
+                            $"{emp.Name} does not have enough {status} balance (Day {d}).");
+
+                        isProcessing = false;
+                        return;
+                    }
+                   
+                    if (MapStatus(status, biometricExcelSetting) == "P")
+                    {
+                        if (string.IsNullOrWhiteSpace(inTime) ||
+                            string.IsNullOrWhiteSpace(outTime))
+                        {
+                            await _js.ToastrWarning(
+                                $"Missing In/Out Time for Day {d} - {emp.Name}");
+
+                            return;
+                        }
+                    }
+
+                    // Calculate OT if not already calculated
+                    if (!emp.OT.ContainsKey(d))
+                        emp.OT[d] = 0;
+
+                    if (!string.IsNullOrWhiteSpace(inTime) &&
+                        !string.IsNullOrWhiteSpace(outTime))
+                    {
+                        CalculateOTForDay(emp, d);
+                    }
+
+                    detailRows.Add(new AttendanceVM
+                    {
+                        StaffId = emp.StaffId,
+                        StaffRefId = emp.StaffRefId,
+                        Day = d,
+                        Ldetail = status,
+                        InTime = inTime,
+                        OutTime = outTime,
+                        OtDetail = emp.OT[d].ToString(),
+                        AttendanceSource = AttendanceVM.AttendanceSource
+                    });
+                }
+            }
+            foreach (var emp in AttendanceVM.EmployeeList)
+            {
+                Console.WriteLine($"StaffId={emp.StaffId}");
+                Console.WriteLine($"StaffRefId={emp.StaffRefId}");
+                Console.WriteLine($"Name={emp.Name}");
+            }
+
+            await _attendanceService.UpsertAttendanceAsync(master, detailRows);
+
+            await leaveBalanceService.UpdateLeaveBalanceFromAttendanceAsync(AttendanceVM.Year);
+
+            await _js.ToastrSuccess("Attendance saved successfully.");
+
+            _navigationManager.NavigateTo("/attendanceList");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertAttendance failed.");
+
+            await _js.ToastrError("Error saving attendance.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private string NormalizeStatus(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+            return "A";
+
+        status = status.Trim().ToUpper();
+
+        if (status.Contains("P"))
+            return "P";
+
+        if (status.Contains("L"))
+            return "L";
+
+        if (status.Contains("H"))
+            return "H";
+
+        if (status.Contains("W"))
+            return "W";
+
+        if (status.Contains("O"))
+           return "O";
+
+        if (status.Contains("A"))
+            return "A";
+
+        return "A";
+    }
+
+    private async Task OnLeaveSelectedAsync(List<Dictionary<string, object>> selectedItems)
+    {
+        try
+        {
+            LeaveHistoryList.Clear();
+
+            foreach (var item in selectedItems)
+            {
+                LeaveHistoryList.Add(new EmployeeLeaveBalance
+                {
+                    EmployeeID =
+                        item.ContainsKey("EmployeeID") &&
+                        int.TryParse(
+                            item["EmployeeID"]?.ToString(),
+                            out var empId)
+                        ? empId
+                        : 0,
+
+                    TotalAllocatedLeave =
+                        item.ContainsKey("TotalAllocatedLeave") &&
+                        decimal.TryParse(
+                            item["TotalAllocatedLeave"]?.ToString(),
+                            out var totalLeave)
+                        ? totalLeave
+                        : 0,
+
+                    LeavesTaken =
+                        item.ContainsKey("LeavesTaken") &&
+                        decimal.TryParse(
+                            item["LeavesTaken"]?.ToString(),
+                            out var taken)
+                        ? taken
+                        : 0,
+
+                    Balance =
+                        item.ContainsKey("Balance") &&
+                        decimal.TryParse(
+                            item["Balance"]?.ToString(),
+                            out var balance)
+                        ? balance
+                        : 0
+                });
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(
+                ex,
+                "OnLeaveSelectedAsync failed.");
+
+            await _js.ToastrError(
+                "Error loading leave history.");
+        }
+    }
+
+
+    private async Task HandleArrowKey(
+    KeyboardEventArgs e,
+    int staffId,
+    int day,
+    string rowType)
+    {
+        int row = AttendanceVM.EmployeeList.FindIndex(x => x.StaffId == staffId);
+
+        if (row < 0)
+            return;
+
+        switch (e.Key)
+        {
+            case "ArrowRight":
+                day++;
+                break;
+
+            case "ArrowLeft":
+                day--;
+                break;
+
+            case "ArrowDown":
+                row++;
+                break;
+
+            case "ArrowUp":
+                row--;
+                break;
+
+            default:
+                return;
+        }
+
+        if (row < 0 || row >= AttendanceVM.EmployeeList.Count)
+            return;
+
+        if (day < 1 || day > AttendanceVM.TotalDays)
+            return;
+
+        int newStaffId = AttendanceVM.EmployeeList[row].StaffId;
+
+        await _js.InvokeVoidAsync(
+            "focusAttendanceCell",
+            $"{rowType}-{newStaffId}-{day}");
+    }
+}

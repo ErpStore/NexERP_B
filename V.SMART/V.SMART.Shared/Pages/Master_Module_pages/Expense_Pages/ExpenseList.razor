@@ -1,0 +1,252 @@
+﻿@page "/expense"
+@inherits BaseUserRightsComponent
+@inject IUnitOfWork _unitOfWork
+@inject IJSRuntime _js
+@inject NavigationManager _navigation
+@inject CurrentUserService CurrentUserService
+@inject ILoggingService LoggingService
+
+<BsModal OnModalConfirmation="confirmDelete_Click"
+         ButtonBootstrapStyle="btn-danger"
+         ButtonText="Delete"
+         Title="Are you sure you want to delete this Expense?">
+</BsModal>
+
+@if (isProcessing)
+{
+    <div class="position-absolute w-75 h-75 d-flex flex-column align-items-center bg-white justify-content-center">
+        <img src="/_content/IQSMART.Shared/images/loading.gif" alt="loading.." />
+    </div>
+}
+else
+{
+    if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+                <!-- Card Header -->
+                <PageHeader TitleText="@expenseTitle"
+                            TitleIcon="@expenseIcon"
+                            Breadcrumbs="@expenseBreadcrumbs" />
+
+
+                <div class="card-body">
+                    <!-- Filter Controls -->
+                    <div class="row g-3 align-items-center mb-3">
+                        <div class="col-12 col-md-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <InputText type="text"
+                                       class="form-control border-start-0"
+                                       placeholder="Search By ExpenseName,ExpenseDesc,ExpenseType,CreatedBy"
+                                       @bind-Value="searchText"
+                                       @oninput="e => searchText = e.Value?.ToString()" />
+                            </div>
+                        </div>
+
+                        @if (CanCreate)
+                        {
+                            <div class="col-12 col-md-2 ms-md-auto text-end">
+                                <a href="Expense/create"
+                                   class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                   title="Create new Expense">
+                                    <i class="bi bi-plus-square me-1"></i> Add New Expense
+                                </a>
+                            </div>
+                        }
+                    </div>
+
+                    @if (FilteredExpense.Any())
+                    {
+                        <div class="table-responsive">
+                            <QuickGrid Items="FilteredExpense.AsQueryable()" Class="quickgrid table table-secondary text-lg-center table-bordered">
+                                <PropertyColumn Title="Expense Code" Property="@(c => c.ExpenseCode)" Sortable="true" />
+                                <PropertyColumn Title="Expense Name" Property="@(c => c.ExpenseName)" Sortable="true" />
+                                <PropertyColumn Title="Description" Property="@(c => c.ExpenseDesc)" Sortable="true" />
+                                <PropertyColumn Title="Expense Type" Property="@(c => c.ExpenseType)" Sortable="true" />
+                                <PropertyColumn Title="Created By" Property="@(c => c.CreatedBy)" Sortable="true" />
+                                <PropertyColumn Title="Created Date" Property="@(c => c.CreatedDate)" Format="dd/MM/yyyy" Sortable="true" />
+                                @*<PropertyColumn Title="Modified By" Property="@(c => c.ModifiedBy)" Sortable="true" />
+                            <PropertyColumn Title="Modified Date" Property="@(c => c.ModifiedDate)" Format="dd/MM/yyyy" Sortable="true" /> *@
+
+                                <TemplateColumn Title="Actions" Context="c">
+                                    <div class="d-flex gap-2">
+                                        @if (CanEdit && !c.IsDefault)
+                                        {
+                                            <a href="@($"expense/update/{c.ExpenseCode}")" class="btn btn-sm btn-outline-primary" title="Edit this expense">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </a>
+                                        }
+                                        @if (CanDelete && !c.IsDefault)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDelete(c.ExpenseCode)" title="Delete this expense">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </TemplateColumn>
+                            </QuickGrid>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-center">No Expenses available.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    // User Rights
+    protected override string ScreenName => "Expense";
+
+    private bool isProcessing { get; set; } = true;
+    private int DeleteExpenseId { get; set; } = 0;
+    private IEnumerable<Expense> expense { get; set; } = new List<Expense>();
+    private string searchText = string.Empty;
+
+    private IEnumerable<Expense> FilteredExpense =>
+    string.IsNullOrWhiteSpace(searchText)
+        ? expense
+        : expense.Where(e =>
+            string.IsNullOrWhiteSpace(searchText) ||
+            (e.ExpenseName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (e.ExpenseDesc?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (e.ExpenseType?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (e.CreatedBy?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    private List<PageHeader.BreadcrumbItem> expenseBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Account" },
+        new PageHeader.BreadcrumbItem { Text = "Expense", IsLast = true }
+    };
+
+    private string expenseTitle => "Expense List";
+    private string expenseIcon => "bi bi-cash-stack text-danger";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await LoadExpenses();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error Occured while handling the Expense OnInitializedAsync() Methiod");
+
+        }
+    }
+
+    private async Task LoadExpenses()
+    {
+        try
+        {
+            expense = (await _unitOfWork.Expenses.GetAllAsync()).ToList();
+          
+            if (!expense.Any())
+            {
+                var defaultExpenses = new List<Expense>
+                    {
+                        new Expense { ExpenseName = "PURCHASE" , IsDefault=true },
+                        new Expense { ExpenseName = "PURCHASE ORDER ADVANCE", IsDefault=true },
+                        new Expense { ExpenseName = "SUBCONTRACT" , IsDefault=true},
+                        new Expense { ExpenseName = "SUBCONTRACT ADVANCE" , IsDefault=true},
+                        new Expense { ExpenseName = "SERVICE BILL(IN)" , IsDefault=true},
+                        new Expense { ExpenseName = "SALARY", IsDefault=true },
+                        new Expense { ExpenseName = "SALARY ADVANCE" ,IsDefault=true},
+                    };
+
+                foreach (var e in defaultExpenses)
+                    await _unitOfWork.Expenses.CreateAsync(e);
+
+                await _unitOfWork.SaveAsync();
+
+
+                expense = (await _unitOfWork.Expenses.GetAllAsync()).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An Error occured while handling the Expense LoadExpenses() Method");
+        }
+
+    }
+
+    private async Task HandleDelete(int id)
+    {
+        try
+        {
+            DeleteExpenseId = id;
+
+            var existing = await _unitOfWork.Expenses.GetAsync(id);
+            await LoggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress,
+            screen: "ExpenseList", action: $"Expense Deleted successfully. {(await _unitOfWork.Expenses.GetAsync(DeleteExpenseId))?.ExpenseName ?? "Unknown"}",
+            additionalInfo: $"Expense:{(await _unitOfWork.Expenses.GetAsync(DeleteExpenseId))?.ExpenseName ?? "Unknown"}");
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An Error while occured while handling the expense HandleDelete() Method");
+
+        }
+
+    }
+
+    private async Task confirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (isConfirmed && DeleteExpenseId != 0)
+            {
+                isProcessing = true;
+
+                var deleted = await _unitOfWork.Expenses.DeleteAsync(DeleteExpenseId);
+                if (deleted)
+                {
+                    await LoggingService.LogUserAction(UserName: await CurrentUserService.GetUsernameAsync(), Machine: CurrentUserService.MachineName, IP_Address: CurrentUserService.IpAddress,
+                      screen: "ExpenseList", action: $"Expense Deleted successfully. {(await _unitOfWork.Expenses.GetAsync(DeleteExpenseId))?.ExpenseName ?? "Unknown"}",
+                      additionalInfo: $"Expense:{(await _unitOfWork.Expenses.GetAsync(DeleteExpenseId))?.ExpenseName ?? "Unknown"}");
+                    await _unitOfWork.SaveAsync();
+                    await _js.ToastrSuccess("Expense deleted successfully.");
+                }
+                else
+                {
+                    await _js.ToastrError("Error encountered while deleting Expense.");
+                }
+
+                await LoadExpenses();
+                isProcessing = false;
+            }
+
+            DeleteExpenseId = 0;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An errror Occured while handling the Expense confirmDelete_Click()");
+
+        }
+    }
+
+}

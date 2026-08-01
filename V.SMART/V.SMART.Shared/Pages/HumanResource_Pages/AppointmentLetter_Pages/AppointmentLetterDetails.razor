@@ -1,0 +1,236 @@
+﻿@page "/appointment_Letter/details/{AppointmentId:int}"
+@using V.SMART.Shared.Services.ReportViewer
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IHumanResourceService
+@using V.SMART.Shared.ViewModels.HumanResourceViewModel.AppointmentLetterVM
+
+@inherits BaseUserRightsComponent
+
+@inject IAppointmentLetterService appointmentLetterService
+
+@inject IJSRuntime _js  
+
+@inject ILoggingService _logs
+
+@inject ReportService _reportService
+@inject NavigationManager _navigationManager
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+        return;
+    }
+    else
+    {
+        <div class="container border rounded-3 shadow-sm bg-white my-5 mx-auto p-5" style="max-width: 1000px;">
+
+            <MyCompanyDetails />
+
+            <hr class="border-2 border-primary-subtle mb-4" />
+            <div class="text-center">
+                <h4 class="fw-semibold mt-1">Appointment Letter</h4>
+            </div>
+
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            candidate Details
+                        </div>
+                        <div class="card-body small">
+                            <p><strong>Name:</strong> @(!string.IsNullOrEmpty(AppointmentLetterVM?.Candidatename) ? AppointmentLetterVM.Candidatename : "N/A")</p>
+                            <p><strong>Address:</strong> @(!string.IsNullOrEmpty(AppointmentLetterVM?.Address) ? AppointmentLetterVM.Address : "N/A")</p>
+                            <p><strong>Position:</strong> @(!string.IsNullOrEmpty(AppointmentLetterVM?.Position) ? AppointmentLetterVM.Position : "N/A")</p>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="col-md-6">
+                    <div class="card border-1 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-primary-subtle text-primary fw-semibold">
+                            Appointment Letter Details
+                        </div>
+                        <div class="card-body small">
+                            <p><strong>Appointment No.:</strong> @(!string.IsNullOrEmpty(AppointmentLetterVM?.AppointmentNo) ? $"{AppointmentLetterVM.AppointmentNo} {AppointmentLetterVM.Suffix}" : "N/A")</p>
+                            <p> <strong>Appointment Date:</strong> @AppointmentLetterVM.AppointmentDate.ToString("dd/MM/yyyy") </p>
+                          
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info fw-semibold">
+                    Introdution
+                </div>
+                <div class="card-body small">
+
+                    @*  <textarea class="form-control form-control-sm rounded-3 w-100"
+                              rows="4"
+                              @bind="AppointmentLetterVM.Introduction">
+                     </textarea> *@
+                    <textarea class="form-control form-control-sm rounded-3 w-100"
+                              rows="@GetRows(AppointmentLetterVM.Introduction)"
+                              @bind="AppointmentLetterVM.Introduction"
+                              readonly>
+                            </textarea>
+                </div>
+            </div>
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info fw-semibold">
+                    Body
+                </div>
+                <div class="card-body small">
+                    @if (AppointmentLetterVM?.AppointmentLetterSubVM != null && AppointmentLetterVM.AppointmentLetterSubVM.Any())
+                    {
+                        @foreach (var item in AppointmentLetterVM.AppointmentLetterSubVM)
+                        {
+                            <div class="mb-3">
+                                <div class="fw-bold" style="color:#34A99D">
+                                    @item.Title
+                                </div>
+
+                                <div class="mt-2">
+                                    <textarea class="form-control form-control-sm rounded-3 w-100"
+                              rows="@GetRows(item.Description)"
+                              readonly>@item.Description</textarea>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    else
+                    {
+
+                        <div class="text-center text-muted py-3">
+                            No items found.
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="card border-1 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-info-subtle text-info fw-semibold">
+                    Closing Notes
+                </div>
+                <div class="card-body small">
+                    @*  @AppointmentLetterVM.ClosingNotes *@
+                    <textarea class="form-control form-control-sm rounded-3 w-100"
+                              rows="@GetRows(AppointmentLetterVM.ClosingNotes)"
+                              @bind="AppointmentLetterVM.ClosingNotes"
+                              readonly>
+                                    </textarea>
+                </div>
+            </div>
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="/appointment_Letter" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left-circle"></i> Back To List
+                </a>
+                <a href="@($"/appointment_Letter/update/{AppointmentId}")" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil-square"></i> Modify
+                </a>
+
+                <button class="btn btn-outline-success" @onclick="GenerateAndOpenPdf">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+
+            </div>
+
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Appointment Letter";
+
+    [Parameter]
+    public int AppointmentId { get; set; }
+
+    private string? pdfBase64 { get; set; } = string.Empty;
+
+    public bool isProcessing { get; set; } = true;
+
+    private AppointmentLetterVM AppointmentLetterVM { get; set; } = new AppointmentLetterVM();
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+
+            if (!CanView)
+
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            await GetDetails();
+
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in OnInitializedAsync SalesEnquiry");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    public async Task GetDetails()
+    {
+        try
+        {
+            if (AppointmentId > 0)
+            {
+                var existAppointmentletter = await appointmentLetterService.GetAppointmentLetterDetailsByAppointmentIdAsync(AppointmentId);
+                if (existAppointmentletter != null)
+                {
+                    AppointmentLetterVM = existAppointmentletter;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GetDetails() SalesEnquiry");
+            await _js.ToastrError("An unexpected error occurred while loading GetDetails() in SalesEnquiry.");
+        }
+    }
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+            var pdfBytes = await _reportService.Generate_Report(AppointmentId, "AppointmentLetter.frx", "AppointmentId", false, ScreenName, "Sp_Print_AppointmentLetter");
+
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logs.LogDeveloperError(ex, "Error in GenerateAndOpenPdf SalesEnquiry");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in SalesEnquiry.");
+        }
+    }
+    private int GetRows(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return 4;
+
+        // Count the number of lines
+        return Math.Max(4, text.Split('\n').Length);
+    }
+}

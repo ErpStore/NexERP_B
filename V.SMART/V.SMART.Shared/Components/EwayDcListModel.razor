@@ -1,0 +1,297 @@
+﻿@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IEInvoiceAPI
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.ILabourServices
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IOutSourcingService.ISubContractDcOutservice
+@using V.SMART.Shared.ViewModels.EWayModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.SalesDCVM
+@inherits BaseUserRightsComponent
+
+@inject IMfgDcService mfgDcService
+@inject IMfgInvService mfgInvService
+@inject ILabourDcOutgoingService labDcService
+@inject ISubConDcOutService subconDcService
+
+@inject ILoggingService _logs
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+
+@inject IEWayDatabaseService _ewayDatabaseService
+
+
+
+<!-- SweetAlert -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    window.showUpdateConfirm = async function () {
+        const result = await Swal.fire({
+            title: 'Are you sure you want to generate the E-Way Bill for the selected DC(s)?',
+            text: "Do you want to continue?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes',
+            cancelButtonText: 'No'
+        });
+        return result.isConfirmed;
+    }
+</script>
+
+<div class="d-flex flex-column h-100">
+
+    <!-- Title -->
+    <div class="fw-bold fs-6 text-danger mb-3 border-bottom pb-1">
+        CUSTOMER and SUPPLIER DC LIST
+    </div>
+
+    <!-- Customer Info -->
+    <div class="mb-2">
+        <label class="fw-bold text-secondary">
+            @(DcType == "SubConDc" ? "From Supplier" : "From Customer") :
+        </label>
+        <span class="text-primary fw-bold">@Customer</span>
+    </div>
+
+    <!-- Search -->
+    <input type="text"
+           class="form-control mb-3"
+           placeholder="Search Document No..."
+           @bind="SearchTerm"
+           @bind:event="oninput" />
+
+    <!-- SCROLL AREA -->
+    <div class="flex-grow-1 overflow-auto border rounded"
+         style="min-height:0;">
+
+        <table class="table table-bordered table-hover table-sm align-middle small mb-0">
+            <thead class="table-light sticky-top bg-white">
+                <tr>
+                    <th style="width:40px;">
+                        <input type="checkbox"
+                               checked="@IsAllSelected"
+                               @onchange="ToggleSelectAll" />
+                    </th>
+                    <th style="width:60px;">Sl No</th>
+                    <th>Document No.</th>
+                    <th>Suffix</th>
+                    <th>Document Date</th>
+                    <th>
+                        @(DcType == "SubConDc" ? "Supplier Name" : "Customer Name")
+                    </th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                @if (FilteredData.Any())
+                {
+                    int i = 1;
+                    @foreach (var item in FilteredData)
+                    {
+                        <tr>
+                            <td>
+                                <input type="checkbox"
+                                       @bind="item.Selected" />
+                            </td>
+                            <td>@i</td>
+                            <td>@item.DocNo</td>
+                            <td>@item.Suffix</td>
+                            <td>@item.DocDate.ToString("dd/MM/yyyy")</td>
+                            <td>@item.CustName</td>
+                        </tr>
+                        i++;
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5"
+                            class="text-center text-muted">
+                            No DC found
+                        </td>
+                    </tr>
+                }
+
+
+
+            </tbody>
+        </table>
+
+    </div>
+
+</div>
+
+<!-- Footer -->
+<div class="modal-footer d-flex justify-content-between">
+
+    <!-- Left Side Button -->
+    <button class="btn btn-close-white d-flex flex-column align-items-center"
+            @onclick="ConfirmSelection">
+
+        <img src="/_content/V.SMART.Shared/images/eway.jpg"
+             width="50"
+             height="50"
+             class="img-fluid border-1" />
+
+        <span class="fw-bold mt-1">E-WAY</span>
+
+    </button>
+
+    <!-- Right Side Button -->
+    <button class="btn btn-danger" @onclick="Close">
+        Close
+    </button>
+
+</div>
+
+
+
+@code
+{
+    protected override string ScreenName => "Manufacturing DC";
+    //when subcon dc then CustId becoms vendorcode
+    [Parameter] public int CustId { get; set; }
+    [Parameter] public string Customer { get; set; }
+    [Parameter] public string DcType { get; set; }
+
+
+    [Parameter] public bool isDcListDetailsModelVisible { get; set; } = false;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool isProcessing, isTrasactionmade;
+
+    private List<MfgDcVM> MfgDcVMs { get; set; } = new();
+
+    private List<MfgInvVM> MfgInvVMs { get; set; } = new();
+
+    private List<EWayDocument> MfgDcEways { get; set; } = new();
+
+    private bool IsAllSelected { get; set; }
+
+    private class DictionaryRow
+    {
+        public Dictionary<string, object> Data { get; set; } = new();
+
+        public bool Selected { get; set; } = false;
+    }
+
+    private List<DictionaryRow> WrappedData { get; set; } = new();
+    private string SearchTerm { get; set; } = string.Empty;
+
+    private IEnumerable<EWayDocument> FilteredData =>
+     string.IsNullOrWhiteSpace(SearchTerm)
+         ? MfgDcEways
+         : MfgDcEways.Where(r =>
+             (!string.IsNullOrEmpty(r.DocNo) &&
+              r.DocNo.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
+             ||
+             (!string.IsNullOrEmpty(r.CustName) &&
+              r.CustName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
+         );
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRightsAsync();
+
+        if (!CanView)
+        {
+            _navigationManager.NavigateTo("/access-denied");
+            return;
+        }
+        switch (DcType)
+        {
+            case "MfgDc":
+                MfgDcEways = await mfgDcService.GetMfgDcByCustidAsync(CustId);
+                break;
+
+            case "MfgInv":
+                MfgDcEways = await mfgInvService.GetMfgInvByCustidAsync(CustId);
+                break;
+
+            case "LabourDc":
+                MfgDcEways = await labDcService.GetLabourDcByCustidAsync(CustId);
+                break;
+            case "SubConDc":
+                MfgDcEways = await subconDcService.GetSubConDcByVendorCodeAsync(CustId);
+                break;
+        }
+
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task ConfirmSelection()
+    {
+        try
+        {
+
+            var selectedItems = MfgDcEways.Where(x => x.Selected).ToList();
+
+            if (!selectedItems.Any())
+            {
+                await _js.ToastrWarning("Please select at least one DC No. from the list.");
+                return;
+            }
+
+            bool confirmed = await _js.InvokeAsync<bool>("showUpdateConfirm");
+
+            if (!confirmed)
+                return;
+
+            if (selectedItems.Any())
+            {
+                string DcNo = "";
+                StringBuilder dcNoBuilder = new StringBuilder();
+
+                foreach (var row in selectedItems)
+                {
+
+                    if (dcNoBuilder.Length == 0)
+                    {
+                        dcNoBuilder.Append(row.DocNo);
+                    }
+                    else
+                    {
+                        dcNoBuilder.Append(",").Append(row.DocNo);
+                    }
+
+                }
+                DcNo = dcNoBuilder.ToString();
+                if (DcNo != "")
+                {
+                    await _ewayDatabaseService.GetRequiredDetailsFromDb(DcNo, DcType, false);
+                    await _js.ToastrSuccess("E-Way Bill Successfully Updated");
+                    await Close();
+                    StateHasChanged();
+                }
+
+            }
+
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+           
+        }
+        catch (Exception ex)
+        {
+
+            await _js.InvokeVoidAsync("toastr.error", "ConfirmSelection");
+            await _logs.LogDeveloperError(ex, $"ConfirmSelection DcNo: {CustId}");
+        }
+
+    }
+   
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        IsAllSelected = (bool)e.Value;
+
+        foreach (var row in MfgDcEways)
+        {
+            row.Selected = IsAllSelected;
+        }
+    }
+
+}

@@ -1,0 +1,847 @@
+﻿@page "/candidate" 
+@using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IHRMasterservice
+@using V.SMART.Shared.ViewModels.MasterViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.HumanResourceViewModel
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject IJSRuntime _JS
+@inject IColumnPreferenceService PreferenceService
+@inject CurrentUserService currentUserService
+@inject NavigationManager _navigation
+@inject ICandidateService cadidateService
+
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "InstantSearch")
+    {
+        <InstantSearch isModelVisible="true"
+                       Screen="@ScreenName"
+                       Filters="SearchFilters"
+                       OnClose="CloseModal"
+                       OnSearch="ApplySearchFilters" />
+    }
+</MasterModal>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .quickgrid th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+</style>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+    return;
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="Candidate List"
+                        TitleIcon="bi bi-receipt-cutoff"
+                        Breadcrumbs="@candidateBreadcrumbs" />
+
+            <div class="card-body p-4">
+
+                <div class="row g-2 g-md-3 mb-3">
+                    <!-- Column Settings -->
+                    <div class="col-6 col-md-2">
+                        <ColumnMenu Columns="Columns"
+                                    ScreenName="@ScreenName"
+                                    UserId="@UserName"
+                                    MaxVisible=int.MaxValue
+                                    OnChanged="HandleColumnChange" />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
+                                @onclick='() => OpenModal("InstantSearch")'>
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
+                                @onclick="RefreshPage">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="col-6 col-md-2 text-end">
+                        <select class="form-select form-select-sm shadow-sm w-100"
+                                value="@pageSize"
+                                @onchange="OnPageSizeChanged">
+                            <option value="10" selected>10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm shadow-sm"
+                                value="@selectedStatus"
+                                @onchange="OnStatusChanged"
+                                title="Select item status">
+
+                            <option value="">All</option>
+                            <option value="Active">Active</option>
+                            <option value="In Active">In Active</option>
+                        </select>
+                    </div>
+
+                    @if (CanCreate)
+                    {
+                        <div class="col-6 col-md-2 ms-md-auto text-end">
+                            <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
+                                    @onclick="AddNewQuote">
+                                <i class="bi bi-plus-square me-1"></i> Add New
+                            </button>
+                        </div>
+                    }
+                    
+
+                </div>
+
+                @if (candidateVMs.Any())
+                {
+                    <div class="table-responsive">
+
+                        <QuickGrid Items="candidateVMs.AsQueryable()"
+                                   Class="quickgrid table table-bordered text-wrap">
+
+                            @if (Columns.Any(c => c.IsVisible))
+                            {
+                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                {
+                                    <div>
+
+                                        @switch (col.Field)
+                                        {
+                                            case "CandidateID":
+                                                <PropertyColumn Title="Candidate ID" Property="@(x => x.CandidateID)" />
+                                                break;
+
+                                            case "CandidateName":
+                                                <PropertyColumn Title="Candidate Name" Property="@(x => x.CandidateName)" Sortable="true" />
+                                                break;
+
+                                            case "DOB":
+                                                <PropertyColumn Title="Date Of Birth" Property="@(x => x.DOB)" Format="dd/MM/yyyy" />
+                                                break;
+
+                                            case "Gender":
+                                                <PropertyColumn Title="Gender" Property="@(x => x.Gender)" />
+                                                break;
+
+                                            case "PhoneNo":
+                                                <PropertyColumn Title="Phone No." Property="@(x => x.PhoneNo)" />
+                                                break;
+
+                                            case "Gmail":
+                                                <PropertyColumn Title="Gmail" Property="@(x => x.Gmail)" />
+                                                break;
+
+                                            case "Address":
+                                                <PropertyColumn Title="Address" Property="@(x => x.Address)" />
+                                                break;
+
+                                            case "Qualification":
+                                                <PropertyColumn Title="Qualification" Property="@(x => x.Qualification)" />
+                                                break;
+                                      @* case "Status":
+                                                <PropertyColumn Title="Status" Property="@(x => x.Status)" />
+                                                break;  *@
+                                            case "Status":
+                                                <TemplateColumn Title="Status" Context="item">
+                                                    <span class="@GetStatusBadge(item.Status)">
+                                                        @item.Status
+                                                    </span>
+                                                </TemplateColumn>
+                                                break;
+                                            case "Experience":
+                                                <PropertyColumn Title="Experience" Property="@(x => x.Experience)" />
+                                                break;
+
+                                            case "Skills":
+                                                <PropertyColumn Title="Skills" Property="@(x => x.Skills)" />
+                                                break;
+
+                                            case "Source":
+                                                <PropertyColumn Title="Source" Property="@(x => x.Source)" />
+                                                break;
+
+                                            
+                                            case "Notice_Period":
+                                                <PropertyColumn Title="Notice Period" Property="@(x => x.Notice_Period)" />
+                                                break;
+
+                                            case "Current_Salary":
+                                                <PropertyColumn Title="Current Salary" Property="@(x => x.Current_Salary)" />
+                                                break;
+
+                                            case "Expected_Salary":
+                                                <PropertyColumn Title="Expected Salary" Property="@(x => x.Expected_Salary)" />
+                                                break;
+
+                                            case "Position":
+                                                <PropertyColumn Title="Position" Property="@(x => x.Position)" />
+                                                break;
+
+                                           
+
+                                            case "CreatedBy":
+                                                <PropertyColumn Title="Created By" Property="@(x => x.CreatedBy)" />
+                                                break;
+
+                                            case "CreatedDate":
+                                                <PropertyColumn Title="Created Date" Property="@(x => x.CreatedDate)" />
+                                                break;
+
+                                            case "ModifiedBy":
+                                                <PropertyColumn Title="Modified By" Property="@(x => x.ModifiedBy)" />
+                                                break;
+
+                                           
+
+                                            case "ModifiedDate":
+                                                <PropertyColumn Title="Modified Date" Property="@(x => x.ModifiedDate)" />
+                                                break;
+
+                                           
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            <!-- ACTION COLUMN -->
+                            <TemplateColumn Title="Actions" Context="c">
+                                <div class="d-flex gap-2">
+
+                                    @if (CanEdit)
+                                    {
+                                        <a href="@($"/candidate/update/{c.CandidateID}")"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit Customer">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+
+                                       
+                                    }
+
+                                    @if (CanDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                title="Delete Customer"
+                                                @onclick="() => HandleDelete(c.CandidateID)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+
+                                </div>
+                            </TemplateColumn>
+                            
+                        </QuickGrid>
+
+                    </div>
+
+                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
+                        <div class="d-flex align-items-center gap-2 justify-content-center">
+
+                            <button class="btn btn-outline-primary" title="First Page" @onclick="FirstPage" disabled="@(currentPage == 1)">
+                                <i class="bi bi-skip-backward-fill"></i>
+                            </button>
+
+                            <button class="btn btn-outline-primary" title="Previous Page" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                                <i class="bi bi-arrow-left-circle"></i>
+                            </button>
+
+                            <span class="px-3 fw-semibold">
+                                Page @currentPage of @totalPages
+                            </span>
+
+                            <button class="btn btn-outline-primary" title="Next Page" @onclick="NextPage" disabled="@(currentPage >= totalPages)">
+                                <i class="bi bi-arrow-right-circle"></i>
+                            </button>
+
+                            <button class="btn btn-outline-primary" title="Last Page" @onclick="LastPage" disabled="@(currentPage >= totalPages)">
+                                <i class="bi bi-skip-forward-fill"></i>
+                            </button>
+
+                        </div>
+                    </div>
+
+                }
+                else
+                {
+                    <p class="text-center">No Item available.</p>
+                }
+
+            </div>
+        </div>
+    </div>
+}
+
+
+
+
+@code {
+    #region STATE VARIABLES
+
+    protected override string ScreenName => "Candidate";
+
+    private bool isProcessing = true;
+    private int DeleteCandidateId = 0;
+    private string UserName { get; set; } = "";
+    private bool preferencesLoaded = false;
+    private List<CandidateVM> candidateVMs = new();
+    private int currentPage = 1;
+    private int totalItems;
+    private int pageSize { get; set; } = 10;
+    private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
+    private string selectedStatus = "";
+    public List<GridColumn> Columns { get; set; } = new();
+
+    // Instant Search filter parameter
+    [SupplyParameterFromQuery] public string? Filter { get; set; }
+    private Dictionary<string, object>? SearchFilters { get; set; } = new();
+
+    // Modal state
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    // Breadcrumb
+    private List<PageHeader.BreadcrumbItem> candidateBreadcrumbs = new()
+    {
+        new() { Text = "Human Resource Master" },
+        new() { Text = "Candidate Master", IsLast = true }
+    };
+    #endregion
+
+    #region === Modal Management ===
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    #region === initilization ===
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            await InitializeColumns(IsHidden);
+
+            UserName = await currentUserService.GetUsernameAsync();
+
+            if (!string.IsNullOrEmpty(Filter))
+            {
+                SearchFilters = JsonSerializer.Deserialize<Dictionary<string, object>>(Filter);
+            }
+            //Sathish
+            if (currentPage < 1)
+            {
+                currentPage = 1;
+            }
+
+            await LoadAllCandidates();
+            await LoadColumnPreferences(UserName);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Customers OnInitializedAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+            preferencesLoaded = true;
+        }
+    }
+    private string GetStatusBadge(string? status)
+    {
+        return status switch
+        {
+            "Applied" => "badge rounded-pill bg-secondary",
+            "Shortlisted" => "badge rounded-pill bg-primary",
+            "Interview" => "badge rounded-pill bg-info text-dark",
+            "Selected" => "badge rounded-pill bg-success",
+            "Hold" => "badge rounded-pill bg-warning text-dark",
+            "Rejected" => "badge rounded-pill bg-danger",
+            "Reject" => "badge rounded-pill bg-danger",
+            "Offer Sent" => "badge rounded-pill bg-primary",
+            "Joined" => "badge rounded-pill bg-success",
+            _ => "badge rounded-pill bg-light text-dark"
+        };
+    }
+    #endregion
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        try
+        {
+            await _JS.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed)
+                return;
+
+            if (confirmation == "Delete")
+                await ConfirmDelete_Click(isConfirmed);
+            else
+                await _JS.ToastrWarning("Unknown confirmation action.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"HandleModalConfirmation failed for action: {confirmation}");
+            await _JS.ToastrError("An error occurred while processing your action. Please try again.");
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        try
+        {
+            ActiveModal = type;
+            MasterModalTitle = type switch
+            {
+                "InstantSearch" => "Instant Search",
+                _ => "Modal"
+            };
+            isModalVisible = true;
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"OpenModal failed for type: {type}");
+            await _JS.ToastrError("Failed to open modal. Please try again.");
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        try
+        {
+            isModalVisible = false;
+            ActiveModal = "";
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"CloseModal failed for type: {ActiveModal}");
+            await _JS.ToastrError("Failed to close modal. Please try again.");
+        }
+    }
+
+    #endregion
+
+    #region SEARCH FILTERS
+    private async Task ApplySearchFilters(Dictionary<string, object> filters)
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = filters;
+            currentPage = 1;
+            await LoadAllCandidates();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error applying search filters in Employeelist");
+            await _JS.ToastrError("Failed to apply search filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+    #endregion
+
+    #region === Deletion Flow ===
+
+    private async Task HandleDelete(int CadidateId )
+    {
+        try
+        {
+            var (canDelete, message) = await cadidateService.CanDeleteCandidateAsync(CadidateId);
+
+            if (!canDelete)
+            {
+                await _JS.ToastrWarning(message);
+                return;
+            }
+
+            DeleteCandidateId = CadidateId;
+
+            ModalTitle = "Are you sure you want to delete this Candidate";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Delete";
+            showCancelReasonBox = false;
+
+            await _JS.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error initiating delete for CandidateID: {CadidateId}");
+            await _JS.ToastrError("Failed to initiate delete operation.");
+        }
+    }
+
+    private async Task ConfirmDelete_Click(bool isConfirmed)
+    {
+        try
+        {
+            if (!isConfirmed) return;
+
+            isProcessing = true;
+
+            var deleted = await cadidateService.DeleteCandidateAsync(DeleteCandidateId);
+
+            if (deleted)
+            {
+                await _JS.ToastrSuccess("Candidate deleted successfully.");
+                await LoadAllCandidates();
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                await _JS.ToastrWarning("Candidate could not be deleted. It may not exist or has dependencies.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, $"Error deleting CustId: {DeleteCandidateId}");
+            await _JS.ToastrError("Failed to delete Customer.");
+        }
+        finally
+        {
+            DeleteCandidateId = 0;
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region === Data Loading ===
+
+    private async Task LoadAllCandidates()
+    {
+        try
+        {
+            var result = await cadidateService.SearchWithDynamicFilterAsync(
+                pageNumber: currentPage,
+                pageSize: pageSize,
+                filters: SearchFilters
+            );
+
+            candidateVMs = result.CandidateVMs;
+            totalItems = result.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading data in Customer List");
+            await _JS.ToastrError("Failed to load Customer List.");
+        }
+    }
+
+    private void AddNewQuote()
+    {
+        _navigation.NavigateTo("/candidate/create");
+
+    }
+
+    #endregion
+
+    #region PAGINATION
+
+    private async Task FirstPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != 1)
+            {
+                currentPage = 1;
+                await LoadAllCandidates();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "Error navigating to first page in Customer List");
+            await _JS.ToastrError("Failed to navigate to first page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage > 1)
+            {
+                currentPage--;
+                await LoadAllCandidates();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to previous page in Candidate List");
+            await _JS.ToastrError("Failed to navigate to previous page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task NextPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                await LoadAllCandidates();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to next page in Candidate List");
+            await _JS.ToastrError("Failed to navigate to next page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LastPage()
+    {
+        try
+        {
+            isProcessing = true;
+            if (currentPage != totalPages)
+            {
+                currentPage = totalPages;
+                await LoadAllCandidates();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error navigating to last page in Candidate List");
+            await _JS.ToastrError("Failed to navigate to last page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+            pageSize = int.Parse(e.Value?.ToString() ?? "10");
+            currentPage = 1;
+            await LoadAllCandidates();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error changing page size in Candidate List");
+            await _JS.ToastrError("Failed to change page size.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        try
+        {
+            isProcessing = true;
+            SearchFilters = new Dictionary<string, object>();
+            await LoadAllCandidates();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error refreshing Candidate List page");
+            await _JS.ToastrError("Failed to refresh page.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+
+    #region COLUMNS
+
+    private async Task InitializeColumns(bool Hidden)
+    {
+        try
+        {
+            Columns = new List<GridColumn>
+            {
+                // ===== BASIC DETAILS =====
+                new() { Title = "Candidate Code", Field = "CandidateID", IsVisible = true },
+                new() { Title = "Candidate Name", Field = "CandidateName", IsVisible = true },
+                new() { Title = "Date Of Birth", Field = "DOB", IsVisible = true },
+                new() { Title = "Gender", Field = "Gender", IsVisible = true },
+                new() { Title = "Phone No", Field = "PhoneNo", IsVisible = true },
+                new() { Title = " E Mail", Field = "Gmail", IsVisible = false },
+                new() { Title = "Address", Field = "Address", IsVisible = true },
+                new() { Title = "Qualification", Field = "Qualification", IsVisible = true },
+                new() { Title = "Experience", Field = "Experience", IsVisible = true },
+                new() { Title = "Skills", Field = "Skills", IsVisible = true },
+                new() { Title = "Source", Field = "Source", IsVisible = false },
+                new() { Title = "Notice Period", Field = "Notice_Period", IsVisible = true },
+                new() { Title = "Current Salary", Field = "Current_Salary", IsVisible = true },
+                new() { Title = "Expected Salary", Field = "Expected_Salary", IsVisible = true },
+                new() { Title = "Position", Field = "Position", IsVisible = true },
+                new() { Title = "Status", Field = "Status", IsVisible = true },
+                new() { Title = "Created By", Field = "CreatedBy", IsVisible = true },
+                new() { Title = "Created Date", Field = "CreatedDate", IsVisible = true },
+                 new() { Title = "Modified By", Field = "ModifiedBy", IsVisible = true },
+                  new() { Title = "Modified Date", Field = "ModifiedDate", IsVisible = true },
+
+            };
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error initializing columns in StaffList");
+            await _JS.ToastrError("Failed to initialize employee columns.");
+        }
+    }
+
+
+    private async Task LoadColumnPreferences()
+    {
+        try
+        {
+            var user = await currentUserService.GetUsernameAsync();
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, user);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for EmployeeList");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    private Task HandleColumnChange(List<GridColumn> updated)
+    {
+        Columns = updated;
+        return Task.CompletedTask;
+    }
+    #endregion
+
+    private async Task LoadColumnPreferences(string UserName)
+    {
+        try
+        {
+            var saved = await PreferenceService.LoadPreferencesAsync(ScreenName, UserName);
+
+            if (saved != null && saved.Any())
+            {
+                foreach (var col in Columns)
+                {
+                    var match = saved.FirstOrDefault(x => x.Field == col.Field);
+                    if (match != null)
+                        col.IsVisible = match.IsVisible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error loading column preferences for Customer List");
+            await _JS.ToastrError("Failed to load column preferences.");
+        }
+    }
+
+    #region Job order Status Changes
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            isProcessing = true;
+
+            SearchFilters = new();
+            selectedStatus = e.Value?.ToString() ?? "";
+
+            if (string.IsNullOrWhiteSpace(selectedStatus))
+                SearchFilters.Remove("Status");
+            else
+                SearchFilters["Status"] = selectedStatus;
+
+
+            currentPage = 1;
+            await LoadAllCandidates();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error OnStatusChanged in Customer List");
+            await _JS.ToastrError("Failed to Load Customer List filters.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    #endregion
+}

@@ -1,0 +1,2001 @@
+﻿@page "/enquirySales/create"
+@page "/enquirySales/create/{CustId:int}"
+@page "/enquirySales/update/{EnquiryId:int}"
+
+@using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using V.SMART.Shared.ViewModels.MfgAndlabourViewModel.FeasibilityVM
+@using MudBlazor
+
+@inherits BaseUserRightsComponent
+@inject IEnquirySalesService enquiryService
+@inject ILoggingService LoggingService
+@inject NavigationManager _navigationManager
+@inject IJSRuntime _js
+@inject CurrentUserService CurrentUserService
+
+<style>
+    .freeze-last-col {
+        position: sticky;
+        right: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+</style>
+
+<BsModal OnModalConfirmation="HandleModalConfirmation"
+         Title="@ModalTitle"
+         ButtonBootstrapStyle="@btnColor"
+         ButtonText="@btnText"
+         ShowReasonBox="@showCancelReasonBox"
+         Reason="@cancelReason"
+         OnReasonChanged="(value) => cancelReason = value">
+</BsModal>
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="1200px" OnClose="CloseModal">
+    @if (ActiveModal == "Customer")
+    {
+        <CustomerUpsert isCustModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "ExcelUpload")
+    {
+        <ExcelUpload isModelVisible=true CustomerId="@(CustId ?? 0)" OnClose="CloseModal" uploadType="EquirySales" OnUploadCompleted="ReceiveItems" />
+    }
+    else if (ActiveModal == "Item")
+    {
+        <ItemUpsert isModelVisible=true OnClose="CloseModal" />
+    }
+    else if (ActiveModal == "Attachments")
+    {
+        <CorrespondenceListByReference refType="Item" refId="@AttachItemSelected.ItemId"
+            refName="@AttachItemSelected.ItemCode" docType="Drawing" isModelVisible="true" />
+    }
+</MasterModal>
+
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else
+{
+    @if (!CanView)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="container-fluid px-2 px-md-5 mt-4">
+            <div class="card shadow-sm border-1">
+
+                <!-- Cancelled Watermark -->
+                @if (EnquirySalesVM.Cancel)
+                {
+                    <div class="cancelWatermark">CANCELLED</div>
+                }
+                else if (EnquirySalesVM.ShortClose)
+                {
+                    <div class="cancelWatermark">SHORT CLOSED</div>
+                }
+                <!-- header-->
+                <PageHeader TitleText="@(EnquiryId == 0 || EnquiryId == null ? "Create Sales Enquiry" : "Update Sales Enquiry")"
+                            TitleIcon="bi bi-person"
+                            Breadcrumbs="@EnquirySalesBreadcrumbs" />
+
+                <div class="card-body">
+                    <EditForm Model="EnquirySalesVM" OnValidSubmit="UpsertEnquirySales">
+                        <ObjectGraphDataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row g-3 mb-2 align-items-center">
+
+                            <!-- Manufacturing / Labour Toggle -->
+                            <div class="col-12 col-md-6">
+                                <div class="card shadow-sm border-0 h-100">
+                                    <div class="card-body d-flex justify-content-around align-items-center">
+
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="ManufacturingSwitch"
+                                                   checked="@EnquirySalesVM.MfgORLab"
+                                                   @onchange="(e) => OnManufacturingToggle(e)"
+                                                   disabled="@IsSomeItemsTransMade" />
+                                            <label class="form-check-label fw-semibold @(EnquirySalesVM.MfgORLab ? "text-success" : "")"
+                                                   for="ManufacturingSwitch">
+                                                <i class="bi bi-gear-fill me-1"></i> Manufacturing
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="LabourSwitch"
+                                                   checked="@(!EnquirySalesVM.MfgORLab)"
+                                                   @onchange="(e) => OnLabourToggle(e)"
+                                                   disabled="@IsSomeItemsTransMade" />
+                                            <label class="form-check-label fw-semibold @(!EnquirySalesVM.MfgORLab ? "text-danger" : "")"
+                                                   for="LabourSwitch">
+                                                <i class="bi bi-people-fill me-1"></i> Labour
+                                            </label>
+                                        </div>
+
+
+                                    </div>
+                                    <ValidationMessage For="@(() => EnquirySalesVM.MfgORLab)" />
+                                </div>
+                            </div>
+
+                            <!-- Correspondence Status -->
+                            <div class="col-12 col-md-6 d-flex justify-content-end align-items-center">
+                                @if (EnquirySalesVM is not null
+                                                        && EnquirySalesVM.EnquiryId > 0
+                                                        && !string.IsNullOrWhiteSpace(EnquirySalesVM.EnquiryNo))
+                                {
+                                    <CorrespondenceStatus ReferenceType="EnquirySales"
+                                        ReferenceId="@EnquirySalesVM.EnquiryId"
+                                        ReferenceTypeName="@EnquirySalesVM.EnquiryNo" />
+                                }
+                            </div>
+
+                        </div>
+
+                        <div class="row g-3 mb-2">
+
+                            <!-- Customer Details -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+
+                                    <!-- Header -->
+                                    <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                        <span class="fw-bold fs-6">Customer Information</span>
+                                        <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Customer")'>
+                                            <i class="bi bi-person-plus me-1"></i> Add Customer
+                                        </button>
+                                    </div>
+
+                                    <div class="card-body p-3">
+
+                                        <!-- Customer Selection -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>M/S.*</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <MudAutocomplete T="CustomerVM"
+                                                    Value="SelectedCustomer"
+                                                    ValueChanged="@(async c => await OnCustomerChanged(c))"
+                                                    ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                                    SearchFunc="SearchCustomers"
+                                                    Dense="true"
+                                                    Variant="Variant.Outlined"
+                                                    Placeholder="Search Customer"
+                                                    Title="Search at least 3 letters"
+                                                    Class="w-100 autocomplete-sm"
+                                                    MaxItems="50"
+                                                    Clearable="true"
+                                                    ResetValueOnEmptyText="true"
+                                                    Required="true"
+                                                    AvoidSubmit="true"
+                                                    Disabled="@IsSomeItemsTransMade" />
+                                                <ValidationMessage For="@(() => EnquirySalesVM.CustId)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Address -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Address</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <textarea class="form-control form-control-sm rounded-3 w-100"
+                                                  rows="1"
+                                                  readonly>@EnquirySalesVM.CustomerAddress</textarea>
+                                            </div>
+                                        </div>
+
+                                        <!-- Phone No -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Phone No</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       value="@EnquirySalesVM.CustomerPhoneNo" readonly />
+                                            </div>
+                                        </div>
+
+                                        <!-- GSTIN -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>GSTIN</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <input type="text" class="form-control form-control-sm rounded-3 w-100"
+                                                       value="@EnquirySalesVM.CustomerGSTNO" readonly />
+                                            </div>
+                                        </div>
+
+                                        <!-- Contact Person -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Contact Person</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <select class="form-select form-select-sm rounded-3 w-100"
+                                                        @bind="@EnquirySalesVM.KindOfAttention">
+                                                    <option disabled value="">Select a Contact Person</option>
+                                                    @foreach (var cp in ContactPersons)
+                                                    {
+                                                        <option value="@cp.ContactPersonName">@cp.ContactPersonName</option>
+                                                    }
+                                                </select>
+                                                <ValidationMessage For="@(() => EnquirySalesVM.KindOfAttention)" />
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Document / Enquiry Details -->
+                            <div class="col-12 col-lg-6 mb-2">
+                                <div class="card h-100 shadow-sm">
+
+                                    <!-- Header -->
+                                    <div class="card-header d-flex flex-wrap justify-content-between align-items-center
+                                                bg-primary-subtle text-dark gap-2">
+
+                                        <!-- Title -->
+                                        <span class="fw-bold fs-6">Document Details</span>
+
+                                        <!-- Action Buttons -->
+                                        @if (EnquirySalesVM.EnquiryId > 0 && (CanCreate || CanEdit))
+                                        {
+                                            <div class="d-flex gap-2 align-items-center">
+
+                                                @if (EnquirySalesVM.EnquirySalesSubVM != null && !EnquirySalesVM.EnquirySalesSubVM.Any(x => x.ItemCancel))
+                                                {
+                                                    <!-- Cancel / Revert -->
+                                                    <button type="button"
+                                                            class="btn btn-sm rounded-3
+                                                            @(EnquirySalesVM.Cancel ? "btn-success" : "btn-danger")"
+                                                            @onclick="Cancel"
+                                                            disabled="@EnquirySalesVM.ShortClose">
+
+                                                        @if (!EnquirySalesVM.Cancel)
+                                                        {
+                                                            <i class="bi bi-x-circle me-1"></i>
+                                                            <span>Cancel</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                            <span>Revert</span>
+                                                        }
+                                                    </button>
+
+                                                }
+
+                                                <!-- Short Closed / Re-Open -->
+                                                <button type="button"
+                                                        class="btn btn-sm rounded-3
+                                                                    @(EnquirySalesVM.ShortClose ? "btn-success" : "btn-warning")"
+                                                        @onclick="() => AskToShortCloseAsync(EnquirySalesVM)"
+                                                        disabled="@EnquirySalesVM.Cancel">
+
+                                                    @if (!EnquirySalesVM.ShortClose)
+                                                    {
+                                                        <i class="bi bi-box-seam me-1"></i>
+                                                        <span>Short Closed</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                                        <span>Re-Open</span>
+                                                    }
+                                                </button>
+                                            </div>
+                                        }
+                                    </div>
+
+
+                                    <div class="card-body p-3">
+
+                                        <!-- Enquiry No -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Enquiry No.</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <div class="input-group input-group-sm w-100 rounded-3">
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                               placeholder="Prefix"
+                                                               maxlength="10"
+                                                               @bind-Value="@EnquirySalesVM.Prefix"
+                                                               style="flex:0 0 70px;" />
+                                                    <InputText class="form-control form-control-sm rounded-3"
+                                                               placeholder="Enquiry No."
+                                                               maxlength="30"
+                                                               @bind-Value="@EnquirySalesVM.EnquiryNo" />
+                                                    <span class="input-group-text rounded-3">@EnquirySalesVM.Suffix</span>
+                                                </div>
+                                                <ValidationMessage For="@(() => EnquirySalesVM.Prefix)" />
+                                                <ValidationMessage For="@(() => EnquirySalesVM.EnquiryNo)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Date -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3"
+                                                           @bind-Value="@EnquirySalesVM.EnquiryDate" />
+                                                <ValidationMessage For="@(() => EnquirySalesVM.EnquiryDate)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- POC Name -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>POC Name</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                           @bind-Value="@EnquirySalesVM.POCName" />
+                                                <ValidationMessage For="@(() => EnquirySalesVM.POCName)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- POC Contact -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>POC Contact</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputText class="form-control form-control-sm rounded-3 w-100"
+                                                           @bind-Value="@EnquirySalesVM.POCContactNo"
+                                                           maxlength="10" />
+                                                <ValidationMessage For="@(() => EnquirySalesVM.POCContactNo)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Expected Date -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Expected Date</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputDate class="form-control form-control-sm rounded-3 w-100"
+                                                           @bind-Value="@EnquirySalesVM.ExpectedReplyDate" />
+                                                <ValidationMessage For="@(() => EnquirySalesVM.ExpectedReplyDate)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Remarks -->
+                                        <div class="row mb-2 align-items-center">
+                                            <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                <small>Remarks</small>
+                                            </label>
+                                            <div class="col-12 col-sm-9">
+                                                <InputTextArea class="form-control form-control-sm rounded-3 w-100"
+                                                               @bind-Value="@EnquirySalesVM.MainRemarks"
+                                                               maxlength="250"
+                                                               rows="1" />
+                                                <ValidationMessage For="@(() => EnquirySalesVM.MainRemarks)" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Cancel Reason -->
+                                        @if (EnquirySalesVM.Cancel)
+                                        {
+                                            <div class="row mb-2 align-items-center">
+                                                <label class="col-12 col-sm-3 col-form-label text-dark">
+                                                    <small>Cancel Reason</small>
+                                                </label>
+                                                <div class="col-12 col-sm-9">
+                                                    <InputTextArea class="form-control form-control-sm rounded-3 w-100"
+                                                                   @bind-Value="@EnquirySalesVM.CancelReason"
+                                                                   maxlength="250"
+                                                                   rows="1"
+                                                                   disable />
+                                                    <ValidationMessage For="@(() => EnquirySalesVM.CancelReason)" />
+                                                </div>
+                                            </div>
+                                        }
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Item Details Table -->
+                        <div class="col-xxl-12 col-12  mt-3">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-header d-flex justify-content-between align-items-center bg-primary-subtle text-dark">
+                                    <span class="fw-bold fs-6">Item Details</span>
+
+                                    <!-- Right Section: Button -->
+                                    <div class="d-flex align-items-center gap-2">
+                                        <!-- Create New Item Button -->
+                                        <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Item")'>
+                                            <i class="bi bi-plus-circle me-1"></i> Create New Item
+                                        </button>
+                                    </div>
+
+                                </div>
+
+                                <div class="card-body p-2">
+
+                                    <div class="table-responsive" style="max-height: 700px; overflow-y: auto; overflow-x: auto;">
+                                        <table class="table table-bordered table-sm align-middle text-center mb-0" style="table-layout: fixed; min-width: 1700px;">
+                                            <thead class="custom-blue">
+                                                <tr>
+                                                    <th style="width:80px; font-size:12px; ">Sl.No</th>
+                                                    <th style="width:140px; font-size:12px;">Item Code/Part No.</th>
+                                                    <th style="width:140px; font-size:12px;">Item Name/Description</th>
+                                                    <th style="width:70px; font-size:12px; ">UOM</th>
+                                                    <th style="width:90px; font-size:12px;">HSN/SAC</th>
+                                                    <th style="width:90px; font-size:12px;">Qty</th>
+                                                    <th style="width:100px; font-size:12px;">Bal.Qty</th>
+                                                    <th style="width:140px; font-size:12px;">Cost Centre No.</th>
+                                                    @if (!EnquirySalesVM.Cancel && (EnquiryId.HasValue || EnquiryId > 0))
+                                                    {
+                                                        <th style="width:130px;">Item Cancel</th>
+                                                    }
+                                                    <th style="width:250px; font-size:12px;">Remarks</th>
+                                                    @if (!EnquirySalesVM.Cancel && !EnquirySalesVM.ShortClose)
+                                                    {
+                                                        <th style="width:90px;" class="freeze-last-col text-end">Action</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+                                            <tbody class="custom-size">
+                                                @if (EnquirySalesVM.EnquirySalesSubVM != null && EnquirySalesVM.EnquirySalesSubVM.Any())
+                                                {
+                                                    @foreach (var enq in EnquirySalesVM.EnquirySalesSubVM)
+                                                    {
+                                                        <tr @key="enq" class="@(enq.ItemCancel ? "table-danger text-danger fw-bold" : "")">
+
+                                                            <td>@enq.SlNo</td>
+
+                                                            <!-- Item Selector -->
+                                                            <td>
+                                                                <div class="row g-1 align-items-center">
+                                                                    <div class="col-10">
+                                                                        @if (enq.IsEditable && enq.CanEditItem)
+                                                                        {
+                                                                            <MudAutocomplete T="ItemVM"
+                                                                                             Value="enq.SelectedItem"
+                                                                                             ValueChanged="@(async item => await OnItemChanged(enq, item))"
+                                                                                             ToStringFunc="@(item => item?.ItemCode ?? string.Empty)"
+                                                                                             SearchFunc="SearchItems"
+                                                                                             Dense="true"
+                                                                                             Variant="Variant.Outlined"
+                                                                                             Placeholder="Search Item Code"
+                                                                                             Title="Search Atleast 3 Letters in Item-Code"
+                                                                                             Class="w-100 autocomplete-sm"
+                                                                                             MaxItems="50" />
+                                                                            <ValidationMessage For="@(() => enq.ItemId)" />
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            @enq.ItemCode
+                                                                        }
+
+                                                                    </div>
+
+                                                                    <!-- Attachment column -->
+                                                                    <div class="col-2 text-center">
+                                                                        @if (enq.ItemId is not null && enq.ItemId > 0
+                                                                            && attachmentCounts.TryGetValue(enq.ItemId.Value, out var count) && count > 0)
+                                                                        {
+                                                                            <MudIconButton Icon="@Icons.Material.Filled.AttachFile"
+                                                                                           Size="Size.Small"
+                                                                                           Color="Color.Primary"
+                                                                                           OnClick="@(async () => await OpenAttachmentButton(enq.ItemId.Value, count))"
+                                                                                           Edge="Edge.End"
+                                                                                           Title=@($"This Item has {count} attachment(s). Click to view.") />
+                                                                        }
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+
+                                                            <td>@enq.ItemName</td>
+                                                            <td>@enq.UOM</td>
+                                                            <td>@enq.HsnCode</td>
+
+                                                            <!-- Quantity -->
+                                                            <td>
+                                                                @if (enq.IsEditable)
+                                                                {
+                                                                    <input type="number"
+                                                                           class="form-control form-control-sm"
+                                                                           step="any"
+                                                                           placeholder="Qty"
+                                                                           title="Enter Quantity"
+                                                                           @bind="enq.Qty"
+                                                                           @bind:event="oninput"
+                                                                           @onchange="@(e => OnQtyChange(e, enq))" />
+                                                                    <ValidationMessage For="@(() => enq.Qty)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @enq.Qty
+                                                                }
+                                                            </td>
+
+                                                            <!-- Balance Qty -->
+                                                            <td>@enq.BalQty</td>
+
+                                                            <!-- Cost Centre -->
+                                                            <td>
+                                                                @if (enq.IsEditable && enq.Qty == enq.BalQty)
+                                                                {
+                                                                    <select class="form-select form-select-sm rounded-3"
+                                                                            value="@enq.CostCenterId"
+                                                                            @onchange="(e => OnCostCenterChanged(e, enq))">
+                                                                        <option value="">Select CostCentre No.</option>
+                                                                        @foreach (var cost in CostCenterVMs.Where(c =>
+                                                                            !EnquirySalesVM.EnquirySalesSubVM.Any(r => r != enq && r.CostCenterId == c.Id)))
+                                                                        {
+                                                                            <option value="@cost.Id">@cost.ProjectNo</option>
+                                                                        }
+                                                                    </select>
+                                                                    <ValidationMessage For="@(() => enq.CostCenterId)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @enq.ProjectNo
+                                                                }
+                                                            </td>
+
+                                                            @if (!EnquirySalesVM.Cancel && (EnquiryId.HasValue || EnquiryId > 0))
+                                                            {
+                                                                <td class="text-center align-middle">
+                                                                    <div class="form-check form-switch d-flex justify-content-center">
+                                                                        <InputCheckbox @bind-Value="enq.ItemCancel"
+                                                                                       @bind-Value:event="onchange"
+                                                                                       ValueChanged="@(async (value) => await OnItemCancelChanged(enq))"
+                                                                                       class="form-check-input border border-2 shadow-lg
+                                                                                        focus-ring focus-ring-primary p-2 fs-4 rounded-pill" />
+                                                                    </div>
+                                                                    <ValidationMessage For="@(() => enq.ItemCancel)"
+                                                                                       class="text-danger fw-semibold small mt-2 d-block" />
+                                                                </td>
+                                                            }
+
+                                                            <!-- Remarks -->
+                                                            <td>
+                                                                @if (enq.IsEditable)
+                                                                {
+                                                                    <InputTextArea class="form-control form-control-sm"
+                                                                                   @bind-Value="enq.Remark"
+                                                                                   rows="1"
+                                                                                   maxlength="250"
+                                                                                   placeholder="Remarks" />
+                                                                    <ValidationMessage For="@(() => enq.Remark)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    @enq.Remark
+                                                                }
+                                                            </td>
+
+                                                            <!-- Actions -->
+                                                            @if (!EnquirySalesVM.Cancel && !EnquirySalesVM.ShortClose)
+                                                            {
+                                                                <td class="freeze-last-col">
+                                                                    <div class="text-end">
+                                                                        @if (enq.IsEditable)
+                                                                        {
+                                                                            <button type="button" class="btn btn-success btn-icon btn-sm" title="Save"
+                                                                                @onclick="() => SaveRow(enq)" disabled ="@enq.ItemCancel">
+                                                                                <i class="bi bi-check-lg"></i>
+                                                                            </button>
+                                                                            <button type="button" class="btn btn-secondary btn-icon btn-sm"
+                                                                                    title="Cancel"
+                                                                                    @onclick="() => CancelEdit(enq, EnquirySalesVM)"
+                                                                                    disabled="@enq.ItemCancel">
+                                                                                <i class="bi bi-x-lg"></i>
+                                                                            </button>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <button type="button" class="btn btn-primary btn-icon btn-sm" title="Edit"
+                                                                                    @onclick="async () => await EditRowAsync(enq)"
+                                                                                    disabled="@enq.ItemCancel">
+                                                                                <i class="bi bi-pencil"></i>
+                                                                            </button>
+                                                                            <button type="button" class="btn btn-danger btn-icon btn-sm" title="Delete" 
+                                                                                    @onclick="() => RemoveRow(enq)"
+                                                                                    disabled="@enq.ItemCancel">
+                                                                                <i class="bi bi-trash"></i>
+                                                                            </button>
+                                                                        }
+                                                                    </div>
+                                                                </td>
+                                                            }
+                                                        </tr>
+                                                    }
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (!EnquirySalesVM.Cancel && !EnquirySalesVM.ShortClose)
+                        {
+                            <button type="button" class="btn btn-sm rounded-3 mt-3 text-white"
+                                    style="background-color: #6f42c1;"
+                                    @onclick="AddRow">
+                                <i class="bi bi-plus-circle me-1"></i> Add row
+                            </button>
+                        }
+
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+
+                        @if (EnquirySalesVM.EnquiryId > 0)
+                        {
+                            <div class="row g-3">
+                                <!-- Created By -->
+                                <div class="col-12 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="EnquirySalesVM.CreatedBy"
+                                                   id="CreatedBy"
+                                                   class="form-control"
+                                                   placeholder="Created By"
+                                                   readonly />
+                                        <label for="CreatedBy">Created By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="col-12 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="CreatedDate"
+                                               placeholder="Created Date"
+                                               value="@EnquirySalesVM.CreatedDate.ToString("dd/MM/yyyy hh:mm:ss")"
+                                               readonly />
+                                        <label for="CreatedDate">Created Date</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified By -->
+                                <div class="col-12 col-md-3">
+                                    <div class="form-floating">
+                                        <InputText @bind-Value="EnquirySalesVM.ModifiedBy"
+                                                   id="ModifiedBy"
+                                                   class="form-control"
+                                                   placeholder="Modified By"
+                                                   readonly />
+                                        <label for="ModifiedBy">Modified By</label>
+                                    </div>
+                                </div>
+
+                                <!-- Modified Date -->
+                                <div class="col-12 col-md-3">
+                                    <div class="form-floating">
+                                        <input class="form-control"
+                                               id="ModifiedDate"
+                                               placeholder="Modified Date"
+                                               value="@EnquirySalesVM.ModifiedDate?.ToString("dd/MM/yyyy hh:mm:ss")"
+                                               readonly />
+                                        <label for="ModifiedDate">Modified Date</label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <hr style="border: 0; height: 1px; background-color: #007bff; margin: 10px 0;" />
+
+                        <div class="row mt-3 mb-2 g-2 justify-content-start">
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if (!EnquirySalesVM.Cancel && !EnquirySalesVM.ShortClose)
+                                {
+                                    <div class="col-12 col-sm-6 col-lg-3">
+                                        <button type="submit"
+                                                class="btn btn-primary w-100 h-100"
+                                                disabled="@isProcessing">
+                                            <i class="bi bi-floppy2-fill me-1"></i>
+                                            @(EnquiryId == null || EnquiryId == 0 ? "Create" : "Update")
+                                        </button>
+                                    </div>
+                                }
+                            }
+
+                            <!-- Back to List -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <SmartBackButton OnNavigate="NavigateBack" />
+                            </div>
+
+                            @if (EnquiryId == 0 || EnquiryId == null)
+                            {
+                                <!-- Download Template -->
+                                <div class="col-12 col-md-3">
+                                    <button type="button"
+                                            class="btn btn-primary w-100 rounded-3 d-flex align-items-center justify-content-center"
+                                            @onclick="DownloadTemplate" disabled="@isProcessing">
+                                        @if (isProcessing)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                            <span>Preparing Template...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-download me-2"></i>
+                                            <span>Download Template</span>
+                                        }
+                                    </button>
+                                </div>
+
+                                <!-- Upload Excel -->
+                                <div class="col-12 col-md-3">
+                                      <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 w-100" @onclick='() => OpenModal("ExcelUpload")'>
+                                            <i class="bi bi-upload me-1"></i> Import
+                                      </button>
+                                </div>
+                            }
+
+                            @if (CanCreate || CanEdit)
+                            {
+                                @if (EnquirySalesVM.EnquiryId > 0 && !EnquirySalesVM.EnquiryTally && !EnquirySalesVM.Cancel && !EnquirySalesVM.ShortClose)
+                                {
+                                    <div class="col-12 col-sm-6 col-lg-3">
+                                        <button type="button"
+                                                class="btn btn-success w-100 h-100"
+                                                @onclick="NavigateToFeasibility">
+                                            <i class="bi bi-lightbulb-fill me-1"></i>
+                                            Feasibility
+                                        </button>
+                                    </div>
+                                }
+                            }
+
+                            @if (CanCreate || CanEdit && EnquiryId>0)
+                            {
+                                <div class="col-12 col-md-3">
+                                    <button type="button" class="btn btn-info w-100 h-100" @onclick="GenerateAndOpenPdf">
+                                        <i class="bi bi-printer me-1"></i>Print
+                                    </button>
+                                </div>
+                            }
+
+
+                        </div>
+
+
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    protected override string ScreenName => "Enquiry Sales";
+
+
+    [Parameter] public int? EnquiryId { get; set; }
+    [Parameter] public int? CustId { get; set; }
+
+    private bool isProcessing = true;
+
+    [SupplyParameterFromQuery]
+    public int currentPage { get; set; } = 1;
+
+    private EnquirySalesVM EnquirySalesVM { get; set; } = new();
+    private EnquirySalesSubVM? rowToDelete;
+    private EnquirySalesSubVM? rowToCancel;
+
+    private List<EnquiryFeasibilityVM> Feslst = new();
+
+    private List<CustomerVM> Customers = new();
+    private List<ContactPerson> ContactPersons { get; set; } = new List<ContactPerson>();
+    private CustomerVM? SelectedCustomer;
+    private ItemVM? AttachItemSelected = null;
+    private List<CostCenterVM> CostCenterVMs = new List<CostCenterVM>();
+
+    private int DecimalPlaces { get; set; } = 2;
+    private bool IsSomeItemsTransMade { get; set; } = false;
+
+    private string ModalTitle = string.Empty;
+    private string btnText = string.Empty;
+    private string confirmation = string.Empty;
+    private string btnColor = string.Empty;
+    private bool showCancelReasonBox = false;
+    public string? cancelReason { get; set; }
+
+    //Model Open
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private Dictionary<int, int> attachmentCounts = new();
+    private string? pdfBase64 { get; set; } = string.Empty;
+    private List<PageHeader.BreadcrumbItem> EnquirySalesBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Sales" },
+        new PageHeader.BreadcrumbItem { Text = "Enquiry-Inward", IsLast = true }
+    };
+
+    private void OnManufacturingToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        EnquirySalesVM.MfgORLab = isChecked;
+    }
+
+    private void OnLabourToggle(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value;
+        EnquirySalesVM.MfgORLab = !isChecked;
+    }
+
+    private async Task<bool> CheckIsTransMade()
+    {
+        return await enquiryService.IsEnquiryTransactionsMatchedAsync(EnquiryId.Value, EnquirySalesVM);
+    }
+
+    private void NavigateBack()
+    {
+        if (!isProcessing)
+            _navigationManager.NavigateTo("/enquirysales");
+    }
+
+    #region Initialization
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isProcessing = true;
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigationManager.NavigateTo("/access-denied");
+                return;
+            }
+
+            DecimalPlaces = await enquiryService.GetDecimalPlacesAsync();
+
+            if (EnquiryId.HasValue)
+            {
+                await LoadExistingEnquiry(EnquiryId.Value);
+            }
+            else if (CustId > 0)
+            {
+                await LoadNewEnquiry(CustId.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnInitializedAsync");
+            await _js.ToastrError("Failed to load EnquirySales screen.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task LoadExistingEnquiry(int enquiryId)
+    {
+        try
+        {
+            EnquirySalesVM = await enquiryService.GetEnquiryDetailsByEnqIdAsync(enquiryId);
+
+            if (EnquirySalesVM != null)
+            {
+                SelectedCustomer = await enquiryService.GetCustomerByIdAsync(EnquirySalesVM.CustId);
+                if (SelectedCustomer != null)
+                    await ApplyCustomerSelectionAsync(SelectedCustomer);
+
+                foreach (var enq in EnquirySalesVM.EnquirySalesSubVM)
+                {
+                    if (enq.ItemId.HasValue && enq.ItemId > 0)
+                        attachmentCounts[enq.ItemId.Value] = await enquiryService.GetCorrespondenceAttachmentsCountAsync(enq.ItemId.Value, "Item");
+                }
+
+                IsSomeItemsTransMade = await CheckIsTransMade();
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadExistingEnquiry");
+            await _js.ToastrError("Failed to load existing Enquiry details.");
+        }
+    }
+
+    private async Task LoadNewEnquiry(int custId)
+    {
+        try
+        {
+            var customer = await enquiryService.GetCustomerByIdAsync(custId);
+            if (customer != null)
+                await ApplyCustomerSelectionAsync(customer);
+
+            EnquirySalesVM.Prefix = await enquiryService.GetPrefixFromDbAsync();
+            EnquirySalesVM.Suffix = FinancialYearHelper.GetFinancialYearSuffix(DateTime.Now);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "LoadNewEnquiry");
+            await _js.ToastrError("Failed to initialize new Enquiry.");
+        }
+    }
+
+    #endregion
+
+
+    #region Customer / CostCenter
+
+    private async Task ApplyCustomerSelectionAsync(CustomerVM? customer)
+    {
+        try
+        {
+            SelectedCustomer = customer;
+            EnquirySalesVM.CustId = customer?.CustId ?? 0;
+            EnquirySalesVM.CustomerName = customer?.CustName;
+            EnquirySalesVM.CustomerAddress = customer?.CustAddr;
+            EnquirySalesVM.CustomerGSTNO = customer?.GSTNo;
+            EnquirySalesVM.CustomerPhoneNo = customer?.ContactNo;
+
+            if (customer == null)
+            {
+                ContactPersons.Clear();
+                CostCenterVMs.Clear();
+                return;
+            }
+
+            ContactPersons = await enquiryService.GetContactPersonsAsync(customer.CustId);
+
+            var usedCostCenters = EnquirySalesVM.EnquirySalesSubVM
+                .Where(x => x.CostCenterId.HasValue)
+                .Select(x => x.CostCenterId.Value)
+                .ToHashSet();
+
+            CostCenterVMs = await enquiryService.GetCostCenterDetailsByCustId(customer.CustId, usedCostCenters);
+
+            if (ContactPersons.Count == 1)
+                EnquirySalesVM.KindOfAttention = ContactPersons.First().ContactPersonName;
+            else
+                EnquirySalesVM.KindOfAttention = string.Empty;
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ApplyCustomerSelectionAsync");
+            await _js.ToastrError("Failed to apply customer selection.");
+        }
+    }
+
+    private Task OnCostCenterChanged(ChangeEventArgs e, EnquirySalesSubVM row)
+    {
+        int.TryParse(e.Value?.ToString(), out var selectedId);
+
+        if (selectedId > 0)
+        {
+            row.CostCenterId = selectedId;
+            var selected = CostCenterVMs.FirstOrDefault(c => c.Id == selectedId);
+            if (selected != null)
+                row.ProjectNo = selected.ProjectNo;
+        }
+        else
+        {
+            row.CostCenterId = null;
+            row.ProjectNo = null;
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task OnCustomerChanged(CustomerVM? customer)
+    {
+        try
+        {
+            await ApplyCustomerSelectionAsync(customer);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OnCustomerChanged");
+            await _js.ToastrError("Error while selecting customer.");
+        }
+    }
+    #endregion
+
+
+    #region Row Handling
+    private async Task AddRow()
+    {
+        if (!await ValidateLastRowAsync()) return;
+
+        EnquirySalesVM.EnquirySalesSubVM.Add(new EnquirySalesSubVM
+        {
+            EnquiryId = EnquirySalesVM.EnquiryId,
+            IsEditable = true
+        });
+
+        await ResetSlno();
+    }
+
+    private async Task<bool> ValidateRowAsync(EnquirySalesSubVM row)
+    {
+        var errors = new List<string>();
+
+        if (!row.ItemId.HasValue || row.ItemId.Value == 0)
+            errors.Add("Please select an Item.");
+
+        if (!row.Qty.HasValue || row.Qty.Value <= 0)
+            errors.Add("Quantity must be greater than 0.");
+
+        if (errors.Any())
+        {
+            await _js.ToastrInfo(string.Join("<br>", errors));
+            return false;
+        }
+
+        return true;
+    }
+
+
+    private async Task<bool> ValidateLastRowAsync()
+    {
+        var lastRow = EnquirySalesVM.EnquirySalesSubVM.LastOrDefault();
+        if (lastRow == null) return true;
+        if (!await ValidateRowAsync(lastRow)) return false;
+        lastRow.IsEditable = false;
+        return true;
+    }
+
+    private async Task EditRowAsync(EnquirySalesSubVM enq)
+    {
+        enq.IsEditable = true;
+        if (enq.SelectedItem == null && enq.ItemId > 0)
+            enq.SelectedItem = await enquiryService.GetItemByItemIdAsync(enq.ItemId);
+    }
+
+    private async Task CancelEdit(EnquirySalesSubVM? item, EnquirySalesVM? parentEnquiry)
+    {
+        if (item == null || parentEnquiry == null) return;
+
+        bool isEmptyOrInvalid = item.ItemId.GetValueOrDefault() <= 0 || item.Qty.GetValueOrDefault() <= 0;
+
+        if (isEmptyOrInvalid)
+        {
+            parentEnquiry.EnquirySalesSubVM.Remove(item);
+            await ResetSlno();
+        }
+        else
+        {
+            item.IsEditable = false;
+        }
+    }
+
+    private async Task SaveRow(EnquirySalesSubVM item)
+    {
+        if (!await ValidateRowAsync(item))
+        {
+            item.IsEditable = true;
+            return;
+        }
+        item.IsEditable = false;
+
+        if (!EnquirySalesVM.EnquirySalesSubVM.Any(x => x.IsEditable))
+        {
+            EnquirySalesVM.EnquirySalesSubVM.Add(new EnquirySalesSubVM
+            {
+                EnquiryId = EnquirySalesVM.EnquiryId,
+                IsEditable = true
+            });
+        }
+
+        await ResetSlno();
+    }
+
+    private async Task RemoveRow(EnquirySalesSubVM item)
+    {
+        try
+        {
+            if (EnquirySalesVM.EnquirySalesSubVM.Count == 1)
+            {
+                await _js.ToastrWarning("At least one item must be present in the enquiry.");
+                return;
+            }
+
+            if (EnquirySalesVM.Cancel)
+            {
+                await _js.ToastrError("This enquiry is already cancelled. Row deletion is not allowed.");
+                return;
+            }
+
+            if (EnquirySalesVM.ShortClose)
+            {
+                await _js.ToastrError("This enquiry is already short closed. Row deletion is not allowed.");
+                return;
+            }
+
+            if (item.ItemCancel)
+            {
+                await _js.ToastrError("This item is already cancelled and cannot be deleted.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrWarning("One or more items have associated transactions. Row deletion is not allowed to maintain transaction integrity.");
+                return;
+            }
+
+            if (item.ItemId == 0)
+            {
+                EnquirySalesVM.EnquirySalesSubVM.Remove(item);
+                await ResetSlno();
+                return;
+            }
+
+            rowToDelete = item;
+            ModalTitle = "Are you sure you want to delete this item?";
+            btnColor = "btn-danger";
+            btnText = "Yes! Delete";
+            confirmation = "Remove";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in RemoveRow method");
+            await _js.ToastrError("An error occurred while removing the item.");
+        }
+    }
+
+
+    private async Task ResetSlno()
+    {
+        int counter = 1;
+        foreach (var sub in EnquirySalesVM.EnquirySalesSubVM)
+            sub.SlNo = counter++;
+    }
+    #endregion
+
+
+    #region Attachments / Modal
+    private async Task OpenAttachmentButton(int ItemId, int count)
+    {
+        try
+        {
+            if (ItemId == 0)
+            {
+                await _js.ToastrWarning("Please select an ItemCode/Part No.!");
+                return;
+            }
+
+            if (count == 0)
+            {
+                await _js.ToastrWarning("There are no attachments for this ItemCode/Part No.!");
+                return;
+            }
+
+            AttachItemSelected = await enquiryService.GetItemByItemIdAsync(ItemId);
+
+            ModalTitle = "Are you sure you want to Open this Attachments";
+            btnColor = "btn-success";
+            btnText = "Yes! Open";
+            confirmation = "Open Files";
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "OpenAttachmentButton");
+            await _js.ToastrError("Error while opening attachments.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task OpenModal(string type)
+    {
+        ActiveModal = type;
+        MasterModalTitle = type switch
+        {
+            "ExcelUpload" => "Excel Upload",
+            "Customer" => "Add New Customer",
+            "Item" => "Add New Item",
+            "Attachments" => "Attached Drawing's",
+            _ => "Modal"
+        };
+        isModalVisible = true;
+        await Task.CompletedTask;
+    }
+
+    private async Task CloseModal()
+    {
+        if (ActiveModal == "Attachments")
+            AttachItemSelected = null;
+
+        isModalVisible = false;
+        ActiveModal = "";
+    }
+    #endregion
+
+
+    #region Quantity / Item Change
+    private async Task OnQtyChange(ChangeEventArgs e, EnquirySalesSubVM enq)
+    {
+        if (!decimal.TryParse(e.Value?.ToString(), out var newQty)) return;
+
+        if (enq.EnquirySubId == 0)
+        {
+            enq.Qty = newQty;
+            enq.BalQty = newQty;
+        }
+        else
+        {
+            var original = await enquiryService.GetEnqSubItemDetailByEnqSubIdAsync(enq.EnquirySubId);
+            var alreadyTransacted = original.Qty - original.BalQty;
+
+            if (newQty < alreadyTransacted)
+            {
+                enq.Qty = alreadyTransacted;
+                enq.BalQty = 0;
+                await _js.ToastrWarning($"Qty cannot be less than {alreadyTransacted} as it is already transacted.");
+            }
+            else
+            {
+                var difference = newQty - original.Qty;
+                enq.Qty = newQty;
+                enq.BalQty = original.BalQty + difference;
+            }
+        }
+    }
+
+    private async Task OnItemChanged(EnquirySalesSubVM enq, ItemVM item)
+    {
+        if (item != null)
+        {
+            enq.SelectedItem = item;
+            enq.ItemId = item.ItemId;
+            enq.ItemCode = item.ItemCode;
+            enq.ItemName = item.ItemName;
+            enq.UOM = string.IsNullOrWhiteSpace(item.MeasureUnit) ? "NOS" : item.MeasureUnit;
+            enq.HsnCode = item.HSNCode ?? string.Empty;
+
+            if (enq.ItemId > 0)
+            {
+                var count = await enquiryService.GetCorrespondenceAttachmentsCountAsync(enq.ItemId.Value, "Item");
+                attachmentCounts[enq.ItemId.Value] = count;
+            }
+        }
+        else
+        {
+            enq.SelectedItem = null;
+            enq.ItemId = null;
+            enq.ItemCode = string.Empty;
+            enq.ItemName = string.Empty;
+            enq.UOM = string.Empty;
+            enq.HsnCode = string.Empty;
+        }
+    }
+    #endregion
+
+
+    #region Modal / Confirmation Handling
+
+    private async Task confirmDeleteRow_Click(bool isConfirmed)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            if (!isConfirmed || rowToDelete == null)
+            {
+                await _js.ToastrInfo("Action was not confirmed.");
+                return;
+            }
+
+            if (rowToDelete.EnquirySubId > 0)
+            {
+                await enquiryService.DeleteEnqSubItemAndResequenceAsync(rowToDelete, EnquirySalesVM);
+
+                EnquirySalesVM.EnquirySalesSubVM = await enquiryService
+                    .GetEnqSubByEnquiryIdAsync(EnquirySalesVM.EnquiryId);
+            }
+            else
+            {
+                EnquirySalesVM.EnquirySalesSubVM.Remove(rowToDelete);
+
+                if (!EnquirySalesVM.EnquirySalesSubVM.Any())
+                {
+                    EnquirySalesVM.EnquirySalesSubVM.Add(new EnquirySalesSubVM
+                    {
+                        EnquiryId = EnquirySalesVM.EnquiryId,
+                        IsEditable = true,
+                        SlNo = 1
+                    });
+                }
+                else
+                {
+                    for (int i = 0; i < EnquirySalesVM.EnquirySalesSubVM.Count; i++)
+                        EnquirySalesVM.EnquirySalesSubVM[i].SlNo = i + 1;
+                }
+            }
+
+            await _js.ToastrSuccess("Row deleted successfully.");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error confirming quote item deletion");
+            await _js.ToastrError("An error occurred during deletion. Please try again.");
+        }
+        finally
+        {
+            rowToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Cancel()
+    {
+        isProcessing = true;
+
+        try
+        {
+            if (!EnquiryId.HasValue || EnquiryId == 0)
+            {
+                await _js.ToastrError("Enquiry cancellation is not allowed before saving the enquiry.");
+                return;
+            }
+
+            if (IsSomeItemsTransMade)
+            {
+                await _js.ToastrError("Some transactions are already made. You can't cancel the enquiry.");
+                return;
+            }
+
+            if (EnquirySalesVM.ShortClose)
+            {
+                await _js.ToastrError("Enquiry is already short closed. You can't cancel it.");
+                return;
+            }
+
+            if (EnquirySalesVM.EnquirySalesSubVM?.Any(x => x.ItemCancel) == true)
+            {
+                await _js.ToastrError("Some items are already cancelled. Complete enquiry cancellation is not allowed.");
+                return;
+            }
+
+            if (!EnquirySalesVM.Cancel)
+            {
+                ModalTitle = "Are you sure you want to cancel this Enquiry?";
+                btnColor = "btn-danger";
+                btnText = "Yes! Cancel";
+                confirmation = "Cancel";
+                showCancelReasonBox = true;
+            }
+            else
+            {
+                ModalTitle = "Are you sure you want to revert this Enquiry?";
+                btnColor = "btn-success";
+                btnText = "Yes! Revert";
+                confirmation = "Revert";
+                showCancelReasonBox = false;
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the enquiry cancellation.");
+            await LoggingService.LogDeveloperError(ex, "Error in Enquiry Sales Cancel() method");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task HandleModalConfirmation(bool isConfirmed)
+    {
+        await _js.InvokeVoidAsync("HideConfirmationModal");
+        if (isConfirmed)
+        {
+            if (confirmation == "Open Files" && AttachItemSelected != null)
+            {
+                await OpenModal("Attachments");
+            }
+            else if (confirmation == "Cancel" || confirmation == "Revert")
+            {
+                await CancelEnquiry();
+            }
+            else if (confirmation == "Remove")
+            {
+                await confirmDeleteRow_Click(isConfirmed);
+            }
+            else if (confirmation == "ItemCancel")
+            {
+                await CancelItem(rowToCancel);
+            }
+            else if (confirmation == "ShortClose")
+            {
+                await ShortCloseEnquiry();
+
+            }else if (confirmation =="Print")
+            {
+               // await GenerateAndOpenPdf(EnquiryId);
+            }
+        }
+    }
+
+    private async Task ShortCloseEnquiry()
+    {
+        if (EnquirySalesVM == null)
+        {
+            await _js.ToastrError("No Sales Enquiry selected.");
+            return;
+        }
+        try
+        {
+            isProcessing = true;
+            EnquirySalesVM.ShortClose = !EnquirySalesVM.ShortClose;
+            await enquiryService.UpsertSalesEnquiryShortCloseAsync(EnquirySalesVM);
+            StateHasChanged();
+
+            string msg = EnquirySalesVM.ShortClose
+                 ? "Sales Enquiry ShortClose Successfully!"
+                 : "Sales Enquiry ReOpen Successfully!";
+            await _js.ToastrSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while updating ShortClose.Sales Enquiry");
+            await LoggingService.LogDeveloperError(ex, "Error in ShortClose() Sales Enquiry");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelEnquiry()
+    {
+
+
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!EnquirySalesVM.Cancel)
+            {
+                EnquirySalesVM.Cancel = true;
+                EnquirySalesVM.CancelDate = DateTime.Now;
+                EnquirySalesVM.CancelReason = cancelReason;
+                EnquirySalesVM.CancelBy = username;
+
+                await enquiryService.UpdatedCancelStatusAndAddOrRevertQty(EnquirySalesVM);
+
+                await LoggingService.LogUserAction(
+                    username, machine, ip,
+                    screen: "Enquiry Sales",
+                    action: $"Cancelled Enquiry Sales No: {EnquirySalesVM.EnquiryNo}",
+                    additionalInfo: $"Reason: {cancelReason}"
+                );
+
+                await _js.ToastrSuccess("Material Requisition cancelled successfully.");
+            }
+            else
+            {
+                EnquirySalesVM.Cancel = false;
+                EnquirySalesVM.CancelDate = null;
+                EnquirySalesVM.CancelReason = string.Empty;
+                EnquirySalesVM.CancelBy = string.Empty;
+
+                await enquiryService.UpdatedCancelStatusAndAddOrRevertQty(EnquirySalesVM);
+
+                await LoggingService.LogUserAction(
+                    username, machine, ip,
+                    screen: "Enquiry Sales",
+                    action: $"Reverted Enquiry Sales No: {EnquirySalesVM.EnquiryNo}"
+                );
+
+                await _js.ToastrSuccess("Material Requisition reverted successfully.");
+            }
+
+            cancelReason = string.Empty;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing EnquirySales in CancelEnquiry method");
+            await LoggingService.LogDeveloperError(ex, "Error while processing EnquirySales in CancelEnquiry()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public async Task confirm_Delete()
+    {
+        ModalTitle = "Are you sure you want to delete this row?";
+        btnColor = "btn-danger";
+        btnText = "Yes! Delete";
+        confirmation = "Remove";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+    #endregion
+
+
+    #region Search Methods
+    private async Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<CustomerVM>();
+
+        try
+        {
+            var results = await enquiryService.SearchCustomersAsync(value);
+            return results.Take(50);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error searching customers");
+            return Enumerable.Empty<CustomerVM>();
+        }
+    }
+
+
+    private async Task<IEnumerable<ItemVM>> SearchItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 3)
+            return Enumerable.Empty<ItemVM>();
+        var results = await enquiryService.SearchItemsAsync(value,EnquirySalesVM.CustId);
+
+        return results.Take(50);
+    }
+    #endregion
+
+
+    #region Upsert / Validation
+
+    private async Task UpsertEnquirySales()
+    {
+        isProcessing = true;
+        try
+        {
+            EnquirySalesVM.EnquirySalesSubVM.RemoveAll(x =>
+                (x.ItemId.GetValueOrDefault() == 0) &&
+                (x.Qty.GetValueOrDefault() <= 0));
+
+            if (await toValidateEnuiry())
+            {
+                var isNewEnquiry = EnquirySalesVM.EnquiryId == 0;
+
+                @if (isNewEnquiry)
+                {
+                    bool isDuplicate = await enquiryService.IsDuplicateEnquiryAsync(EnquirySalesVM.EnquiryNo, EnquirySalesVM.Suffix, EnquirySalesVM.EnquiryId, EnquirySalesVM.CustId);
+                    if (isDuplicate)
+                    {
+                        await _js.ToastrError($"Enquiry No '{EnquirySalesVM.EnquiryNo}' with Customer '{EnquirySalesVM.CustomerName}' already exists.");
+                        return;
+                    }
+                }
+
+                await enquiryService.UpsertEnquirySalesAsync(EnquirySalesVM);
+
+                if (isNewEnquiry)
+                {
+                //     ModalTitle = "Are you sure you want to print created enquiry?";
+                //     btnColor = "btn-success";
+                //     btnText = "Yes! Print";
+                //     confirmation = "Print";
+                //     showCancelReasonBox = false;
+
+                    await _js.ToastrSuccess("Enquiry saved successfully.");
+                }else
+                {
+                    await _js.ToastrSuccess("Enquiry updated successfully.");
+                }
+
+                // Discard popup Clear
+                await _js.InvokeVoidAsync("NavigationGuard.clear");
+
+                _navigationManager.NavigateTo("/enquirySales");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "UpsertEnquirySales");
+            await _js.ToastrError("Error saving enquiry.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task<bool> toValidateEnuiry()
+    {
+        bool valid = true;
+
+        if (EnquirySalesVM.MfgORLab == null)
+        {
+            await _js.ToastrWarning("Please select Manufacturing Or Labour");
+            valid = false;
+        }
+        else if (string.IsNullOrEmpty(EnquirySalesVM.EnquiryNo))
+        {
+            await _js.ToastrWarning("Please enter Enquiry No.");
+            valid = false;
+        }
+        else if (EnquirySalesVM.CustId == 0)
+        {
+            await _js.ToastrWarning("Please select Customer.");
+            valid = false;
+        }
+        else if (!EnquirySalesVM.EnquirySalesSubVM.Any())
+        {
+            await _js.ToastrWarning("At least one row item is required.");
+            valid = false;
+        }
+        else
+        {
+            foreach (var line in EnquirySalesVM.EnquirySalesSubVM)
+            {
+                if (line.ItemId.GetValueOrDefault() == 0)
+                {
+                    await _js.ToastrWarning("Please select Item for all rows.");
+                    valid = false;
+                    break;
+                }
+                if (line.Qty <= 0)
+                {
+                    await _js.ToastrWarning("Quantity must be greater than 0 for all rows.");
+                    valid = false;
+                    break;
+                }
+            }
+        }
+
+        return valid;
+    }
+    #endregion
+
+
+    #region Item Cancel or Cancel or Short- Close
+
+    private async Task OnItemCancelChanged(EnquirySalesSubVM subitem)
+    {
+        try
+        {
+            if (subitem.EnquirySubId == 0)
+            {
+                await _js.ToastrError("Kindly save the item before cancelling.");
+                return;
+            }
+
+            if(subitem.Qty.GetValueOrDefault() != subitem.BalQty.GetValueOrDefault())
+            {
+                await _js.ToastrError("some Sales Quotation transactions made. You can't cancel Item.");
+                return;
+            }
+
+            if (EnquirySalesVM.Cancel)
+            {
+                await _js.ToastrError("Enquiry is already Cancel. You can't cancel Item.");
+                return;
+            }
+
+            var (CanItemCancel, message) = await enquiryService.CanEnquiryItemCancelCheckAsync(subitem);
+
+            if (!CanItemCancel)
+            {
+                await _js.ToastrWarning(message);
+                return;
+            }
+
+            if (subitem.ItemId.HasValue)
+            {
+                if (!subitem.ItemCancel)
+                {
+                    ModalTitle = "Are you sure you want to Cancel this Item?";
+                    btnColor = "btn-danger";
+                    btnText = "Yes! Cancel";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = true;
+                }
+                else
+                {
+                    ModalTitle = "Are you sure you want to Revert this Item?";
+                    btnColor = "btn-success";
+                    btnText = "Yes! Revert";
+                    confirmation = "ItemCancel";
+                    showCancelReasonBox = false;
+                }
+                rowToCancel = subitem;
+
+                await _js.InvokeVoidAsync("ShowConfirmationModal");
+            }
+            else
+            {
+                await _js.ToastrError("ItemCode is missing or invalid.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while processing the Item.Cancel method");
+            await LoggingService.LogDeveloperError(ex, "Error in Item Cancel in Material Requisition");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task CancelItem(EnquirySalesSubVM rowToCancel)
+    {
+        if (rowToCancel == null) return;
+        try
+        {
+            isProcessing = true;
+
+            var username = await _userService.GetUsernameAsync();
+            var machine = _userService.MachineName;
+            var ip = _userService.IpAddress;
+
+            if (!rowToCancel.ItemCancel)
+            {
+                rowToCancel.ItemCancel = true;
+                rowToCancel.ItemCancelReason = cancelReason;
+
+                await enquiryService.UpdateItemCancelAndAddorRevertAsync(rowToCancel, EnquiryId.GetValueOrDefault());
+
+                await LoggingService.LogUserAction(
+                username, machine, ip,
+                screen: "Enquiry Sales",
+                action: $"Cancelled EnquirySales No: {EnquirySalesVM.EnquiryNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"Reason: {cancelReason}");
+
+            }
+            else
+            {
+                rowToCancel.ItemCancel = false;
+                rowToCancel.ItemCancelReason = cancelReason;
+
+                await enquiryService.UpdateItemCancelAndAddorRevertAsync(rowToCancel, EnquiryId.GetValueOrDefault());
+
+                await LoggingService.LogUserAction(
+                username, machine, ip,
+                screen: "Enquiry Sales",
+                action: $"Reverted EnquirySales No: {EnquirySalesVM.EnquiryNo} And ItemCode: {rowToCancel.ItemCode}",
+                additionalInfo: $"Reason: {cancelReason}");
+
+            }
+
+            EnquirySalesVM.EnquirySalesSubVM = await enquiryService
+                   .GetEnqSubByEnquiryIdAsync(EnquirySalesVM.EnquiryId);
+
+            await ResetSlno();
+
+            var toastMessage = rowToCancel.ItemCancel
+                ? "Item cancelled successfully."
+                : "Item has been reverted successfully.";
+
+            await _js.ToastrSuccess(toastMessage);
+            rowToCancel = null;
+            cancelReason = string.Empty;
+
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _js.ToastrWarning(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            rowToCancel = null;
+            await _js.ToastrError("An error occurred while cancelling/reverting the Item in Enquiry Sales.");
+            await LoggingService.LogDeveloperError(ex, $"Item Cancel/Reverse failed for EnqId: {EnquirySalesVM.EnquiryId}");
+        }
+        finally
+        {
+            rowToCancel = null;
+            isProcessing = false;
+        }
+    }
+
+
+    private async Task AskToShortCloseAsync(EnquirySalesVM enqSalesVM)
+    {
+        try
+        {
+            if (enqSalesVM == null)
+            {
+                await _js.ToastrError("Invalid Sales Enquiry selected.");
+                return;
+            }
+
+            if (!EnquiryId.HasValue || EnquiryId == 0)
+            {
+                await _js.ToastrError("Enquiry ShortClose is not allowed before saving the enquiry.");
+                return;
+            }
+
+            if (enqSalesVM.EnquiryTally)
+            {
+                await _js.ToastrWarning("This Sales Enquiry is already completed. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (enqSalesVM.Cancel)
+            {
+                await _js.ToastrWarning("This Sales Enquiry is already cancelled. Short-close or reopen action is not allowed.");
+                return;
+            }
+
+            if (!enqSalesVM.ShortClose)
+            {
+                ModalTitle = "Are you sure you want to Short-Close this Sales Enquiry?";
+                btnText = "Short Closed";
+                btnColor = "btn-danger";
+                confirmation = "ShortClose";
+                showCancelReasonBox = false;
+            }
+            else
+            {
+                showCancelReasonBox = false;
+                ModalTitle = "Do you want to ReOpen this Sales Enquiry?";
+                btnText = "Open";
+                btnColor = "btn-success";
+                confirmation = "ShortClose";
+            }
+
+            await _js.InvokeVoidAsync("ShowConfirmationModal");
+        }
+        catch (Exception ex)
+        {
+            await _js.ToastrError("An error occurred while AskToShortCloseAsync Sales Enquiry.");
+            await LoggingService.LogDeveloperError(ex, "Error in AskToShortCloseAsync()");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+
+    #endregion
+
+
+    #region navigate To Fesibility
+
+    private async Task NavigateToFeasibility()
+    {
+        try
+        {
+            Feslst = await enquiryService.GetFeasibilityDetailsByEnqIdAsync(EnquirySalesVM.EnquiryNo);
+
+            var selectedFes = Feslst.FirstOrDefault(f => f.RefEnqId == EnquirySalesVM.EnquiryId);
+            if (selectedFes != null)
+            {
+                _navigationManager.NavigateTo($"/enquiryFeasibility/update/{selectedFes.FesId}");
+            }
+            else
+            {
+                _navigationManager.NavigateTo($"/enquiryFeasibility/create/{EnquirySalesVM.EnquiryId}");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "NavigateToFeasibility");
+            await _js.ToastrError("Failed to load existing enquiryfeasibility details.");
+        }
+    }
+
+    #endregion
+
+    #region Template Download And Excel Upload
+
+    private async Task DownloadTemplate()
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            // Generate Excel
+            var bytes = await enquiryService.CreateTemplateAsync(UploadTypes.EquirySales);
+
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.InvokeVoidAsync("downloadExcelFile", base64, "EnquirySalesTemplate.xlsx");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    #endregion
+
+
+    #region Receive Items from Excel Upload
+    private async Task ReceiveItems(List<ExcelUploadVM> items)
+    {
+        try
+        {
+            if (items == null || !items.Any()) return;
+
+            // Map each ExcelUploadVM to LabourGRNSUB
+            var newItems = items
+           .Where(i => !EnquirySalesVM.EnquirySalesSubVM.Any(e => e.ItemId == i.ItemId))
+           .Select(item => new EnquirySalesSubVM 
+            {
+                SlNo = item.SlNo,
+                ItemId = item.ItemId,
+                ItemCode = item.ItemCode,
+                ItemName = item.ItemName,
+                UOM = item.MeasureUnit,
+                HsnCode=item.HSNCode,
+                Qty = item.Qty,
+                BalQty=item.Qty,
+                UnitPrice = item.UnitPrice??0,
+                Remark = item.RowRemarks
+            });
+
+            EnquirySalesVM.EnquirySalesSubVM.AddRange(newItems);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "ReceiveItems() failed.");
+            await _js.ToastrError("Error processing ReceiveItems() items.");
+        }
+    }
+    #endregion
+
+
+
+    private async Task GenerateAndOpenPdf()
+    {
+        try
+        {
+             isProcessing = false;
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+
+            var pdfBytes = await enquiryService.GenerateAndOpenPdf(EnquiryId.GetValueOrDefault(), "SalesEnquiry.frx", "EnquiryId", EnquirySalesVM.Cancel, ScreenName, "Sp_Print_EnquirySales");
+
+            if (pdfBytes != null && pdfBytes.Length > 0)
+            {
+                pdfBase64 = Convert.ToBase64String(pdfBytes);
+                await _js.InvokeVoidAsync("openPdfFromBase64", pdfBase64);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in GenerateAndOpenPdf SalesEnquiry");
+            await _js.ToastrError("An unexpected error occurred while generating the PDF in SalesEnquiry.");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+}

@@ -1,0 +1,297 @@
+﻿@page "/Customer/Select"
+@page "/Customer/Select/{IsExport:bool}/{IsMfgInv:bool}"
+
+
+@using V.SMART.Shared.Pages.Master_Module_pages.Customer_Pages
+@using V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
+@using MudBlazor
+
+
+@inject IUnitOfWork _unitOfWork
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject ICommonService _commonService
+@inject IJSRuntime _js
+
+
+<PageTitle>Select Customer</PageTitle>
+
+<style>
+    .centered-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .centered-card {
+        max-width: 550px; /* Slightly wider for better content spacing */
+        width: 100%;
+    }
+</style>
+
+
+<!-- Shared Modal -->
+<MasterModal IsVisible="isModalVisible" Title="@MasterModalTitle" MaxWidth="800px" OnClose="CloseModal">
+    @if (ActiveModal == "Customer")
+    {
+        <CustomerUpsert isCustModelVisible=true OnClose="CloseModal" />
+    }
+</MasterModal>
+
+<div class="centered-container">
+    <div class="card shadow-lg border-0 centered-card rounded-lg">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center rounded-top-lg">
+            <h5 class="mb-0">Select or Add Customer</h5>
+            <button class="btn btn-outline-light btn-sm" @onclick="Cancel">Cancel</button>
+        </div>
+
+        <div class="card-body">
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="flex-grow-1">
+                    <MudAutocomplete T="CustomerVM"
+                                     Label="Choose an existing Customer"
+                                     @bind-Value="SelectedCustomer"
+                                     ToStringFunc="@(c => c?.CustName ?? string.Empty)"
+                                     SearchFunc="SearchCustomers"
+                                     Clearable="true"
+                                     Dense="true"
+                                     Variant="Variant.Outlined"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Filled.Person"
+                                     Placeholder="Search by name..." />
+                </div>
+
+                <button type="button" class="btn btn-sm btn-success rounded-3" @onclick='() => OpenModal("Customer")'>
+                    <i class="bi bi-person-add me-1"></i> Add Customer
+                </button>
+
+            </div>
+
+            <div class="d-flex justify-content-end">
+                <MudButton OnClick="Proceed"
+                           Disabled="@(SelectedCustomer is null)"
+                           Variant="Variant.Filled"
+                           Color="Color.Success"
+                           EndIcon="@Icons.Material.Filled.ArrowForwardIos"
+                           Style="min-width: 150px;">
+                    Continue
+                </MudButton>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [Parameter] public bool IsExport { get; set; }
+    [Parameter] public bool IsMfgInv { get; set; }
+
+    private CustomerVM? SelectedCustomer { get; set; }
+    private List<CustomerVM> Customers = new();
+
+    private bool isModalVisible = false;
+    private string ActiveModal = "";
+    private string MasterModalTitle = "";
+
+    private void OpenModal(string type)
+    {
+        ActiveModal = type;
+        MasterModalTitle = type switch
+        {
+            "Customer" => "Add New Customer",
+            _ => "Modal"
+        };
+        isModalVisible = true;
+    }
+
+    private async Task CloseModal()
+    {
+        isModalVisible = false;
+        ActiveModal = "";
+        Customers = await _commonService.GetAllActiveCustomersAsync();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Customers = await _commonService.GetAllActiveCustomersAsync();IsMfgInv
+            if (!IsExport)
+            {
+                if (!IsMfgInv)
+                {
+                    Customers = await _commonService.GetAllActiveCustomersAsync();
+                }
+                else
+                {
+                    Customers = await _commonService.GetAllActiveNonExportCustomersAsync();
+                }
+
+            }
+            else
+            {
+                Customers = await _commonService.GetExportAllActiveCustomersAsync();
+            }
+
+               
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error loading customers: {ex.Message}");
+            Snackbar.Add($"Error loading customers: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private Task<IEnumerable<CustomerVM>> SearchCustomers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult<IEnumerable<CustomerVM>>(Customers);
+
+        var result = Customers.Where(c =>
+            c.CustName.Contains(value, StringComparison.OrdinalIgnoreCase) ||
+            (c.GSTNo != null && c.GSTNo.Contains(value, StringComparison.OrdinalIgnoreCase)));
+
+        return Task.FromResult(result);
+    }
+
+    private void AddCustomer()
+    {
+        // Navigate to the "Add Customer" page
+        Navigation.NavigateTo("/Customer/Create");
+    }
+
+    private async Task Proceed()
+    {
+        if (SelectedCustomer == null)
+            return;
+
+        if (string.IsNullOrEmpty(ReturnUrl))
+        {
+            await _js.ToastrError("ReturnUrl is not specified.");
+            return;
+        }
+
+        // Validate fields one by one
+        if (string.IsNullOrWhiteSpace(SelectedCustomer.CustName))
+        {
+            await _js.ToastrError("Customer Name is required.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(SelectedCustomer.CustAddr))
+        {
+            await _js.ToastrError("Customer Address is  not exists in Customer");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(SelectedCustomer.SupTyp))
+        {
+            await _js.ToastrError("Customer Type is not exists in Customer");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(SelectedCustomer.BusiType))
+        {
+            await _js.ToastrError("Business Type is not exists in Customer");
+            return;
+        }
+        if (SelectedCustomer.CurrId == null || SelectedCustomer.CurrId <= 0)
+        {
+            await _js.ToastrError("Currency is not exists in Customer");
+            return;
+        }
+
+        @if (SelectedCustomer.BusiType == "Local" || SelectedCustomer.BusiType == "InterState")
+        {
+            if (string.IsNullOrWhiteSpace(SelectedCustomer.GSTNo))
+            {
+                await _js.ToastrError("GST Number is required for Local and InterState customers.");
+                return;
+            }
+
+            if (SelectedCustomer.GSTNo.Length != 15)
+            {
+                await _js.ToastrError("GST Number must be exactly 15 characters.");
+                return;
+            }
+
+            // GST regex pattern (India)
+            var gstRegex = new System.Text.RegularExpressions.Regex(@"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$");
+
+            if (!gstRegex.IsMatch(SelectedCustomer.GSTNo))
+            {
+                await _js.ToastrError("Invalid GST Number format.");
+                return;
+            }
+        }
+        else
+        {
+
+            if (string.IsNullOrWhiteSpace(SelectedCustomer.GSTNo))
+            {
+                await _js.ToastrError("GST Number is not exists in Customer");
+                return;
+            }
+
+            var TodaysValue = await _commonService.GetLatestCurrencyValueAsync(SelectedCustomer.CurrId.Value);
+
+            if (TodaysValue == null || TodaysValue == 0)
+            {
+                await _js.ToastrError("For Export Customers, you need to allocate Today's Currency Value.");
+                Navigation.NavigateTo("/currency_today");
+                return;
+            }
+
+
+        }
+
+        if (string.IsNullOrWhiteSpace(SelectedCustomer.StateName))
+        {
+            await _js.ToastrError("State is not exists in Customer");
+            return;
+        }
+        if (SelectedCustomer.StateId == null || SelectedCustomer.StateId <= 0)
+        {
+            await _js.ToastrError("State Code is not exists in Customer");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(SelectedCustomer.PinCode))
+        {
+            await _js.ToastrError("Pincode is not exists in Customer");
+            return;
+        }
+
+        if (SelectedCustomer.Distance == null || SelectedCustomer.Distance <= 0)
+        {
+            await _js.ToastrError("Distance is  not exists in Customer");
+            return;
+        }
+        if (string.IsNullOrEmpty(SelectedCustomer.Location))
+        {
+            await _js.ToastrError("Location is not exists in Customer");
+            return;
+        }
+        
+
+        try
+        {
+            var targetUrl = ReturnUrl.Replace("{id}", SelectedCustomer.CustId.ToString());
+            Navigation.NavigateTo(targetUrl);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error while navigating: {ex.Message}", Severity.Error);
+        }
+    }
+
+
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

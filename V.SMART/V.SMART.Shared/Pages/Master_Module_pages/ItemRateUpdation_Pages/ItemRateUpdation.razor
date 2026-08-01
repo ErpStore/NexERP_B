@@ -1,0 +1,562 @@
+﻿@page "/ItemRate_Updation"
+
+@inherits BaseUserRightsComponent
+
+@inject ILoggingService LoggingService
+@inject IUnitOfWork _unitOfWork
+@inject IJSRuntime _js
+
+@inject CurrentUserService CurrentUserService
+@inject NavigationManager _navigation
+@inject ExcelExportService ExcelExportService
+
+<BsModal OnModalConfirmation="@HandelModelConfirmation"
+         ButtonBootstrapStyle="@btnColour"
+         ButtonText="@buttontext"
+         Title="@ModalTitle">
+</BsModal>
+
+@if (isProcessing)
+{
+    <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
+}
+else if (!CanView)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="container-fluid px-2 px-md-5 mt-4">
+        <div class="card shadow-sm border-1">
+
+            <PageHeader TitleText="@itemRateTitle"
+                TitleIcon="@itemRateIcon"
+                Breadcrumbs="@itemRateBreadcrumbs" />
+
+            <div class="card-body">
+                <div class="row mb-3">
+                    <!-- Category Dropdown -->
+                    <div class="col-md-6 col-lg-4">
+                        <select id="categorySelect" class="form-select" @onchange="OnCategoryChanged">
+                            <option disabled selected value="">-- Select Category --</option>
+                            @foreach (var cat in categories)
+                            {
+                                <option value="@cat.CategoryCode">@cat.CategoryName</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Export Button -->
+                    <div class="col-auto">
+                        @if (IsExportVisible && (CanCreate || CanEdit))
+                        {
+                            <button class="btn btn-success d-flex align-items-center" @onclick="HandleExport">
+                                <i class="bi bi-download me-2"></i> Export Items
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                @if (Item.Any())
+                {
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-bordered table-striped table-hover">
+                            <thead class="custom-blue">
+                                <tr>
+                                    <th>Sl No.</th>
+                                    <th>Item Id</th>
+                                    <th>Item Code / Part No.</th>
+                                    <th>Item Description</th>
+                                    <th>Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody class="custom-size">
+
+                               @*  @foreach (var item in Item.Select((value, index) => new { value, index })) *@
+                                @foreach (var item in FilteredItems.Select((value, index) => new { value, index }))
+                                {
+                                    <tr>
+                                        <td>@(item.index + 1)</td>
+                                        <td>@item.value.ItemId</td>
+                                        <td>@item.value.ItemCode</td>
+                                        <td>@item.value.ItemName</td>
+                                        @if (CanEdit || CanCreate)
+                                        {
+                                            <td>
+                                                <input type="number" class="form-control form-control-sm" step="any"
+                                                       @bind="item.value.Rate" @bind:event="oninput" />
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+
+                            </tbody>
+                        </table>
+                    </div>
+
+                }
+                else if (selectedCategoryCode != 0)
+                {
+                    <p class="text-center">No items found for this category.</p>
+                }
+
+
+                <div class="card shadow-sm border-0 rounded-3 p-3 bg-light">
+                    <div class="row g-3 align-items-end">
+
+                        <!-- Upload Excel -->
+                        <div class="col-md-4 col-lg-3">
+                            <label class="form-label fw-semibold text-dark small mb-1 d-flex align-items-center">
+                                <i class="bi bi-file-earmark-excel text-success me-2 fs-5"></i>
+                                Upload Excel File
+                            </label>
+                            <label class="btn btn-outline-success w-100 rounded-pill">
+                                <i class="bi bi-upload me-1"></i> Browse
+                                <InputFile OnChange="OnFileSelected" class="d-none" accept=".xlsx,.xls,.xlsm" />
+                            </label>
+                        </div>
+
+                        <!-- Sheet Selection -->
+                        @if (SheetNames?.Any() == true)
+                        {
+                            <div class="col-md-4 col-lg-3">
+                                <label class="form-label fw-semibold text-dark small mb-1 d-flex align-items-center">
+                                    <i class="bi bi-table me-2 text-primary fs-5"></i>
+                                    Select Sheet
+                                </label>
+                                <select id="SelectSheet"
+                                        class="form-select rounded-pill"
+                                        value="@SelectedSheet"
+                                        @onchange="OnSelectedSheetChanged">
+                                    <option value="">-- Choose Sheet --</option>
+                                    @foreach (var sheet in SheetNames)
+                                    {
+                                        <option value="@sheet">@sheet</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+
+                        <!-- Update Button -->
+                        <div class="col-md-4 col-lg-3">
+                            <button class="btn btn-primary rounded-pill px-4 py-2 shadow-sm w-100"
+                                    style="min-width: 160px;"
+                                    @onclick="handleToUpdate">
+                                <i class="bi bi-arrow-repeat me-1"></i> Update Data
+                            </button>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Search</label>
+
+                            <input type="text"
+                                   class="form-control"
+                                   placeholder="Search Item Code or Item Name..."
+                                   @bind="searchText"
+                                   @bind:event="oninput" />
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white fw-bold">
+                        <i class="fas fa-info-circle"></i> Item Rate Update Instructions
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2"><strong>For small updates (up to 10–20 items):</strong></p>
+                        <ul>
+                            <li>Update the <strong>Rate</strong> directly in the table above.</li>
+                            <li>Click <strong>Update</strong> to save changes.</li>
+                        </ul>
+
+                        <p class="mt-3 mb-2"><strong>For bulk updates:</strong></p>
+                        <ol>
+                            <li>Click <strong>Export Items to Excel</strong> to download the list.</li>
+                            <li>Open the file in Excel and modify the <strong>Rate</strong> column.</li>
+                            <li>Save the file locally without changing headers.</li>
+                            <li>Upload the modified file below.</li>
+                            <li>Select the correct sheet name if prompted.</li>
+                            <li>Click <strong>Update</strong> to apply all changes.</li>
+                        </ol>
+
+                        <p class="text-danger small mb-0">Only Excel files (.xls, .xlsx) are supported. Do not rename or remove columns.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+}
+@code {
+    protected override string ScreenName => "Item Rate-Updation";
+
+    private bool isProcessing = true;
+    private List<Category> categories = new();
+    private int selectedCategoryCode;
+    private List<Item> Item = new List<Item>();
+    private List<ItemVM> ItemList = new();
+
+    private string Confirmation = "";
+
+    private bool IsExportVisible = false;
+    private List<string> SheetNames = new();
+    private string SelectedSheet { get; set; } = "";
+    private IBrowserFile uploadedFile;
+    private string searchText = "";
+
+    private List<string> headers = new();
+
+    List<Dictionary<string, object>> excelData = new List<Dictionary<string, object>>();
+
+    private string ModalTitle = string.Empty;
+    private string buttontext = string.Empty;
+    private string btnColour = string.Empty;
+
+    private readonly List<string> expectedItemHeaders = new()
+    {
+        "ItemCode","Itemname", "Rate"
+    };
+
+    private List<PageHeader.BreadcrumbItem> itemRateBreadcrumbs = new()
+    {
+        new PageHeader.BreadcrumbItem { Text = "Master" },
+        new PageHeader.BreadcrumbItem { Text = "Inventory" },
+        new PageHeader.BreadcrumbItem { Text = "Item Rate-Updation", IsLast = true }
+    };
+
+    private string itemRateIcon = "bi bi-tags-fill";
+    private string itemRateTitle = "Item Rate Updation";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadRightsAsync();
+            if (!CanView)
+            {
+                _navigation.NavigateTo("/access-denied");
+                return;
+            }
+
+            categories = await _unitOfWork.Categories.GetUsedCategoriesAsync();
+            isProcessing = false;
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Item Rate Updation InitializeColumns() Method");
+        }
+    }
+
+    private async Task OnCategoryChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if (int.TryParse(e?.Value?.ToString(), out int catCode))
+            {
+                Item = new List<Item>();      
+                excelData.Clear();
+                selectedCategoryCode = catCode;
+                Item = await _unitOfWork.ItemRepositories.GetItemsByCategoryCodeAsync(selectedCategoryCode);
+                IsExportVisible = true;
+                excelData = Item.Select(i => new Dictionary<string, object>
+                {
+                    ["ItemId"]   = i.ItemId,
+                    ["ItemCode"] = i.ItemCode,
+                    ["ItemName"] = i.ItemName,
+                    ["Rate"]     = i.Rate,
+                }).ToList();
+
+            }
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Item Rate Updation OnCategoryChanged() Method");
+            await _js.ToastrError("Error While Loading!..");
+
+        }
+    }
+
+    private void HandleExport()
+    {
+
+        ModalTitle = "Are you sure you want to export data to Excel?";
+        btnColour = "btn-success";
+        buttontext = "Yes";
+        Confirmation = "Export";
+        _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task ExportToExcel(bool isConfirm)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            if (!isConfirm) return;
+
+            var exportData = Item.Select(x => new ItemExportVM
+            {
+                ItemId = x.ItemId,
+                ItemCode = x.ItemCode,
+                ItemName = x.ItemName,
+                Rate = x.Rate
+            }).ToList();
+
+            var bytes = ExcelExportService.ExportListToExcel(exportData, "Items","ItemId", "ItemCode", "ItemName");
+            var base64 = Convert.ToBase64String(bytes);
+            await _js.DownloadExcelAsync(base64, "ItemRateUpdate.xlsx");
+
+        }
+        catch (Exception ex)
+        {
+
+            await LoggingService.LogDeveloperError(ex, "An error occurred while handling the Item Rate Updation ExportToExcel() Method");
+            await _js.ToastrError("Error While ExportToExcel!..");
+
+        }
+    }
+
+    // Step 1: User uploads file - only extract sheets here
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            if (e.File != null)
+            {
+                uploadedFile = e.File;
+
+                // Reset selected sheet and data
+                SelectedSheet = null;
+                SheetNames = new List<string>();
+                Item.Clear();
+                excelData.Clear();
+
+                // Load only sheet names (no data loading)
+                await LoadSheetNamesAsync(uploadedFile);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnFileSelected event");
+            await _js.ToastrError("Error While File Selecting!..");
+
+        }
+    }
+
+    private async Task LoadSheetNamesAsync(IBrowserFile file)
+    {
+        using var stream = file.OpenReadStream(10_000_000);
+        using var memoryStream = new MemoryStream();
+        await stream.CopyToAsync(memoryStream);
+        memoryStream.Position = 0;
+
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+        using var reader = ExcelReaderFactory.CreateReader(memoryStream);
+        var result = reader.AsDataSet();
+
+        SheetNames = result.Tables.Cast<DataTable>().Select(t => t.TableName).ToList();
+
+        if (!SheetNames.Any())
+        {
+            await _js.ToastrWarning("No sheets found in the uploaded file.");
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnSelectedSheetChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var selected = e.Value?.ToString();
+            if (string.IsNullOrWhiteSpace(selected))
+            {
+                await _js.ToastrError("Please select a valid sheet.");
+                return;
+            }
+
+            SelectedSheet = selected;
+
+            if (uploadedFile != null && !string.IsNullOrEmpty(SelectedSheet))
+            {
+                await LoadSheetDataAsync(uploadedFile, SelectedSheet);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in OnSelectedSheetChanged event");
+            await _js.ToastrError("Error While Selecting the Sheet");
+        }
+    }
+
+    private async Task LoadSheetDataAsync(IBrowserFile file, string sheetName)
+    {
+        try
+        {
+             using var stream = file.OpenReadStream(10_000_000);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+            using var reader = ExcelReaderFactory.CreateReader(memoryStream);
+            var result = reader.AsDataSet();
+
+            var table = result.Tables[sheetName];
+
+            if (table == null || table.Rows.Count == 0)
+            {
+                await _js.InvokeVoidAsync("alert", "Selected sheet is empty or not found.");
+                return;
+            }
+
+            Item.Clear();
+            excelData.Clear();
+
+            headers = table.Rows[0].ItemArray.Select(x => x?.ToString()?.Trim() ?? "").ToList();
+            var columnIndex = headers.Select((name, index) => new { name, index })
+                                     .ToDictionary(x => x.name.ToLower(), x => x.index);
+
+            var missingHeaders = expectedItemHeaders.Except(headers, StringComparer.OrdinalIgnoreCase).ToList();
+            if (missingHeaders.Any())
+            {
+                await _js.ToastrError($"Missing headers: {string.Join(", ", missingHeaders)}");
+                return;
+            }
+
+            for (int row = 1; row < table.Rows.Count; row++)
+            {
+                var rowDict = new Dictionary<string, object>();
+                for (int col = 0; col < table.Columns.Count; col++)
+                {
+                    string header = headers[col];
+                    string value = table.Rows[row][col]?.ToString()?.Trim();
+
+                    if (decimal.TryParse(value, out var decimalValue))
+                        rowDict[header] = decimalValue;
+                    else
+                        rowDict[header] = value;
+                }
+                excelData.Add(rowDict);
+            }
+
+            Item = excelData.Select(row => new Item
+            {
+                ItemId = row.ContainsKey("ItemId") && int.TryParse(row["ItemId"]?.ToString(), out var itemId) ? itemId : 0,
+                ItemCode = row.ContainsKey("ItemCode") ? row["ItemCode"]?.ToString() : string.Empty,
+                ItemName = row.ContainsKey("ItemName") ? row["ItemName"]?.ToString() : string.Empty,
+                Rate = row.ContainsKey("Rate") && decimal.TryParse(row["Rate"]?.ToString(), out var rate) ? rate : 0
+            }).ToList();
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in LoadSheetDataAsync event");
+            await _js.ToastrError("Error While Loading Selected Sheet data");
+        }
+       
+    }
+
+    private async Task handleToUpdate()
+    {
+        ModalTitle = "Are you sure you want to update data?";
+        btnColour = "btn-success";
+        buttontext = "Yes";
+        Confirmation = "Update";
+        await _js.InvokeVoidAsync("ShowConfirmationModal");
+    }
+
+    private async Task SaveGridEdits(bool isConfirm)
+    {
+        try
+        {
+            if (isConfirm)
+            {
+                foreach (var data in Item)
+                {
+                    if (data.ItemId <= 0)
+                        continue;
+
+                    float rate = (float)data.Rate;
+
+                    await _unitOfWork.ItemRepositories.UpdateRateByItemIdAsync(data.ItemId, rate);
+                }
+
+                await _js.ToastrSuccess("Rates updated successfully.");
+                _navigation.NavigateTo("/itemList");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogDeveloperError(ex, "Error in Item Rate Updation on SaveGridEdits event");
+            await _js.ToastrError("Error While Rate Update!..");
+
+        }
+    }
+
+
+    private string GetValue(string header, List<string> row, Dictionary<string, int> columnIndex)
+    {
+        if (columnIndex.TryGetValue(header.ToLower().Trim(), out var index) && index < row.Count)
+            return row[index];
+        return "";
+    }
+
+    private async Task HandelModelConfirmation()
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("HideConfirmationModal");
+            switch (Confirmation)
+            {
+                case  "Export":
+                    await ExportToExcel(true);
+                    break;
+                case "Update":
+                    await SaveGridEdits(true);
+                    break;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            
+             await LoggingService.LogDeveloperError(ex, "Error in Item Rate Updation on  HandelModelConfirmation event");
+            
+        }
+    }
+
+    private IEnumerable<Item> FilteredItems
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+                return Item;
+
+            string search = searchText.Trim();
+
+            return Item.Where(x =>
+                (!string.IsNullOrWhiteSpace(x.ItemCode) &&
+                 x.ItemCode.Contains(search, StringComparison.OrdinalIgnoreCase))
+                ||
+                (!string.IsNullOrWhiteSpace(x.ItemName) &&
+                 x.ItemName.Contains(search, StringComparison.OrdinalIgnoreCase))
+                ||
+                (x.ItemId.ToString().Contains(search))
+            );
+        }
+    }
+
+    public class ItemExportVM
+    {
+        public int ItemId { get; set; }
+        public string ItemCode { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+        public decimal Rate { get; set; }
+    }
+}
