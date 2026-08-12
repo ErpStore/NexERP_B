@@ -29,11 +29,26 @@ namespace V.SMART.Shared.Services.MultiCompanyService
 
             try
             {
-                // ✅ 1. Web mode (by Host)
+                // ✅ 1. API mode (from JWT TenantId claim)
+                var tenantIdClaim = _httpContextAccessor?.HttpContext?.User?.FindFirst("TenantId")?.Value;
+                if (!string.IsNullOrEmpty(tenantIdClaim) && int.TryParse(tenantIdClaim, out var tenantId))
+                {
+                    _cached = _masterDb.Tenants.FirstOrDefault(t => t.Id == tenantId);
+                    if (_cached != null)
+                    {
+                        if (session != null)
+                            session.HostName = _cached.Hostname;
+                        Console.WriteLine($"[TenantProvider] Resolved tenant from JWT TenantId: {tenantId}");
+                        return _cached;
+                    }
+                }
+
+                // ✅ 2. Web mode (by Host)
                 var host = _httpContextAccessor?.HttpContext?.Request?.Host.Host;
                 if (!string.IsNullOrEmpty(host))
                 {
-                    session.HostName = host;
+                    if (session != null)
+                        session.HostName = host;
                     _cached = _masterDb.Tenants.FirstOrDefault(t => t.Hostname == host);
                     if (_cached != null)
                     {
@@ -42,7 +57,7 @@ namespace V.SMART.Shared.Services.MultiCompanyService
                     }
                 }
 
-                // ✅ 2. Desktop mode (tenant.json)
+                // ✅ 3. Desktop / API fallback (tenant.json)
                 var config = LoadTenantConfigFromJson();
                 if (config != null)
                 {
