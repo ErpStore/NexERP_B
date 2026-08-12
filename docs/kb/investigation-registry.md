@@ -32,7 +32,8 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-021 | Angular pilot: scope and value | Complete | `frontend/vsmart-erp/src/**`, `package.json` | [KB-015](architecture/frontend-architecture-existing.md#the-angular-19-pilot-frontendvsmart-erp) | 2026-08-12 |
 | INV-022 | Background jobs / scheduled tasks | Complete | grep for `IHostedService`, `BackgroundService`, `PeriodicTimer`, Hangfire, Quartz — **none exist** | [KB-010](architecture/system-overview.md#background-processing) | 2026-08-12 |
 | INV-023 | Testing and CI | Complete | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
-| INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands) | 2026-08-12 |
+| INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands) | 2026-08-12 |
+| INV-034 | **Correction:** repository visibility of `ErpStore/NexERP_B` | Complete | `git -c credential.helper= ls-remote` (fails, demands auth) vs. plain `git ls-remote` (silently succeeds); unauthenticated `curl https://api.github.com/repos/ErpStore/NexERP_B` (404, GitHub's standard private-repo response to anonymous callers); `git config --system --get-all credential.helper` (`manager`) | [KB-085 §Repository visibility correction](execution/M0-00-baseline-decisions.md#repository-visibility-correction-inv-034) | 2026-08-12 |
 
 ## Partial
 
@@ -74,7 +75,8 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 | INV-031 | Test-harness feasibility — can `ApplicationDbContext` be hosted in a test process, and under which EF provider? (`ToView(null)` × 65 makes InMemory doubtful) | M0-12-01 | Reserved |
 | INV-032 | Decimal representation across the HTTP wire — format, precision source, rounding mode | M2-C10 | Reserved |
 | INV-033 | Screen-name → route mapping for permission-filtered navigation | M2-C03 | Reserved |
-| **INV-034 +** | **next free** | — | — |
+| INV-034 | Repository visibility correction (moved to Completed table above) | M0-00 | Completed |
+| **INV-035 +** | **next free** | — | — |
 
 Before claiming an id: `grep -rn "INV-0[0-9][0-9]" docs/` across **both** `docs/kb/` and
 `docs/kb/execution/tasks/`, then add the row here in the same change that uses it. Never

@@ -229,11 +229,16 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 **Currently `Ready`:** M0-04, M0-01, M0-01-01.
 
-**M0-00: `Needs Review`** — committed on `migration/M0-00-vcs-baseline` (pushed to
-`origin`), all documentation updated; branch protection on `master` (step 9) is pending the
-repo owner's action (no GitHub admin credentials were available in the execution
-environment) — see [KB-085](M0-00-baseline-decisions.md#github-configuration-step-9). Move
-to `Completed`, and M0-15/M0-08 to `Ready`, once that step closes and the branch is merged.
+**M0-00: `Needs Review`** — `migration/M0-00-vcs-baseline` merged to `master` via PR #1
+(merge commit `5fcb2b1`) by the repo owner. Two things remain before `Completed`:
+(1) confirm branch protection is actually configured on `master` — could not be verified
+programmatically in the execution environment; see
+[KB-085](M0-00-baseline-decisions.md#github-configuration-step-9); (2) merge the small
+follow-up branch `fix/M0-00a-correct-repo-visibility-finding`, which corrects a
+same-day-discovered error: the repository was reported **public** for most of this task's
+execution and is actually **private** (INV-034) — see
+[KB-085](M0-00-baseline-decisions.md#repository-visibility-correction-inv-034). Move to
+`Completed`, and M0-15/M0-08 to `Ready`, once both close.
 
 M3/M4 counts are the 14-step pattern multiplied across waves and will firm up as each wave's
 task files are generated.

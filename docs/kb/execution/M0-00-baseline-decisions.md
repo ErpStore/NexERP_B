@@ -33,7 +33,7 @@ row exactly:
 | `git log --oneline --all` | `c12c5b2 Add project files.` (1 commit) |
 | `git ls-files` | 2,162 tracked files |
 | `git ls-tree -r HEAD --name-only \| grep .sln` | `Bhargavi V.SMART ERP - 2025.sln` |
-| `git ls-remote` (unauthenticated) | succeeds → repository is public |
+| `git ls-remote` | succeeds without a visible credential prompt — **later found to be misleading** (Windows Git Credential Manager was silently authenticating; see *Repository visibility correction* below) |
 | `git grep -l "NexGenERP-Dev-Jwt-Secret" HEAD` | no output (secret not in history) |
 | `git check-ignore -v frontend/vsmart-erp/dist` | `frontend/vsmart-erp/.gitignore:4` |
 | `git check-ignore -v frontend/vsmart-erp/.angular/cache` | `frontend/vsmart-erp/.gitignore:32` |
@@ -103,19 +103,58 @@ required and was not performed.
 
 | Item | Status |
 |---|---|
-| Push `pre-M0-00-baseline` tag to `origin` | **Done.** `git push origin pre-M0-00-baseline` succeeded — push credentials are configured in this environment. |
-| Push `migration/M0-00-vcs-baseline` branch to `origin` | **Done.** Available at `https://github.com/ErpStore/NexERP_B/pull/new/migration/M0-00-vcs-baseline` for a PR. `master` was not touched. |
-| Protect `master` (PR required, no force-push, no deletion, **no** required status check yet — M0-07 adds that) | **Blocked / pending.** No `gh` CLI is installed and no GitHub API token is configured in this execution environment. The Chrome browser tool (which could drive the repo owner's logged-in session) was unavailable (extension not connected) when attempted. **Action required from the repo owner:** go to `https://github.com/ErpStore/NexERP_B/settings/branches` → Add branch protection rule → branch name pattern `master` → check "Require a pull request before merging", "Do not allow bypassing the above settings" (or equivalent), "Restrict deletions", and leave "Require status checks to pass" **unchecked** (no CI exists until M0-07). M0-07 must return to add the status-check requirement. |
-| Repository visibility audit | **Recorded.** `git ls-remote https://github.com/ErpStore/NexERP_B.git` succeeds without authentication as of 2026-08-12 → the repository is **public**. No visibility change was made — that is the owner's decision (see Q-19 below). |
+| Push `pre-M0-00-baseline` tag to `origin` | **Done.** `git push origin pre-M0-00-baseline` succeeded — push credentials are configured in this environment (via Windows Git Credential Manager, using the owner's own cached login — see the visibility correction below). |
+| Push `migration/M0-00-vcs-baseline` branch to `origin`, open PR, merge to `master` | **Done, by the repo owner.** Branch pushed to `https://github.com/ErpStore/NexERP_B/pull/new/migration/M0-00-vcs-baseline`; PR #1 opened and merged by Kumar (merge commit `5fcb2b1` on `origin/master`, verified via `git fetch` + `git merge-base --is-ancestor`). |
+| Protect `master` (PR required, no force-push, no deletion, **no** required status check yet — M0-07 adds that) | **Status unconfirmed.** No `gh` CLI, no GitHub API token, and Claude in Chrome was unavailable in this execution environment, so this could not be verified programmatically (an unauthenticated GitHub API branch-protection check 404s regardless of the setting, since the repo is private — see below). **Action for the repo owner:** confirm at `https://github.com/ErpStore/NexERP_B/settings/branches` that `master` has a protection rule requiring a PR, blocking force-push and deletion, with status checks left unrequired until M0-07. |
+| Repository visibility audit | **Corrected 2026-08-12, same session (INV-034).** Initially recorded as public based on `git ls-remote` "succeeding without authentication." That was wrong — see *Repository visibility correction* below. The repository is **private**. |
 
-## Q-19 escalation (public repo + published credentials)
+## Repository visibility correction (INV-034)
+
+**What happened.** Every git operation in this task's execution — `git ls-remote`,
+`git fetch`, `git push` (tag and branch) — appeared to succeed without ever prompting for
+credentials, which was read (by this task and by the earlier INV-029 investigation it
+relied on) as proof the repository is public. It was not: `git config --system
+--get-all credential.helper` returns `manager` — Windows Git Credential Manager is
+configured system-wide and was silently supplying the repo owner's own cached GitHub
+credentials on every request, with no visible prompt.
+
+**How it was caught and re-verified.** After the owner reported merging the PR, a routine
+"is master actually protected" check led to testing GitHub API access directly:
+`curl https://api.github.com/repos/ErpStore/NexERP_B` (no auth) returned `404 Not Found` —
+GitHub's deliberate response for a private repo shown to an unauthorized caller (a
+non-existent *public* repo would also 404, so this alone was corroborated further).
+`git -c credential.helper= ls-remote https://github.com/ErpStore/NexERP_B.git` (explicitly
+disabling the credential helper) failed with `fatal: could not read Username for
+'https://github.com': terminal prompts disabled` — proof the server demands authentication
+for read access, which a public repo never does. Reproduced independently in a second shell
+(PowerShell) with the same result.
+
+**Consequence.** `ErpStore/NexERP_B` is **private**. The committed database credentials
+(R-01) and the JWT secret incident (below) are not published to the public internet — they
+are reachable only by GitHub accounts with collaborator access to this repo. This is a real
+exposure (still requires rotation and a history purge) but not the "already harvested by
+anyone" incident-response-grade finding the original Q-19 escalation described. Corrected
+in [open-questions.md](../open-questions.md) Q-19,
+[technical-debt-register.md](../risks/technical-debt-register.md) R-01/R-02, and
+[README.md §6](README.md#findings-from-this-planning-pass-that-changed-m0). Recorded as
+**INV-034** in [investigation-registry.md](../investigation-registry.md).
+
+**Root-cause lesson:** a git command "succeeding without a visible prompt" is not the same
+claim as "succeeding without authentication" whenever a credential helper is configured —
+always check `credential.helper` before drawing a visibility conclusion from git protocol
+behavior, and prefer an unauthenticated `curl`/REST check (or `git -c credential.helper=`)
+as the actual test.
+
+## Q-19 escalation (private repo + committed credentials)
 
 Escalated in this session, 2026-08-12, to **Kumar**, who confirmed being the owner of
-`ErpStore/NexERP_B`. Evidence attached: [KB-060](../risks/technical-debt-register.md) R-01
-(hardcoded credentials in C#, not only config) and R-02 (repository-level exposure),
-re-confirmed live in this task (see Pre-execution verification table above). Recorded in
-[open-questions.md](../open-questions.md) Q-19 with this date and owner. **Decision on
-visibility itself remains outstanding** — this task does not act on it.
+`ErpStore/NexERP_B`, under the initial (incorrect) "public" framing. The correction above
+was delivered to Kumar the same day, in the same session. Evidence attached:
+[KB-060](../risks/technical-debt-register.md) R-01 (hardcoded credentials in C#, not only
+config) and R-02 (JWT secret), re-confirmed live in this task. Recorded in
+[open-questions.md](../open-questions.md) Q-19 with this date and owner, corrected version.
+**Decision on visibility itself is moot** — the repository is already private; no visibility
+change is being recommended.
 
 ## Rollback
 
@@ -126,13 +165,13 @@ visibility itself remains outstanding** — this task does not act on it.
 - No `stash` was used — every group's decision was `commit` or `defer` (nothing left
   half-decided).
 
-## Unexpected finding: JWT secret value published via this KB document, not via appsettings.json
+## Unexpected finding: JWT secret value exposed via this KB document, not via appsettings.json
 
 **Severity: high. Self-caused by this task; fixed within the same session, 2026-08-12.**
 
 The task's own G2 recommendation and acceptance criteria treat `git grep -l
 "NexGenERP-Dev-Jwt-Secret" HEAD` returning nothing as proof the JWT secret was not
-published — on the assumption that the only place the value could leak was
+exposed — on the assumption that the only place the value could leak was
 `V.SMART.Api/appsettings.json`, which G2 correctly deferred and never committed. That
 assumption was wrong: `docs/kb/risks/technical-debt-register.md` (R-02) **quoted the
 secret's full literal value** as cited evidence (a "Secret" JSON value, 62 characters,
@@ -141,8 +180,10 @@ the exact value is still live in `V.SMART.Api/appsettings.json` on disk, which w
 correctly never committed, and in this branch's history prior to commit `44314ed`, which
 redacted it from `technical-debt-register.md`). Committing `docs/` as group G7 — recommended by the task
 and confirmed by the decider without a file-by-file secret scan of the KB itself — carried
-that value into `HEAD` on `migration/M0-00-vcs-baseline`, which was then pushed to the
-public `origin`.
+that value into `HEAD` on `migration/M0-00-vcs-baseline`, which was then merged to
+`master`. (The repository was later confirmed **private**, not public — see *Repository
+visibility correction* above — so this reached collaborators with repo access, not the
+public internet; still a real exposure worth this whole writeup.)
 
 **Immediate remediation taken (same session):** the literal value was redacted from
 `technical-debt-register.md` in a follow-up commit (content-only fix; no history rewrite —
@@ -156,11 +197,14 @@ judged not worth mass-redacting across the KB in this task's scope, since it is 
 of the full secret and the substantive fix (rotation) removes its value entirely — but it
 is recorded here rather than silently accepted.
 
-**Consequence:** the JWT dev secret must now be treated as **published and compromised**,
-regardless of `appsettings.json`'s tracking state. This does not change M0-03-03/M0-04's
-planned action (rotate; fail-fast on the known default) but does remove any basis for
-treating it as lower urgency than R-01. Recorded in `technical-debt-register.md` R-02 and
-flagged here for whoever picks up M0-04/M0-03-03/M0-05 next.
+**Consequence:** the JWT dev secret must now be treated as **exposed to every collaborator
+with repo access** (the repo is private — see *Repository visibility correction* above —
+so "compromised by the public internet" is not accurate, but this is still a strictly wider
+exposure than before this task ran), regardless of `appsettings.json`'s tracking state.
+This does not change M0-03-03/M0-04's planned action (rotate; fail-fast on the known
+default) but does remove any basis for treating it as lower urgency than R-01. Recorded in
+`technical-debt-register.md` R-02 and flagged here for whoever picks up M0-04/M0-03-03/
+M0-05 next.
 
 **Root-cause lesson for future tasks:** "is this file/value in HEAD" is not the same
 question as "is this value quoted anywhere in what I'm about to commit." A KB document
@@ -175,3 +219,8 @@ that cites a secret as evidence is itself a secret-bearing file the moment it's 
 3. `docs/kb/investigation-registry.md` already carried the INV-029 row before this task
    started (it was expected to be missing per `tasks/M0-00.md`, written earlier the same
    day) — verified current and left unchanged rather than re-added.
+4. **Repository visibility (Q-19, R-01/R-02) was reported wrong for most of this task's
+   execution**, then corrected same-day as INV-034 once tested properly — see *Repository
+   visibility correction* above. This was caught after the branch was already merged, so
+   the fix ships as a small follow-up branch/PR (`fix/M0-00a-correct-repo-visibility-finding`)
+   rather than inside `migration/M0-00-vcs-baseline` itself.
