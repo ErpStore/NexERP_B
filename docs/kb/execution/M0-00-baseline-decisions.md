@@ -135,11 +135,14 @@ The task's own G2 recommendation and acceptance criteria treat `git grep -l
 published — on the assumption that the only place the value could leak was
 `V.SMART.Api/appsettings.json`, which G2 correctly deferred and never committed. That
 assumption was wrong: `docs/kb/risks/technical-debt-register.md` (R-02) **quoted the
-secret's full literal value** as cited evidence:
-`"Secret": "NexGenERP-Dev-Jwt-Secret-Key-Change-In-Production-Min32Chars!"`. Committing
-`docs/` as group G7 — recommended by the task and confirmed by the decider without a
-file-by-file secret scan of the KB itself — carried that value into `HEAD` on
-`migration/M0-00-vcs-baseline`, which was then pushed to the public `origin`.
+secret's full literal value** as cited evidence (a "Secret" JSON value, 62 characters,
+containing the words "Dev", "Change In Production" and "32Chars" — not reproduced here;
+the exact value is still live in `V.SMART.Api/appsettings.json` on disk, which was
+correctly never committed, and in this branch's history prior to commit `44314ed`, which
+redacted it from `technical-debt-register.md`). Committing `docs/` as group G7 — recommended by the task
+and confirmed by the decider without a file-by-file secret scan of the KB itself — carried
+that value into `HEAD` on `migration/M0-00-vcs-baseline`, which was then pushed to the
+public `origin`.
 
 **Immediate remediation taken (same session):** the literal value was redacted from
 `technical-debt-register.md` in a follow-up commit (content-only fix; no history rewrite —
