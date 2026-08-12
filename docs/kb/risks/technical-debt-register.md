@@ -80,18 +80,34 @@ remove the hardcoded connection strings from C# source** (M0-03-02). Purge from 
 Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, not `sa`.
 
 ### R-02 — JWT signing secret committed
-**Confirmed.** `V.SMART.Api/appsettings.json`:
-`"Secret": "NexGenERP-Dev-Jwt-Secret-Key-Change-In-Production-Min32Chars!"`.
+**Confirmed.** `V.SMART.Api/appsettings.json` `Jwt:Secret` holds a hardcoded default value
+containing the literal words "Change In Production" — i.e. it was never rotated.
 **Impact.** Anyone with the repo can forge tokens for any user and any `TenantId` —
 complete cross-tenant compromise once the API is live.
 **Action.** Move to secret storage; rotate; fail startup if the secret is missing or is
 the known default (M0-03-01, M0-03-03).
 
-> **Note, 2026-08-12 (INV-029, Confirmed).** Unlike the database credentials (R-01), this
-> string was **not** found in committed history — `git grep -l "NexGenERP-Dev-Jwt-Secret"
-> HEAD` returns nothing, so `V.SMART/V.SMART.Api/appsettings.json` appears to be untracked
-> or uncommitted. It is therefore exposed locally but **not** published. Rotate it anyway,
-> and confirm the file's tracked status as part of M0-00 before assuming this holds.
+> **Note, updated 2026-08-13 (M0-00 incident).** The 2026-08-12 note below was itself
+> wrong in a way that caused harm: it quoted the secret's **literal value** as evidence,
+> and that value was carried into `HEAD` on `migration/M0-00-vcs-baseline` (pushed to the
+> public `origin`) when M0-00 committed `docs/` as group G7, because the value lived in
+> *this KB document*, not in `V.SMART.Api/appsettings.json` — which was correctly never
+> committed. **Treat this JWT secret as published and compromised regardless of the
+> `appsettings.json` tracking state.** The value has been redacted from this document as
+> of this commit; it remains in the git history of `migration/M0-00-vcs-baseline` until
+> M0-05's purge, and rotation (M0-04/M0-03-03) must not be deprioritized on the assumption
+> that this string was still private. See
+> [KB-085 §Unexpected finding](../execution/M0-00-baseline-decisions.md#unexpected-finding-jwt-secret-value-published-via-this-kb-document-not-via-appsettingsjson).
+>
+> **Original note, 2026-08-12 (INV-029, Confirmed), preserved for the record but
+> superseded by the above:** "Unlike the database credentials (R-01), this string was not
+> found in committed history — `git grep -l "<the secret string>" HEAD` returns nothing,
+> so `V.SMART/V.SMART.Api/appsettings.json` appears to be untracked or uncommitted. It is
+> therefore exposed locally but not published. Rotate it anyway, and confirm the file's
+> tracked status as part of M0-00 before assuming this holds." The instruction to
+> "confirm... as part of M0-00" was followed for `appsettings.json` itself (correctly
+> deferred, never committed) but not for *this document quoting the value*, which is the
+> gap that caused the exposure.
 
 ### R-03 — Authorization enforced only in the UI layer
 **Confirmed.** `BaseUserRightsComponent` + `RightsHelper` are the only permission checks;

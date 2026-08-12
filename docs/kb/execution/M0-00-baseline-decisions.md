@@ -126,6 +126,43 @@ visibility itself remains outstanding** — this task does not act on it.
 - No `stash` was used — every group's decision was `commit` or `defer` (nothing left
   half-decided).
 
+## Unexpected finding: JWT secret value published via this KB document, not via appsettings.json
+
+**Severity: high. Self-caused by this task; fixed within the same session, 2026-08-12.**
+
+The task's own G2 recommendation and acceptance criteria treat `git grep -l
+"NexGenERP-Dev-Jwt-Secret" HEAD` returning nothing as proof the JWT secret was not
+published — on the assumption that the only place the value could leak was
+`V.SMART.Api/appsettings.json`, which G2 correctly deferred and never committed. That
+assumption was wrong: `docs/kb/risks/technical-debt-register.md` (R-02) **quoted the
+secret's full literal value** as cited evidence:
+`"Secret": "NexGenERP-Dev-Jwt-Secret-Key-Change-In-Production-Min32Chars!"`. Committing
+`docs/` as group G7 — recommended by the task and confirmed by the decider without a
+file-by-file secret scan of the KB itself — carried that value into `HEAD` on
+`migration/M0-00-vcs-baseline`, which was then pushed to the public `origin`.
+
+**Immediate remediation taken (same session):** the literal value was redacted from
+`technical-debt-register.md` in a follow-up commit (content-only fix; no history rewrite —
+M0-05 still owns the purge). The verification re-run after that commit still shows the
+*search pattern* `NexGenERP-Dev-Jwt-Secret` (a 24-character prefix of the 62-character
+secret, `-Key-Change-In-Production-Min32Chars!` not included) in several other KB task
+files (`tasks/M0-00.md`, `tasks/M0-03-01.md`, `tasks/M0-04.md`) — these use it only as a
+`git grep` search argument (pre-existing KB convention, not introduced by this session,
+and it is the literal acceptance-criteria text of this and other tasks). This fragment was
+judged not worth mass-redacting across the KB in this task's scope, since it is far short
+of the full secret and the substantive fix (rotation) removes its value entirely — but it
+is recorded here rather than silently accepted.
+
+**Consequence:** the JWT dev secret must now be treated as **published and compromised**,
+regardless of `appsettings.json`'s tracking state. This does not change M0-03-03/M0-04's
+planned action (rotate; fail-fast on the known default) but does remove any basis for
+treating it as lower urgency than R-01. Recorded in `technical-debt-register.md` R-02 and
+flagged here for whoever picks up M0-04/M0-03-03/M0-05 next.
+
+**Root-cause lesson for future tasks:** "is this file/value in HEAD" is not the same
+question as "is this value quoted anywhere in what I'm about to commit." A KB document
+that cites a secret as evidence is itself a secret-bearing file the moment it's tracked.
+
 ## Deviations from the task spec
 
 1. Physical backup excluded `bin/obj/node_modules/.vs/.angular/dist` — see rationale
