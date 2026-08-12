@@ -229,16 +229,18 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 **Currently `Ready`:** M0-04, M0-01, M0-01-01.
 
-**M0-00: `Needs Review`** — `migration/M0-00-vcs-baseline` merged to `master` via PR #1
-(merge commit `5fcb2b1`) by the repo owner. Two things remain before `Completed`:
-(1) confirm branch protection is actually configured on `master` — could not be verified
-programmatically in the execution environment; see
-[KB-085](M0-00-baseline-decisions.md#github-configuration-step-9); (2) merge the small
-follow-up branch `fix/M0-00a-correct-repo-visibility-finding`, which corrects a
-same-day-discovered error: the repository was reported **public** for most of this task's
-execution and is actually **private** (INV-034) — see
-[KB-085](M0-00-baseline-decisions.md#repository-visibility-correction-inv-034). Move to
-`Completed`, and M0-15/M0-08 to `Ready`, once both close.
+**M0-00: `Needs Review` — one item left, owner-actionable only.**
+`migration/M0-00-vcs-baseline` merged to `master` via PR #1 (`5fcb2b1`); the follow-up
+visibility-correction branch `fix/M0-00a-correct-repo-visibility-finding` merged to
+`master` directly (`661482a`, no protection was blocking it — see next line). Repository
+visibility resolved: reported public (flawed test) → corrected to private (INV-034) →
+**owner deliberately made it public**, verified rigorously, Q-19 answered. **Confirmed via
+the public unauthenticated GitHub API, 2026-08-12: `master` branch protection is `false`**
+(`GET /repos/ErpStore/NexERP_B/branches/master` → `"protected": false`) — this is the one
+acceptance criterion still open, and it can only be closed by the repo owner in the GitHub
+UI (`Settings → Branches → Add rule` for `master`: require PR, block force-push, block
+deletion, leave required status checks unchecked until M0-07). Move to `Completed`, and
+M0-15/M0-08 to `Ready`, once that's done and confirmed.
 
 M3/M4 counts are the 14-step pattern multiplied across waves and will firm up as each wave's
 task files are generated.
