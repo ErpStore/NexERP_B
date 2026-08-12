@@ -35,7 +35,7 @@ its children are `Completed` — it is never worked directly.
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Ready** | P0 | — | 0.5 d | G0 |
+| M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Needs Review** | P0 | — | 0.5 d | G0 |
 | M0-15 | M0 | Toolchain and build baseline | DevOps | Blocked | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | Blocked | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
@@ -227,7 +227,13 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-00, M0-04, M0-01, M0-01-01.
+**Currently `Ready`:** M0-04, M0-01, M0-01-01.
+
+**M0-00: `Needs Review`** — committed on `migration/M0-00-vcs-baseline` (pushed to
+`origin`), all documentation updated; branch protection on `master` (step 9) is pending the
+repo owner's action (no GitHub admin credentials were available in the execution
+environment) — see [KB-085](M0-00-baseline-decisions.md#github-configuration-step-9). Move
+to `Completed`, and M0-15/M0-08 to `Ready`, once that step closes and the branch is merged.
 
 M3/M4 counts are the 14-step pattern multiplied across waves and will firm up as each wave's
 task files are generated.

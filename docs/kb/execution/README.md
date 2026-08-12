@@ -840,8 +840,13 @@ project). Remote: `https://github.com/ErpStore/NexERP_B.git`. Default branch `ma
 | Rollback | Revert the branch's merge commit. Each task is independently reversible **because** it is single-scope. |
 | Protection | `master` protected, requiring CI green + one review, from M0-07 onward. |
 
-**Precondition (M0-00):** the working tree currently has 37 uncommitted entries and the
-history is a single commit. No branch-per-task workflow starts until that is resolved.
+**Precondition (M0-00): resolved 2026-08-12.** The working tree previously had 37
+uncommitted entries against a single-commit history. M0-00 gave each entry a human-decided
+disposition on `migration/M0-00-vcs-baseline`: 7 groups committed (G1, G4, G5, G6, G7, G8,
+G9), 2 groups deferred because they carry live credentials (G2 to M0-03-01, G3 to M0-03/
+M0-04 — see [KB-085](M0-00-baseline-decisions.md) for the full per-group log). A
+branch-per-task workflow can now start from `master` once this branch is reviewed and
+merged. `pre-M0-00-baseline` tags the original single commit (`c12c5b2`) for rollback.
 
 Every task file states its branch name, commit subject, expected changed files, and
 rollback approach.
