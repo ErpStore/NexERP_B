@@ -1,4 +1,5 @@
 ﻿@using MudBlazor
+@implements IDisposable
 @inject NavigationManager NavigationManager
 
 @inject IUserService UserService
@@ -11,7 +12,7 @@
         <!-- ══════════════════════════════
         MINI SIDEBAR
         ══════════════════════════════ -->
-        <div class="vs-mini-nav">
+        <div class="vs-mini-nav vs-mini-sidebar">
 
 
             @if (!ShowProductionMenu)
@@ -25,6 +26,7 @@
 
                         <MudIcon Icon="@Icons.Material.Filled.Home"
                                  Size="Size.Small" />
+                        <span class="vs-mini-btn-label">Home</span>
 
                     </button>
 
@@ -51,51 +53,26 @@
                                 }
                     else
                     {
-                        <!-- Groups -->
+                        <!-- Groups — clicking selects the module and loads its subnav into the top bar -->
                         @foreach (var group in NavGroups)
                         {
                             var g = group;
 
                             <div class="vs-mini-item">
 
-                                <!-- ICON BUTTON -->
                                 <button class="vs-mini-btn
                                     @(_activeFlyout == g.Key ? "vs-mini-btn--open" : "")
-                                    @(g.Value.Items.Any(x => IsActive(x.Href))
+                                    @(g.Value.Items.Any(x => ItemMatchesUrl(x, NavigationManager.ToBaseRelativePath(NavigationManager.Uri).TrimEnd('/')))
                                     ? "vs-mini-btn--active"
                                     : "")"
                             title="@g.Key"
-                            @onclick="() => ToggleFlyout(g.Key)">
+                            @onclick="() => SelectModule(g.Key)">
 
                                     <MudIcon Icon="@g.Value.MudIcon"
                                              Size="Size.Small" />
+                                    <span class="vs-mini-btn-label">@GetShortLabel(g.Key)</span>
 
                                 </button>
-
-                                <!-- FLYOUT -->
-                    @if (_activeFlyout == g.Key)
-                                {
-                                    <div class="vs-flyout">
-
-                                        <div class="vs-flyout-title">
-                                            @g.Key
-                                        </div>
-
-                                        @foreach (var item in g.Value.Items)
-                                        {
-                                            var i = item;
-
-                                            <a class="vs-flyout-item @(IsActive(i.Href) ? "vs-flyout-item--active" : "")"
-                                               @onclick:preventDefault
-                                               @onclick="() => NavigateAndClose(i.Href)">
-
-                                                @i.Label
-
-                                            </a>
-                                        }
-
-                                    </div>
-                                }
 
                             </div>
                         }
@@ -106,21 +83,9 @@
 
             </AuthorizeView>
 
-            <!-- Expand Button -->
-            <div class="vs-mini-item vs-mini-dots-wrap">
-
-                <button class="vs-mini-btn vs-mini-btn--dots"
-                        title="Expand menu"
-                        @onclick="ToggleDrawer">
-
-                    <MudIcon Icon="@Icons.Material.Filled.MoreVert"
-                             Size="Size.Small" />
-
-                </button>
-
-            </div>
-
         </div>
+
+        @* Horizontal subnav rendered in MainLayout to avoid fixed-position containment issues *@
     }
     else
     {
@@ -136,9 +101,20 @@
             <!-- Header -->
             <div class="vs-nav-header">
                 <div class="vs-nav-header-inner">
-                    <div class="vs-nav-header-icon">⌘</div>
+                    <div class="vs-nav-header-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="22" height="22">
+                            <defs>
+                                <linearGradient id="nx-nav-icon" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="#4F46E5"/>
+                                    <stop offset="100%" stop-color="#06B6D4"/>
+                                </linearGradient>
+                            </defs>
+                            <rect width="48" height="48" rx="11" fill="url(#nx-nav-icon)"/>
+                            <path d="M11 37V11h6.5l13.5 18.5V11H37v26h-6.5L17 18.5V37z" fill="rgba(255,255,255,0.95)"/>
+                        </svg>
+                    </div>
                     <div>
-                        <div class="vs-nav-eyebrow">V.SMART ERP</div>
+                        <div class="vs-nav-eyebrow">NexGenERP</div>
                         <div class="vs-nav-title">Business Modules</div>
                     </div>
                 </div>
@@ -458,7 +434,27 @@
 
     [Parameter] public bool DrawerOpen { get; set; }
     [Parameter] public EventCallback ToggleDrawer { get; set; }
+    [Parameter] public EventCallback<string?> OnFlyoutChanged { get; set; }
 
+    protected override async Task OnInitializedAsync()
+    {
+        NavigationManager.LocationChanged += OnLocationChanged;
+        await DetectActiveModule();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await DetectActiveModule();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
 
     private CustomAuthStateProvider? CustomAuth =>
         AuthenticationStateProvider as CustomAuthStateProvider;
@@ -484,11 +480,11 @@
     // ── Flyout state ─────────────────────────────────────────────────────
     private string? _activeFlyout;
 
-    // ── Data model ───────────────────────────────────────────────────────
-    private record NavItem(string Label, string Href);
-    private record NavGroupDef(string MudIcon, List<NavItem> Items);
+    // ── Data model (public static so MainLayout can render the subnav bar) ──────────
+    public record NavItem(string Label, string Href, List<NavItem>? Children = null);
+    public record NavGroupDef(string MudIcon, List<NavItem> Items);
 
-    private readonly Dictionary<string, NavGroupDef> NavGroups = new()
+    public static readonly Dictionary<string, NavGroupDef> NavGroups = new()
     {
         // ═══════════════════════════════════════
         // DASHBOARD
@@ -504,71 +500,80 @@
         // ═══════════════════════════════════════
         ["Master"] = new(Icons.Material.Filled.MenuBook, new()
         {
-            // Admin
-            new("User Master",                    "user"),
-            new("User Rights Master",             "userRights"),
-            new("Authority Manage Master",        "userLevelAuthorization"),
+            new("Admin Master", "", new()
+            {
+                new("User Master",                "user"),
+                new("User Rights Master",         "userRights"),
+                new("Authority Manage",           "userLevelAuthorization"),
+            }),
 
-            // Inventory
-            new("Category Master",                "category"),
-            new("Measurement Unit Master",        "uom"),
-            new("Stores Master",                  "stores"),
-            new("Store Mapping Master",           "store-map"),
-            new("HSN/SAC Master",                 "hsnMaster"),
-            new("Material Master",                "rawMaterialList"),
-            new("Item Master",                    "itemList"),
-            new("BOM Master",                     "bomList"),
-            new("Process Master",                 "processList"),
-            new("Factors Master",                 "factorlist"),
-            new("Grouping Master",                "groupingList"),
+            new("Inventory Master", "", new()
+            {
+                new("Category Master",            "category"),
+                new("Measurement Unit",           "uom"),
+                new("Stores Master",              "stores"),
+                new("Store Mapping",              "store-map"),
+                new("HSN/SAC Master",             "hsnMaster"),
+                new("Material Master",            "rawMaterialList"),
+                new("Item Master",                "itemList"),
+                new("BOM Master",                 "bomList"),
+                new("Process Master",             "processList"),
+                new("Factors Master",             "factorlist"),
+                new("Grouping Master",            "groupingList"),
+                new("Item Price Update",          "ItemRate_Updation"),
+            }),
 
-            // Costing
-            new("Item Price Update",              "ItemRate_Updation"),
-            new("BOM Labour",                    "bomLabourList"),
-            new("Labour Cost Management",         "LabourCostManagement"),
-            new("BOM Cost Estimation",            "costcalculator"),
+            new("Assembly Costing", "", new()
+            {
+                new("BOM Labour",                 "bomLabourList"),
+                new("Labour Cost Management",     "LabourCostManagement"),
+                new("BOM Cost Estimation",        "costcalculator"),
+            }),
 
-            // General
-            new("Customer Master",                "customer"),
-            new("Vendor Master",                  "vendor"),
-            new("Machine Master",                 "machineList"),
-            new("Terms & Conditions",             "terms-and-conditions"),
-            new("States Master",                  "state"),
-            new("Master Upload",                  "master-upload"),
-            new("Contract Review Master",         "contractReviewMasterList"),
-            new("RejectionMaster",         "RejectionMaster"),
+            new("General Master", "", new()
+            {
+                new("Customer Master",            "customer"),
+                new("Vendor Master",              "vendor"),
+                new("Machine Master",             "machineList"),
+                new("Terms & Conditions",         "terms-and-conditions"),
+                new("States Master",              "state"),
+                new("Master Upload",              "master-upload"),
+                new("Contract Review Master",     "contractReviewMasterList"),
+                new("Rejection Master",           "RejectionMaster"),
+            }),
 
+            new("Account Master", "", new()
+            {
+                new("Expense Master",             "expense"),
+                new("Income Master",              "income"),
+                new("Bank Detail Master",         "bank"),
+                new("Currency Master",            "currency"),
+                new("Currency Today Master",      "currency_today"),
+                new("Project Type Master",        "project-type-master"),
+                new("Cost Centre Master",         "costCenter"),
+            }),
 
+            new("HR Master", "", new()
+            {
+                new("Candidate Master",           "candidate"),
+                new("Offer Letter",               "offer_Letter"),
+                new("Appointment Letter",         "appointment_Letter"),
+                new("Employee Master",            "Staff"),
+                new("Holiday Master",             "hrMaster/holidayList"),
+                new("Leave Master",               "leaveType"),
+                new("Leave Allocation Master",    "employeeLeaveBalance"),
+                new("Shift Allocation Master",    "shiftAllocation"),
+                new("Attendance",                 "attendanceList"),
+                new("Salary",                     "salaryList"),
+                new("Staff Loan",                 "staffLoanList"),
+            }),
 
-            // Accounts
-            new("Expense Master",                 "expense"),
-            new("Income Master",                  "income"),
-            new("Bank Detail Master",             "bank"),
-            new("Currency Master",                "currency"),
-            new("Currency Today Master",          "currency_today"),
-            new("Project Type Master",            "project-type-master"),
-            new("Cost Centre Master",             "costCenter"),
+            new("Settings Master", "", new()
+            {
+                new("Screen Manage Master",       "screenManagement"),
+                new("General Setting Master",     "generalSettings"),
+            }),
 
-            // HR
-            new("Candidate Master",                     "candidate"),
-            new("Offer Letter",                     "offer_Letter"),
-            new("Appointment Letter",           "appointment_Letter"),
-            new("Employee Master",                "Staff"),
-            new("Holiday Master",                 "hrMaster/holidayList"),
-            new("Leave Master",                   "leaveType"),
-            new("Leave Allocation Master",        "employeeLeaveBalance"),
-            new("Shift Allocation Master",        "shiftAllocation"),
-            new("Attendance",                     "attendanceList"),
-            new("Salary",                         "salaryList"),
-            new("Staff Loan",                     "staffLoanList"),
-           
-
-
-            // Settings
-            new("Screen Manage Master",           "screenManagement"),
-            new("General Setting Master",         "generalSettings"),
-
-            // Company
             new("My Company Details",             "myCompany"),
         }),
 
@@ -585,16 +590,20 @@
             new("Contract Review Check",          "contractReviewCheckList"),
             new("Proforma Invoice",               "PerformaInvList"),
 
-            // Manufacturing
-            new("Delivery Challan",               "mfgDcList"),
-            new("Domestic Tax Invoice",           "mfgInvList"),
-            new("Export Invoice",                 "expInvList"),
+            new("Manufacturing Work", "", new()
+            {
+                new("Delivery Challan",           "mfgDcList"),
+                new("Domestic Tax Invoice",       "mfgInvList"),
+                new("Export Invoice",             "expInvList"),
+            }),
 
-            // Labour
-            new("Goods Received Note cum DC",     "labourGRNList"),
-            new("Store Credit Note",              "labourSCNList"),
-            new("Labour Delivery Challan",        "labourDcoutgoingList"),
-            new("Labour Invoice",                 "LabourInvoiceList"),
+            new("Labour Work", "", new()
+            {
+                new("Goods Received Note cum DC", "labourGRNList"),
+                new("Store Credit Note",          "labourSCNList"),
+                new("Delivery Challan",           "labourDcoutgoingList"),
+                new("Labour Invoice",             "LabourInvoiceList"),
+            }),
 
             new("Credit Note",                    "creditNoteList"),
         }),
@@ -610,16 +619,20 @@
             new("Price Comparison",               "rate-comparison"),
             new("Purchase Order",                 "PurchPOList"),
 
-            // Purchase
-            new("Purchase GRN",                   "purchaseGRNList"),
-            new("Purchase Store Credit Note",     "purchaseSCNList"),
-            new("Purchase Tax Invoice",           "purchaseInvoiceList"),
+            new("Purchase", "", new()
+            {
+                new("Goods Received Note",        "purchaseGRNList"),
+                new("Store Credit Note",          "purchaseSCNList"),
+                new("Tax Invoice",                "purchaseInvoiceList"),
+            }),
 
-            // Sub Contract
-            new("Sub Contract DC",                "subConDcOutList"),
-            new("Sub Contract GRN",               "subConGrnList"),
-            new("Sub Contract SCN",               "subConScnList"),
-            new("Sub Contract Invoice",           "subConInvList"),
+            new("Sub Contract", "", new()
+            {
+                new("Delivery Challan",           "subConDcOutList"),
+                new("Goods Received Note",        "subConGrnList"),
+                new("Store Credit Note",          "subConScnList"),
+                new("Tax Invoice",                "subConInvList"),
+            }),
 
             new("Debit Note",                     "debitNoteList"),
         }),
@@ -644,19 +657,21 @@
         // ═══════════════════════════════════════
         ["Production"] = new(Icons.Material.Filled.PrecisionManufacturing, new()
         {
-            // Assembly
-            new("Jobcard Material Issue",         "productionIssueList"),
-            new("Assembly Goods Received",        "productionReturnAssyList"),
-            new("Assembly Store Credit Note",     "productionAssySCNList"),
+            new("Assembly", "", new()
+            {
+                new("Material Issue",             "productionIssueList"),
+                new("Goods Received Note",        "productionReturnAssyList"),
+                new("Store Credit Note",          "productionAssySCNList"),
+            }),
 
-            // Component
-            new("Component Material Issue",       "productionCompIssueList"),
-            new("Component Goods Received",       "productionCompReturnList"),
-            new("Component Store Credit Note",    "productionCompSCNList"),
+            new("Component", "", new()
+            {
+                new("Material Issue",             "productionCompIssueList"),
+                new("Goods Received Note",        "productionCompReturnList"),
+                new("Store Credit Note",          "productionCompSCNList"),
+            }),
 
             new("Daily Production Log",           "productionLogList"),
-            
-            
         }),
 
         // ═══════════════════════════════════════
@@ -729,53 +744,63 @@
         // ═══════════════════════════════════════
         ["Reports"] = new(Icons.Material.Filled.Analytics, new()
         {
-            //Issue Summary
-             new("ToolCrib Issue Summary",       "ToolCribReport"),
+            new("Issue Summary", "", new()
+            {
+                new("ToolCrib Issue Summary",     "ToolCribReport"),
+            }),
 
-            // Accounts
-            new("Confirmation Of Accounts",       "confirmationaccounts"),
-            new("Bills Paid List",                "PaidBills"),
-            new("Profit And Loss Statements",     "Profit_LossAccounts"),
-            new("Tax Details",                    "taxDetailsList"),
-            new("TDS Summary",                    "tdsSummaryReport"),
-            new("HSN Code Summary",               "hsnCodeSummaryReport"),
-            new("CreditDebit Summary Report",     "creditdebitSummaryReport"),
-            new("Summary & Graphs",               "summarygraphs"),
-            new("GSTITC_04",                      "GSTITC"),
-             
+            new("Accounts", "", new()
+            {
+                new("Confirmation Of Accounts",   "confirmationaccounts"),
+                new("Bills Paid List",            "PaidBills"),
+                new("Profit & Loss",              "Profit_LossAccounts"),
+                new("Tax Details",                "taxDetailsList"),
+                new("TDS Summary",                "tdsSummaryReport"),
+                new("HSN Code Summary",           "hsnCodeSummaryReport"),
+                new("CreditDebit Summary",        "creditdebitSummaryReport"),
+                new("Summary & Graphs",           "summarygraphs"),
+                new("GSTITC_04",                  "GSTITC"),
+            }),
 
-            // Track Reports
-            new("Sales Track",                    "SalesTrack"),
-            new("Labour Track",                   "labourTrack"),
-            new("Tally DC Inwards & Outwards",    "dc-inout-report"),
-            new("View Po Track",                  "po-tally"),
-            new("Purchas Sales Track",           "Purchase-Sales_Track"),
-            new("Joborder Track",           "joborderAnalysis"),
+            new("Track Reports", "", new()
+            {
+                new("Sales Track",                "SalesTrack"),
+                new("Labour Track",               "labourTrack"),
+                new("DC Inwards & Outwards",      "dc-inout-report"),
+                new("View PO Track",              "po-tally"),
+                new("Purchase Sales Track",       "Purchase-Sales_Track"),
+                new("Joborder Track",             "joborderAnalysis"),
+            }),
 
-           
+            new("Analysis Reports", "", new()
+            {
+                new("Stock Ledger",               "StockLedger"),
+                new("Stock Analysis",             "StockAnalysis"),
+                new("Rejection Analysis",         "Rejection"),
+                new("Route Card Analysis",        "RouteCardAnalysis"),
+            }),
 
-            // Analysis
-            new("Stock Ledger",                   "StockLedger"),
-            new("Stock Analysis",                 "StockAnalysis"),
-            new("Rejection Analysis",                 "Rejection"),
-            new("RouteCard Analysis",          "RouteCardAnalysis"),
+            new("Ratings", "", new()
+            {
+                new("Ratings",                    "Ratings"),
+                new("PR PO Rating",               "prpoRating"),
+            }),
 
-            //Rating
-            new("Rating",                             "Ratings"),
-            new("PR PO Rating",                      "prpoRating"),
+            new("Pending Reports", "", new()
+            {
+                new("PO Pending List",            "SalesPoPending"),
+                new("Bills Pending List",         "Pending_Bills"),
+                new("Pending Statements",         "PendingStatements"),
+                new("Labour Pending Summary",     "labourpending"),
+                new("Production Pending Summary", "ProductionPending"),
+            }),
 
-          
-            // Pending
-            new("PO Pending List",                "SalesPoPending"),
-            new("Bills Pending List",             "Pending_Bills"),
-            new("Pending Statements",             "PendingStatements"),
-            new("Labour Pending Summary",             "labourpending"),
-            new("Production Pending Summary",      "ProductionPending"),
-
-            //History
-            new("Day Book",                       "Daybook"),
-            new("Item Usage Tracking",               "ItemWiseReport"),
-            new("Item Modification",                 "ItemModificationReport"),
+            new("History", "", new()
+            {
+                new("Day Book",                   "Daybook"),
+                new("Item Usage Tracking",        "ItemWiseReport"),
+                new("Item Modification",          "ItemModificationReport"),
+            }),
         }),
 
         // ═══════════════════════════════════════
@@ -788,19 +813,67 @@
         }),
     };
 
-    // ── Flyout show/hide ──────────────────────────────────────────────────
-    private void ToggleFlyout(string key)
+    // ── Module selection & auto-detection ────────────────────────────────
+    private async Task SelectModule(string key)
     {
-        if (_activeFlyout == key)
-            _activeFlyout = null;
-        else
-            _activeFlyout = key;
+        _activeFlyout = key;
+        await OnFlyoutChanged.InvokeAsync(key);
+        if (NavGroups.TryGetValue(key, out var group) && group.Items.Count > 0)
+        {
+            var first = group.Items[0];
+            var href = (first.Children?.Count > 0) ? first.Children[0].Href : first.Href;
+            if (!string.IsNullOrEmpty(href))
+                NavigationManager.NavigateTo("/" + href);
+        }
     }
 
-    private void CloseFlyout()
+    private async Task DetectActiveModule()
     {
+        var current = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).TrimEnd('/');
+        foreach (var (key, group) in NavGroups)
+        {
+            if (group.Items.Any(item => ItemMatchesUrl(item, current)))
+            {
+                _activeFlyout = key;
+                await OnFlyoutChanged.InvokeAsync(key);
+                return;
+            }
+        }
         _activeFlyout = null;
+        await OnFlyoutChanged.InvokeAsync(null);
     }
+
+    private static bool ItemMatchesUrl(NavItem item, string current)
+    {
+        if (!string.IsNullOrEmpty(item.Href))
+        {
+            var rel = item.Href.TrimStart('/').TrimEnd('/');
+            if (!string.IsNullOrEmpty(rel) &&
+                (current.Equals(rel, StringComparison.OrdinalIgnoreCase) ||
+                 current.StartsWith(rel + "/", StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+        return item.Children?.Any(c => ItemMatchesUrl(c, current)) == true;
+    }
+
+    // Short labels for mini sidebar buttons
+    private static string GetShortLabel(string key) => key switch
+    {
+        "Dashboard"       => "Dashboard",
+        "Master"          => "Master",
+        "CRM / Sales"     => "Sales",
+        "Purchase"        => "Purchase",
+        "Planning"        => "Planning",
+        "Production"      => "Production",
+        "Inventory"       => "Inventory",
+        "Quality Control" => "QC",
+        "Maintenance"     => "Maintain",
+        "Human Resource"  => "HR",
+        "Finance"         => "Finance",
+        "Reports"         => "Reports",
+        "Utilities"       => "Utils",
+        _                 => key.Length > 9 ? key[..9] : key
+    };
 
     private void Navigate(string href)
     {
@@ -809,8 +882,6 @@
 
     private void NavigateAndClose(string href)
     {
-        _activeFlyout = null;
-
         NavigationManager.NavigateTo(href);
     }
 

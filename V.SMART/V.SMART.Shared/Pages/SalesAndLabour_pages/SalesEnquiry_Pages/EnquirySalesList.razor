@@ -31,20 +31,6 @@
          OnReasonChanged="(value) => cancelReason = value">
 </BsModal>
 
-<style>
-    .table-responsive {
-        max-height: 600px;
-        overflow-y: auto;
-    }
-
-    .quickgrid th {
-        position: sticky;
-        top: 0;
-        background: white;
-        z-index: 10;
-    }
-</style>
-
 @if (isProcessing)
 {
     <ProcessingOverlay Visible="@isProcessing" Message="Please wait..." />
@@ -56,352 +42,273 @@ else if (!CanView)
 }
 else
 {
-    <div class="container-fluid px-2 px-md-5 mt-4">
-        <div class="card shadow-sm border-1">
+    <div class="zh-page">
 
-            <PageHeader TitleText="Sales Enquiry List"
-                        TitleIcon="bi bi-receipt-cutoff"
-                        Breadcrumbs="@EnqBreadcrumbs" />
-
-            <div class="card-body p-4">
-
-                 <div class="row g-2 g-md-3 mb-3">
-                    <!-- Column Settings -->
-                    <div class="col-6 col-md-2">
-                        <ColumnMenu Columns="Columns"
-                                    ScreenName="@ScreenName"
-                                    UserId="@UserName"
-                                    MaxVisible=int.MaxValue
-                                    OnChanged="HandleColumnChange" />
-                    </div>
-
-                    <div class="col-6 col-md-2">
-                        <button type="button" class="btn btn-outline-danger btn-sm w-100 shadow-sm"
-                                 @onclick='() => OpenModal("InstantSearch")'>
-                            <i class="bi bi-search"></i> Search
-                        </button>
-                    </div>
-
-                    <div class="col-6 col-md-2">
-                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 shadow-sm"
-                                @onclick="RefreshPage">
-                            <i class="bi bi-arrow-clockwise"></i> Refresh
-                        </button>
-                    </div>
-
-                    <div class="col-6 col-md-2 text-end">
-                        <select class="form-select form-select-sm shadow-sm w-100"
-                                value="@pageSize"
-                                @onchange="OnPageSizeChanged">
-                            <option value="10" selected>10 per page</option>
-                            <option value="20">20 per page</option>
-                            <option value="50">50 per page</option>
-                        </select>
-                    </div>
-
-                    <div class="col-6 col-md-2">
-                        <select class="form-select form-select-sm shadow-sm"
-                                 value="@selectedStatus"
-                                @onchange="OnStatusChanged"
-                                title="Select item status">
-
-                            <option value="">All</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Cancelled">Cancelled</option>
-                            <option value="Short Closed">Short Closed</option>
-                        </select>
-                    </div>
-
-                    @if (CanCreate)
-                    {
-                       <div class="col-6 col-md-2 ms-md-auto text-end">
-                            <button class="btn btn-success btn-sm shadow-sm d-block d-md-inline-block w-100 w-md-auto"
-                                    @onclick="AddNewEnquiry">
-                                <i class="bi bi-plus-square me-1"></i> Add New
-                            </button>
-                       </div>
-                    }
-
+        <!-- ══ MODULE HEADER ══ -->
+        <div class="zh-module-header">
+            <div class="zh-module-header-left">
+                <span class="zh-module-icon"><i class="bi bi-receipt-cutoff"></i></span>
+                <div class="zh-module-title-group">
+                    <nav class="zh-breadcrumb" aria-label="breadcrumb">
+                        <i class="bi bi-house-door me-1"></i>
+                        <SmartBackButton Url="/" RenderAsLink="true" CssClass="zh-breadcrumb-link">
+                            <ChildContent>Home</ChildContent>
+                        </SmartBackButton>
+                        <span class="zh-breadcrumb-sep"><i class="bi bi-chevron-right"></i></span>
+                        <span>Sales</span>
+                        <span class="zh-breadcrumb-sep"><i class="bi bi-chevron-right"></i></span>
+                        <span class="zh-breadcrumb-active">Enquiry-Inward</span>
+                    </nav>
+                    <h1 class="zh-module-title">Sales Enquiry</h1>
                 </div>
-
-                @if (EnquirySalesVMs.Any())
+            </div>
+            <div class="zh-module-header-right">
+                @if (CanCreate)
                 {
-                    <div class="table-responsive">
+                    <button class="zh-btn zh-btn-primary" @onclick="AddNewEnquiry">
+                        <i class="bi bi-plus-lg"></i> Add New
+                    </button>
+                }
+                <button class="zh-btn zh-btn-secondary" @onclick="HandleExport">
+                    <i class="bi bi-download"></i> Export
+                </button>
+            </div>
+        </div>
 
-                        <QuickGrid Items="EnquirySalesVMs.AsQueryable()"
-                                   Class="quickgrid table table-bordered text-wrap">
+        <!-- ══ TOOLBAR ══ -->
+        <div class="zh-toolbar">
+            <div class="zh-toolbar-left">
+                <ColumnMenu Columns="Columns"
+                            ScreenName="@ScreenName"
+                            UserId="@UserName"
+                            MaxVisible=int.MaxValue
+                            OnChanged="HandleColumnChange" />
+                <button class="zh-btn zh-btn-ghost" @onclick='() => OpenModal("InstantSearch")'>
+                    <i class="bi bi-search"></i> Search
+                </button>
+                <button class="zh-btn zh-btn-ghost" @onclick="RefreshPage" title="Refresh">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="zh-toolbar-right">
+                <select class="zh-select" value="@selectedStatus" @onchange="OnStatusChanged" title="Filter by status">
+                    <option value="">All Status</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Cancelled">Cancelled</option>
+                    <option value="Short Closed">Short Closed</option>
+                </select>
+                <select class="zh-select" value="@pageSize" @onchange="OnPageSizeChanged">
+                    <option value="10" selected>10 / page</option>
+                    <option value="20">20 / page</option>
+                    <option value="50">50 / page</option>
+                </select>
+            </div>
+        </div>
 
-                            @if (Columns.Any(c => c.IsVisible))
+        @* ── old code removed: row-based filter layout now lives in zh-toolbar above ── *@
+
+        <!-- ══ TABLE ══ -->
+        @if (EnquirySalesVMs.Any())
+        {
+            <div class="zh-table-wrapper">
+                <table class="zh-table">
+                    <thead>
+                        <tr>
+                            @foreach (var col in Columns.Where(c => c.IsVisible))
                             {
-                                @foreach (var col in Columns.Where(c => c.IsVisible))
+                                <th>@col.Title</th>
+                            }
+                            <th class="zh-col-actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in EnquirySalesVMs)
+                        {
+                            <tr>
+                                @foreach (var col in Columns.Where(x => x.IsVisible))
                                 {
-                                <div>
-                                    @switch (col.Field)
-                                    {
-                                        case "EnquiryId":
-                                            <PropertyColumn Title="Enquiry ID" Property="@(c => c.EnquiryId)" />
-                                            break;
-
-                                        case "Prefix":
-                                            <PropertyColumn Title="Prefix" Property="@(c => c.Prefix)" />
-                                            break;
-
-                                         case "EnquiryNo":
-                                            <PropertyColumn Title="Enquiry No"
-                                                            Property="@(c => $"{c.EnquiryNo}{c.Suffix ?? string.Empty}")"
-                                                            Sortable="true" />
-                                            break;
-
-                                        case "EnquiryDate":
-                                            <PropertyColumn Title="Enquiry Date"
-                                                            Property="@(c => c.EnquiryDate)"
-                                                            Format="dd/MM/yyyy"
-                                                            Sortable="true" />
-                                            break;
-
-                                        case "MfgORLab":
-                                            <TemplateColumn Title="Type" Context="c">
+                                    <td>
+                                        @switch (col.Field)
+                                        {
+                                            case "EnquiryId":
+                                                @c.EnquiryId
+                                                break;
+                                            case "Prefix":
+                                                @c.Prefix
+                                                break;
+                                            case "EnquiryNo":
+                                                <span class="zh-id-link">@($"{c.EnquiryNo}{c.Suffix ?? string.Empty}")</span>
+                                                break;
+                                            case "EnquiryDate":
+                                                @c.EnquiryDate.ToString("dd/MM/yyyy")
+                                                break;
+                                            case "MfgORLab":
                                                 @if (c.MfgORLab)
                                                 {
-                                                    <span class="badge text-bg-primary bg-gradient shadow-sm px-3 py-1 rounded-pill">
-                                                        <i class="bi bi-gear-fill me-1"></i> Manufacturing
+                                                    <span class="zh-chip zh-chip-purple">
+                                                        <i class="bi bi-gear-fill"></i> Manufacturing
                                                     </span>
                                                 }
                                                 else
                                                 {
-                                                    <span class="badge text-bg-info bg-gradient shadow-sm px-3 py-1 rounded-pill">
-                                                        <i class="bi bi-people-fill me-1"></i> Labour
+                                                    <span class="zh-chip zh-chip-info">
+                                                        <i class="bi bi-people-fill"></i> Labour
                                                     </span>
                                                 }
-                                            </TemplateColumn>
-                                            break;
-
-                                        case "CustId":
-                                            <PropertyColumn Title="Customer ID" Property="@(c => c.CustId)" />
-                                            break;
-
-                                        case "CustomerName":
-                                            <PropertyColumn Title="Customer Name"
-                                                            Property="@(c => c.CustomerName)"
-                                                            Sortable="true" />
-                                            break;
-
-                                        case "NoOfItems":
-                                            <PropertyColumn Title="No Of Items"
-                                                            Property="@(c => c.NoOfItems)" />
-                                            break;
-
-                                        case "TotalValue":
-                                            <PropertyColumn Title="Total Value"
-                                                            Property="@(c => c.TotalValue)"
-                                                            Format="N2" />
-                                            break;
-
-                                        case "KindOfAttention":
-                                            <PropertyColumn Title="Kind Of Attention"
-                                                            Property="@(c => c.KindOfAttention)" />
-                                            break;
-
-                                        case "MainRemarks":
-                                            <PropertyColumn Title="Remarks"
-                                                            Property="@(c => c.MainRemarks)" />
-                                            break;
-
-                                        case "ExpectedReplyDate":
-                                            <TemplateColumn Title="Expected Reply Date" Context="c">
+                                                break;
+                                            case "CustId":
+                                                @c.CustId
+                                                break;
+                                            case "CustomerName":
+                                                <strong>@c.CustomerName</strong>
+                                                break;
+                                            case "NoOfItems":
+                                                @c.NoOfItems
+                                                break;
+                                            case "TotalValue":
+                                                @c.TotalValue.ToString("N2")
+                                                break;
+                                            case "KindOfAttention":
+                                                @c.KindOfAttention
+                                                break;
+                                            case "MainRemarks":
+                                                @c.MainRemarks
+                                                break;
+                                            case "ExpectedReplyDate":
                                                 @if (!c.EnquiryTally && !c.Cancel && !c.ShortClose && c.ExpectedReplyDate.HasValue)
                                                 {
                                                     var dueDays = (DateTime.Today - c.ExpectedReplyDate.Value.Date).Days;
-
                                                     if (dueDays > 0)
                                                     {
-                                                        <span class="badge text-bg-danger bg-gradient shadow-sm px-3 py-1 rounded-pill">
-                                                            <i class="bi bi-exclamation-circle me-1"></i>
+                                                        <span class="zh-chip zh-chip-danger">
+                                                            <i class="bi bi-exclamation-circle"></i>
                                                             @dueDays Due Day@(dueDays > 1 ? "s" : "")
                                                         </span>
                                                     }
                                                     else
                                                     {
-                                                        <span class="text-muted">
-                                                            @c.ExpectedReplyDate.Value.ToString("dd/MM/yyyy")
-                                                        </span>
+                                                        <span>@c.ExpectedReplyDate.Value.ToString("dd/MM/yyyy")</span>
                                                     }
-                                                }
-                                                else if (c.ExpectedReplyDate.HasValue)
-                                                {
-                                                    <span class="text-muted">
-                                                        @c.ExpectedReplyDate.Value.ToString("dd/MM/yyyy")
-                                                    </span>
                                                 }
                                                 else
                                                 {
-                                                    <span>-</span>
+                                                    <span class="zh-text-muted">@(c.ExpectedReplyDate.HasValue ? c.ExpectedReplyDate.Value.ToString("dd/MM/yyyy") : "–")</span>
                                                 }
-                                            </TemplateColumn>
-                                            break;
-
-
-                                        case "status":
-                                            <TemplateColumn Title="Enquiry Status" Context="c">
+                                                break;
+                                            case "status":
                                                 @if (c.Cancel)
                                                 {
-                                                    <span class="badge text-bg-danger bg-gradient shadow-sm px-3 py-1 rounded-pill">
-                                                        <i class="bi bi-x-circle me-1"></i> Cancelled
-                                                    </span>
+                                                    <span class="zh-chip zh-chip-danger">Cancelled</span>
                                                 }
                                                 else if (c.ShortClose)
                                                 {
-                                                    <span class="badge text-bg-secondary bg-gradient shadow-sm px-3 py-1 rounded-pill">
-                                                        <i class="bi bi-slash-circle me-1"></i> Short Closed
-                                                    </span>
+                                                    <span class="zh-chip zh-chip-neutral">Short Closed</span>
                                                 }
                                                 else if (c.EnquiryTally)
                                                 {
-                                                    <span class="badge text-bg-success bg-gradient shadow-sm px-3 py-1 rounded-pill">
-                                                        <i class="bi bi-check-circle me-1"></i> Completed
-                                                    </span>
+                                                    <span class="zh-chip zh-chip-success">Completed</span>
                                                 }
                                                 else
                                                 {
-                                                    <span class="badge text-bg-warning bg-gradient shadow-sm px-3 py-1 rounded-pill">
-                                                        <i class="bi bi-hourglass-split me-1"></i> Pending
-                                                    </span>
+                                                    <span class="zh-chip zh-chip-warning">Pending</span>
                                                 }
-                                            </TemplateColumn>
-                                            break;
-
-                                        case "CancelReason":
-                                            <PropertyColumn Title="Cancel Reason"
-                                                            Property="@(c => c.CancelReason)" />
-                                            break;
-
-                                        case "CancelDate":
-                                            <PropertyColumn Title="Cancel Date"
-                                                            Property="@(c => c.CancelDate)"
-                                                            Format="dd/MM/yyyy" />
-                                            break;
-
-                                        case "CancelBy":
-                                            <PropertyColumn Title="Cancel By"
-                                                            Property="@(c => c.CancelBy)" />
-                                            break;
-
-                                        case "CreatedBy":
-                                            <PropertyColumn Title="Created By"
-                                                            Property="@(c => c.CreatedBy)" />
-                                            break;
-
-                                        case "CreatedDate":
-                                            <PropertyColumn Title="Created Date"
-                                                            Property="@(c => c.CreatedDate)"
-                                                            Format="dd/MM/yyyy" />
-                                            break;
-
-                                        case "ModifiedBy":
-                                            <PropertyColumn Title="Modified By"
-                                                            Property="@(c => c.ModifiedBy)" />
-                                            break;
-
-                                        case "ModifiedDate":
-                                            <PropertyColumn Title="Modified Date"
-                                                            Property="@(c => c.ModifiedDate)"
-                                                            Format="dd/MM/yyyy" />
-                                            break;
-                                    }
-                                </div>
-                            }
+                                                break;
+                                            case "CancelReason":
+                                                @c.CancelReason
+                                                break;
+                                            case "CancelDate":
+                                                @(c.CancelDate?.ToString("dd/MM/yyyy") ?? "–")
+                                                break;
+                                            case "CancelBy":
+                                                @c.CancelBy
+                                                break;
+                                            case "CreatedBy":
+                                                @c.CreatedBy
+                                                break;
+                                            case "CreatedDate":
+                                                @c.CreatedDate.ToString("dd/MM/yyyy")
+                                                break;
+                                            case "ModifiedBy":
+                                                @c.ModifiedBy
+                                                break;
+                                            case "ModifiedDate":
+                                                @(c.ModifiedDate?.ToString("dd/MM/yyyy") ?? "–")
+                                                break;
+                                        }
+                                    </td>
+                                }
+                                <td class="zh-col-actions">
+                                    <div class="zh-action-group">
+                                        @if (CanEdit)
+                                        {
+                                            <a href="@($"enquirySales/update/{c.EnquiryId}")"
+                                               class="zh-action-btn zh-action-edit"
+                                               title="Edit Enquiry">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                        }
+                                        @if (CanView)
+                                        {
+                                            <a href="@($"enquiryDetails/{c.EnquiryId}")"
+                                               class="zh-action-btn zh-action-view"
+                                               title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        }
+                                        @if (CanDelete)
+                                        {
+                                            <button class="zh-action-btn zh-action-delete"
+                                                    title="Delete"
+                                                    @onclick="() => HandleDelete(c.EnquiryId)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
                         }
-
-                            
-                            <TemplateColumn Title="Actions" Context="c">
-                                <div class="d-flex gap-2">
-                                    @if (CanEdit)
-                                    {
-                                        <a href="@($"enquirySales/update/{c.EnquiryId}")"
-                                           class="btn btn-sm btn-outline-primary"
-                                           title="Edit Job Order">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </a>
-                                    }
-                                    @if (CanView)
-                                    {
-                                        <a href="@($"enquiryDetails/{c.EnquiryId}")"
-                                           class="btn btn-sm btn-outline-info"
-                                           title="View JobOrder">
-                                           <i class="bi bi-eye"></i>
-                                        </a>
-                                    }
-                                    @if (CanDelete)
-                                    {
-                                        <button class="btn btn-sm btn-outline-danger"
-                                                title="Delete Item"
-                                                @onclick="() => HandleDelete(c.EnquiryId)">
-                                            <i class="bi bi-trash3"></i>
-                                        </button>
-                                    }
-                                </div>
-                            </TemplateColumn>
-                        </QuickGrid>
-                    </div>
-
-                    <div class="pagination-fixed bg-white shadow-sm py-2 border-top">
-
-                        <div class="container-fluid">
-
-                            <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
-
-                                <button class="btn btn-outline-primary btn-sm"
-                                        @onclick="FirstPage"
-                                        disabled="@(currentPage == 1)">
-                                    <i class="bi bi-skip-backward-fill"></i>
-                                </button>
-
-                                <button class="btn btn-outline-primary btn-sm"
-                                        @onclick="PreviousPage"
-                                        disabled="@(currentPage == 1)">
-                                    <i class="bi bi-arrow-left-circle"></i>
-                                </button>
-
-                                <span class="fw-semibold small px-1">
-                                    Page @currentPage of @totalPages
-                                </span>
-
-                                <button class="btn btn-outline-primary btn-sm"
-                                        @onclick="NextPage"
-                                        disabled="@(currentPage >= totalPages)">
-                                    <i class="bi bi-arrow-right-circle"></i>
-                                </button>
-
-                                <button class="btn btn-outline-primary btn-sm"
-                                        @onclick="LastPage"
-                                        disabled="@(currentPage >= totalPages)">
-                                    <i class="bi bi-skip-forward-fill"></i>
-                                </button>
-
-                                <button class="btn btn-success btn-sm d-flex align-items-center ms-5"
-                                        @onclick="HandleExport">
-
-                                    <i class="bi bi-download me-1"></i>
-                                    Export Enquiry's
-
-                                </button>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-                    
-
-                }
-                else
-                {
-                    <p class="text-center">No Item available.</p>
-                }
-
+                    </tbody>
+                </table>
             </div>
-        </div>
+
+            <!-- ══ PAGINATION ══ -->
+            <div class="zh-pagination">
+                <span class="zh-pagination-info">
+                    Showing @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, totalItems)) of @totalItems records
+                </span>
+                <div class="zh-pagination-nav">
+                    <button class="zh-page-btn" @onclick="FirstPage" disabled="@(currentPage == 1)" title="First">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </button>
+                    <button class="zh-page-btn" @onclick="PreviousPage" disabled="@(currentPage == 1)" title="Previous">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="zh-page-indicator">@currentPage / @totalPages</span>
+                    <button class="zh-page-btn" @onclick="NextPage" disabled="@(currentPage >= totalPages)" title="Next">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                    <button class="zh-page-btn" @onclick="LastPage" disabled="@(currentPage >= totalPages)" title="Last">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="zh-empty-state">
+                <i class="bi bi-inbox zh-empty-icon"></i>
+                <p class="zh-empty-title">No enquiries found</p>
+                <p class="zh-empty-subtitle">Try adjusting your filters or add a new enquiry.</p>
+                @if (CanCreate)
+                {
+                    <button class="zh-btn zh-btn-primary mt-3" @onclick="AddNewEnquiry">
+                        <i class="bi bi-plus-lg"></i> Add First Enquiry
+                    </button>
+                }
+            </div>
+        }
+
     </div>
 }
 
@@ -428,7 +335,7 @@ else
 
     private int totalPages => (int)Math.Ceiling((double)totalItems / pageSize);
 
-    public List<GridColumn> Columns { get; set; }
+    public new List<GridColumn> Columns { get; set; } = new();
 
     // === Modal State ===
     private bool isModalVisible = false;

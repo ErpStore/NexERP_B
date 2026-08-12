@@ -1,15 +1,11 @@
-﻿
-
-using AutoMapper;
-using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService;
+﻿using AutoMapper;
+using Microsoft.EntityFrameworkCore;
+using System.Text;
 using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAccountsService;
 using V.SMART.Shared.Data.Master.Accounts;
 using V.SMART.Shared.Repository.IRepository;
 using V.SMART.Shared.Services;
-using V.SMART.Shared.ViewModels;
 using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel;
-using Microsoft.EntityFrameworkCore;
-using System.Text;
 
 namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsService
 {
@@ -19,22 +15,26 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
         private readonly IMapper _mapper;
         private readonly ILoggingService _logs;
         private readonly CurrentUserService _userService;
-        private readonly ICommonService _commonService;
         private readonly ForeignKeyUsageChecker _fkChecker;
 
-        public CurrencyService(IUnitOfWork unitOfWork, IMapper mapper, ILoggingService loggingService,
-                            CurrentUserService userService, ICommonService commonService,
-                            ForeignKeyUsageChecker foreignKeyUsageChecker)
+        public CurrencyService(
+            IUnitOfWork unitOfWork,
+            IMapper mapper,
+            ILoggingService loggingService,
+            CurrentUserService userService,
+            ForeignKeyUsageChecker foreignKeyUsageChecker)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _logs = loggingService;
             _userService = userService;
-            _commonService = commonService;
             _fkChecker = foreignKeyUsageChecker;
         }
 
-        public async Task<(List<CurrencyVM> currencyVMs, int TotalCount)> SearchWithDynamicFilterAsync(int pageNumber, int pageSize, Dictionary<string, object>? filters)
+        public async Task<(List<CurrencyVM> currencyVMs, int TotalCount)> SearchWithDynamicFilterAsync(
+            int pageNumber,
+            int pageSize,
+            Dictionary<string, object>? filters)
         {
             try
             {
@@ -42,13 +42,11 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
                             .GetQueryable()
                             .AsNoTracking();
 
-                // Apply Filters
                 if (filters != null && filters.Any())
                 {
                     foreach (var filter in filters)
                     {
-                        query = CurrencyFilterBuilder
-                            .ApplyFilter(query, filter.Key, filter.Value);
+                        query = CurrencyFilterBuilder.ApplyFilter(query, filter.Key, filter.Value);
                     }
                 }
 
@@ -61,13 +59,98 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
                     .ToListAsync();
 
                 var vmList = _mapper.Map<List<CurrencyVM>>(list);
-
                 return (vmList, totalCount);
             }
             catch (Exception ex)
             {
                 await _logs.LogDeveloperError(ex, "Error in SearchWithDynamicFilterAsync (Currency)");
-                throw new InvalidOperationException("Failed to load Income list.", ex);
+                throw new InvalidOperationException("Failed to load Currency list.", ex);
+            }
+        }
+
+        public async Task<CurrencyVM?> GetByIdAsync(int currId)
+        {
+            var entity = await _unitOfWork.Currencyis.GetAsync(currId);
+            return entity == null ? null : _mapper.Map<CurrencyVM>(entity);
+        }
+
+        public async Task<(bool Success, string Message, CurrencyVM? Currency)> CreateAsync(CurrencyVM vm)
+        {
+            try
+            {
+                bool isDuplicate = await _unitOfWork.Currencyis
+                    .ExistsByNameAsync("CurrName", vm.CurrName, "CurrId", null);
+
+                if (isDuplicate)
+                    return (false, "Currency name already exists.", null);
+
+                var entity = _mapper.Map<Currency>(vm);
+                entity.CurrId = 0;
+                entity.CreatedBy = await _userService.GetUsernameAsync();
+                entity.CreatedDate = DateTime.Now;
+                entity.ModifiedBy = null;
+                entity.ModifiedDate = null;
+
+                await _unitOfWork.Currencyis.CreateAsync(entity);
+                await _unitOfWork.SaveAsync();
+
+                await _logs.LogUserAction(
+                    UserName: await _userService.GetUsernameAsync(),
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Currency",
+                    action: $"Currency Created Successfully {entity.CurrName}",
+                    additionalInfo: $"CurrencyName: {entity.CurrName}");
+
+                return (true, "Currency Created Successfully", _mapper.Map<CurrencyVM>(entity));
+            }
+            catch (Exception ex)
+            {
+                await _logs.LogDeveloperError(ex, "Error creating Currency");
+                throw;
+            }
+        }
+
+        public async Task<(bool Success, string Message, CurrencyVM? Currency)> UpdateAsync(int currId, CurrencyVM vm)
+        {
+            try
+            {
+                var existing = await _unitOfWork.Currencyis.GetAsync(currId);
+                if (existing == null)
+                    return (false, "Currency not found.", null);
+
+                if (existing.IsSystemDefined)
+                    return (false, "You cannot modify a system-defined Currency.", null);
+
+                bool isDuplicate = await _unitOfWork.Currencyis
+                    .ExistsByNameAsync("CurrName", vm.CurrName, "CurrId", currId);
+
+                if (isDuplicate)
+                    return (false, "Currency name already exists.", null);
+
+                existing.CurrName = vm.CurrName;
+                existing.CurrSub = vm.CurrSub;
+                existing.Symbol = vm.Symbol;
+                existing.ModifiedBy = await _userService.GetUsernameAsync();
+                existing.ModifiedDate = DateTime.Now;
+
+                await _unitOfWork.Currencyis.UpdateAsync(existing);
+                await _unitOfWork.SaveAsync();
+
+                await _logs.LogUserAction(
+                    UserName: await _userService.GetUsernameAsync(),
+                    Machine: _userService.MachineName,
+                    IP_Address: _userService.IpAddress,
+                    screen: "Currency",
+                    action: $"Currency Updated Successfully {existing.CurrName}",
+                    additionalInfo: $"CurrencyName: {existing.CurrName}");
+
+                return (true, "Currency Updated Successfully", _mapper.Map<CurrencyVM>(existing));
+            }
+            catch (Exception ex)
+            {
+                await _logs.LogDeveloperError(ex, $"Error updating Currency: {currId}");
+                throw;
             }
         }
 
@@ -84,38 +167,23 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
                 if (string.IsNullOrWhiteSpace(val))
                     return query;
 
-                switch (field)
+                return field switch
                 {
-                    case "CurrName":
-                        return query.Where(x =>
-                            x.CurrName != null &&
-                            EF.Functions.Like(x.CurrName, $"%{val}%"));
-
-                    case "CreatedBy":
-                        return query.Where(x =>
-                            x.CreatedBy != null &&
-                            EF.Functions.Like(x.CreatedBy, $"%{val}%"));
-
-                    case "FromDate":
-                        if (DateTime.TryParse(val, out var fromDate))
-                            return query.Where(x =>
-                                x.CreatedDate >= fromDate.Date);
-                        return query;
-
-                    case "ToDate":
-                        if (DateTime.TryParse(val, out var toDate))
-                            return query.Where(x =>
-                                x.CreatedDate <= toDate.Date
-                                    .AddDays(1)
-                                    .AddTicks(-1));
-                        return query;
-
-                    default:
-                        return query;
-                }
+                    "CurrName" => query.Where(x =>
+                        x.CurrName != null &&
+                        EF.Functions.Like(x.CurrName, $"%{val}%")),
+                    "CreatedBy" => query.Where(x =>
+                        x.CreatedBy != null &&
+                        EF.Functions.Like(x.CreatedBy, $"%{val}%")),
+                    "FromDate" when DateTime.TryParse(val, out var fromDate)
+                        => query.Where(x => x.CreatedDate >= fromDate.Date),
+                    "ToDate" when DateTime.TryParse(val, out var toDate)
+                        => query.Where(x =>
+                            x.CreatedDate <= toDate.Date.AddDays(1).AddTicks(-1)),
+                    _ => query
+                };
             }
         }
-
 
         public async Task<(bool CanDelete, string Message)> CanDeleteCurrencyAsync(int id)
         {
@@ -129,10 +197,9 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
                     return (false, "Currency not found or already removed.");
 
                 if (currency.IsSystemDefined)
-                    return (false, $"'{currency.CurrName}' is a system-defined store and cannot be deleted.");
+                    return (false, $"'{currency.CurrName}' is a system-defined currency and cannot be deleted.");
 
                 var usedIn = await _fkChecker.GetUsageTableAsync<Currency>(id);
-
                 if (usedIn != null)
                     return (false, $"Cannot delete Currency '{currency.CurrName}' because it is used in {usedIn} Screen.");
 
@@ -145,7 +212,6 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
             }
         }
 
-
         public async Task<bool> DeleteCurrencyByCurrIdAsync(int currId)
         {
             using var transaction = await _unitOfWork.BeginTransactionAsync();
@@ -156,26 +222,19 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
                     .FirstOrDefaultAsync(e => e.CurrId == currId);
 
                 if (currency == null)
-                {
                     return false;
-                }
-
-                var changes = new StringBuilder();
 
                 await _unitOfWork.Currencyis.DeleteAsync(currency);
-
                 await _unitOfWork.SaveAsync();
                 await transaction.CommitAsync();
 
-                // Log the user action
                 await _logs.LogUserAction(
                     UserName: await _userService.GetUsernameAsync(),
                     Machine: _userService.MachineName,
                     IP_Address: _userService.IpAddress,
                     screen: "Currency List",
                     action: $"Deleted Currency: {currency.CurrName}",
-                    additionalInfo: $"Currency Id: {currency.CurrId}\n{changes}"
-                );
+                    additionalInfo: $"Currency Id: {currency.CurrId}");
 
                 return true;
             }
@@ -186,12 +245,5 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
                 throw;
             }
         }
-
-
-
-
-
-
-
     }
 }

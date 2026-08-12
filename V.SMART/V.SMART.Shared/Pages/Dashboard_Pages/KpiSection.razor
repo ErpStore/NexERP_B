@@ -2,51 +2,29 @@
 
 @if (Section is not null)
 {
-    <div class="col-12 mb-3">
-        <div class="glass-card">
-
-            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-
-                <h5 class="gc-title mb-0">
-                    <i class="@Section.HeaderIcon me-2"></i>
-                    @Section.Title
-                </h5>
-
-                <span class="badge @Section.BadgeClass px-3 py-2">
-                    @Section.BadgeText
-                </span>
-
+    <div class="col-12 mb-4">
+        <div class="ng-card">
+            <div class="ng-card-header">
+                <div class="ng-card-title">
+                    <i class="@Section.HeaderIcon me-2" style="color:var(--ng-brand);"></i>@Section.Title
+                </div>
+                <span class="zh-chip @GetBadgeChipClass(Section.BadgeClass)">@Section.BadgeText</span>
             </div>
-
-            <div class="row g-3">
-
-                @if (Section.Cards?.Any() == true)
-                {
-                    @foreach (var card in Section.Cards)
+            <div class="ng-card-body">
+                <div class="ng-kpi-grid">
+                    @if (Section.Cards?.Any() == true)
                     {
-                        <div class="col-6 col-md-3">
-
-                            <div class="kpi-card" style="--kc:@card.Color">
-
-                                <div class="kpi-card-scan"></div>
-
-                                <div class="kpi-card-icon">
-                                    <i class="@card.Icon"></i>
-                                </div>
-
-                                <div class="kpi-card-body">
-                                    <span class="kpi-card-val">@card.Value</span>
-                                    <span class="kpi-card-lbl">@card.Title</span>
-                                </div>
-
+                        @foreach (var card in Section.Cards)
+                        {
+                            <div class="ng-kpi" style="--ng-kpi-accent:@card.Color;--ng-kpi-icon-bg:@(card.Color + "22");--ng-kpi-icon-color:@card.Color;">
+                                <div class="ng-kpi-icon"><i class="@card.Icon"></i></div>
+                                <div class="ng-kpi-label">@card.Title</div>
+                                <div class="ng-kpi-value">@card.Value</div>
                             </div>
-
-                        </div>
+                        }
                     }
-                }
-
+                </div>
             </div>
-
         </div>
     </div>
 }
@@ -54,4 +32,12 @@
 @code {
     [Parameter, EditorRequired]
     public DashboardKpiSection Section { get; set; } = default!;
+
+    private static string GetBadgeChipClass(string badgeClass) => badgeClass switch {
+        var s when s.Contains("success") || s.Contains("green")  => "zh-chip-success",
+        var s when s.Contains("warning") || s.Contains("yellow") => "zh-chip-warning",
+        var s when s.Contains("danger")  || s.Contains("red")    => "zh-chip-danger",
+        var s when s.Contains("info")    || s.Contains("blue")   => "zh-chip-info",
+        _                                                          => "zh-chip-neutral"
+    };
 }

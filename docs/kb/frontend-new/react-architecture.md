@@ -1,0 +1,269 @@
+---
+doc_id: KB-050
+title: Proposed React Frontend Architecture
+module: frontend-new
+source_files: []
+entities: []
+api_endpoints: []
+database_tables: []
+business_rules: []
+status: proposal
+confidence: n/a
+last_verified: 2026-08-12
+dependencies: [KB-013, KB-015, KB-040, KB-041]
+---
+
+# Proposed React Frontend Architecture
+
+> **Proposal.** Nothing here describes existing code. Constraints it must satisfy come
+> from [`architecture/frontend-architecture-existing.md`](../architecture/frontend-architecture-existing.md)
+> and [`architecture/auth-and-permissions.md`](../architecture/auth-and-permissions.md).
+
+## Design constraints from the existing system
+
+1. **~150 list screens and ~65 document-editor screens.** The document editor — header
+   form + editable line grid + upstream-document picker + totals panel — is *the* screen.
+   Optimise everything for it.
+2. **440 routes** to reproduce, but the new app can consolidate (create/update/details
+   collapse into one route with a mode).
+3. **152-screen × 5-right permission matrix** must gate navigation, routes, and controls.
+4. **Multi-tenant**, tenant fixed at login and carried in the JWT.
+5. **Server holds the truth for calculations** (BR-CALC-001) — never reimplement in TS.
+6. **Dense, keyboard-driven data entry.** Operators enter 20–50 line documents. Latency
+   and keyboard flow matter more than animation.
+7. **Server-side paging/filtering already exists** (`SearchWithDynamicFilterAsync`) — the
+   grid must be server-driven, not client-side.
+8. **PDF and Excel come from the server** as bytes.
+
+## Recommended stack
+
+| Concern | Choice | Rationale |
+|---|---|---|
+| **Framework** | **React 19** | Current major; Actions and `useOptimistic` suit form-heavy work |
+| **Language** | **TypeScript 5.x**, `strict: true` | Non-negotiable at this domain complexity |
+| **Build** | **Vite 6** | Fast HMR; the ~150-screen app needs good code splitting |
+| **Routing** | **React Router v7** (framework mode off, library mode on) | Mature, data-router loaders/actions, nested layouts, `useBlocker` for the unsaved-changes guard the ERP already relies on |
+| **Server state** | **TanStack Query v5** | The whole app is server state. Caching, invalidation, pagination, and mutation lifecycles are exactly the problem |
+| **Client state** | **Zustand** (small stores only) | Auth/session, tenant, UI shell, permission map. Deliberately not Redux — there is very little genuine client state |
+| **Forms** | **React Hook Form** | Uncontrolled by default → the 50-row line grid stays fast |
+| **Validation** | **Zod** + `@hookform/resolvers` | Mirrors the `DataAnnotations` on ViewModels; **generate schemas from OpenAPI**, don't hand-write |
+| **UI components** | **Mantine 7** (primary recommendation) | Dense by default, excellent form and table primitives, first-class TS, built-in dark mode, permissive licence. Alternative: shadcn/ui + Radix for maximum design control at higher build cost |
+| **Styling** | **CSS Modules + design tokens** (Mantine's CSS-variable theme) | Avoids utility-class sprawl in 150 screens; tokens keep light/dark coherent |
+| **Data grid** | **TanStack Table v8** (headless) + a project `DataGrid` wrapper; **TanStack Virtual** for row virtualisation | Server-side paging/sorting/filtering, column pinning, per-user column visibility (maps to `UserColumnPreference`). Headless keeps the ERP's dense look under our control |
+| **Line-item editor** | Custom `LineItemGrid` on TanStack Table + RHF `useFieldArray` | This is the highest-value component in the app; it will not come from a library |
+| **Charts** | **Recharts** (or ECharts if the dashboard grows) | Replaces Blazor-ApexCharts |
+| **Dates** | **date-fns** + `date-fns-tz` | Financial-year helpers mirror `FinancialYearHelper.cs` |
+| **Numbers/money** | **decimal.js** for any client-side money display arithmetic | JS floats must not be trusted for money; server remains authoritative |
+| **HTTP** | **Axios** with interceptors, or `ky` | Bearer injection, refresh-on-401, correlation id, tenant header |
+| **API client** | **Generated from OpenAPI** (`openapi-typescript` + `openapi-fetch`, or Orval for TanStack Query hooks) | 60–80 controllers by hand is untenable and drifts |
+| **Notifications** | **Mantine Notifications** | Toasts for save/error; long-running ops get a progress surface |
+| **Errors** | **react-error-boundary** + a global `ProblemDetails` handler | Business-rule 409s surface the server's message verbatim |
+| **i18n** | **react-i18next**, wired from day one | Even if only `en` ships; retrofitting 150 screens is far worse |
+| **Tables → Excel** | server endpoint | Reuse `ExcelExportService` |
+| **PDF viewing** | native `<embed>`/blob URL, or `react-pdf` if annotation is needed | Server generates the PDF |
+| **Testing** | **Vitest** + **React Testing Library**; **MSW** for API mocking; **Playwright** for E2E | |
+| **Quality** | ESLint (flat) + Prettier + `typescript-eslint` + Husky/lint-staged | |
+| **CI** | GitHub Actions: typecheck → lint → unit → build → Playwright | The repo has **no CI at all** today |
+
+### Why not Next.js
+
+The app is a fully authenticated, tenant-scoped internal tool behind a login. There is no
+SEO requirement, no public content, and no meaningful SSR benefit. Next.js adds a server
+runtime and deployment surface for no gain here. **Vite + React Router library mode** is
+the right weight. Revisit only if a public customer portal is added.
+
+### Why Mantine over MUI
+
+MUI is the obvious peer, but Mantine's defaults are denser (better for ERP tables and
+forms), its hooks library covers most of what this app needs, and its theming is CSS
+variables rather than a runtime style engine — which matters across 150 screens. If the
+team already knows MUI well, MUI v6 is an acceptable substitute; **do not mix the two.**
+
+## Project structure
+
+Feature-sliced, mirroring the ERP module map so the codebase is navigable by domain
+experts:
+
+```
+src/
+  app/
+    router.tsx                 route tree + permission guards
+    providers.tsx              Query, theme, i18n, error boundary, notifications
+    App.tsx
+  shared/
+    api/
+      generated/               ← OpenAPI-generated client + types (do not edit)
+      client.ts                axios instance, interceptors
+      queryKeys.ts             centralised key factory
+    auth/
+      useAuth.ts, authStore.ts, PermissionGate.tsx, useScreenRights.ts
+    components/                design-system primitives (see design-system.md)
+      DataGrid/  LineItemGrid/  RecordPickerDialog/  PageHeader/  FormField/
+      ConfirmDialog/  BusyOverlay/  StatusBadge/  EmptyState/  ErrorState/
+    hooks/  lib/  types/  i18n/
+  features/
+    masters/
+      currency/  customer/  vendor/  item/  bom/  store/  hsn/  …
+    sales/
+      leads/  enquiry/  feasibility/  quotation/  sales-order/  contract-review/
+      proforma-invoice/
+    manufacturing/  labour/  outsourcing/  purchase/  subcontract/
+    planning/  production/  inventory/  inspection/  maintenance/
+    hr/  accounts/  reports/  dashboard/  settings/  utilities/
+  layouts/
+    AppShell.tsx  AuthLayout.tsx  PrintLayout.tsx
+```
+
+Each feature folder holds `api.ts` (query/mutation hooks), `schema.ts` (Zod),
+`types.ts`, `routes.tsx`, `pages/`, `components/`. Features never import from each other
+— shared things move to `shared/`.
+
+## Authentication flow
+
+```
+/login  ──POST /api/v1/auth/login { tenant, username, password }
+          → { accessToken, refreshToken, user, tenant, rights[] }
+          → accessToken in memory (Zustand)
+          → refreshToken in an httpOnly, SameSite=Strict cookie   ← not localStorage
+          → rights[] into the permission store
+        ──► redirect to the last route or /dashboard
+
+401 on any request → single-flight refresh → retry once → else hard logout
+Idle timeout → warning modal → logout (replaces the broken singleton SessionTimeoutService)
+```
+
+> **Deliberate divergence from the Angular pilot**, which stores the JWT in `localStorage`
+> (`frontend/vsmart-erp/src/app/core/auth/auth.service.ts`). That is XSS-exposed. Access
+> token in memory + refresh token in an httpOnly cookie is the standard we adopt.
+
+## Permission-based rendering
+
+The server returns the user's full right set at login (`GET /api/v1/me`), shaped as:
+
+```ts
+type Right = 'view' | 'create' | 'edit' | 'delete';
+type ScreenRights = Record<string /* ScreenName */, {
+  view: boolean; create: boolean; edit: boolean; delete: boolean; hidden: boolean;
+}>;
+```
+
+Three layers, all reading the same store:
+
+```tsx
+// 1. Route guard
+<Route element={<RequireScreen screen="Sales Order" right="view" />}>
+  <Route path="/sales/orders" element={<SalesOrderList />} />
+</Route>
+
+// 2. Control gate
+<PermissionGate screen="Sales Order" right="create">
+  <Button onClick={create}>New Sales Order</Button>
+</PermissionGate>
+
+// 3. Imperative
+const { canEdit, canDelete } = useScreenRights('Sales Order');
+```
+
+Navigation items are filtered by `view && !hidden` — reproducing `IsHide` semantics.
+
+**Client-side gating is a UX affordance only.** The server enforces the same matrix
+independently (ADR-004). Never treat the client check as security.
+
+## Data-fetching conventions
+
+```ts
+// queryKeys.ts — one factory, no ad-hoc string keys
+export const qk = {
+  salesOrders: {
+    all:  ['sales-orders'] as const,
+    list: (q: SalesOrderQuery) => ['sales-orders', 'list', q] as const,
+    one:  (id: number)         => ['sales-orders', 'detail', id] as const,
+  },
+} satisfies QueryKeyTree;
+```
+
+Rules:
+- **Lists are server-paged.** Grid state (page, size, sort, filters) lives in the URL
+  query string, so a filtered grid is shareable and survives refresh.
+- **Reference data** (currencies, UOM, states, GST rates, terms) uses a long `staleTime`
+  and is prefetched once at shell mount.
+- **Mutations invalidate by key prefix**, never by manual cache surgery.
+- **Optimistic updates only for trivial toggles.** Never for anything touching money,
+  stock, or document state — the server is the source of truth (BR-CALC-001, BR-STK-001).
+- **Typeahead pickers** (`SearchCustomers`, `SearchItems`) use a debounced query with
+  `placeholderData: keepPreviousData`.
+
+## Document editor pattern (the core abstraction)
+
+Every one of the ~65 Upsert screens is an instance of:
+
+```
+┌─ PageHeader: title · breadcrumbs · status badge · actions (Save/Cancel/Print/Approve) ─┐
+├─ HeaderForm      RHF + Zod; party picker cascades defaults from the server            │
+├─ LineItemGrid    virtualised, keyboard-first, add/edit/delete/reorder rows            │
+│                  ├─ item typeahead → server returns HSN, UOM, last price, tax         │
+│                  ├─ inline validation per row                                          │
+│                  └─ "Pull from upstream document" → RecordPickerDialog                 │
+├─ TotalsPanel     read-only; values from POST /documents/calculate — never computed here│
+└─ Attachments · Terms · Remarks · Audit trail                                           │
+```
+
+Implemented **once** as `<DocumentEditor>` with a per-document configuration object
+(fields, columns, pickers, commands, endpoints). Build it for Sales Order first, then each
+subsequent document is configuration plus its own exceptions.
+
+**This is the single highest-leverage decision in the frontend.** It converts ~65 screens
+of 3,000–6,500 LOC each into one component plus 65 configs.
+
+### Workflow commands
+
+Cancel, short-close, approve, reject, release, post are **server commands**
+(`POST /{id}/{verb}`), never client-orchestrated sequences. The client's job is to collect
+the input (e.g. the mandatory cancellation reason of BR-SO-003), call one endpoint, and
+render the outcome.
+
+## Error handling
+
+| Layer | Behaviour |
+|---|---|
+| Route | `errorElement` per route; full-page `ErrorState` with retry |
+| Component | `react-error-boundary` around grids and editors |
+| Network | Axios interceptor → normalised `ProblemDetails` |
+| Business rule (409) | toast/inline alert showing the **server's message verbatim** — these strings are product UX |
+| Validation (400) | map `errors` dictionary onto RHF field errors |
+| Permission (403) | inline "You don't have permission to …", not a redirect |
+| Auth (401) | silent refresh, then hard logout |
+| Unexpected (500) | toast with `traceId`, logged to the monitoring sink |
+
+## Performance targets
+
+| Metric | Target |
+|---|---|
+| Initial JS (shell + login) | < 250 KB gzip |
+| Route chunk | < 150 KB gzip |
+| Grid: 10,000 rows | virtualised, 60 fps scroll |
+| Line editor: 200 rows | typing latency < 50 ms |
+| Time to interactive on the app shell | < 2 s on a mid-range laptop |
+
+Every feature route is `React.lazy` + `Suspense`. The generated API client is tree-shaken
+per feature.
+
+## Accessibility
+
+WCAG 2.2 AA as the standard: full keyboard operation of grids and pickers, visible focus,
+labelled form controls, `aria-live` for toasts and async results, 4.5:1 contrast in both
+themes, no colour-only status encoding. Details in
+[`design-system.md`](design-system.md).
+
+## What is deliberately *not* rebuilt in React
+
+| Capability | Stays server-side |
+|---|---|
+| Document totals & tax | `CalculationService` (BR-CALC-001) |
+| Stock FIFO allocation | `StockManagerService` (BR-STK-001) |
+| Printed documents | FastReport `.frx` → PDF |
+| Analytical reports | 94 stored procedures |
+| Excel export/import | EPPlus / ClosedXML |
+| e-Invoice / e-Way Bill | `E_Invoice/` helpers |
+| Document numbering | repositories + running-number tables |
+| All validation of record | services + `DataAnnotations` (Zod mirrors it for UX only) |
