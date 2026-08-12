@@ -173,20 +173,22 @@ preserved; new work is added as new ids or as children (`M0-03-02`), never by re
 Three facts were confirmed on 2026-08-12 while validating that the plan's commands and
 paths were real. All three are recorded as **INV-029**.
 
-1. **CORRECTED 2026-08-12 (INV-034 — see [KB-085](M0-00-baseline-decisions.md#repository-visibility-correction-inv-034)): the repository is PRIVATE, not public.**
-   The original claim below — "`git ls-remote` succeeds without authentication → the
-   repository is public" — was wrong. Windows Git Credential Manager
+1. **RESOLVED 2026-08-12 (INV-034 — see [KB-085](M0-00-baseline-decisions.md#repository-visibility-correction-inv-034)): the repository is public, by the owner's deliberate choice, made the same day.**
+   Timeline: the original claim below — "`git ls-remote` succeeds without authentication →
+   the repository is public" — was wrong when made. Windows Git Credential Manager
    (`credential.helper = manager`, configured system-wide) silently authenticated every
    git operation with the repo owner's cached GitHub credentials, so `git ls-remote`
    *appeared* to succeed anonymously without ever actually testing anonymous access.
-   Re-tested 2026-08-12 with the credential helper explicitly disabled
-   (`git -c credential.helper= ls-remote ...`): git demands a username and fails when none
-   is supplied. An unauthenticated `curl` to the REST API returns 404, GitHub's standard
-   response for a private repo shown to an unauthorized caller. **The exposed credentials
-   were never published to the public internet** — they remain committed and must still be
-   rotated (bad practice regardless of visibility), but are only reachable by people with
-   legitimate collaborator access to this private repo, not by anyone who finds the URL.
-   Q-19 ([open-questions.md](../open-questions.md)) is corrected accordingly.
+   Re-tested with the credential helper explicitly disabled
+   (`git -c credential.helper= ls-remote ...`): git demanded a username and failed —
+   proving the repository was, at that point, **private**. The repo owner (Kumar) was then
+   informed of this and **deliberately set the repository to public**. Re-verified with the
+   same rigorous method (not the original flawed one): `git -c credential.helper=
+   ls-remote` now succeeds with no auth demanded, and an unauthenticated REST call now
+   returns `200`. **The repository is genuinely public now, and the exposed credentials
+   (R-01, R-02) must be treated as published and reachable by anyone on the internet** —
+   rotation (M0-04) and the history purge (M0-05) are urgent for real, not hypothetically.
+   Q-19 ([open-questions.md](../open-questions.md)) is recorded as Answered.
 
    *(Original 2026-08-12 claim, preserved for the record but superseded by the correction
    above):* "The exposed credentials are published on the public internet. `git ls-remote`

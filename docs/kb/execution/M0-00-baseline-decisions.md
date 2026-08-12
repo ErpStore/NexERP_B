@@ -129,12 +129,24 @@ disabling the credential helper) failed with `fatal: could not read Username for
 for read access, which a public repo never does. Reproduced independently in a second shell
 (PowerShell) with the same result.
 
-**Consequence.** `ErpStore/NexERP_B` is **private**. The committed database credentials
-(R-01) and the JWT secret incident (below) are not published to the public internet — they
-are reachable only by GitHub accounts with collaborator access to this repo. This is a real
-exposure (still requires rotation and a history purge) but not the "already harvested by
-anyone" incident-response-grade finding the original Q-19 escalation described. Corrected
-in [open-questions.md](../open-questions.md) Q-19,
+**Consequence (as first found).** `ErpStore/NexERP_B` was **private**. The committed
+database credentials (R-01) and the JWT secret incident (below) were not published to the
+public internet at that point — reachable only by GitHub accounts with collaborator access
+to this repo.
+
+**Superseding update, same day, 2026-08-12.** After this correction was delivered to Kumar
+(confirmed repo owner) in-session, Kumar **deliberately set the repository to public**.
+Re-verified with the same rigorous method used to find "private" above (not the original
+flawed test): `git -c credential.helper= ls-remote` now succeeds (exit 0, no auth demanded);
+an unauthenticated REST call to `https://api.github.com/repos/ErpStore/NexERP_B` now
+returns `200`. **The repository is genuinely public as of this decision.** The committed SA
+password, production host, `bspl` credential (R-01), and the JWT secret introduced into
+`master`'s history during this task (R-02) must now be treated as published and
+harvestable — this is the "already harvested" framing the original (flawed) escalation
+used, now actually true, for a different and later reason. Rotation (M0-04) and the history
+purge (M0-05) are urgent for real.
+
+All of the above is corrected/updated in [open-questions.md](../open-questions.md) Q-19,
 [technical-debt-register.md](../risks/technical-debt-register.md) R-01/R-02, and
 [README.md §6](README.md#findings-from-this-planning-pass-that-changed-m0). Recorded as
 **INV-034** in [investigation-registry.md](../investigation-registry.md).
@@ -143,18 +155,22 @@ in [open-questions.md](../open-questions.md) Q-19,
 claim as "succeeding without authentication" whenever a credential helper is configured —
 always check `credential.helper` before drawing a visibility conclusion from git protocol
 behavior, and prefer an unauthenticated `curl`/REST check (or `git -c credential.helper=`)
-as the actual test.
+as the actual test. This held even for verifying the *second*, deliberate visibility
+change — the same rigorous test was reapplied rather than trusting "I made it public" at
+face value.
 
-## Q-19 escalation (private repo + committed credentials)
+## Q-19 escalation and resolution (repo is public — owner decision, 2026-08-12)
 
-Escalated in this session, 2026-08-12, to **Kumar**, who confirmed being the owner of
-`ErpStore/NexERP_B`, under the initial (incorrect) "public" framing. The correction above
-was delivered to Kumar the same day, in the same session. Evidence attached:
-[KB-060](../risks/technical-debt-register.md) R-01 (hardcoded credentials in C#, not only
-config) and R-02 (JWT secret), re-confirmed live in this task. Recorded in
-[open-questions.md](../open-questions.md) Q-19 with this date and owner, corrected version.
-**Decision on visibility itself is moot** — the repository is already private; no visibility
-change is being recommended.
+Escalated in this session, 2026-08-12, to **Kumar**, confirmed owner of `ErpStore/NexERP_B`,
+initially under an incorrect "public" framing (INV-029's flawed test), then corrected to
+"private" (INV-034), then **superseded when Kumar deliberately chose to make the repository
+public** the same day — confirmed above via the rigorous test, not assumed from the
+request alone. Evidence attached throughout: [KB-060](../risks/technical-debt-register.md)
+R-01 (hardcoded credentials in C#, not only config) and R-02 (JWT secret). Recorded in
+[open-questions.md](../open-questions.md) Q-19 as **Answered** — visibility is now public,
+intentionally, with this date and owner on record. **This resolves Q-19**; it does not
+reduce the urgency of M0-04/M0-05, which are now acting on a live-exposed credential set
+rather than a hypothetical one.
 
 ## Rollback
 
