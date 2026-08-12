@@ -15,50 +15,52 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout Class="@($"vs-layout {(_isDark ? "vs-dark" : "vs-light")}")">
+<MudLayout Class="@($"vs-layout {(_isDark ? "vs-dark ng-dark" : "vs-light")}")">
 
     <!-- ══════════════════════════════════════════
          APP BAR
          ══════════════════════════════════════════ -->
     <MudAppBar Elevation="0" Dense="true" Class="vs-appbar">
 
-        <MudIconButton Icon="@Icons.Material.Filled.Menu"
-                       Size="Size.Medium"
-                       Color="Color.Inherit"
-                       Edge="Edge.Start"
-                       OnClick="DrawerToggle"
-                       Class="vs-appbar-menu-btn" />
-
         <div class="vs-appbar-brand">
             <div class="vs-appbar-logo">
-                <img src="/_content/V.SMART.Shared/images/BSPLLOGO.jpg" alt="BSPL" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="30" height="30">
+                    <defs>
+                        <linearGradient id="ng-appbar-logo" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#2563EB"/>
+                            <stop offset="100%" stop-color="#7C3AED"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="48" height="48" rx="11" fill="url(#ng-appbar-logo)"/>
+                    <path d="M11 37V11h6.5l13.5 18.5V11H37v26h-6.5L17 18.5V37z" fill="rgba(255,255,255,0.95)"/>
+                </svg>
             </div>
             <div class="vs-appbar-brand-text">
-                <span class="vs-appbar-kicker">ERP Workspace</span>
-                <span class="vs-appbar-company">Bhargavi Soft-Tech Pvt Ltd</span>
+                <span class="vs-appbar-company">NexGen-ERP</span>
             </div>
         </div>
-       
+
         <MudSpacer />
 
-        <div class="d-flex align-center me-4">
-            <MudIcon Icon="@Icons.Material.Filled.AccountCircle"
-                     Color="Color.Inherit"
-                     Class="me-1" />
+        <!-- Global search -->
+        <div class="ng-topbar-search d-none d-md-flex me-3">
+            <i class="bi bi-search" style="font-size:13px;"></i>
+            <span>Search modules, records…</span>
+            <kbd>Ctrl K</kbd>
+        </div>
 
-            <MudText Typo="Typo.body2" Class="text-white">
-                @(session?.UserName ?? "Guest")
-            </MudText>
+        <!-- User chip -->
+        <div class="ng-topbar-user me-2">
+            <i class="bi bi-person-circle" style="font-size:16px;"></i>
+            <span class="d-none d-sm-inline">@(session?.UserName ?? "Guest")</span>
         </div>
 
         <!-- Theme toggle -->
-        <MudIconButton Icon="@(_isDark? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+        <MudIconButton Icon="@(_isDark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                        Color="Color.Inherit"
                        Size="Size.Small"
-                       Class="vs-appbar-theme-btn me-2"
+                       Class="vs-appbar-theme-btn"
                        OnClick="ToggleTheme" />
-
-        <div class="vs-appbar-badge">V.SMART</div>
 
     </MudAppBar>
 
@@ -68,9 +70,7 @@
          ══════════════════════════════════════════ -->
     @if (!_drawerOpen)
     {
-        <div class="vs-mini-sidebar">
-            <NavMenu DrawerOpen="false" ToggleDrawer="DrawerToggle" />
-        </div>
+        <NavMenu DrawerOpen="false" ToggleDrawer="DrawerToggle" OnFlyoutChanged="OnSubnavChanged" />
     }
 
     <!-- ══════════════════════════════════════════
@@ -96,6 +96,36 @@
                     @onmousemove="TrackActivity"
                     @onkeydown="TrackActivity">
         <div class="vs-content-shell">
+            @if (!string.IsNullOrEmpty(_activeModule) && NavMenu.NavGroups.ContainsKey(_activeModule))
+            {
+                <nav class="vs-subnav-bar">
+                    @foreach (var item in NavMenu.NavGroups[_activeModule].Items)
+                    {
+                        var i = item;
+                        @if (i.Children != null && i.Children.Count > 0)
+                        {
+                            <div class="vs-subnav-group @(i.Children.Any(c => IsSubnavActive(c.Href)) ? "vs-subnav-group--active" : "")">
+                                <button class="vs-flyout-item vs-flyout-item--group @(i.Children.Any(c => IsSubnavActive(c.Href)) ? "vs-flyout-item--active" : "")">
+                                    @i.Label <i class="bi bi-chevron-down" style="font-size:9px;margin-left:3px;"></i>
+                                </button>
+                                <div class="vs-subnav-dropdown">
+                                    @foreach (var child in i.Children)
+                                    {
+                                        var c = child;
+                                        <a class="vs-subnav-dropdown-item @(IsSubnavActive(c.Href) ? "vs-subnav-dropdown-item--active" : "")"
+                                           href="/@c.Href">@c.Label</a>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <a class="vs-flyout-item @(IsSubnavActive(i.Href) ? "vs-flyout-item--active" : "")"
+                               href="/@i.Href">@i.Label</a>
+                        }
+                    }
+                </nav>
+            }
             @Body
         </div>
     </MudMainContent>
@@ -148,6 +178,22 @@
 
     private bool _drawerOpen = false;
     private bool _isDark = false;
+    private string? _activeModule;
+
+    private void OnSubnavChanged(string? moduleKey)
+    {
+        _activeModule = moduleKey;
+        StateHasChanged();
+    }
+
+    private bool IsSubnavActive(string href)
+    {
+        var rel = href.TrimStart('/').TrimEnd('/');
+        var cur = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).TrimEnd('/');
+        if (string.IsNullOrEmpty(rel)) return false;
+        return cur.Equals(rel, StringComparison.OrdinalIgnoreCase) ||
+               cur.StartsWith(rel + "/", StringComparison.OrdinalIgnoreCase);
+    }
 
     private bool _showSessionWarning;
 
@@ -214,35 +260,35 @@
     {
         PaletteLight = new PaletteLight
         {
-            Primary = "#14b8a6",
-            Secondary = "#7c3aed",
-            AppbarBackground = "#1a4e6e",
-            AppbarText = "#ffffff",
-            DrawerBackground = "#0a0f1e",
-            DrawerText = "#e2e8f0",
-            Surface = "#ffffff",
-            Background = "#eaf0f8",
-            TextPrimary = "#1e293b",
-            TextSecondary = "#64748b",
-            LinesDefault = "#dbe4f0",
-            DrawerIcon = "rgba(148,163,184,0.65)",
-            ActionDefault = "#64748b",
+            Primary = "#2563EB",
+            Secondary = "#7C3AED",
+            AppbarBackground = "#FFFFFF",
+            AppbarText = "#0F172A",
+            DrawerBackground = "#0F172A",
+            DrawerText = "#CBD5E1",
+            Surface = "#FFFFFF",
+            Background = "#F0F4FA",
+            TextPrimary = "#0F172A",
+            TextSecondary = "#64748B",
+            LinesDefault = "rgba(15,23,42,0.08)",
+            DrawerIcon = "#64748B",
+            ActionDefault = "#64748B",
         },
         PaletteDark = new PaletteDark
         {
-            Primary = "#14b8a6",
-            Secondary = "#a78bfa",
-            Background = "#0a0f1e",
+            Primary = "#3B82F6",
+            Secondary = "#A78BFA",
+            Background = "#060B18",
             Surface = "#111827",
-            AppbarBackground = "#0d1526",
-            AppbarText = "#f1f5f9",
-            DrawerBackground = "#080c1a",
-            DrawerText = "#e2e8f0",
-            TextPrimary = "#f1f5f9",
-            TextSecondary = "#94a3b8",
-            LinesDefault = "#1e293b",
-            DrawerIcon = "#94a3b8",
-            ActionDefault = "#94a3b8",
+            AppbarBackground = "#0D1526",
+            AppbarText = "#F1F5F9",
+            DrawerBackground = "#070C18",
+            DrawerText = "#CBD5E1",
+            TextPrimary = "#F1F5F9",
+            TextSecondary = "#94A3B8",
+            LinesDefault = "rgba(255,255,255,0.08)",
+            DrawerIcon = "#64748B",
+            ActionDefault = "#94A3B8",
         },
     };
 

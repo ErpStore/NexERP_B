@@ -1,4 +1,6 @@
 ﻿@page "/"
+@layout BlankLayout
+@using V.SMART.Shared.Layout
 @using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices
 @inject NavigationManager Nav
 @inject ThemeStateService ThemeStateService
@@ -7,639 +9,331 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ICompanyService _companyService
 
-<PageTitle>V.SMART ERP — Bhargavi Soft-Tech</PageTitle>
+<PageTitle>NexGenERP — Next-Generation Enterprise Resource Planning</PageTitle>
 
 @if (isProcessing)
 {
-    <div class="d-flex justify-content-center align-items-center py-5" style="min-height:60vh;">
-        <div class="erp-hero-spinner">
-            <div class="erp-spinner-ring"></div>
-            <div class="erp-spinner-ring erp-spinner-ring-2"></div>
-        </div>
+    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#03050E;">
+        <div style="width:40px;height:40px;border:3px solid rgba(37,99,235,0.2);border-top-color:#2563EB;border-radius:50%;animation:ng-spin 0.7s linear infinite;"></div>
     </div>
 }
 else
 {
-    <div class="erp-wrapper @(isDark ? "dark" : "light")">
-
-        <!-- Ambient Orbs -->
-        <div class="erp-orb erp-orb-1"></div>
-        <div class="erp-orb erp-orb-2"></div>
-        <div class="erp-orb erp-orb-3"></div>
-
-        <!-- ══════════════════════════════════════════
-            STICKY NAVBAR
-        ══════════════════════════════════════════ -->
+    <div class="ng-home">
 
         <AuthorizeView>
             <NotAuthorized>
 
-                <nav class="erp-navbar @(navScrolled ? "erp-navbar--scrolled" : "")" id="erp-top-navbar">
+                <!-- ── NAV ─────────────────────────────────────── -->
+                <nav class="ng-landing-nav @(navScrolled ? "ng-landing-nav--scrolled" : "")" id="erp-top-navbar">
 
-                    <div class="erp-nav-brand" @onclick='() => ScrollTo("top")'>
-                        <div class="erp-nav-logo-badge">
-                            <img src="/_content/V.SMART.Shared/images/bspllogo.jpg"
-                                 class="erp-logo-img" alt="BSPL Logo"
-                                 style="mix-blend-mode: multiply; background: transparent;" />
-                        </div>
-                        <img src="/_content/V.SMART.Shared/images/bsplimage.png"
-                             class="erp-brand-img" alt="BSPL Brand" />
+                    <div class="ng-landing-brand" @onclick='() => ScrollTo("top")'>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="30" height="30">
+                            <defs>
+                                <linearGradient id="ng-h-logo" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="#2563EB"/>
+                                    <stop offset="100%" stop-color="#7C3AED"/>
+                                </linearGradient>
+                            </defs>
+                            <rect width="48" height="48" rx="11" fill="url(#ng-h-logo)"/>
+                            <path d="M11 37V11h6.5l13.5 18.5V11H37v26h-6.5L17 18.5V37z" fill="rgba(255,255,255,0.95)"/>
+                        </svg>
+                        <span class="ng-landing-wordmark">NexGenERP</span>
                     </div>
 
-                    <ul class="erp-nav-links">
-                        <li>
-                            <button class="erp-nav-link @(activeSection == "home" ? "active" : "")"
-                                    @onclick='() => ScrollTo("home")'>
-                                <i class="bi bi-house-fill"></i> Home
-                            </button>
-                        </li>
-
-                        <li>
-                            <button class="erp-nav-link @(activeSection == "services" ? "active" : "")"
-                                    @onclick='() => ScrollTo("services")'>
-                                <i class="bi bi-grid-3x3-gap-fill"></i> Services
-                            </button>
-                        </li>
-
-                        <li>
-                            <button class="erp-nav-link @(activeSection == "about" ? "active" : "")"
-                                    @onclick='() => ScrollTo("about")'>
-                                <i class="bi bi-building"></i> About
-                            </button>
-                        </li>
-
-                        <li>
-                            <button class="erp-nav-link @(activeSection == "contact" ? "active" : "")"
-                                    @onclick='() => ScrollTo("contact")'>
-                                <i class="bi bi-envelope-fill"></i> Contact
-                            </button>
-                        </li>
+                    <ul class="ng-landing-nav-links">
+                        <li><button class="ng-landing-nav-link @(activeSection=="home"?"active":"")" @onclick='()=>ScrollTo("home")'>Platform</button></li>
+                        <li><button class="ng-landing-nav-link @(activeSection=="services"?"active":"")" @onclick='()=>ScrollTo("services")'>Modules</button></li>
+                        <li><button class="ng-landing-nav-link @(activeSection=="about"?"active":"")" @onclick='()=>ScrollTo("about")'>About</button></li>
+                        <li><button class="ng-landing-nav-link @(activeSection=="contact"?"active":"")" @onclick='()=>ScrollTo("contact")'>Contact</button></li>
                     </ul>
 
-                    <button class="erp-nav-signin erp-nav-signin-desktop" @onclick="GoLogin">
+                    <button class="ng-landing-signin-btn" @onclick="GoLogin">
                         <i class="bi bi-box-arrow-in-right"></i> Sign In
                     </button>
 
-
-                    <button class="erp-nav-mobile-btn" @onclick="ToggleMobileMenu">
-                        <i class="bi @(mobileMenuOpen ? "bi-x-lg" : "bi-list")"></i>
-                    </button>
                 </nav>
 
+                <!-- ── HERO ────────────────────────────────────── -->
+                <section class="ng-hero" id="home">
+                    <div class="ng-hero-bg"></div>
+                    <div class="ng-hero-grid"></div>
 
-                <!-- Mobile drawer -->
-                <div class="erp-nav-drawer @(mobileMenuOpen ? "open" : "") @(isDark ? "dark" : "light") erp-wrapper">
-                    <button class="erp-nav-link" @onclick='() => { ScrollTo("home"); mobileMenuOpen = false; }'>
-                        <i class="bi bi-house-fill"></i> Home
-                    </button>
-                    <button class="erp-nav-link" @onclick='() => { ScrollTo("services"); mobileMenuOpen = false; }'>
-                        <i class="bi bi-grid-3x3-gap-fill"></i> Services
-                    </button>
-                    <button class="erp-nav-link" @onclick='() => { ScrollTo("about"); mobileMenuOpen = false; }'>
-                        <i class="bi bi-building"></i> About
-                    </button>
-                    <button class="erp-nav-link" @onclick='() => { ScrollTo("contact"); mobileMenuOpen = false; }'>
-                        <i class="bi bi-envelope-fill"></i> Contact
-                    </button>
+                    <div class="ng-hero-content ng-anim-fade-up">
 
-                    <button class="erp-nav-signin" @onclick="GoLogin">
-                        <i class="bi bi-box-arrow-in-right"></i> Sign In
-                    </button>
-
-                </div>
-
-                <!-- ══════════════════════════════════════════
-                     HERO / BRAND
-                     ══════════════════════════════════════════ -->
-                <section class="erp-public-hero" id="home">
-                    <div class="erp-hero-bg-grid"></div>
-
-                    <div class="row align-items-center g-5">
-                        <div class="col-lg-6">
-                            <div class="erp-hero-eyebrow">
-                                <i class="bi bi-shield-check-fill"></i>
-                                ISO Compliant · Manufacturing ERP
-                            </div>
-
-                            <h1 class="erp-hero-headline">
-                                Empower Your<br />
-                                <span class="erp-hero-gradient-text">Business Operations</span>
-                            </h1>
-                            <p class="erp-hero-body">
-                                Bhargavi Soft-Tech provides superior consulting and software solutions for manufacturing and
-                                inventory management — designed for small to medium scale industries across India.
-                                Fresh, innovative, and built to exceed your expectations.
-                            </p>
-
-                            <div class="erp-hero-actions">
-
-                                <button class="erp-hero-btn-primary" @onclick="GoLogin">
-                                    <i class="bi bi-box-arrow-in-right"></i>
-                                    Sign In to ERP
-                                </button>
-                                <button class="erp-hero-btn-outline"
-                                        @onclick='() => ScrollTo("services")'>
-                                    <i class="bi bi-grid-3x3-gap-fill"></i>
-                                    Explore Modules
-                                </button>
-                            </div>
-
-                            <div class="erp-hero-stats">
-                                <div class="erp-hero-stat">
-                                    <span class="erp-hero-stat-num">12+</span>
-                                    <span class="erp-hero-stat-label">ERP Modules</span>
-                                </div>
-                                <div class="erp-hero-stat-divider"></div>
-                                <div class="erp-hero-stat">
-                                    <span class="erp-hero-stat-num">15+</span>
-                                    <span class="erp-hero-stat-label">Years Experience</span>
-                                </div>
-                                <div class="erp-hero-stat-divider"></div>
-                                <div class="erp-hero-stat">
-                                    <span class="erp-hero-stat-num">24/7</span>
-                                    <span class="erp-hero-stat-label">Customer Support</span>
-                                </div>
-                            </div>
+                        <div class="ng-hero-eyebrow">
+                            <i class="bi bi-shield-check-fill"></i>
+                            ISO Compliant &bull; Manufacturing ERP &bull; GST Ready
                         </div>
 
-                        <!-- ═══════════════════════════════════════════════════════
-                             PREMIUM CRYSTAL GLASS ERP ANIMATION
-                             Pentagon + Pentagon layout — NO overlaps
-                             Outer (r=228): Purchase · Inventory · QC · Maintenance · Production
-                             Inner (r=148): Reports · Finance · HR · Sales · Labour
-                             ═══════════════════════════════════════════════════════ -->
-                        <div class="col-lg-6 d-none d-lg-flex justify-content-center">
-                            <div class="erp-anim-wrapper">
+                        <h1 class="ng-hero-title">
+                            The Enterprise Platform<br />
+                            <span class="ng-hero-title-accent">Built to Scale</span>
+                        </h1>
 
-                                <!-- Ambient Glass Circles -->
-                                <div class="erp-bg-circle erp-bg-circle-1"></div>
-                                <div class="erp-bg-circle erp-bg-circle-2"></div>
-                                <div class="erp-bg-circle erp-bg-circle-3"></div>
-                                <div class="erp-bg-circle erp-bg-circle-4"></div>
+                        <p class="ng-hero-subtitle">
+                            Unify manufacturing, inventory, HR, and finance in one intelligent platform.
+                            Designed for modern enterprises. Engineered for growth.
+                        </p>
 
-                                <!-- Crystal Orbit Rings -->
-                                <div class="erp-anim-ring erp-anim-ring-1"></div>
-                                <div class="erp-anim-ring erp-anim-ring-2"></div>
-                                <div class="erp-anim-ring erp-anim-ring-3"></div>
-                                <div class="erp-anim-ring erp-anim-ring-4"></div>
+                        <div class="ng-hero-cta-row">
+                            <button class="ng-cta-primary" @onclick="GoLogin">
+                                <i class="bi bi-box-arrow-in-right"></i> Access Your Workspace
+                            </button>
+                            <button class="ng-cta-secondary" @onclick='()=>ScrollTo("services")'>
+                                <i class="bi bi-grid-3x3-gap-fill"></i> Explore Modules
+                            </button>
+                        </div>
 
-                                <!-- Floating Data Packets -->
-                                <div class="erp-anim-packet erp-anim-packet-sm erp-packet-1"></div>
-                                <div class="erp-anim-packet erp-anim-packet-md erp-packet-2"></div>
-                                <div class="erp-anim-packet erp-anim-packet-sm erp-packet-3"></div>
-                                <div class="erp-anim-packet erp-anim-packet-sm erp-packet-4"></div>
-                                <div class="erp-anim-packet erp-anim-packet-md erp-packet-5"></div>
-
-                                <!-- Central Hub -->
-                                <div class="erp-anim-hub">
-                                    <div class="erp-nav-logo-badge">
-                                        <img src="/_content/V.SMART.Shared/images/bspllogo.jpg"
-                                             class="erp-logo-img" alt="BSPL Logo" />
-                                    </div>
-                                </div>
-
-                                <!-- ════════════ OUTER RING (5 cards, r=228) ════════════ -->
-                                <!-- sat-1 · Purchase · 12 o'clock · top:17px left:245px -->
-                                <div class="erp-anim-sat erp-anim-sat-1">
-                                    <i class="bi bi-cart-check-fill sat-teal"></i>
-                                    <span class="erp-anim-sat-label">Sales</span>
-
-                                </div>
-
-                                <!-- sat-2 · Inventory · 2 o'clock · top:175px left:462px -->
-                                <div class="erp-anim-sat erp-anim-sat-2">
-                                    <i class="bi bi-bag-check-fill sat-blue"></i>
-                                    <span class="erp-anim-sat-label">Outsourcing</span>
-
-                                </div>
-
-
-
-                                <!-- sat-3 · QC · 4 o'clock · top:429px left:379px -->
-                                <div class="erp-anim-sat erp-anim-sat-3">
-                                    <i class="bi bi-person-badge-fill sat-indigo"></i>
-                                    <span class="erp-anim-sat-label">Labour Work</span>
-
-                                </div>
-
-                                <!-- sat-4 · Maintenance · 6 o'clock · top:429px left:111px -->
-                                <div class="erp-anim-sat erp-anim-sat-4">
-                                    <i class="bi bi-box-seam-fill sat-cyan"></i>
-                                    <span class="erp-anim-sat-label">Inventory</span>
-
-                                </div>
-
-                                <!-- sat-5 · Production · 10 o'clock · top:175px left:28px -->
-                                <div class="erp-anim-sat erp-anim-sat-5">
-                                    <i class="bi bi-gear-wide-connected sat-red"></i>
-                                    <span class="erp-anim-sat-label">Production</span>
-                                </div>
-
-                                <!-- ════════════ INNER RING (5 cards, r=148) ════════════ -->
-                                <!-- sat-6 · Reports · 1 o'clock · top:125px left:332px -->
-                                <div class="erp-anim-sat erp-anim-sat-6">
-                                    <i class="bi bi-patch-check-fill sat-lime"></i>
-                                    <span class="erp-anim-sat-label">QC</span>
-
-                                </div>
-
-                                <!-- sat-7 · Finance · 5 o'clock · top:291px left:386px -->
-                                <div class="erp-anim-sat erp-anim-sat-7">
-                                    <i class="bi bi-cash-stack sat-green"></i>
-                                    <span class="erp-anim-sat-label">Finance</span>
-                                </div>
-
-                                <!-- sat-8 · HR · 7 o'clock · top:393px left:245px -->
-                                <div class="erp-anim-sat erp-anim-sat-8">
-                                    <i class="bi bi-people-fill sat-pink"></i>
-                                    <span class="erp-anim-sat-label">HR</span>
-                                </div>
-
-                                <!-- sat-9 · Sales · 11 o'clock · top:291px left:104px -->
-                                <div class="erp-anim-sat erp-anim-sat-9">
-                                    <i class="bi bi-tools sat-orange"></i>
-                                    <span class="erp-anim-sat-label">Maintenance</span>
-
-                                </div>
-
-                                <!-- sat-10 · Labour · 11 inner · top:125px left:158px -->
-                                <div class="erp-anim-sat erp-anim-sat-10">
-                                    <i class="bi bi-bar-chart-fill sat-purple"></i>
-                                    <span class="erp-anim-sat-label">Reports</span>
-                                </div>
-
+                        <div class="ng-stats-strip">
+                            <div class="ng-stat-item">
+                                <div class="ng-stat-value">12+</div>
+                                <div class="ng-stat-label">ERP Modules</div>
+                            </div>
+                            <div class="ng-stat-divider"></div>
+                            <div class="ng-stat-item">
+                                <div class="ng-stat-value">500+</div>
+                                <div class="ng-stat-label">Active Users</div>
+                            </div>
+                            <div class="ng-stat-divider"></div>
+                            <div class="ng-stat-item">
+                                <div class="ng-stat-value">99.9%</div>
+                                <div class="ng-stat-label">Uptime SLA</div>
+                            </div>
+                            <div class="ng-stat-divider"></div>
+                            <div class="ng-stat-item">
+                                <div class="ng-stat-value">24/7</div>
+                                <div class="ng-stat-label">Support</div>
                             </div>
                         </div>
 
                     </div>
                 </section>
 
+                <!-- ── MODULES SECTION ─────────────────────────── -->
+                <section class="ng-section" id="services" style="background:#03050E;">
+                    <div style="max-width:1200px;margin:0 auto;">
+                        <p class="ng-section-eyebrow">Complete Suite</p>
+                        <h2 class="ng-section-title">Every Business Function,<br/>One Platform</h2>
+                        <p class="ng-section-sub">From procurement to payroll — seamlessly integrated.</p>
 
-
-
-                <!-- ══ SERVICES / MODULES SHOWCASE ══ -->
-                <section class="erp-public-section" id="services">
-                    <div class="erp-section-badge">Our Solutions</div>
-                    <h2 class="erp-section-title">Complete ERP Suite</h2>
-                    <p class="erp-section-subtitle">
-                        From procurement to payroll — every business function, one integrated platform.
-                    </p>
-
-                    <div class="row g-4 mt-2">
-                        @foreach (var s in _services)
-                        {
-                            <div class="col-12 col-sm-6 col-xl-4">
-                                <div class="erp-service-card glass-card">
-                                    <div class="erp-service-icon @s.Ic">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:48px;">
+                            @foreach (var s in _services)
+                            {
+                                <div class="ng-module-card" style="--ng-module-bg:@GetModuleBg(s.Ic);--ng-module-color:@GetModuleColor(s.Ic);">
+                                    <div class="ng-module-icon-wrap">
                                         <i class="@s.Icon"></i>
                                     </div>
-                                    <h5 class="erp-service-title">@s.Title</h5>
-                                    <p class="erp-service-desc">@s.Desc</p>
-                                    <div class="erp-service-tags">
+                                    <div class="ng-module-title">@s.Title</div>
+                                    <div class="ng-module-desc">@s.Desc</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;">
                                         @foreach (var tag in s.Tags)
                                         {
-                                            <span class="erp-tag">@tag</span>
+                                            <span style="padding:2px 8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:100px;font-size:11px;color:rgba(255,255,255,0.45);">@tag</span>
                                         }
                                     </div>
                                 </div>
-                            </div>
-                        }
-                </div>
-            </section>
-
-            <!-- ══ ABOUT BSPL ══ -->
-            <section class="erp-public-section" id="about">
-                <div class="row g-5 align-items-center">
-                    <div class="col-lg-5">
-                        <div class="erp-about-visual glass-card">
-                            <div class="erp-about-logo-wrap">
-                                <img src="/_content/V.SMART.Shared/images/BSPLLOGO.jpg"
-                                     alt="Bhargavi Soft-Tech Logo"
-                                     class="erp-about-logo" />
-                            </div>
-                            <div class="erp-about-badges">
-                                <div class="erp-about-badge">
-                                    <i class="bi bi-award-fill"></i>
-                                    <span>BSPL Certified Partner</span>
-                                </div>
-                                <div class="erp-about-badge">
-                                    <i class="bi bi-building-check"></i>
-                                    <span>Pvt. Ltd. Company</span>
-                                </div>
-                                <div class="erp-about-badge">
-                                    <i class="bi bi-globe-asia-australia"></i>
-                                    <span>Domestic &amp; International</span>
-                                </div>
-                            </div>
+                            }
                         </div>
                     </div>
+                </section>
 
-                    <div class="col-lg-7">
-                        <div class="erp-section-badge">About Us</div>
-                        <h2 class="erp-section-title">Bhargavi Soft-Tech Pvt. Ltd.</h2>
-                        <p class="erp-about-body">
-                            A part of Bhargavi Group of Industries, we provide superior consulting services for managing
-                            the implementation of manufacturing and inventory management systems in the small to medium scale
-                            industries — serving both domestic and international sectors.
-                        </p>
-                        <p class="erp-about-body">
-                            We bring a fresh and innovative approach to software development. Our goal is to exceed the
-                            expectations of every client by offering outstanding customer service, increased flexibility,
-                            and greater value — optimizing system functionality and improving operational efficiency.
-                        </p>
-                        <div class="erp-about-features">
-                            <div class="erp-about-feat">
-                                <i class="bi bi-check-circle-fill"></i>
-                                <span>Hardware &amp; Networking Support</span>
-                            </div>
-                            <div class="erp-about-feat">
-                                <i class="bi bi-check-circle-fill"></i>
-                                <span>24/7 Customer Support</span>
-                            </div>
-                            <div class="erp-about-feat">
-                                <i class="bi bi-check-circle-fill"></i>
-                                <span>Data Entry &amp; Migration Services</span>
-                            </div>
-                            <div class="erp-about-feat">
-                                <i class="bi bi-check-circle-fill"></i>
-                                <span>End-to-End Implementation</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+                <!-- ── ABOUT ───────────────────────────────────── -->
+                <section class="ng-section" id="about" style="background:#05081A;">
+                    <div style="max-width:1200px;margin:0 auto;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;">
 
-            <!-- ══ CONTACT SECTION ══ -->
-            <section class="erp-public-section" id="contact">
-                <div class="erp-section-badge">Get In Touch</div>
-                <h2 class="erp-section-title">Contact Us</h2>
-                <p class="erp-section-subtitle">Reach out for quality service and quality products.</p>
-
-                <div class="row g-4 mt-2">
-                    <div class="col-lg-5">
-                        <div class="erp-contact-card glass-card">
-                            <h5 class="erp-contact-card-title">Registered Office</h5>
-
-                            <div class="erp-contact-item">
-                                <div class="erp-contact-icon-wrap ic-blue">
-                                    <i class="bi bi-geo-alt-fill"></i>
-                                </div>
-                                <div>
-                                    <div class="erp-contact-label">Address</div>
-                                    <a href="https://maps.app.goo.gl/zz71wPHRQLjjYaRR8"
-                                       target="_blank" class="erp-contact-map-link">
-                                        <div class="erp-contact-value">
-                                            <i class="bi bi-geo-alt-fill"></i>
-                                            #5, Ashirwaad Nilaya, Opp.<br />
-                                            Ascent PU College / Behind More Supermarket,<br />
-                                            Hesaraghatta Main Road, 8th Mile, Bengaluru-560073
-                                        </div>
-                                    </a>
-                                </div>
-                            </div>
-
-                            <div class="erp-contact-item">
-                                <div class="erp-contact-icon-wrap ic-green">
-                                    <i class="bi bi-telephone-fill"></i>
-                                </div>
-                                <div>
-                                    <div class="erp-contact-label">Phone</div>
-                                    <div class="erp-contact-value"><span>Boss :</span> +91 9844046791</div>
-                                    <div class="erp-contact-value"><span>Admin :</span> +91 8660821782</div>
-                                    <div class="erp-contact-value"><span>Office :</span> +91 9035046791 · 8073253024 · 9901331092</div>
-                                </div>
-                            </div>
-
-                            <div class="erp-contact-item">
-                                <div class="erp-contact-icon-wrap ic-purple">
-                                    <i class="bi bi-envelope-fill"></i>
-                                </div>
-                                <div>
-                                    <div class="erp-contact-label">Email</div>
-                                    <a href="mailto:contactbspl@bhargavigroup.com" class="erp-contact-link">
-                                        contactbspl@bhargavigroup.com
-                                    </a>
-                                    <a href="mailto:bhargavispl@gmail.com" class="erp-contact-link">
-                                        bhargavispl@gmail.com
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-lg-7">
-                        <div class="erp-cta-card glass-card">
-                            <div class="erp-cta-icon">
-                                <i class="bi bi-rocket-takeoff-fill"></i>
-                            </div>
-                            <h4 class="erp-cta-title">Ready to Streamline Your Business?</h4>
-                            <p class="erp-cta-body">
-                                Login to access your personalized ERP dashboard and take control of every business process
-                                — from purchase and production to HR and accounts.
-                            </p>
-
-                            <button class="erp-cta-btn" @onclick="GoLogin">
-                                <i class="bi bi-box-arrow-in-right"></i>
-                                Login to ERP
-                            </button>
-
-                            <div class="erp-cta-note">
-                                <i class="bi bi-shield-lock-fill"></i>
-                                Secure · Encrypted · Enterprise-Grade
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-        </NotAuthorized>
-    </AuthorizeView>
-
-    <!-- ══════════════════════════════════════════
-         AUTHORIZED SECTION — ERP Modules Grid
-         ══════════════════════════════════════════ -->
-    <AuthorizeView Roles="Administrator,ERPAdmin,User">
-        <Authorized>
-            <section class="erp-public-section">
-                <div class="erp-hero-section mb-4">
-                    <div class="row align-items-center g-4">
-                        <div class="col-lg-8">
-                            <div class="d-flex align-items-center gap-3 mb-3">
-                                <div class="erp-brand-logo">
-                                    <i class="bi bi-grid-1x2-fill"></i>
-                                </div>
-                                <div>
-                                    <h2 class="erp-brand-title mb-0">Enterprise ERP</h2>
-                                    <p class="erp-brand-sub mb-0">
-                                        V.Smart · Manufacturing · Inventory · HR · Accounts
-                                    </p>
-                                </div>
-                            </div>
-                            <div class="erp-user-card">
-                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-                                    <div class="d-flex align-items-center gap-3">
-                                        <div class="erp-user-avatar">
-                                            @(context.User.Identity?.Name?.Length > 0
-                                                                                        ? context.User.Identity.Name.Substring(0, 1).ToUpper()
-                                                                                        : "U")
-                                        </div>
-                                        <div>
-                                            <div class="erp-user-greeting">Welcome back</div>
-                                            <div class="erp-user-name">@context.User.Identity?.Name</div>
-                                        </div>
-                                    </div>
-                                    <button class="erp-btn-danger" @onclick="GoLogout">
-                                        <i class="bi bi-box-arrow-right"></i>
-                                        Logout
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                            <div class="col-lg-4 d-none d-lg-flex justify-content-center">
-                                <div class="erp-hero-deco">
-                                @if (!string.IsNullOrWhiteSpace(_companyLogoUrl))
+                            <div>
+                                <p class="ng-section-eyebrow">About NexGenERP</p>
+                                <h2 class="ng-section-title">Built for<br/>Manufacturing Excellence</h2>
+                                <p style="font-size:15px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:32px;">
+                                    A comprehensive ERP platform purpose-built for manufacturing and trading enterprises.
+                                    Unifying every business process — from sales enquiry to delivery, purchase to payment, HR to payroll.
+                                </p>
+                                <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;">
+                                    @foreach (var feat in new[]{"12+ integrated business modules","Real-time inventory and stock tracking","Complete HR and payroll management","GST, e-Way Bill and compliance built-in","Works on web, desktop and mobile"})
                                     {
-                                        <img src="@_companyLogoUrl"
-                                             alt="Company Logo"
-                                             style="max-width:160px; max-height:160px;
-                                            object-fit:contain; border-radius:16px;
-                                            mix-blend-mode:multiply;" />
+                                        <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,0.65);">
+                                            <span style="width:20px;height:20px;background:rgba(37,99,235,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                                <i class="bi bi-check2" style="font-size:12px;color:#60A5FA;"></i>
+                                            </span>
+                                            @feat
+                                        </li>
                                     }
-                                    else
+                                </ul>
+                            </div>
+
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                                @foreach (var (title, desc, icon, color) in new[]{
+                                    ("Real-Time Analytics","Live dashboards with KPI tracking and business intelligence.","bi-speedometer2","#60A5FA"),
+                                    ("Cloud Ready","Deploy on cloud or on-premise. Mobile and desktop support.","bi-cloud-check-fill","#34D399"),
+                                    ("ISO Compliant","Industry standards with full audit trail and compliance reporting.","bi-shield-check-fill","#FBBF24"),
+                                    ("24/7 Support","Dedicated support team available round the clock for all clients.","bi-headset","#A78BFA")
+                                })
+                                {
+                                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:24px;">
+                                        <i class="bi @icon" style="font-size:22px;color:@color;display:block;margin-bottom:12px;"></i>
+                                        <div style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:#fff;margin-bottom:6px;">@title</div>
+                                        <div style="font-size:13px;color:rgba(255,255,255,0.40);line-height:1.5;">@desc</div>
+                                    </div>
+                                }
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ── CTA / CONTACT ───────────────────────────── -->
+                <section class="ng-section" id="contact" style="background:#03050E;">
+                    <div style="max-width:1200px;margin:0 auto;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;">
+
+                            <div>
+                                <p class="ng-section-eyebrow">Get in Touch</p>
+                                <h2 class="ng-section-title">Ready to Transform<br/>Your Business?</h2>
+                                <div style="display:flex;flex-direction:column;gap:20px;margin-top:32px;">
+                                    @foreach (var (icon, label, val) in new[]{
+                                        ("bi-geo-alt-fill","Headquarters","Bangalore, Karnataka, India"),
+                                        ("bi-telephone-fill","Phone","+91 9844046791  ·  +91 9035046791"),
+                                        ("bi-envelope-fill","Email","contactbspl@nexgenerp.com")
+                                    })
                                     {
-                                        
-                                        <img src="/_content/V.SMART.Shared/images/bspllogo.jpg"
-                                                alt="BSPL Logo"
-                                             style="max-width:160px; max-height:160px;
-                                                    object-fit:contain; border-radius:16px;
-                                                    mix-blend-mode:multiply;" />
+                                        <div style="display:flex;gap:14px;align-items:flex-start;">
+                                            <div style="width:38px;height:38px;background:rgba(37,99,235,0.12);border:1px solid rgba(37,99,235,0.2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                                <i class="bi @icon" style="color:#60A5FA;font-size:16px;"></i>
+                                            </div>
+                                            <div>
+                                                <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.35);margin-bottom:3px;">@label</div>
+                                                <div style="font-size:14px;color:rgba(255,255,255,0.7);">@val</div>
+                                            </div>
+                                        </div>
                                     }
                                 </div>
                             </div>
 
-
-                    </div>
-                </div>
-
-                    <div class="erp-section-eyebrow mb-2">Business Modules</div>
-                    <h3 class="erp-section-heading mb-4">Select a Module</h3>
-
-                    <div class="row g-4">
-                    @foreach (var m in _modules)
-                        {
-                            var nav = m.Href;
-                            var title = m.Title;
-                            var desc = m.Desc;
-                            var icon = m.Icon;
-                            var ic = m.Ic;
-
-                            <div class="col-12 col-sm-6 col-xl-3">
-                                <div class="erp-module-card" @onclick='() => Nav.NavigateTo(nav)'>
-                                    <div class="erp-module-icon @ic">
-                                        <i class="@icon"></i>
-                                    </div>
-                                    <div class="erp-module-shine"></div>
-                                    <h5 class="erp-module-title">@title</h5>
-                                    <p class="erp-module-desc">@desc</p>
-                                    <div class="erp-module-arrow">
-                                        <i class="bi bi-arrow-right-short"></i>
-                                    </div>
+                            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:40px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;">
+                                <div style="width:60px;height:60px;background:rgba(37,99,235,0.15);border-radius:18px;display:flex;align-items:center;justify-content:center;">
+                                    <i class="bi bi-rocket-takeoff-fill" style="font-size:24px;color:#60A5FA;"></i>
+                                </div>
+                                <h4 style="font-family:'DM Sans',sans-serif;font-size:20px;font-weight:700;color:#fff;margin:0;letter-spacing:-0.02em;">
+                                    Start Your Journey
+                                </h4>
+                                <p style="font-size:14px;color:rgba(255,255,255,0.45);margin:0;line-height:1.6;max-width:320px;">
+                                    Access your personalised ERP workspace and take control of every business process.
+                                </p>
+                                <button class="ng-cta-primary" @onclick="GoLogin" style="width:100%;justify-content:center;margin-top:8px;">
+                                    <i class="bi bi-box-arrow-in-right"></i> Login to NexGenERP
+                                </button>
+                                <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,0.30);">
+                                    <i class="bi bi-shield-lock-fill"></i> Secure · Encrypted · Enterprise-Grade
                                 </div>
                             </div>
-                        }
-                    </div>
-                </section>
-            </Authorized>
 
-            <NotAuthorized>
-                <section class="erp-public-section">
-                    <div class="erp-notauth glass-card">
-                        <div class="erp-notauth-icon">
-                            <i class="bi bi-shield-lock-fill"></i>
                         </div>
-                        <h4 class="erp-notauth-title">Business Modules Require Login</h4>
-                        <p class="erp-notauth-desc">
-                            Sign in with your credentials to access the full ERP suite — Purchase, Sales,
-                            Production, Inventory, HR, Accounts, Reports and more.
-                        </p>
-                        <button class="erp-btn-add" @onclick="GoLogin">
-                            <i class="bi bi-box-arrow-in-right"></i>
-                            Login Now
-                        </button>
                     </div>
                 </section>
+
             </NotAuthorized>
         </AuthorizeView>
 
-        <!-- Footer strip -->
-        <footer class="erp-public-footer">
-            <span>© @DateTime.Now.Year Bhargavi Soft-Tech Pvt. Ltd. · All rights reserved.</span>
-            <span class="erp-footer-links">
-                <a href="mailto:contactbspl@bhargavigroup.com">Contact</a>
-                <span>·</span>
-                <a href="https://bhargavigroup.com" target="_blank">Website</a>
-                <span>·</span>
-                <a @onclick="GoLogin">Login</a>
-            </span>
+        <!-- ── AUTHORIZED: WORKSPACE ───────────────────────────── -->
+        <AuthorizeView Roles="Administrator,ERPAdmin,User">
+            <Authorized>
+
+                <div style="min-height:100vh;background:var(--ng-bg,#F0F4FA);font-family:'Inter',sans-serif;">
+
+                    <!-- Workspace Header -->
+                    <div style="background:var(--ng-surface-0,#fff);border-bottom:1px solid var(--ng-border-0,rgba(15,23,42,0.06));padding:24px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+                        <div>
+                            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--ng-text-tertiary,#64748B);margin-bottom:4px;">
+                                Welcome back
+                            </div>
+                            <h1 style="font-family:'DM Sans',sans-serif;font-size:22px;font-weight:700;color:var(--ng-text-primary,#0F172A);margin:0;letter-spacing:-0.02em;">
+                                @context.User.Identity?.Name
+                            </h1>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="font-size:12px;color:var(--ng-text-tertiary,#64748B);">
+                                <i class="bi bi-clock me-1"></i>@DateTime.Now.ToString("ddd, MMM d · h:mm tt")
+                            </div>
+                            <button class="ng-cta-secondary" style="padding:8px 16px;font-size:13px;" @onclick="GoLogout">
+                                <i class="bi bi-box-arrow-right"></i> Sign Out
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Module Grid -->
+                    <div style="padding:32px;">
+                        <div style="margin-bottom:24px;">
+                            <h2 style="font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;color:var(--ng-text-primary,#0F172A);margin:0 0 4px;letter-spacing:-0.01em;">
+                                Business Modules
+                            </h2>
+                            <p style="font-size:13px;color:var(--ng-text-tertiary,#64748B);margin:0;">
+                                Select a module to get started
+                            </p>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;">
+                            @foreach (var m in _modules)
+                            {
+                                var nav = m.Href;
+                                <div style="background:var(--ng-surface-0,#fff);border:1px solid var(--ng-border-0,rgba(15,23,42,0.06));border-radius:12px;padding:20px;cursor:pointer;transition:all 0.18s ease;box-shadow:0 1px 3px rgba(15,23,42,0.04);"
+                                     @onclick='() => Nav.NavigateTo(nav)'
+                                     onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(15,23,42,0.10)';"
+                                     onmouseleave="this.style.transform='';this.style.boxShadow='0 1px 3px rgba(15,23,42,0.04)';">
+                                    <div style="width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:12px;background:@GetModuleBgLight(m.Ic);color:@GetModuleColor(m.Ic);">
+                                        <i class="@m.Icon"></i>
+                                    </div>
+                                    <div style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:var(--ng-text-primary,#0F172A);margin-bottom:4px;">@m.Title</div>
+                                    <div style="font-size:12px;color:var(--ng-text-tertiary,#64748B);line-height:1.4;">@m.Desc</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                </div>
+
+            </Authorized>
+
+            <NotAuthorized>
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;text-align:center;padding:40px;">
+                    <div style="width:56px;height:56px;background:rgba(37,99,235,0.1);border-radius:16px;display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-shield-lock-fill" style="font-size:22px;color:#2563EB;"></i>
+                    </div>
+                    <h4 style="font-family:'DM Sans',sans-serif;font-size:18px;font-weight:600;color:#fff;margin:0;">Business Modules Require Login</h4>
+                    <p style="font-size:14px;color:rgba(255,255,255,0.45);margin:0;">Sign in with your credentials to access the full ERP suite.</p>
+                    <button class="ng-cta-primary" @onclick="GoLogin">
+                        <i class="bi bi-box-arrow-in-right"></i> Login Now
+                    </button>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <!-- ── FOOTER ──────────────────────────────────────────── -->
+        <footer style="background:#03050E;border-top:1px solid rgba(255,255,255,0.05);padding:24px 48px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:rgba(255,255,255,0.3);">
+            <span>&copy; @DateTime.Now.Year NexGenERP. All rights reserved.</span>
+            <div style="display:flex;gap:20px;">
+                <a href="mailto:contactbspl@nexgenerp.com" style="color:rgba(255,255,255,0.4);text-decoration:none;">Contact</a>
+                <button style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:13px;padding:0;" @onclick="GoLogin">Login</button>
+            </div>
         </footer>
 
     </div>
 }
 
-
 <style>
-    /* ── NAV BRAND OVERRIDES (page-scoped) ─────────────────────── */
-    .erp-logo-img,
-    .erp-brand-img {
-        mix-blend-mode: multiply;
-        background: transparent;
-        background-color: transparent;
-    }
-
-    .erp-nav-brand {
-        display: flex;
-        align-items: center;
-        gap: 0.8rem;
-        cursor: pointer;
-    }
-
-    .erp-nav-logo-badge {
-        width: 54px;
-        height: 54px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 18px;
-        background: linear-gradient(145deg,rgba(255,255,255,0.72),rgba(255,255,255,0.38));
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
-        border: 1px solid rgba(255,255,255,0.55);
-        box-shadow: 0 8px 24px rgba(15,23,42,0.08), inset 0 1px 1px rgba(255,255,255,0.85);
-        overflow: hidden;
-    }
-
-    .erp-logo-img {
-        width: 42px;
-        height: 42px;
-        object-fit: contain;
-        mix-blend-mode: multiply;
-        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.08));
-    }
-
-    .erp-brand-img {
-        height: 42px;
-        width: auto;
-        object-fit: contain;
-        mix-blend-mode: multiply;
-        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.06));
+    @@keyframes ng-spin { to { transform: rotate(360deg); } }
+    .ng-home .ng-landing-nav-links { display: flex; }
+    @@media (max-width: 768px) {
+        .ng-home .ng-landing-nav-links { display: none; }
+        .ng-section { padding: 60px 24px !important; }
+        .ng-section > div > div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; gap: 40px !important; }
     }
 </style>
 
 <script>
     window.erpNavbarInit = function (dotNetRef) {
         const sections = ['home', 'services', 'about', 'contact'];
-
         function getActiveSection() {
             let current = 'home';
             for (const id of sections) {
@@ -649,15 +343,12 @@ else
             }
             return current;
         }
-
         function onScroll() {
             dotNetRef.invokeMethodAsync('OnScrollUpdate', window.scrollY > 20, getActiveSection());
         }
-
         window.addEventListener('scroll', onScroll, { passive: true });
         onScroll();
     };
-
     window.erpScrollTo = function (id) {
         if (id === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
         const el = document.getElementById(id);
@@ -672,7 +363,6 @@ else
     private bool navScrolled;
     private bool mobileMenuOpen;
     private string activeSection = "home";
-
     private string? _companyLogoUrl;
 
     protected override async Task OnInitializedAsync()
@@ -737,90 +427,110 @@ else
     }
 
     public void Dispose() => ThemeStateService.OnChange -= ThemeChanged;
-
     private void ToggleMobileMenu() => mobileMenuOpen = !mobileMenuOpen;
-
-    private async Task ScrollTo(string id)
-    {
-        mobileMenuOpen = false;
-        await JS.InvokeVoidAsync("erpScrollTo", id);
-    }
-
+    private async Task ScrollTo(string id) { mobileMenuOpen = false; await JS.InvokeVoidAsync("erpScrollTo", id); }
     private void GoLogin() => Nav.NavigateTo("/login");
     private void GoLogout() => Nav.NavigateTo("/logout", true);
 
-    /* ── Public service showcase ── */
+    private static string GetModuleBg(string ic) => ic switch {
+        "ic-teal"   => "rgba(20,184,166,0.15)",
+        "ic-amber"  => "rgba(217,119,6,0.15)",
+        "ic-purple" => "rgba(124,58,237,0.15)",
+        "ic-red"    => "rgba(220,38,38,0.15)",
+        "ic-pink"   => "rgba(236,72,153,0.15)",
+        "ic-green"  => "rgba(5,150,105,0.15)",
+        "ic-blue"   => "rgba(8,145,178,0.15)",
+        "ic-orange" => "rgba(234,88,12,0.15)",
+        "ic-indigo" => "rgba(37,99,235,0.15)",
+        "ic-cyan"   => "rgba(6,182,212,0.15)",
+        "ic-lime"   => "rgba(101,163,13,0.15)",
+        _           => "rgba(37,99,235,0.15)"
+    };
+
+    private static string GetModuleBgLight(string ic) => ic switch {
+        "ic-teal"   => "#F0FDF9",
+        "ic-amber"  => "#FFFBEB",
+        "ic-purple" => "#F5F3FF",
+        "ic-red"    => "#FEF2F2",
+        "ic-pink"   => "#FDF2F8",
+        "ic-green"  => "#ECFDF5",
+        "ic-blue"   => "#F0FDFF",
+        "ic-orange" => "#FFF7ED",
+        "ic-indigo" => "#EFF6FF",
+        "ic-cyan"   => "#ECFEFF",
+        "ic-lime"   => "#F7FEE7",
+        _           => "#EFF6FF"
+    };
+
+    private static string GetModuleColor(string ic) => ic switch {
+        "ic-teal"   => "#14B8A6",
+        "ic-amber"  => "#D97706",
+        "ic-purple" => "#7C3AED",
+        "ic-red"    => "#DC2626",
+        "ic-pink"   => "#EC4899",
+        "ic-green"  => "#059669",
+        "ic-blue"   => "#0891B2",
+        "ic-orange" => "#EA580C",
+        "ic-indigo" => "#2563EB",
+        "ic-cyan"   => "#06B6D4",
+        "ic-lime"   => "#65A30D",
+        _           => "#2563EB"
+    };
+
     private readonly (string Title, string Desc, string Icon, string Ic, string[] Tags)[] _services =
     {
         ("Sales & Labour Work",
             "Customer enquiries, quotations, sales orders, labour work tracking and invoice management.",
-            "bi bi-cart-check-fill",
-            "ic-teal",
+            "bi bi-cart-check-fill", "ic-teal",
             new[] { "Sales", "Invoice", "Labour Work" }),
-
         ("Purchase & Subcontract",
             "Vendor management, purchase orders, subcontract processing and GRN tracking.",
-            "bi bi-bag-check-fill",
-            "ic-amber",
+            "bi bi-bag-check-fill", "ic-amber",
             new[] { "Purchase", "GRN", "Subcontract" }),
-
         ("Planning",
             "Production planning, route cards, material requirements and scheduling management.",
-            "bi bi-calendar2-week-fill",
-            "ic-purple",
+            "bi bi-calendar2-week-fill", "ic-purple",
             new[] { "Planning", "MRP", "Schedule" }),
-
         ("Production",
             "Shop floor control, job orders, BOM handling and manufacturing operations.",
-            "bi bi-gear-wide-connected",
-            "ic-red",
+            "bi bi-gear-wide-connected", "ic-red",
             new[] { "Production", "BOM", "WIP" }),
-
-        ("HUMAN Resource Management System",
+        ("Human Resource Management",
             "Employee records, attendance, leave, payroll and HR operations management.",
-            "bi bi-people-fill",
-            "ic-pink",
+            "bi bi-people-fill", "ic-pink",
             new[] { "HRMS", "Payroll", "Attendance" }),
-
-        ("Accounts",
+        ("Accounts & Finance",
             "Financial accounting, payments, receipts, ledger and cash flow monitoring.",
-            "bi bi-cash-stack",
-            "ic-green",
+            "bi bi-cash-stack", "ic-green",
             new[] { "Accounts", "Ledger", "Finance" }),
-
-        ("Inspection (QC)",
+        ("Inspection & QC",
             "Quality inspection, in-process checking, final QC and rejection analysis.",
-            "bi bi-clipboard2-check-fill",
-            "ic-blue",
+            "bi bi-clipboard2-check-fill", "ic-blue",
             new[] { "QC", "Inspection", "Quality" }),
-
-        ("Maintanence",
+        ("Maintenance",
             "Machine maintenance, preventive maintenance schedules and breakdown tracking.",
-            "bi bi-tools",
-            "ic-orange",
+            "bi bi-tools", "ic-orange",
             new[] { "Machine", "Service", "Maintenance" }),
-
-        ("Reports",
+        ("Reports & Analytics",
             "Business analytics, MIS reports, dashboards and performance monitoring.",
-            "bi bi-bar-chart-line-fill",
-            "ic-indigo",
+            "bi bi-bar-chart-line-fill", "ic-indigo",
             new[] { "Reports", "Dashboard", "Analytics" }),
     };
 
-    /* ── Authorized module navigation grid ── */
     private readonly (string Href, string Title, string Desc, string Icon, string Ic)[] _modules =
     {
-        ("/dashboard",        "Dashboard",       "Real-time business analytics and KPIs",                "bi bi-speedometer2",        "ic-indigo"),
-        ("/master-home",      "Master",          "Inventory, HR, accounts and admin configuration",      "bi bi-database-fill",       "ic-cyan"),
-        ("/sales-home",       "Sales",           "Leads, quotations, invoices and customer orders",      "bi bi-cart-check-fill",     "ic-teal"),
-        ("/purchase-home",    "Out Sourcing",    "Vendor management and procurement flow",               "bi bi-bag-check-fill",      "ic-amber"),
-        ("/production-home",  "Production",      "Shop floor and manufacturing operations",              "bi bi-gear-wide-connected", "ic-red"),
-        ("/planning-home",    "Planning",        "Job cards, route cards and material requirements",     "bi bi-calendar2-week-fill", "ic-purple"),
+        ("/dashboard",        "Dashboard",       "Real-time analytics and KPIs",                         "bi bi-speedometer2",        "ic-indigo"),
+        ("/master-home",      "Master",          "Configuration, inventory, HR masters",                 "bi bi-database-fill",       "ic-cyan"),
+        ("/sales-home",       "Sales",           "Leads, quotations, invoices and orders",               "bi bi-cart-check-fill",     "ic-teal"),
+        ("/purchase-home",    "Out Sourcing",    "Vendor management and procurement",                    "bi bi-bag-check-fill",      "ic-amber"),
+        ("/production-home",  "Production",      "Shop floor and manufacturing",                         "bi bi-gear-wide-connected", "ic-red"),
+        ("/planning-home",    "Planning",        "Job cards and material requirements",                  "bi bi-calendar2-week-fill", "ic-purple"),
         ("/inventory-home",   "Inventory",       "Stock, warehouse and material tracking",               "bi bi-box-seam-fill",       "ic-teal"),
-        ("/qc-home",          "Inspection / QC", "Final inspection, GRN checks and defect tracking",     "bi bi-patch-check-fill",    "ic-lime"),
-        ("/maintenance-home", "Maintenance",     "Machines, calibration and breakdown management",       "bi bi-tools",               "ic-orange"),
-        ("/hr-home",          "Human Resource",  "Employees, leave and attendance management",           "bi bi-people-fill",         "ic-pink"),
+        ("/qc-home",          "Inspection / QC", "Final inspection and defect tracking",                 "bi bi-patch-check-fill",    "ic-lime"),
+        ("/maintenance-home", "Maintenance",     "Machines, calibration and breakdowns",                 "bi bi-tools",               "ic-orange"),
+        ("/hr-home",          "Human Resource",  "Employees, leave and attendance",                      "bi bi-people-fill",         "ic-pink"),
         ("/accounts-home",    "Cash Flow",       "Payments, receipts and bank transactions",             "bi bi-cash-stack",          "ic-green"),
-        ("/reports-home",     "Reports",         "Business analytics, sales track and DC reports",       "bi bi-bar-chart-fill",      "ic-blue"),
+        ("/reports-home",     "Reports",         "Business analytics and MIS reports",                   "bi bi-bar-chart-fill",      "ic-blue"),
     };
 }
+

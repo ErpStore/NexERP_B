@@ -1,16 +1,15 @@
 ﻿@page "/login"
+@layout BlankLayout
+@using V.SMART.Shared.Layout
 @using Microsoft.Extensions.Configuration
-
 @using System.Reflection
 @using V.SMART.Shared.Repository.IRepository.IMasterRepository.IAdminRepository
-
 
 @inject AuthenticationStateProvider AuthStateProvider
 @inject CurrentUserService currentUserService
 @inject IUserRepository _userRepository
 @inject NavigationManager _nav
 @inject IJSRuntime _js
-
 @inject ILoggingService LoggingService
 @inject IUserRightService userRightService
 @inject ThemeStateService ThemeStateService
@@ -20,231 +19,197 @@
 @inject IAppVersionService AppVersionService
 @inject IConfiguration Configuration
 
-
-
-
 @if (isProcessing)
 {
-    <div class="login-loading-overlay @(isDark ? "" : "login-light")">
-        <div class="login-spinner-ring"></div>
-        <p class="login-loading-text">Authenticating...</p>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#030712;gap:16px;">
+        <div style="width:36px;height:36px;border:3px solid rgba(37,99,235,0.2);border-top-color:#2563EB;border-radius:50%;animation:ng-spin 0.7s linear infinite;"></div>
+        <span style="font-family:'Inter',sans-serif;font-size:13px;color:rgba(255,255,255,0.4);">Authenticating…</span>
     </div>
 }
 else
 {
-    <div class="login-page-wrapper @(isDark ? "login-dark" : "login-light")">
+    <div style="min-height:100vh;display:flex;background:#030712;font-family:'Inter',sans-serif;overflow:hidden;">
 
-        <!-- Animated Background Orbs -->
-        <div class="login-orb login-orb-1"></div>
-        <div class="login-orb login-orb-2"></div>
-        <div class="login-orb login-orb-3"></div>
-        <div class="login-orb login-orb-4"></div>
+        <!-- ── LEFT PANEL ─────────────────────────────────────────── -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:60px 80px;background:linear-gradient(145deg,#060B18 0%,#0D1A3A 100%);border-right:1px solid rgba(255,255,255,0.05);position:relative;overflow:hidden;" class="d-none d-lg-flex">
 
-        <!-- Floating Particles -->
-        <div class="login-particles">
-            @for (int i = 1; i <= 12; i++)
-            {
-                <div class="login-particle login-particle-@i"></div>
-            }
-        </div>
+            <!-- Background radial -->
+            <div style="position:absolute;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(37,99,235,0.15) 0%,transparent 70%);pointer-events:none;"></div>
+            <div style="position:absolute;bottom:-100px;left:-100px;width:400px;height:400px;background:radial-gradient(circle,rgba(124,58,237,0.12) 0%,transparent 70%);pointer-events:none;"></div>
 
-        <div class="login-container">
+            <!-- Brand -->
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:56px;position:relative;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="44" height="44">
+                    <defs>
+                        <linearGradient id="ng-login-logo" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#2563EB"/>
+                            <stop offset="100%" stop-color="#7C3AED"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="48" height="48" rx="12" fill="url(#ng-login-logo)"/>
+                    <path d="M11 37V11h6.5l13.5 18.5V11H37v26h-6.5L17 18.5V37z" fill="rgba(255,255,255,0.95)"/>
+                </svg>
+                <div>
+                    <div style="font-family:'DM Sans',sans-serif;font-size:20px;font-weight:700;color:#fff;letter-spacing:-0.02em;">NexGenERP</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:1px;">Enterprise Resource Planning</div>
+                </div>
+            </div>
 
-            <!-- LEFT PANEL — ERP Module Showcase -->
-            <div class="login-left">
-                <div class="login-left-header">
-                    <div class="login-logo-badge">
-                        <i class="bi bi-grid-1x2-fill"></i>
+            <!-- Headline -->
+            <h1 style="font-family:'DM Sans',sans-serif;font-size:44px;font-weight:800;color:#fff;line-height:1.1;letter-spacing:-0.035em;margin-bottom:16px;position:relative;">
+                One Platform.<br />
+                <span style="background:linear-gradient(135deg,#60A5FA 0%,#A78BFA 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Infinite Scale.</span>
+            </h1>
+            <p style="font-size:15px;color:rgba(255,255,255,0.45);max-width:400px;line-height:1.7;margin-bottom:48px;position:relative;">
+                Manufacturing · Inventory · HR · Accounts · Analytics — all unified in one modern platform.
+            </p>
+
+            <!-- Module pills -->
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:48px;position:relative;">
+                @foreach (var (label, icon, color) in new[]{
+                    ("Sales & Labour","bi-cart-check-fill","#14B8A6"),
+                    ("Purchase","bi-bag-check-fill","#D97706"),
+                    ("Planning","bi-calendar2-week-fill","#7C3AED"),
+                    ("Production","bi-gear-wide-connected","#DC2626"),
+                    ("Human Resource","bi-people-fill","#EC4899"),
+                    ("Accounts","bi-cash-stack","#059669"),
+                    ("QC / Inspection","bi-clipboard2-check-fill","#0891B2"),
+                    ("Maintenance","bi-tools","#EA580C"),
+                    ("Reports","bi-bar-chart-fill","#2563EB"),
+                })
+                {
+                    <div style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:100px;font-size:12px;color:rgba(255,255,255,0.6);">
+                        <i class="bi @icon" style="color:@color;font-size:12px;"></i>@label
                     </div>
+                }
+            </div>
+
+            <!-- Stats -->
+            <div style="display:flex;gap:32px;position:relative;">
+                @foreach (var (val, label) in new[]{ ("12+","ERP Modules"), ("Real-Time","Data Sync"), ("Cloud","Ready") })
+                {
                     <div>
-                        <div class="login-left-brand">V.SMART ERP</div>
-                        <div class="login-left-tagline">Bhargavi Soft-Tech Pvt. Ltd.</div>
+                        <div style="font-family:'DM Sans',sans-serif;font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.02em;">@val</div>
+                        <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;">@label</div>
                     </div>
-                </div>
+                }
+            </div>
+        </div>
 
-                <h2 class="login-left-headline">
-                    One Platform.<br />
-                    <span class="login-left-accent">Infinite Possibilities.</span>
-                </h2>
-                <p class="login-left-subtext">
-                    Manufacturing · Inventory · HR · Accounts · Analytics — all unified.
-                </p>
+        <!-- ── RIGHT FORM PANEL ────────────────────────────────────── -->
+        <div style="width:480px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 40px;background:#030712;position:relative;">
 
-                <!-- ERP Module Cards Grid -->
-                <div class="login-module-grid">
-
-                    <div class="login-mod-card login-mod-blue">
-                        <i class="bi bi-cart-check-fill"></i>
-                        <span>Sales &amp; Labour Work</span>
-                    </div>
-
-                    <div class="login-mod-card login-mod-teal">
-                        <i class="bi bi-bag-check-fill"></i>
-                        <span>Purchase &amp; Subcontract</span>
-                    </div>
-
-                    <div class="login-mod-card login-mod-purple">
-                        <i class="bi bi-calendar2-week-fill"></i>
-                        <span>Planning</span>
-                    </div>
-
-                    <div class="login-mod-card login-mod-orange">
-                        <i class="bi bi-gear-wide-connected"></i>
-                        <span>Production</span>
-                    </div>
-
-                    <div class="login-mod-card login-mod-pink">
-                        <i class="bi bi-people-fill"></i>
-                        <span>HUMAN Resource Management System</span>
-                    </div>
-
-                    <div class="login-mod-card login-mod-green">
-                        <i class="bi bi-cash-stack"></i>
-                        <span>Accounts</span>
-                    </div>
-
-                    <div class="login-mod-card login-mod-purple">
-                        <i class="bi bi-clipboard2-check-fill"></i>
-                        <span>Inspection (QC)</span>
-                    </div>
-
-                    <div class="login-mod-card login-mod-orange">
-                        <i class="bi bi-tools"></i>
-                        <span>Maintanence</span>
-                    </div>
-
-                    <div class="login-mod-card login-mod-blue">
-                        <i class="bi bi-bar-chart-fill"></i>
-                        <span>Reports</span>
-                    </div>
-
-                </div>
-                <!-- Floating stat pills -->
-                <div class="login-stat-row">
-                    <div class="login-stat-pill">
-                        <i class="bi bi-shield-check"></i>
-                        <span>ISO Compliant</span>
-                    </div>
-                    <div class="login-stat-pill">
-                        <i class="bi bi-lightning-charge-fill"></i>
-                        <span>Real-Time Sync</span>
-                    </div>
-                    <div class="login-stat-pill">
-                        <i class="bi bi-cloud-check-fill"></i>
-                        <span>Cloud Ready</span>
-                    </div>
-                </div>
+            <!-- Mobile logo (shown on small screens) -->
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:40px;" class="d-lg-none">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="32" height="32">
+                    <defs>
+                        <linearGradient id="ng-login-mob" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#2563EB"/>
+                            <stop offset="100%" stop-color="#7C3AED"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="48" height="48" rx="11" fill="url(#ng-login-mob)"/>
+                    <path d="M11 37V11h6.5l13.5 18.5V11H37v26h-6.5L17 18.5V37z" fill="rgba(255,255,255,0.95)"/>
+                </svg>
+                <span style="font-family:'DM Sans',sans-serif;font-size:18px;font-weight:700;color:#fff;">NexGenERP</span>
             </div>
 
-            <!-- RIGHT PANEL — Login Form -->
-            <div class="login-right">
-                <div class="login-card glass-card">
+            <!-- Login card -->
+            <div style="width:100%;background:#111827;border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:40px;box-shadow:0 32px 80px rgba(0,0,0,0.5);">
 
-                    <!-- Top logo for mobile -->
-                    <div class="login-card-top-logo d-md-none">
-                        <i class="bi bi-grid-1x2-fill"></i>
-                        <span>V.SMART</span>
-                    </div>
+                <!-- Lock icon -->
+                <div style="width:52px;height:52px;border-radius:14px;background:rgba(37,99,235,0.15);display:flex;align-items:center;justify-content:center;margin-bottom:20px;">
+                    <i class="bi bi-shield-lock-fill" style="font-size:22px;color:#60A5FA;"></i>
+                </div>
 
-                    <div class="login-card-icon">
-                        <i class="bi bi-person-lock"></i>
-                    </div>
+                <h2 style="font-family:'DM Sans',sans-serif;font-size:22px;font-weight:700;color:#fff;margin:0 0 6px;letter-spacing:-0.02em;">Welcome Back</h2>
+                <p style="font-size:13.5px;color:rgba(255,255,255,0.4);margin:0 0 28px;">Sign in to your NexGenERP workspace</p>
 
-                    <h3 class="login-card-title">Welcome Back</h3>
-                    <p class="login-card-subtitle">Sign in to your ERP dashboard</p>
+                <EditForm Model="LoginModel" OnValidSubmit="HandleLogin">
+                    <DataAnnotationsValidator />
 
-                    <EditForm Model="LoginModel" OnValidSubmit="HandleLogin">
-                        <DataAnnotationsValidator />
-
-                        <div class="login-field-group">
-                            <label class="login-label">
-                                <i class="bi bi-person-fill"></i>
-                                Username
-                            </label>
-                            <div class="login-input-wrap">
-                                <InputText class="login-input" @bind-Value="LoginModel.UserName" placeholder="Enter your username" />
-                                <div class="login-input-glow"></div>
-                            </div>
-                            <ValidationMessage For="@(() => LoginModel.UserName)" class="login-val-msg" />
-                        </div>
-
-                        <div class="login-field-group">
-                            <label class="login-label">
-                                <i class="bi bi-lock-fill"></i>
-                                Password
-                            </label>
-                            <div class="login-input-wrap">
-                                <InputText type="@(showPass ? "text" : "password")" class="login-input login-input-pass" @bind-Value="LoginModel.Password" placeholder="Enter your password" />
-                                <button type="button" class="login-pass-toggle" @onclick="TogglePassword" tabindex="-1">
-                                    <i class="bi @(showPass ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
-                                </button>
-                                <div class="login-input-glow"></div>
-                            </div>
-                            <ValidationMessage For="@(() => LoginModel.Password)" class="login-val-msg" />
-                        </div>
-
-                        <button class="login-btn" type="submit">
-                            <span class="login-btn-text">Sign In</span>
-                            <i class="bi bi-arrow-right-short login-btn-icon"></i>
-                            <div class="login-btn-shine"></div>
-                        </button>
-
-                    </EditForm>
-
-                    <div class="login-divider">
-                        <span>OR</span>
-                    </div>
-
-                    <div class="login-field-group">
-
-                        <label class="login-label">
-
-                            <i class="bi bi-qr-code-scan"></i>
-
-                            Scan QR Code
-
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:13px;font-weight:500;color:rgba(255,255,255,0.65);margin-bottom:6px;">
+                            <i class="bi bi-person-fill me-1"></i>Username
                         </label>
-
-                        <div class="login-input-wrap">
-
-                            <input type="text"
-                                   class="login-input"
-                                   @bind="QrLoginText"
-                                   @bind:event="oninput"
-                                   @onchange="HandleQrLogin"
-                                   placeholder="Scan QR here..."
-                                   autofocus />
-
+                        <div style="position:relative;">
+                            <InputText class="ng-login-input" @bind-Value="LoginModel.UserName" placeholder="Enter your username" />
                         </div>
-
+                        <ValidationMessage For="@(() => LoginModel.UserName)" class="ng-val-msg" />
                     </div>
 
-                    <div class="login-footer-links">
-                        <a href="/register" class="login-link">
-                            <i class="bi bi-person-plus-fill"></i>
-                            Request Access
-                        </a>
-                        <a href="mailto:contactbspl@bhargavigroup.com" class="login-link">
-                            <i class="bi bi-headset"></i>
-                            Support
-                        </a>
+                    <div style="margin-bottom:24px;">
+                        <label style="display:block;font-size:13px;font-weight:500;color:rgba(255,255,255,0.65);margin-bottom:6px;">
+                            <i class="bi bi-lock-fill me-1"></i>Password
+                        </label>
+                        <div style="position:relative;">
+                            <InputText type="@(showPass ? "text" : "password")"
+                                       class="ng-login-input"
+                                       style="padding-right:44px;"
+                                       @bind-Value="LoginModel.Password"
+                                       placeholder="Enter your password" />
+                            <button type="button"
+                                    style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:rgba(255,255,255,0.35);cursor:pointer;font-size:16px;padding:4px;"
+                                    @onclick="TogglePassword" tabindex="-1">
+                                <i class="bi @(showPass ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
+                            </button>
+                        </div>
+                        <ValidationMessage For="@(() => LoginModel.Password)" class="ng-val-msg" />
                     </div>
 
-                    <!-- Decorative corner accents -->
-                    <div class="login-card-corner login-card-corner-tl"></div>
-                    <div class="login-card-corner login-card-corner-br"></div>
+                    <button class="ng-login-submit" type="submit">
+                        <span>Sign In</span>
+                        <i class="bi bi-arrow-right"></i>
+                    </button>
+                </EditForm>
+
+                <div style="display:flex;align-items:center;gap:12px;margin:20px 0;">
+                    <div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>
+                    <span style="font-size:12px;color:rgba(255,255,255,0.25);">OR</span>
+                    <div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>
                 </div>
 
-                <!-- Company info strip -->
-                <div class="login-company-strip">
-                    <i class="bi bi-geo-alt-fill"></i>
-                     Bangalore · contactbspl@bhargavigroup.com
+                <div style="margin-bottom:20px;">
+                    <label style="display:block;font-size:13px;font-weight:500;color:rgba(255,255,255,0.65);margin-bottom:6px;">
+                        <i class="bi bi-qr-code-scan me-1"></i>Scan QR Code
+                    </label>
+                    <input type="text"
+                           class="ng-login-input"
+                           @bind="QrLoginText"
+                           @bind:event="oninput"
+                           @onchange="HandleQrLogin"
+                           placeholder="Scan QR here..." />
                 </div>
+
+                <div style="display:flex;justify-content:space-between;gap:12px;">
+                    <a href="/register" style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:rgba(255,255,255,0.35);text-decoration:none;transition:color 0.18s;">
+                        <i class="bi bi-person-plus-fill"></i> Request Access
+                    </a>
+                    <a href="mailto:support@nexgenerp.com" style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:rgba(255,255,255,0.35);text-decoration:none;transition:color 0.18s;">
+                        <i class="bi bi-headset"></i> Support
+                    </a>
+                </div>
+
+            </div>
+
+            <div style="margin-top:24px;display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,0.2);">
+                <i class="bi bi-shield-check-fill"></i>
+                Secure · Enterprise-Grade · ISO Compliant
             </div>
 
         </div>
+
     </div>
 }
+
+<style>
+    @@keyframes ng-spin { to { transform: rotate(360deg); } }
+    .ng-val-msg { display: block; font-size: 11.5px; color: #F87171; margin-top: 4px; }
+    @@media (max-width: 991px) {
+        div[style*="width:480px"] { width: 100% !important; }
+    }
+</style>
+
 
 @code {
     private bool isProcessing { get; set; } = true;
@@ -387,7 +352,7 @@ else
 
             await _js.InvokeVoidAsync("toastr.success", "Login successful!");
             await LoggingService.LogDeveloperInfo($"User logged in successfully: {LoginModel.UserName}");
-            _nav.NavigateTo("/");
+            _nav.NavigateTo("/dashboard");
         }
         catch (Exception ex)
         {
@@ -502,7 +467,7 @@ else
             }
             else
             {
-                _nav.NavigateTo("/", false);
+                _nav.NavigateTo("/dashboard", false);
             }
         }
         catch (Exception ex)
