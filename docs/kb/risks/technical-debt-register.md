@@ -39,12 +39,21 @@ the `Tenants` table.
 **Impact.** Anyone with repository access has database credentials, including for what
 appears to be a live internet-reachable host.
 
-> **Escalation, 2026-08-12 (INV-029, Confirmed).** Two facts discovered while validating the
-> execution plan make this materially worse than recorded above:
+> **Escalation, 2026-08-12 (INV-029, Confirmed), item 1 CORRECTED then SUPERSEDED same
+> day (INV-034 + owner decision):**
 >
-> 1. **The repository is public.** `git ls-remote https://github.com/ErpStore/NexERP_B.git`
->    succeeds with **no authentication**. The credentials are not merely "in source control"
->    — they are published on the internet. Treat them as already harvested. See **Q-19**.
+> 1. ~~**The repository is public.**~~ ~~**CORRECTED: the repository is PRIVATE.**~~
+>    **SUPERSEDED: the repository is public again, by deliberate owner decision, 2026-08-12.**
+>    Timeline: the original claim ("`git ls-remote` succeeds with no authentication → public")
+>    was an artefact of Windows Git Credential Manager silently authenticating with the
+>    owner's cached credentials — anonymous access was never actually tested. Retesting with
+>    the credential helper explicitly disabled showed the repository was in fact **private**
+>    at that point. The repo owner (Kumar) then **deliberately set the repository to
+>    public**, re-verified the same rigorous way (credential-helper-disabled `git ls-remote`
+>    succeeds; unauthenticated REST call returns `200`, not `404`). **As of this decision,
+>    treat the SA password, the production host, the `bspl` credential, and the JWT secret
+>    (R-02) as genuinely reachable by anyone on the internet.** See the resolved **Q-19** and
+>    [KB-085](../execution/M0-00-baseline-decisions.md#repository-visibility-correction-inv-034).
 > 2. **The credentials are hardcoded in C#, not only in configuration.** The SA password,
 >    the host `154.61.76.112`, and the `bspl` password are all present in committed
 >    commit `c12c5b2` in **four** files:
@@ -87,17 +96,20 @@ complete cross-tenant compromise once the API is live.
 **Action.** Move to secret storage; rotate; fail startup if the secret is missing or is
 the known default (M0-03-01, M0-03-03).
 
-> **Note, updated 2026-08-13 (M0-00 incident).** The 2026-08-12 note below was itself
-> wrong in a way that caused harm: it quoted the secret's **literal value** as evidence,
-> and that value was carried into `HEAD` on `migration/M0-00-vcs-baseline` (pushed to the
-> public `origin`) when M0-00 committed `docs/` as group G7, because the value lived in
-> *this KB document*, not in `V.SMART.Api/appsettings.json` — which was correctly never
-> committed. **Treat this JWT secret as published and compromised regardless of the
-> `appsettings.json` tracking state.** The value has been redacted from this document as
-> of this commit; it remains in the git history of `migration/M0-00-vcs-baseline` until
-> M0-05's purge, and rotation (M0-04/M0-03-03) must not be deprioritized on the assumption
-> that this string was still private. See
-> [KB-085 §Unexpected finding](../execution/M0-00-baseline-decisions.md#unexpected-finding-jwt-secret-value-published-via-this-kb-document-not-via-appsettingsjson).
+> **Note, updated 2026-08-13 (M0-00 incident; visibility corrected to private, then
+> SUPERSEDED by an owner decision to make the repo public again, all 2026-08-12).** The
+> 2026-08-12 note below was itself wrong in a way that caused harm: it quoted the secret's
+> **literal value** as evidence, and that value was carried into `HEAD` on
+> `migration/M0-00-vcs-baseline` (which was then merged to `master`) when M0-00 committed
+> `docs/` as group G7, because the value lived in *this KB document*, not in
+> `V.SMART.Api/appsettings.json` — which was correctly never committed. The repository was
+> briefly confirmed **private** (INV-034), then the owner **deliberately made it public**
+> the same day, re-verified rigorously (see R-01 above). **Treat this JWT secret as
+> published on the internet, not merely exposed to collaborators, and rotate it regardless
+> of the `appsettings.json` tracking state.** The value has been redacted from this document
+> as of this commit; it remains in the git history of `master` until M0-05's purge, and
+> rotation (M0-04/M0-03-03) must not be deprioritized. See
+> [KB-085 §Unexpected finding](../execution/M0-00-baseline-decisions.md#unexpected-finding-jwt-secret-value-exposed-via-this-kb-document-not-via-appsettingsjson).
 >
 > **Original note, 2026-08-12 (INV-029, Confirmed), preserved for the record but
 > superseded by the above:** "Unlike the database credentials (R-01), this string was not

@@ -63,7 +63,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-110–113 (M2-B08…B11). **Next free: KB-102**, or KB-114+ |
 | ADR-nnn | Architecture decisions | through ADR-005 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
-| INV-nnn | Investigation registry rows | through INV-029 |
+| INV-nnn | Investigation registry rows | through INV-034 (030–033 reserved, next free INV-035 — see investigation-registry.md) |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
 | R-nn | Risks | through R-37 |
 | Q-nn | Open questions | through Q-19 |

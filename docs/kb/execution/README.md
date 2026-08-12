@@ -173,9 +173,27 @@ preserved; new work is added as new ids or as children (`M0-03-02`), never by re
 Three facts were confirmed on 2026-08-12 while validating that the plan's commands and
 paths were real. All three are recorded as **INV-029**.
 
-1. **The exposed credentials are published on the public internet.** `git ls-remote`
-   against `https://github.com/ErpStore/NexERP_B.git` succeeds **without authentication**
-   → the repository is public. The SA password, the production host `154.61.76.112,1533`,
+1. **RESOLVED 2026-08-12 (INV-034 — see [KB-085](M0-00-baseline-decisions.md#repository-visibility-correction-inv-034)): the repository is public, by the owner's deliberate choice, made the same day.**
+   Timeline: the original claim below — "`git ls-remote` succeeds without authentication →
+   the repository is public" — was wrong when made. Windows Git Credential Manager
+   (`credential.helper = manager`, configured system-wide) silently authenticated every
+   git operation with the repo owner's cached GitHub credentials, so `git ls-remote`
+   *appeared* to succeed anonymously without ever actually testing anonymous access.
+   Re-tested with the credential helper explicitly disabled
+   (`git -c credential.helper= ls-remote ...`): git demanded a username and failed —
+   proving the repository was, at that point, **private**. The repo owner (Kumar) was then
+   informed of this and **deliberately set the repository to public**. Re-verified with the
+   same rigorous method (not the original flawed one): `git -c credential.helper=
+   ls-remote` now succeeds with no auth demanded, and an unauthenticated REST call now
+   returns `200`. **The repository is genuinely public now, and the exposed credentials
+   (R-01, R-02) must be treated as published and reachable by anyone on the internet** —
+   rotation (M0-04) and the history purge (M0-05) are urgent for real, not hypothetically.
+   Q-19 ([open-questions.md](../open-questions.md)) is recorded as Answered.
+
+   *(Original 2026-08-12 claim, preserved for the record but superseded by the correction
+   above):* "The exposed credentials are published on the public internet. `git ls-remote`
+   against `https://github.com/ErpStore/NexERP_B.git` succeeds without authentication → the
+   repository is public." The SA password, the production host `154.61.76.112,1533`,
    and the `bspl` production credential are all present in the single committed commit
    `c12c5b2`, in **four files**, including hardcoded C# — not only `appsettings.json`:
    - `V.SMART/V.SMART.Web/appsettings.json`
@@ -184,8 +202,9 @@ paths were real. All three are recorded as **INV-029**.
    - `V.SMART/V.SMART/MauiProgram.cs`
 
    `bspl` additionally appears in `EinvoiceDatabaseService.cs` and `EWayDatabaseService.cs`.
-   **This escalates R-01/R-02 from "committed" to "published".** Rotation is not a week-1
-   task; it is the first action of the project, and it is not complete until the
+   These are still committed-in-history credentials (R-01/R-02) requiring rotation and a
+   history purge; the "published" escalation specifically is retracted. Rotation is not a
+   week-1 task; it is the first action of the project, and it is not complete until the
    *hardcoded C#* is fixed too — the register's action item mentions only configuration.
    *(Confirmed. The JWT secret string was **not** found in `HEAD`, so `V.SMART.Api/appsettings.json`
    appears to be uncommitted — it is still exposed locally and must still be rotated.)*
