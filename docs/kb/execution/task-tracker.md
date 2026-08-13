@@ -47,7 +47,7 @@ its children are `Completed` — it is never worked directly.
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
-| M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Ready** | P0 | M0-01-01 | 2 d | G0 |
+| M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Blocked** *(half A done; needs DBA)* | P0 | M0-01-01 | 2 d | G0 |
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | Blocked | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | Blocked | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Blocked | P0 | M0-07 | 3 d | G0 |
@@ -227,7 +227,19 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-01-02, M0-15, M0-08.
+**Currently `Ready`:** M0-04, M0-15, M0-08.
+
+**M0-01-02: `Blocked` — half A done (2026-08-13), half B needs a human DBA.**
+Delivered `db/tools/Export-StoredProcedures.ps1` (marked UNVERIFIED — no database reachable
+from this execution environment), `db/tools/list-deployed-procedures.sql`,
+`db/tools/verify-capture.sh` (a database-free reconciliation harness — proven correct against
+7 synthetic failure modes plus a synthetic valid capture), `db/RUNBOOK-capture-stored-procedures.md`,
+and `db/stored-procedures/CAPTURE-STATUS.md` pre-filled with all 82 `missing` names. R-04 and
+INV-027 amended to record the tooling without claiming the risk is closed — **it is not**:
+`db/stored-procedures/` contains 0 `.sql` files. **Action needed:** a named DBA with `VIEW
+DEFINITION` on a nominated tenant database must run `db/RUNBOOK-capture-stored-procedures.md`
+(half B), then a follow-up session verifies the delivered capture with
+`db/tools/verify-capture.sh` (half C) and closes INV-027/R-04.
 
 **M0-01-01: `Completed` (2026-08-13).** Repository-side stored-procedure reconciliation —
 see [KB-102](../architecture/stored-procedure-inventory.md) and
@@ -235,8 +247,7 @@ see [KB-102](../architecture/stored-procedure-inventory.md) and
 `scripted`, 1 `case_mismatch`, 82 `missing`, 1 `unreferenced`; both arithmetic closures
 verified (94 referenced, 13 declared). R-04 and INV-027 amended. `dotnet build` regression
 guard **not run** — no .NET SDK in this execution environment; no file under `V.SMART/` was
-touched, so the risk that check guards against does not apply here. M0-01-02 (script the 82
-missing procedures from a live tenant DB) is now `Ready`.
+touched, so the risk that check guards against does not apply here.
 
 **M0-00: `Completed` (2026-08-13).**
 `migration/M0-00-vcs-baseline` merged to `master` via PR #1 (`5fcb2b1`); the follow-up

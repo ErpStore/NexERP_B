@@ -193,13 +193,24 @@ binding in particular cannot be ported unchanged — a server-side API cannot ca
 > confirmed: 11 `scripted`, 1 `case_mismatch`, 82 `missing`, 1 `unreferenced` (13 declared,
 > 94 referenced — arithmetic closes both ways, see KB-102). The 82 `missing` rows are
 > M0-01-02's worklist.
+>
+> **M0-01-02 half A complete, 2026-08-13 — still blocked on half B.** Capture tooling now
+> exists: `db/tools/Export-StoredProcedures.ps1` (marked UNVERIFIED — no database available
+> to run it against in this environment), `db/tools/list-deployed-procedures.sql`,
+> `db/tools/verify-capture.sh` (a database-free reconciliation harness, proven against 7
+> synthetic failure modes and a synthetic pass), `db/RUNBOOK-capture-stored-procedures.md`,
+> and `db/stored-procedures/CAPTURE-STATUS.md`. **The 82 procedures themselves are still not
+> captured** — `db/stored-procedures/` contains 0 `.sql` files. This risk remains fully open
+> until a named DBA with `VIEW DEFINITION` on a nominated tenant runs the runbook (M0-01-02
+> half B).
 **Impact.** A tenant database cannot be rebuilt from the repository. Reports and the entire
 `ReportExecutor` path break in any fresh environment. No review, no versioning, no rollback
 for procedure changes.
-**Action.** Script all 82 `missing` procedures (per KB-102's manifest) from a live tenant
-database into `db/stored-procedures/`, one file each, following the conventions in
-[`db/stored-procedures/README.md`](../../../db/stored-procedures/README.md), and add a
-deployment step (M0-01-03). **Do this before any other work** — it is cheap and it is
+**Action.** A named DBA must run [`db/RUNBOOK-capture-stored-procedures.md`](../../../db/RUNBOOK-capture-stored-procedures.md)
+against one nominated tenant database to script all 82 `missing` procedures (per KB-102's
+manifest) into `db/stored-procedures/`, following the conventions in
+[`db/stored-procedures/README.md`](../../../db/stored-procedures/README.md); the deployment
+step is M0-01-03. **Do this before any other work** — it is cheap and it is
 currently a single-point-of-failure for the product.
 
 ### R-05 — No automated tests, no CI
