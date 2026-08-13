@@ -39,7 +39,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Ready** | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed** | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked *(needs M0-15)* | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Ready** | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked** *(runbook done; needs a human with production access)* | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | Blocked | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | Blocked | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | Blocked | P0 | M0-03-01 | 0.5 d | G0 |
@@ -227,7 +227,23 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-15 *(blocked in this execution environment — no .NET SDK)*.
+**Currently `Ready`:** M0-15 *(blocked in this execution environment — no .NET SDK)*. Nothing
+else in M0 is genuinely startable right now — every remaining task needs a `.NET` SDK, live
+database/DBA access, or a human with production/organisational credentials this session does
+not have. See the M0-04 and M0-01-02 notes below for what's been prepared and handed off.
+
+**M0-04: `Blocked` — runbook delivered (2026-08-13), rotation needs a human.**
+[`docs/runbooks/credential-rotation.md`](../runbooks/credential-rotation.md): full procedure,
+a 7-row credential inventory (C-1..C-7), and an objective verification checklist. **New
+finding:** the e-Invoice/e-Way gateway credential is actually decrypted at runtime from
+`Companies.APIEinvoiceLicenseKey` using a **hardcoded AES key**
+(`V.SMART/V.SMART.Shared/E_Invoice/LicenseProductKey.cs:28-29`) — recorded as new risk
+[R-39](../risks/technical-debt-register.md#r-39--hardcoded-aes-key-decrypts-the-e-invoicee-way-gateway-license-and-rotating-the-gateway-password-alone-does-not-close-it):
+resetting the gateway password alone does not close this, the key itself must be replaced and
+every tenant's stored license key re-encrypted. INV-035 registered; R-01/R-02 link the
+runbook and explicitly remain open. **No credential has been rotated; no source file was
+touched.** Needs: someone with `sysadmin` on the affected SQL Server(s), the GST gateway
+account owner, and a developer to implement the R-39 fix.
 
 **M0-08: `Completed` (2026-08-13).** R-14 corrected (build output was never committed; the
 real gap was root-level ignore protection and CI enforcement, both now closed) — see
