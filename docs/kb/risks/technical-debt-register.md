@@ -30,14 +30,43 @@ Confidence: **Confirmed** (traced in code) · **Inferred** · **Unknown**.
 ## Critical
 
 ### R-01 — Live database credentials committed to source control
-**Confirmed.** `V.SMART.Web/appsettings.json` and `V.SMART.Api/appsettings.json` contain
-`Server=DESKTOP-FIIBE97\SQLEXPRESS;…User Id=sa;Password=aDMIN@123`. A **production**
-connection is present as a commented line:
-`Server=154.61.76.112,1533;Database=IQSmartDb_Master;User Id=bspl;Password=U^b1p7j61`.
-Per-tenant connection strings (with credentials) are additionally stored in plaintext in
-the `Tenants` table.
+**Confirmed.** `V.SMART.Web/appsettings.json:11` and the other files cited below contain a
+local/dev SQL login (`sa`, an 8-character password containing letters, digits and a symbol —
+value not reproduced here) against a `\SQLEXPRESS` instance. A **production** connection is
+present as a commented line, same files: a `bspl` login (a 9-character password with mixed
+case, a digit and a symbol — value not reproduced here) against `154.61.76.112,1533`,
+database `IQSmartDb_Master`. Per-tenant connection strings (with credentials) are additionally
+stored in plaintext in the `Tenants` table.
 **Impact.** Anyone with repository access has database credentials, including for what
 appears to be a live internet-reachable host.
+
+> **Redacted 2026-08-13 (M0-04).** This entry previously quoted both passwords' full literal
+> values. The repository is now public (Q-19, resolved) and this document is tracked, so
+> quoting a secret here **is** committing it, exactly the finding
+> [KB-085 §Unexpected finding](../execution/M0-00-baseline-decisions.md#unexpected-finding-jwt-secret-value-exposed-via-this-kb-document-not-via-appsettingsjson)
+> already made about the JWT secret. Content-only fix, no history rewrite — the values remain
+> in this document's git history and in the source files themselves (`ApplicationDbContextFactory.cs:13`,
+> `MasterDbContextFactory.cs:12`, `MauiProgram.cs:231`, all cited by exact line in
+> [`docs/runbooks/credential-rotation.md`](../../runbooks/credential-rotation.md)) until M0-05
+> purges history and M0-04's rotation actually changes the values. Root-cause lesson repeated
+> from KB-085, because it recurred: **a KB document that cites a secret as evidence is itself
+> a secret-bearing file the moment it's tracked** — cite `file:line`, never the value.
+>
+> **Broader sweep, same date.** `grep -rl "<the SA password>" docs/` also found the value in
+> `docs/kb/execution/tasks/M0-03-01.md`, `M0-03-02.md`, `M0-05.md` and `M0-04.md` — in every
+> case as the literal argument to a `git grep -l "<value>" HEAD` verification command those
+> task specs use repeatedly (30+ occurrences total), not as prose evidence. **Not redacted
+> here**: those are large "Fresh-Session Execution Prompt" templates owned by other tasks
+> (M0-03-01, M0-03-02, M0-05), meant to be copied verbatim into a fresh session, and a
+> same-session mass rewrite across three other tasks' specs risks breaking their literal
+> reproducibility for a search-pattern use that (unlike this entry's prose) at least has a
+> functional reason to hold the real value. **Recorded as a finding, not silently accepted**
+> (same call KB-085 made for the JWT-secret fragment, at smaller scale): the search pattern
+> becomes historical the moment the password is actually rotated, so whoever executes
+> [M0-05](../execution/tasks/M0-05.md) (history purge) should also sweep those four files —
+> and any other KB document — for the same literal value and replace the grep argument with a
+> placeholder once rotation lands, since a purge only rewrites tracked blobs, not documents
+> that keep re-quoting an old value going forward.
 
 > **Escalation, 2026-08-12 (INV-029, Confirmed), item 1 CORRECTED then SUPERSEDED same
 > day (INV-034 + owner decision):**
@@ -74,7 +103,11 @@ appears to be a live internet-reachable host.
 >    credentials: they authenticate to the statutory e-Invoice / e-Way Bill gateway. Exposure
 >    risk is filing or cancelling invoices against the company's GSTIN — a compliance
 >    incident, not just a data-breach one. Different owner, different rotation path, and
->    **not covered by R-02 or by any connection-string remediation.**
+>    **not covered by R-02 or by any connection-string remediation.** **See R-39** (added
+>    2026-08-13): the runtime credential for this gateway is actually stored per-tenant,
+>    encrypted, in `Companies.APIEinvoiceLicenseKey` — and the AES key protecting it is
+>    *also* hardcoded and committed, so resetting this password alone does not close the
+>    exposure.
 >
 > The action item below therefore **understated the work** twice over: moving configuration
 > to environment variables does not remove a connection string compiled into a `.cs` file,
@@ -88,6 +121,15 @@ remove the hardcoded connection strings from C# source** (M0-03-02). Purge from 
 (`git filter-repo`, M0-05) — this is damage limitation, not a remedy; rotation is the remedy.
 Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, not `sa`.
 
+> **M0-04 runbook delivered, 2026-08-13 — remains OPEN.** The full rotation procedure,
+> credential inventory (C-1 through C-7, including the new R-39 finding below), and an
+> objective verification checklist are in
+> [`docs/runbooks/credential-rotation.md`](../../runbooks/credential-rotation.md). **Writing
+> the runbook does not rotate anything.** This risk stays **open** — the SQL logins, the
+> `Tenants` rows, and everything else in that document — until a named human with production
+> access has executed it and signed the checklist. See [M0-04](../execution/tasks/M0-04.md)
+> for the task status (`Blocked`, not `Completed`, pending that signature).
+
 ### R-02 — JWT signing secret committed
 **Confirmed.** `V.SMART.Api/appsettings.json` `Jwt:Secret` holds a hardcoded default value
 containing the literal words "Change In Production" — i.e. it was never rotated.
@@ -95,6 +137,10 @@ containing the literal words "Change In Production" — i.e. it was never rotate
 complete cross-tenant compromise once the API is live.
 **Action.** Move to secret storage; rotate; fail startup if the secret is missing or is
 the known default (M0-03-01, M0-03-03).
+
+> **M0-04 runbook delivered, 2026-08-13 — remains OPEN.** See R-01's note above; the same
+> runbook covers `Jwt:Secret` rotation (its C-4 section). This risk stays open until the
+> checklist there is signed.
 
 > **Note, updated 2026-08-13 (M0-00 incident; visibility corrected to private, then
 > SUPERSEDED by an owner decision to make the repo public again, all 2026-08-12).** The
@@ -120,6 +166,52 @@ the known default (M0-03-01, M0-03-03).
 > "confirm... as part of M0-00" was followed for `appsettings.json` itself (correctly
 > deferred, never committed) but not for *this document quoting the value*, which is the
 > gap that caused the exposure.
+
+### R-39 — Hardcoded AES key decrypts the e-Invoice/e-Way gateway license, and rotating the gateway password alone does not close it
+**Confirmed, added 2026-08-13 (M0-04 credential inventory).** Traced the full runtime path
+behind the commented gateway-credential literals already recorded under R-01 §item 4
+(`API_Bhargavispl` / `$Winbspl789`):
+
+1. Per-tenant, `EinvoiceDatabaseService.GetProductKeyAsync()` reads an encrypted "product key"
+   string from `Companies.APIEinvoiceLicenseKey`
+   (`V.SMART/V.SMART.Shared/Data/Master/Company_Module/Companydetails.cs:204`) —
+   `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/EInvoiceAPIService/EinvoiceDatabaseService.cs:147-164`
+   (`EWayDatabaseService.cs:85` reads the same column for the e-Way path).
+2. `LicenseProductKey.Decrypt` decrypts that value with a **hardcoded AES key and IV**,
+   committed in plaintext:
+   `V.SMART/V.SMART.Shared/E_Invoice/LicenseProductKey.cs:28-29`
+   (`encryptKey = "VxJj2VVb/…"`, `encryptiv = "DXv+We6M…"` — full values withheld here per
+   the same rule R-01/R-02 already apply: do not quote a secret's literal value into a KB
+   document that gets committed).
+3. The decrypted JSON dictionary's `"username"`/`"password"` keys **are** the gateway
+   credential — `LicenseProductKey.cs:113-124` (`GetUserName`) and `:127-138`
+   (`GetUserNameEway`).
+
+**Impact.** This is a *different failure class* from R-01/R-02, not a duplicate of them: R-01
+and R-02 are secrets committed **directly**; this is an encryption key committed **that
+protects another secret at rest**. Two consequences follow that a simple gateway-password
+reset (R-01's existing action item) does not address:
+
+- **Every tenant's `APIEinvoiceLicenseKey` is decryptable by anyone with read access to that
+  column**, because the only thing standing between ciphertext and plaintext is a key that is
+  now public (the repository is public — Q-19, resolved). Database read access is exactly
+  what R-01's exposed SQL credentials grant.
+- **Rotating the gateway password (R-01's action) does not fix this key.** A new password
+  encrypted with the same compromised AES key is exposed the moment it is written back to
+  `APIEinvoiceLicenseKey` — the vulnerability is the *key*, not the password it protects. And
+  because the key lives in git history, it does not stop being public even after M0-05's
+  purge removes it from the current tip; anyone who cloned the repository while it was public
+  already has it, permanently.
+
+**Action.** Two independent items, both required — neither substitutes for the other:
+1. **(M0-04, ops)** Reset the gateway credential through the provider's process, as R-01/M0-04
+   already require.
+2. **(new, not yet assigned a task — flag for the M0 backlog)** Replace the hardcoded AES
+   key/IV with one generated at deploy time and stored via the same secrets mechanism M0-03
+   builds for database credentials (env var / Key Vault, never committed); then **re-encrypt**
+   every tenant's `Companies.APIEinvoiceLicenseKey` with the new key. Until step 2 lands, any
+   captured ciphertext — past or future — remains decryptable by anyone who has ever cloned
+   this public repository, independent of how often the gateway password itself is rotated.
 
 ### R-03 — Authorization enforced only in the UI layer
 **Confirmed.** `BaseUserRightsComponent` + `RightsHelper` are the only permission checks;
