@@ -12,6 +12,8 @@ source_files:
   - V.SMART/V.SMART.Shared/Services/CurrentUserService.cs
   - V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs
   - V.SMART/V.SMART.Shared/Repository/MasterRepository/Admins/UserRepository.cs
+  - db/deploy-stored-procedures.ps1
+  - db/RUNBOOK-rebuild-tenant-database.md
 status: complete
 confidence: mixed
 last_verified: 2026-08-13
@@ -232,6 +234,49 @@ other work** — it is cheap and it is currently a single-point-of-failure for t
 >    M0-01-03's job, not done here.
 > 3. The 4 still-open names are unresolved, not closed — one or more could be a live
 >    defect waiting to surface.
+
+> **Updated 2026-08-13 (M0-01-03) — deployment step + single-source-of-truth relocation
+> both done; G0 criterion 1 still NOT met, drill outstanding.**
+>
+> This task's own action item — "add a deployment step" — is satisfied by
+> `db/deploy-stored-procedures.ps1`: idempotent (`CREATE OR ALTER` everywhere), takes
+> connection details as parameters/environment variables only (no hardcoded credential, no
+> reuse of R-01/R-02's committed values), refuses to run against an incomplete manifest
+> unless explicitly overridden, fails fast and names the offending file, and deploys every
+> `.sql` file under `db/stored-procedures/` (recursively — see below).
+>
+> The competing-locations problem this register flagged is also closed: the 13 files that
+> used to live in `Existing Store Procedures/StoredProcedures/` are relocated (via `git mv`,
+> bodies unchanged except the mandated BOM strip on 6 of them) into
+> `db/stored-procedures/relocated-legacy/`. That folder is retired to a pointer `README.md`.
+> `db/stored-procedures/` (flat directory + `relocated-legacy/` subdirectory) is now the
+> single authoritative location for every procedure's DDL. The subdirectory split exists
+> only because `db/tools/verify-capture.sh` — M0-01-02's harness, not editable by this task
+> — enumerates the flat directory with a non-recursive glob and hard-fails any file whose
+> manifest status is not `missing`; putting the 13 relocated files there directly would have
+> broken that check (verified empirically: 25 hard failures before the subdirectory was
+> chosen). `db/deploy-stored-procedures.ps1` deploys both locations together; only
+> `verify-capture.sh` and a human reading the directory need to know about the split — see
+> `db/stored-procedures/README.md` for the full reasoning.
+>
+> **Still not resolved, deliberately, per this task's own constraints — escalated to a
+> human, not decided here:**
+> - `Sp_Print_MFGDC` vs. `Sp_Print_MfgDC` (case-only mismatch) — kept as declared, not
+>   renamed either side.
+> - `Sp_Print_PurchaseOrder` (unreferenced) — retained and deployed, not deleted.
+> - The 4 genuinely-absent procedure names above are exactly as absent as before; nothing in
+>   M0-01-03 could change that (no database access — R-01/R-02 constraints held throughout).
+>
+> **Why this is still Critical, not Resolved:** `db/deploy-stored-procedures.ps1` has **never
+> been executed against a real database** — no SQL Server instance or credential was
+> available to the session that wrote it, by design (see M0-01-03's own constraints). G0
+> exit criterion 1 ("a fresh, empty SQL Server can be brought to a working tenant database
+> from source control alone … and the app runs against it") is **not met** until a named
+> person runs `db/RUNBOOK-rebuild-tenant-database.md` end to end and records the outcome in
+> `db/REBUILD-DRILL-LOG.md` — which is currently a skeleton, every field `TBD`. Downgrade
+> this entry only after that drill succeeds (or after its failures are fixed and it
+> succeeds on a later attempt) — not on the strength of the tooling existing and looking
+> correct on inspection.
 
 ### R-05 — No automated tests, no CI
 **Confirmed.** No test project; `.github/` contains no workflows.

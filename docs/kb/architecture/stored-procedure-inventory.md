@@ -3,7 +3,8 @@ doc_id: KB-102
 title: Stored-Procedure Inventory — Reference vs. Scripted DDL Reconciliation
 module: architecture
 source_files:
-  - Existing Store Procedures/StoredProcedures/
+  - db/stored-procedures/
+  - db/stored-procedures/relocated-legacy/
   - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/ReportService/TrackReportService/ReportExecutor.cs
   - V.SMART/V.SMART.Shared/Services/ReportViewer/ReportService.cs
   - db/stored-procedures/manifest.csv
@@ -289,34 +290,34 @@ Stated explicitly, per the task's own requirement, not assumed away:
 | `Sp_GetTaxDetailsReport` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/ReportService/TaxDetailsService/TaxDetailsService.cs:79` |
 | `Sp_GetToolCribIssueNoteStatusList` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/InventoryService/ToolCribIssueService.cs:765` |
 | `Sp_GetToolCribReturnNoteStatusList` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/InventoryService/ToolCribReturnService.cs:834` |
-| `Sp_InvDetailsLabelPrint` | scripted | `Existing Store Procedures/StoredProcedures/Sp_InvDetailsLabelPrint.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourInvoice_Pages/LabourInvoiceDetails.razor:570` |
+| `Sp_InvDetailsLabelPrint` | scripted | `db/stored-procedures/relocated-legacy/Sp_InvDetailsLabelPrint.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourInvoice_Pages/LabourInvoiceDetails.razor:570` |
 | `Sp_ItemWiseHistoryReport` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/ReportService/History_Service/ItemWiseReportService.cs:34` |
 | `Sp_JobOrderTrack` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/ReportService/TrackReportService/JobOrderAnalysisService.cs:77` |
 | `Sp_LabourPendingReport` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/ReportService/TrackReportService/LabourPendingService.cs:58` |
 | `Sp_Labour_Track` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/ReportService/TrackReportService/LabourTrackReportService.cs:257` |
 | `Sp_Print_AppointmentLetter` | missing | — | `V.SMART/V.SMART.Shared/Pages/HumanResource_Pages/AppointmentLetter_Pages/AppointmentLetterDetails.razor:214` |
 | `Sp_Print_CREDITNOTE` | missing | — | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/CreditNote_Pages/CreditNoteDetails.razor:387` |
-| `Sp_Print_CompanyDetails` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_CompanyDetails.sql` | `V.SMART/V.SMART.Shared/Services/ReportViewer/ReportService.cs:200` |
+| `Sp_Print_CompanyDetails` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_CompanyDetails.sql` | `V.SMART/V.SMART.Shared/Services/ReportViewer/ReportService.cs:200` |
 | `Sp_Print_DebitNote` | missing | — | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/DebitNote_pages/DebitNoteDetails.razor:388` |
 | `Sp_Print_EnquiryFeasibility` | missing | — | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/Fesibility_Pages/EnquiryFeasibilityListDetails.razor:247` |
 | `Sp_Print_EnquirySales` | missing | — | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesEnquiry_Pages/EnquiryDetails.razor:227` |
 | `Sp_Print_Estimation` | missing | — | `V.SMART/V.SMART.Shared/Pages/Planning_Module_Pages/Estimation_Pages/EstimationDetails.razor:436` |
-| `Sp_Print_GRNDetailsLabelPrint` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_GRNDetailsLabelPrint.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourSCN_Pages/LabourSCNDetails.razor:345` |
+| `Sp_Print_GRNDetailsLabelPrint` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_GRNDetailsLabelPrint.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourSCN_Pages/LabourSCNDetails.razor:345` |
 | `Sp_Print_InterStoreTransfer` | missing | — | `V.SMART/V.SMART.Shared/Pages/Inventory(Stock)_Module_Pages/StoreInterTrans_Pages/StoreInterTransDetails.razor:203` |
 | `Sp_Print_JobOrder` | missing | — | `V.SMART/V.SMART.Shared/Pages/Planning_Module_Pages/JobOrder_Pages/JobOrderDetails.razor:290` |
-| `Sp_Print_LabourDC` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_LabourDC.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourDcOut_Pages/LabourDcOutgoingDetails.razor:431` |
-| `Sp_Print_LabourGRN` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_LabourGRN.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourGRN_Pages/LabourGRNDetails.razor:291` |
-| `Sp_Print_LabourInv` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_LabourInv.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourInvoice_Pages/LabourInvoiceDetails.razor:538` |
-| `Sp_Print_LabourSCN` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_LabourSCN.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourSCN_Pages/LabourSCNDetails.razor:314` |
+| `Sp_Print_LabourDC` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_LabourDC.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourDcOut_Pages/LabourDcOutgoingDetails.razor:431` |
+| `Sp_Print_LabourGRN` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_LabourGRN.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourGRN_Pages/LabourGRNDetails.razor:291` |
+| `Sp_Print_LabourInv` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_LabourInv.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourInvoice_Pages/LabourInvoiceDetails.razor:538` |
+| `Sp_Print_LabourSCN` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_LabourSCN.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourSCN_Pages/LabourSCNDetails.razor:314` |
 | `Sp_Print_LeaveApplication` | missing | — | `V.SMART/V.SMART.Shared/Pages/Master_Module_pages/LeaveApplication_Pages/LeaveDetails.razor:181` |
 | `Sp_Print_MaterialIssueNoteReduction` | missing | — | `V.SMART/V.SMART.Shared/Pages/Inventory(Stock)_Module_Pages/MaterialIssueNote_pages/MaterialIssueDetails.razor:283` |
 | `Sp_Print_MaterialReq` | missing | — | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/MaterialRequisition_pages/MaterialReqDetails.razor:314` |
-| `Sp_Print_MfgDC` | case_mismatch | `Existing Store Procedures/StoredProcedures/Sp_Print_MFGDC.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesDc_Pages/MfgDcDetails.razor:395` |
-| `Sp_Print_MfgInv` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_MfgInv.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/MfgInv_Pages/MfgInvDetails.razor:558` |
-| `Sp_Print_MfgQuote` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_MfgQuote.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/MfgQuote_Pages/MfgQuoteDetails.razor:493` |
+| `Sp_Print_MfgDC` | case_mismatch | `db/stored-procedures/relocated-legacy/Sp_Print_MFGDC.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesDc_Pages/MfgDcDetails.razor:395` |
+| `Sp_Print_MfgInv` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_MfgInv.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/MfgInv_Pages/MfgInvDetails.razor:558` |
+| `Sp_Print_MfgQuote` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_MfgQuote.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/MfgQuote_Pages/MfgQuoteDetails.razor:493` |
 | `Sp_Print_OfferLetter` | missing | — | `V.SMART/V.SMART.Shared/Pages/HumanResource_Pages/OfferLetter_Pages/OffferLetterDetails.razor:214` |
 | `Sp_Print_Payments` | missing | — | `V.SMART/V.SMART.Shared/Pages/CashFlow_Pages/Payments_Pages/PaymentDetails.razor:189` |
-| `Sp_Print_PerformaInvoice` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_PerformaInvoice.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/PerformaInvoice_pages/PerformaDetails.razor:457` |
+| `Sp_Print_PerformaInvoice` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_PerformaInvoice.sql` | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/PerformaInvoice_pages/PerformaDetails.razor:457` |
 | `Sp_Print_ProdAssyGRN` | missing | — | `V.SMART/V.SMART.Shared/Pages/ProductionModule_pages/ProductionReturnAssy_Pages/ProductionReturnAssyUpsert.razor:1660` |
 | `Sp_Print_ProdAssySCN` | missing | — | `V.SMART/V.SMART.Shared/Pages/ProductionModule_pages/ProductionAssySCN_Pages/ProductionAssySCNDetails.razor:290` |
 | `Sp_Print_ProdCompSCN` | missing | — | `V.SMART/V.SMART.Shared/Pages/ProductionModule_pages/ProductionSCNComp_Pages/ProductionSCNCompDetails.razor:253` |
@@ -326,14 +327,14 @@ Stated explicitly, per the task's own requirement, not assumed away:
 | `Sp_Print_PurchaseEnquiry` | missing | — | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/PurchOrSubConEnquiry_Pages/EnquiryPurchaseUpsert.razor:2310` |
 | `Sp_Print_PurchaseGRN` | missing | — | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/PurchaseGRN_Pages/PurchaseGRNDetails.razor:277` |
 | `Sp_Print_PurchaseInvoice` | missing | — | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/PurchaseInvoice_Pages/PurchaseInvoiceDetails.razor:450` |
-| `Sp_Print_PurchaseOrder` | **unreferenced** | `Existing Store Procedures/StoredProcedures/Sp_Print_PurchaseOrder.sql` | — (unreferenced; see Findings) |
+| `Sp_Print_PurchaseOrder` | **unreferenced** | `db/stored-procedures/relocated-legacy/Sp_Print_PurchaseOrder.sql` | — (unreferenced; see Findings) |
 | `Sp_Print_PurchasePo` | missing | — | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/PurchOrSubConPO_Pages/PurchPOUpsert.razor:4596` |
 | `Sp_Print_PurchaseSCN` | missing | — | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/PurchaseSCN_Pages/PurchaseSCNDetails.razor:316` |
 | `Sp_Print_Receipts` | missing | — | `V.SMART/V.SMART.Shared/Pages/CashFlow_Pages/Receipt_Pages/ReceiptDetails.razor:189` |
 | `Sp_Print_RouteCard` | missing | — | `V.SMART/V.SMART.Shared/Pages/Planning_Module_Pages/RouteCard_Pages/RouteCardDetails.razor:327` |
 | `Sp_Print_Salary` | missing | — | `V.SMART/V.SMART.Shared/Pages/HumanResource_Pages/Payroll_Pages/SalaryDetails.razor:310` |
 | `Sp_Print_SingleProcessInspection` | missing | — | `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/LabourInvoice_Pages/LabourInvoiceDetails.razor:596` |
-| `Sp_Print_SubConDcOut` | scripted | `Existing Store Procedures/StoredProcedures/Sp_Print_SubConDcOut.sql` | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/SubContractDCOut_Pages/SubContractDCOutDetails.razor:272` |
+| `Sp_Print_SubConDcOut` | scripted | `db/stored-procedures/relocated-legacy/Sp_Print_SubConDcOut.sql` | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/SubContractDCOut_Pages/SubContractDCOutDetails.razor:272` |
 | `Sp_Print_SubconSCN` | missing | — | `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/SubContractSCN_pages/SubConSCNDetails.razor:307` |
 | `Sp_Print_ToolCribIssueNote` | missing | — | `V.SMART/V.SMART.Shared/Pages/Inventory(Stock)_Module_Pages/ToolCribIssue_Pages/ToolCribIssueDetails.razor:208` |
 | `Sp_Print_ToolCribReturn` | missing | — | `V.SMART/V.SMART.Shared/Pages/Inventory(Stock)_Module_Pages/ToolCribReturn_Pages/ToolCribReturnDetails.razor:267` |
@@ -399,3 +400,31 @@ Full per-procedure outcome, verification output and finding detail:
   list as the set to diff against other tenants' deployed procedures.
 - **M0-01-03** (deployment script + rebuild runbook) reuses the casing/bracketing/BOM survey
   above when normalising the 13 existing files plus the ones M0-01-02 captures.
+
+## M0-01-03 relocation outcome (2026-08-13 update)
+
+The reconciliation table above is **unchanged in substance** — `scripted_file` values for
+the 13 previously-`Existing Store Procedures/StoredProcedures/`-declared rows now point at
+`db/stored-procedures/relocated-legacy/<name>.sql`, reflecting where task M0-01-03 moved
+those files (via `git mv`, history preserved); the `status` classification
+(`scripted`/`case_mismatch`/`unreferenced`) for each of those 13 rows is untouched, because
+the relocation changed where the DDL lives, not what it declares or what the application
+calls.
+
+`Existing Store Procedures/` is retired — it now holds only a pointer `README.md`. No
+`.sql` file remains there; `db/stored-procedures/` (flat directory + `relocated-legacy/`
+subdirectory) is the single authoritative location. `db/stored-procedures/README.md`
+documents why the 13 relocated files live in a subdirectory rather than the flat
+top-level directory (a mechanical constraint from `db/tools/verify-capture.sh`'s
+non-recursive file glob, not an aesthetic choice).
+
+The two findings recorded above for `Sp_Print_MFGDC` (case mismatch) and
+`Sp_Print_PurchaseOrder` (unreferenced) were carried across unresolved, exactly as this
+document already said a human, not a later task, must decide them — M0-01-03's own scope
+explicitly forbade renaming either. Both are deployed by `db/deploy-stored-procedures.ps1`
+regardless (retained, not silently dropped), which itself records both findings in its
+header comment.
+
+`db/deploy-stored-procedures.ps1` (M0-01-03, UNVERIFIED as of this writing — see
+`db/RUNBOOK-rebuild-tenant-database.md` and `db/REBUILD-DRILL-LOG.md`) is the deployment
+step this document's "Downstream consumers" section anticipated needing.

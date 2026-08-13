@@ -7,14 +7,15 @@ source_files:
   - V.SMART/V.SMART.Shared/Data/MasterDbContext.cs
   - V.SMART/V.SMART.Shared/Data/TenantInfo.cs
   - V.SMART/V.SMART.Shared/Migrations/
-  - Existing Store Procedures/StoredProcedures/
+  - db/stored-procedures/
+  - db/deploy-stored-procedures.ps1
 entities: [TenantInfo, User, Item, Customer, Vendor, MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, Screens, UserRight]
 api_endpoints: []
 database_tables: [Tenants, Users, UserRights, Screens, Item, Customer, Vendor, MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack]
 business_rules: [BR-STK-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 dependencies: [KB-010, KB-013]
 ---
 
@@ -128,6 +129,14 @@ carries a full snapshot copy.
 
 - First migration: `20260217110637_InitialCreate`
 - Latest observed: `20260723064009_jobtrack`
+- 1 additional migration under `Migrations/MasterDb/` applies `MasterDbContext`'s single
+  `Tenants` table (`20260308101245_AddMasterDbContect`) — 219 migrations total, matching
+  the figure cited elsewhere in the KB.
+- Q-02 (how migrations are rolled out to a tenant database in production) remains
+  **Unknown**. `db/RUNBOOK-rebuild-tenant-database.md` §5 (M0-01-03) records one candidate
+  `dotnet ef database update --connection <explicit>` command for a single directly-reached
+  database — UNVERIFIED until the rebuild drill runs, and explicitly not a description of
+  the production rollout procedure.
 
 The `Migrations/` folder alone accounts for roughly 90% of repository line count. This
 bloats clone size, IDE indexing, and every full-text search. **Consolidating the migration
@@ -147,6 +156,22 @@ history is recommended but is not a blocker.** (Risk R-11, Low.)
 2. **`EXEC dbo.<proc>`** via `ReportExecutor` for the 94 report procedures.
 
 `ItemRepository.cs:52` also uses `ExecuteSqlRawAsync` for a bulk item-rate update.
+
+**Deployment step (M0-01-03, 2026-08-13, UNVERIFIED).** DDL for every stored procedure the
+application calls is now in source control at `db/stored-procedures/` (the flat directory
+holds the 78 procedures M0-01-02 captured from a live tenant; `relocated-legacy/` holds the
+13 that were already scripted, moved there from `Existing Store Procedures/StoredProcedures/`
+— that folder is retired). `db/deploy-stored-procedures.ps1` applies every `.sql` file
+under both locations to a target database, idempotently (every file is
+`CREATE OR ALTER PROCEDURE`), with a completeness check against
+`db/stored-procedures/manifest.csv` before it runs. It has **not** been executed against a
+real database as of this writing — see `db/RUNBOOK-rebuild-tenant-database.md` and
+`db/REBUILD-DRILL-LOG.md` for the rebuild drill this claim depends on. 4 of the 94
+referenced names still have no DDL anywhere in the repository
+(`Sp_BomAnalysis`, `Sp_Print_Estimation`, `Sp_Print_Receipts`,
+`Sp_Print_SingleProcessInspection` — `db/stored-procedures/CAPTURE-STATUS.md`), and one
+scripted-but-unreferenced procedure (`Sp_Print_PurchaseOrder`) is deployed pending a human
+keep/delete decision.
 
 ## Indexing
 
