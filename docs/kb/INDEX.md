@@ -43,6 +43,7 @@ last_verified: 2026-08-12
 | KB-084 | [Review & Handoff Templates](execution/review-templates.md) | meta | active | — | 2026-08-12 |
 | TASK-* | [Task specifications + execution prompts](execution/tasks/) | **proposal** | active | — | 2026-08-12 |
 | KB-085 | [M0-00 Version-Control Baseline Decision Log](execution/M0-00-baseline-decisions.md) | execution | active | — | 2026-08-12 |
+| KB-102 | [Stored-Procedure Reference/DDL Reconciliation](architecture/stored-procedure-inventory.md) | architecture | complete | confirmed | 2026-08-13 |
 | ADR-001 | [Preserve the existing backend](decisions/ADR-001-keep-existing-backend.md) | decision | accepted | — | 2026-08-12 |
 | ADR-002 | [REST API layer & conventions](decisions/ADR-002-rest-api-layer.md) | decision | accepted | — | 2026-08-12 |
 | ADR-003 | [React stack](decisions/ADR-003-react-stack.md) | decision | accepted | — | 2026-08-12 |
@@ -60,7 +61,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-080 – KB-089 | Execution plan meta-documents | KB-080 … KB-084 |
 | KB-085 | **Claimed 2026-08-12 by M0-00** — [M0-00-baseline-decisions.md](execution/M0-00-baseline-decisions.md) | allocated |
 | KB-086 – KB-087 | *(proposed by M0-07/M0-15/M0-01-01 before this table existed — reconcile or re-map into KB-100+ when those tasks run; KB-085 is no longer free — see row above)* | provisional |
-| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-110–113 (M2-B08…B11). **Next free: KB-102**, or KB-114+ |
+| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01), KB-110–113 (M2-B08…B11). **Next free: KB-103**, or KB-114+ |
 | ADR-nnn | Architecture decisions | through ADR-005 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-034 (030–033 reserved, next free INV-035 — see investigation-registry.md) |
@@ -82,6 +83,7 @@ Use this table before searching the repository.
 | Projects, hosting, DI, config, deployment | KB-010 |
 | Services, repositories, transactions, calculation engine, reporting, integrations, logging | KB-011 |
 | Entities, tables, DbContexts, migrations, seed data, `Ref*SubId` chains, stored procedures | KB-012 |
+| Which stored procedures exist and which are missing DDL | KB-102 |
 | Login, JWT, roles, screen rights, approval authority, QR login | KB-013 |
 | Tenants, connection strings, host resolution | KB-014 |
 | Blazor pages, routes, MudBlazor components, `@code` density, the Angular pilot | KB-015 |

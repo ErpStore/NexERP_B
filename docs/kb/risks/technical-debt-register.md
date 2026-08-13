@@ -14,7 +14,7 @@ source_files:
   - V.SMART/V.SMART.Shared/Repository/MasterRepository/Admins/UserRepository.cs
 status: complete
 confidence: mixed
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 dependencies: [KB-011, KB-012, KB-013, KB-040]
 ---
 
@@ -184,12 +184,23 @@ binding in particular cannot be ported unchanged — a server-side API cannot ca
 > grep -rhoE "Sp_[A-Za-z0-9_]+" --include=*.cs --include=*.razor --exclude-dir=obj --exclude-dir=bin V.SMART | sort -u
 > ```
 > which returns exactly 94. Do not "correct" 94 upward on the strength of the unscoped count.
+>
+> **M0-01-01 complete, 2026-08-13.** The full systematic reconciliation — every referenced
+> name classified `scripted` / `case_mismatch` / `missing` / `unreferenced` with `file:line`
+> evidence for each — is in
+> [KB-102](../architecture/stored-procedure-inventory.md) and
+> [`db/stored-procedures/manifest.csv`](../../../db/stored-procedures/manifest.csv). Counts
+> confirmed: 11 `scripted`, 1 `case_mismatch`, 82 `missing`, 1 `unreferenced` (13 declared,
+> 94 referenced — arithmetic closes both ways, see KB-102). The 82 `missing` rows are
+> M0-01-02's worklist.
 **Impact.** A tenant database cannot be rebuilt from the repository. Reports and the entire
 `ReportExecutor` path break in any fresh environment. No review, no versioning, no rollback
 for procedure changes.
-**Action.** Script all procedures from a live tenant database into
-`db/stored-procedures/`, one file each, and add a deployment step. **Do this before any
-other work** — it is cheap and it is currently a single-point-of-failure for the product.
+**Action.** Script all 82 `missing` procedures (per KB-102's manifest) from a live tenant
+database into `db/stored-procedures/`, one file each, following the conventions in
+[`db/stored-procedures/README.md`](../../../db/stored-procedures/README.md), and add a
+deployment step (M0-01-03). **Do this before any other work** — it is cheap and it is
+currently a single-point-of-failure for the product.
 
 ### R-05 — No automated tests, no CI
 **Confirmed.** No test project; `.github/` contains no workflows.

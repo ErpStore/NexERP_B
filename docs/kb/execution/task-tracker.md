@@ -45,9 +45,9 @@ its children are `Completed` — it is never worked directly.
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | Blocked | P0 | M0-03-01 | 0.5 d | G0 |
 | M0-03-03 | M0 | — fail-fast startup validation | Security | Blocked | P0 | M0-03-02 | 0.5 d | G0 |
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
-| M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **Ready** | P0 | — | 4–5 d | G0 |
-| M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Ready** | P0 | — | 1 d | G0 |
-| M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | Blocked | P0 | M0-01-01 | 2 d | G0 |
+| M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
+| M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
+| M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Ready** | P0 | M0-01-01 | 2 d | G0 |
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | Blocked | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | Blocked | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Blocked | P0 | M0-07 | 3 d | G0 |
@@ -219,7 +219,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 1 | G0 | ⬜ Not met |
+| M0 | 24 | 2 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -227,7 +227,16 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-01, M0-01-01, M0-15, M0-08.
+**Currently `Ready`:** M0-04, M0-01-02, M0-15, M0-08.
+
+**M0-01-01: `Completed` (2026-08-13).** Repository-side stored-procedure reconciliation —
+see [KB-102](../architecture/stored-procedure-inventory.md) and
+[`db/stored-procedures/manifest.csv`](../../../db/stored-procedures/manifest.csv). 11
+`scripted`, 1 `case_mismatch`, 82 `missing`, 1 `unreferenced`; both arithmetic closures
+verified (94 referenced, 13 declared). R-04 and INV-027 amended. `dotnet build` regression
+guard **not run** — no .NET SDK in this execution environment; no file under `V.SMART/` was
+touched, so the risk that check guards against does not apply here. M0-01-02 (script the 82
+missing procedures from a live tenant DB) is now `Ready`.
 
 **M0-00: `Completed` (2026-08-13).**
 `migration/M0-00-vcs-baseline` merged to `master` via PR #1 (`5fcb2b1`); the follow-up

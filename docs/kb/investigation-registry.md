@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 ---
 
 # Investigation Registry
@@ -40,6 +40,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | ID | Topic | Status | Gap | Doc |
 |---|---|---|---|---|
 | INV-011 | Business rules — cross-module sweep | **Partial** | 12 rules extracted with evidence (calculation, FIFO stock, sales-order lifecycle, auth, approval, reporting, tenancy). Per-module extraction pending — see below | [KB-030](business-rules/business-rule-inventory.md) |
+| INV-027 | Stored-procedure DDL capture (all 94) | **Partial** *(repository half complete 2026-08-13, M0-01-01)* | Repository-side reconciliation is Complete: 94 referenced names classified against the 13 declared (11 `scripted`, 1 `case_mismatch`, 82 `missing`, 1 `unreferenced`), with `file:line` evidence for every referenced name and a re-runnable generator (`db/tools/sp-inventory.sh`). **Gap:** the DDL itself for the 82 `missing` procedures — that requires a live tenant database and is M0-01-02's output. Negative/structural results recorded: `Sp_Print_PurchaseOrder.sql` is `unreferenced` dead DDL; no `.cs`/`.razor` grep can see FastReport `.frx` data-source bindings, procedure-to-procedure calls, or names composed at run time (checked with a bounded heuristic for the last of these — no output, but not exhaustive) | [KB-102](architecture/stored-procedure-inventory.md), R-04 |
 
 ## Scheduled — run one module ahead of its migration
 
@@ -60,7 +61,6 @@ before it is used.
 | INV-024 | `@code` triage per module (presentation / data / business) | `Pages/**` | one module ahead of each migration wave |
 | INV-025 | Delete-guard audit — all ~40 `CanDelete…Async` for the R-08 copy-paste pattern | `BusinessLayer/**` | Phase 0 |
 | INV-026 | Live database index inventory vs the EF model | production tenant DB | Phase 2 (blocks R-13) |
-| INV-027 | Stored-procedure DDL capture (all 94) | live tenant DB | **Phase 0 — highest priority** |
 | INV-028 | Row-level scoping via `User.StateCodesCsv` | grep `StateCodes` across `Pages/` and services | Phase 2 (blocks Q-08) |
 
 ## Reserved ids — allocate from here
