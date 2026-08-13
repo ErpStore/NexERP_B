@@ -1,4 +1,4 @@
-﻿CREATE OR ALTER Procedure Sp_Print_LabourGRN
+CREATE OR ALTER Procedure Sp_Print_LabourGRN
 @GRNID int
 As
 

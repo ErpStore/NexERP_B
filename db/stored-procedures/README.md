@@ -65,10 +65,50 @@ These bind every `.sql` file placed in this directory:
    an apparent bug) is a finding to record in `CAPTURE-STATUS.md`, not a change to make in
    the file.
 
+## `relocated-legacy/` — the 13 files moved here by M0-01-03
+
+The 13 `.sql` files that used to live in `Existing Store Procedures/StoredProcedures/`
+(manifest `status` = `scripted`, `case_mismatch`, or `unreferenced`) were relocated here on
+2026-08-13 by task **M0-01-03**, into `db/stored-procedures/relocated-legacy/` — a
+subdirectory, **not** the flat directory the `missing`-status captures above live in.
+
+**Why a subdirectory, deliberately, not the flat top level:** `db/tools/verify-capture.sh`
+(M0-01-02's harness, not editable by any later task — see its own header comment) enumerates
+`db/stored-procedures/*.sql` with a **non-recursive** glob and hard-fails any file whose
+manifest `status` is not `missing` — that is exactly what section 2a's "authorized: 'missing'
+row in manifest" check does. Placing the relocated 13 directly in the flat directory would
+make every one of them fail that check and take `verify-capture.sh` from exit 0 to exit
+non-zero, which is both a stated M0-01-03 acceptance criterion violation and a real loss —
+that script is the only mechanical proof that M0-01-02's 78-procedure capture is still
+intact. A non-recursive glob does not descend into a subdirectory, so
+`relocated-legacy/*.sql` is invisible to it and the check keeps meaning exactly what it meant
+before this task touched the directory. This is a deliberate, disclosed workaround for a
+genuine conflict between two binding constraints (relocate the 13 files into
+`db/stored-procedures/`, and do not edit or break `verify-capture.sh`), not an oversight.
+
+`db/stored-procedures/manifest.csv`'s `scripted_file` column was repointed from
+`Existing Store Procedures/StoredProcedures/<name>.sql` to
+`db/stored-procedures/relocated-legacy/<name>.sql` for these 13 rows — the only edit to that
+file M0-01 authorises anywhere. Everything else in the row, including free-text `notes` that
+happen to mention the old path, is untouched by design.
+
+`db/deploy-stored-procedures.ps1` deploys **both** locations — the flat directory and
+`relocated-legacy/` — so this split is invisible to anyone running the deployment step; it
+only matters to `verify-capture.sh` and to a human reading this directory.
+
+The two known snags carried across with these 13 files, deliberately not resolved here (see
+`docs/kb/execution/tasks/M0-01-03.md` for the escalation):
+- `Sp_Print_MFGDC.sql` keeps its declared spelling; the application calls `Sp_Print_MfgDC`
+  (case-only difference).
+- `Sp_Print_PurchaseOrder.sql` is retained, unreferenced by any C#/Razor call site; deployed
+  as `retained-but-unreferenced` pending a human keep/delete decision.
+
 ## Verification
 
 `db/tools/verify-capture.sh` (added by M0-01-02) mechanically checks a delivered capture
 against this manifest — every `missing` row has a matching file, every file's declared name
 matches its file name, every file starts with `CREATE OR ALTER PROCEDURE`, encoding and line
 endings are correct, and no secret pattern is present. It requires no database and is safe to
-run repeatedly.
+run repeatedly. **Scope note (M0-01-03):** it only ever checked the flat directory's
+`missing`-status captures — it was never a general-purpose validator of everything under
+`db/stored-procedures/`, and still isn't; see `relocated-legacy/` above.

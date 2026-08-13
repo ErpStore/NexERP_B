@@ -1,4 +1,4 @@
-﻿CREATE OR ALTER Procedure Sp_Print_LabourDC
+CREATE OR ALTER Procedure Sp_Print_LabourDC
 @DcId INT
 AS
 BEGIN

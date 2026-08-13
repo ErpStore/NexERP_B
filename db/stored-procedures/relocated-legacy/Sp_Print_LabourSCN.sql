@@ -1,4 +1,4 @@
-﻿CREATE OR ALTER Procedure Sp_Print_LabourSCN
+CREATE OR ALTER Procedure Sp_Print_LabourSCN
 @SCNID int
 As
 
