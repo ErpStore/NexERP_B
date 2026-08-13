@@ -121,6 +121,19 @@ param(
     [Parameter(ParameterSetName = 'SqlEnvVar')]
     [string]$SqlPasswordEnvVar,
 
+    # Modern Invoke-Sqlcmd (SqlServer module 22.x+, Microsoft.Data.SqlClient-
+    # based) encrypts connections and validates the server certificate by
+    # default. Most on-prem / local SQL Server instances -- including every
+    # tenant connection string this application already uses, e.g.
+    # ApplicationDbContextFactory.cs -- run with a self-signed certificate,
+    # so a strict validation fails with an SSL trust error. This switch is
+    # the capture tool's equivalent of that connection string's
+    # TrustServerCertificate=True. It does not weaken authentication (you
+    # still need real credentials) -- only certificate-chain validation.
+    # Prefer NOT passing this against a server with a properly issued
+    # certificate.
+    [switch]$TrustServerCertificate,
+
     # --- Worklist / output ------------------------------------------------
     [string]$ManifestPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'stored-procedures\manifest.csv'),
     [string]$OutputDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'stored-procedures'),
@@ -151,6 +164,20 @@ Preconditions.
 }
 Import-Module SqlServer -ErrorAction Stop
 
+# Different major versions of the SqlServer module expose different
+# Invoke-Sqlcmd parameter shapes (see header notes above) -- e.g. the
+# pre-21.x API requires an explicit -TrustedConnection switch for Windows
+# Authentication, while 22.x+ (built on Microsoft.Data.SqlClient) dropped
+# that switch and simply defaults to Windows/Integrated auth whenever
+# neither -Credential nor -Username/-Password is supplied. Detect what's
+# actually available at run time instead of assuming one shape -- an
+# assumption that does not hold is exactly how this script would otherwise
+# fail loudly with "parameter cannot be found" against a real database,
+# which is what happened during this task's own rehearsal.
+$script:InvokeSqlcmdParams = (Get-Command Invoke-Sqlcmd).Parameters.Keys
+$script:SupportsTrustedConnection = $script:InvokeSqlcmdParams -contains 'TrustedConnection'
+$script:SupportsCredentialParam = $script:InvokeSqlcmdParams -contains 'Credential'
+
 if (-not (Test-Path -LiteralPath $ManifestPath)) {
     throw "Manifest not found at '$ManifestPath'. Run M0-01-01 first, or pass -ManifestPath explicitly."
 }
@@ -175,24 +202,54 @@ function Get-SqlCmdConnectionArgs {
         ConnectionTimeout = $ConnectionTimeoutSeconds
         ErrorAction       = 'Stop'
     }
+    if ($TrustServerCertificate -and ($script:InvokeSqlcmdParams -contains 'TrustServerCertificate')) {
+        $connArgs['TrustServerCertificate'] = $true
+    }
     switch ($PSCmdlet.ParameterSetName) {
         'SqlCredential' {
-            $connArgs['Credential'] = $Credential
+            if ($script:SupportsCredentialParam) {
+                $connArgs['Credential'] = $Credential
+            }
+            else {
+                # Older Invoke-Sqlcmd (pre-21.1.18068) has no -Credential
+                # parameter at all -- fall back to plain -Username/-Password,
+                # which the header comment already documents as a weaker
+                # guarantee (visible on the process command line for the
+                # duration of the call). Not a silent choice: warn every time.
+                Write-Warning "  Installed Invoke-Sqlcmd has no -Credential parameter (older SqlServer module). Falling back to plain -Username/-Password -- see this script's header comment."
+                $connArgs['Username'] = $Credential.UserName
+                $connArgs['Password'] = $Credential.GetNetworkCredential().Password
+            }
         }
         'SqlEnvVar' {
             $plainPassword = [System.Environment]::GetEnvironmentVariable($SqlPasswordEnvVar)
             if ([string]::IsNullOrEmpty($plainPassword)) {
                 throw "Environment variable '$SqlPasswordEnvVar' is not set or is empty."
             }
-            $securePassword = ConvertTo-SecureString -String $plainPassword -AsPlainText -Force
-            $connArgs['Credential'] = New-Object System.Management.Automation.PSCredential ($SqlUserName, $securePassword)
+            if ($script:SupportsCredentialParam) {
+                $securePassword = ConvertTo-SecureString -String $plainPassword -AsPlainText -Force
+                $connArgs['Credential'] = New-Object System.Management.Automation.PSCredential ($SqlUserName, $securePassword)
+            }
+            else {
+                Write-Warning "  Installed Invoke-Sqlcmd has no -Credential parameter (older SqlServer module). Falling back to plain -Username/-Password -- see this script's header comment."
+                $connArgs['Username'] = $SqlUserName
+                $connArgs['Password'] = $plainPassword
+            }
             # $plainPassword is not explicitly zeroed -- PowerShell strings are
             # immutable and .NET does not guarantee secure erasure of plain
             # System.String contents. This is a known, accepted limitation;
             # prefer Windows Authentication wherever the environment allows it.
         }
         default {
-            $connArgs['TrustedConnection'] = $true
+            # Windows Authentication. Pre-21.x Invoke-Sqlcmd needs the
+            # explicit -TrustedConnection switch; 22.x+ (Microsoft.Data.
+            # SqlClient-based) has no such parameter and simply defaults to
+            # Windows/Integrated auth when no credential is supplied at all --
+            # setting it there would fail with "parameter cannot be found",
+            # exactly as this script did on its first real run.
+            if ($script:SupportsTrustedConnection) {
+                $connArgs['TrustedConnection'] = $true
+            }
         }
     }
     return $connArgs
