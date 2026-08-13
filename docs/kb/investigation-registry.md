@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 ---
 
 # Investigation Registry
@@ -34,6 +34,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-023 | Testing and CI | Complete | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
 | INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands) | 2026-08-12 |
 | INV-034 | Repository visibility of `ErpStore/NexERP_B` — timeline: reported public (flawed test) → corrected to private → **owner deliberately made it public again**, same day | Complete | `git -c credential.helper= ls-remote` (private: fails demanding auth; public: succeeds, exit 0) vs. plain `git ls-remote` (always silently succeeds via cached credentials — not a valid test on its own); unauthenticated `curl https://api.github.com/repos/ErpStore/NexERP_B` (private: 404; public: 200); `git config --system --get-all credential.helper` (`manager`) | [KB-085 §Repository visibility correction](execution/M0-00-baseline-decisions.md#repository-visibility-correction-inv-034) | 2026-08-12 |
+| INV-027 | Stored-procedure DDL capture (all 94) | **Complete** (2026-08-13, M0-01-02 half B/C — DDL actually landed and was verified, not just the tooling) | Reference-vs-scripted reconciliation (M0-01-01, unchanged): 94 referenced, 13 declared, 11 `scripted`, 1 `case_mismatch`, 1 `unreferenced`, 82 `missing` — worklist `db/stored-procedures/manifest.csv`. **Live-database capture (M0-01-02, this update):** operator PavanKunar ran `db/tools/Export-StoredProcedures.ps1` against `NexGenErpDb` (`DESKTOP-FIIBE97\SQLEXPRESS`, SQL authentication) on 2026-08-13. **78 of 82** `missing` procedures captured cleanly into `db/stored-procedures/`; **4 negative results** (genuinely absent, not a tool defect — independently cross-checked against the source text): `Sp_BomAnalysis`, `Sp_Print_Estimation`, `Sp_Print_Receipts`, `Sp_Print_SingleProcessInspection` — escalated in `db/stored-procedures/CAPTURE-STATUS.md` for a human dead-code-vs-latent-defect decision, per procedure. `db/tools/verify-capture.sh` exits 0 (0 hard failures, 4 recorded warnings for the negative results). **Provenance is not a clean single-tenant capture — read before reusing this finding:** `NexGenErpDb` was empty of procedures until the operator manually deployed a script (`AllSp.sql`, local, not committed) originally scripted from a *different* database, `IQSMARTDEMO_DB_2025-26` (a demo tenant reachable via the connection string already commented out in `ApplicationDbContextFactory.cs`). The DDL's actual origin is `IQSMARTDEMO_DB_2025-26`, relayed through `NexGenErpDb`, not a capture directly from a nominated production tenant. Full detail in `db/stored-procedures/CAPTURE-STATUS.md`, "Provenance caveat". **Tooling fix recorded the same day:** 3 of the 78 initially failed ("unrecognized leading statement") because their deployed definitions carry a leading `-- ====...` comment before `CREATE PROCEDURE` — `Export-StoredProcedures.ps1`'s regex didn't tolerate a leading comment even though `verify-capture.sh`'s own spec already does; fixed, re-captured cleanly (see git history). **What this leaves open, explicitly not this investigation's job:** whether `IQSMARTDEMO_DB_2025-26` is representative of a real production tenant is Q-14 (open-questions.md), owned by M0-02 — this capture is now that task's input, not its answer. | [KB-102](architecture/stored-procedure-inventory.md), [db/stored-procedures/CAPTURE-STATUS.md](../../db/stored-procedures/CAPTURE-STATUS.md) | 2026-08-13 |
 
 ## Partial
 
@@ -60,7 +61,6 @@ before it is used.
 | INV-024 | `@code` triage per module (presentation / data / business) | `Pages/**` | one module ahead of each migration wave |
 | INV-025 | Delete-guard audit — all ~40 `CanDelete…Async` for the R-08 copy-paste pattern | `BusinessLayer/**` | Phase 0 |
 | INV-026 | Live database index inventory vs the EF model | production tenant DB | Phase 2 (blocks R-13) |
-| INV-027 | Stored-procedure DDL capture (all 94) | live tenant DB | **Phase 0 — highest priority** |
 | INV-028 | Row-level scoping via `User.StateCodesCsv` | grep `StateCodes` across `Pages/` and services | Phase 2 (blocks Q-08) |
 
 ## Reserved ids — allocate from here

@@ -1,4 +1,4 @@
-﻿CREATE OR ALTER PROCEDURE Sp_Print_CompanyDetails
+CREATE OR ALTER PROCEDURE Sp_Print_CompanyDetails
 AS
 BEGIN
     SELECT 

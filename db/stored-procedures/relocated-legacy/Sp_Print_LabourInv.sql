@@ -1,4 +1,4 @@
-﻿CREATE OR ALTER Procedure Sp_Print_LabourInv
+CREATE OR ALTER Procedure Sp_Print_LabourInv
 @LabInvId int
 As
 BEGIN

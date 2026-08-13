@@ -1,4 +1,4 @@
-﻿CREATE OR ALTER procedure [dbo].[Sp_InvDetailsLabelPrint]
+CREATE OR ALTER procedure [dbo].[Sp_InvDetailsLabelPrint]
      @INVID int
 AS
 BEGIN

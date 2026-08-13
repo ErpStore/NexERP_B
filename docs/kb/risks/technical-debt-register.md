@@ -12,10 +12,12 @@ source_files:
   - V.SMART/V.SMART.Shared/Services/CurrentUserService.cs
   - V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs
   - V.SMART/V.SMART.Shared/Repository/MasterRepository/Admins/UserRepository.cs
+  - db/deploy-stored-procedures.ps1
+  - db/RUNBOOK-rebuild-tenant-database.md
 status: complete
 confidence: mixed
-last_verified: 2026-08-12
-dependencies: [KB-011, KB-012, KB-013, KB-040]
+last_verified: 2026-08-13
+dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
 # Technical Debt and Risk Register
@@ -184,12 +186,97 @@ binding in particular cannot be ported unchanged — a server-side API cannot ca
 > grep -rhoE "Sp_[A-Za-z0-9_]+" --include=*.cs --include=*.razor --exclude-dir=obj --exclude-dir=bin V.SMART | sort -u
 > ```
 > which returns exactly 94. Do not "correct" 94 upward on the strength of the unscoped count.
+>
+> **Independently re-verified 2026-08-13 (M0-01-01, Confirmed).** All of the above was
+> re-derived from scratch in a separate session, not copied from this register: 94
+> referenced / 13 declared / 11 exact `scripted` / 1 `case_mismatch`
+> (`Sp_Print_MFGDC` declared vs. `Sp_Print_MfgDC` called) / 1 `unreferenced`
+> (`Sp_Print_PurchaseOrder`) / **82 `missing`**. Same figures, independently reproduced. The
+> full reconciliation, methodology and per-name evidence now live in
+> [KB-102](../architecture/stored-procedure-inventory.md), with a machine-readable worklist
+> at `db/stored-procedures/manifest.csv` and a re-runnable reference-index generator at
+> `db/tools/sp-inventory.sh`. `db/stored-procedures/` did not exist before this task.
 **Impact.** A tenant database cannot be rebuilt from the repository. Reports and the entire
 `ReportExecutor` path break in any fresh environment. No review, no versioning, no rollback
 for procedure changes.
 **Action.** Script all procedures from a live tenant database into
 `db/stored-procedures/`, one file each, and add a deployment step. **Do this before any
 other work** — it is cheap and it is currently a single-point-of-failure for the product.
+
+> **Updated 2026-08-13 (M0-01-02 half B/C, Confirmed) — the gap is now 4, not 82, but read
+> the caveats before downgrading this to non-Critical.**
+>
+> **78 of the 82 `missing` procedures now have captured DDL** in `db/stored-procedures/`,
+> verified by `db/tools/verify-capture.sh` (0 hard failures) — faithful transcriptions
+> (`CREATE OR ALTER`, UTF-8 no BOM, LF, no body edits), each independently cross-checked
+> against the source text before capture. Full per-procedure record, source, date and
+> operator: `db/stored-procedures/CAPTURE-STATUS.md`. `INV-027` is now `Complete`
+> (`docs/kb/investigation-registry.md`).
+>
+> **4 remain genuinely absent** (not a tool defect — cross-checked against the source text
+> independently of the live query): `Sp_BomAnalysis`, `Sp_Print_Estimation`,
+> `Sp_Print_Receipts`, `Sp_Print_SingleProcessInspection`. Escalated in
+> `CAPTURE-STATUS.md` for a human decision, per procedure: dead code (delete the call
+> site) or latent defect (the calling screen throws on first use in any rebuilt
+> environment).
+>
+> **Why this stays Critical, not downgraded to Medium/Low, despite closing 78/82:**
+> 1. **Provenance is not a nominated production tenant.** The captured DDL's actual origin
+>    is `IQSMARTDEMO_DB_2025-26`, a demo database, manually relayed through a local
+>    `NexGenErpDb` copy — not a direct capture from a live customer tenant. Whether a demo
+>    tenant's procedure set is representative of production is exactly Q-14
+>    (`docs/kb/open-questions.md`), owned by M0-02 and still open. A "no" answer there
+>    would mean this capture is a starting point, not the final word, and the effective
+>    gap could reopen wider than 4.
+> 2. **No deployment path exists yet.** Capturing DDL into source control is necessary
+>    but not sufficient for "a fresh SQL Server can be brought to a working tenant
+>    database from source control alone" (G0 exit criterion 1) — that wiring is
+>    M0-01-03's job, not done here.
+> 3. The 4 still-open names are unresolved, not closed — one or more could be a live
+>    defect waiting to surface.
+
+> **Updated 2026-08-13 (M0-01-03) — deployment step + single-source-of-truth relocation
+> both done; G0 criterion 1 still NOT met, drill outstanding.**
+>
+> This task's own action item — "add a deployment step" — is satisfied by
+> `db/deploy-stored-procedures.ps1`: idempotent (`CREATE OR ALTER` everywhere), takes
+> connection details as parameters/environment variables only (no hardcoded credential, no
+> reuse of R-01/R-02's committed values), refuses to run against an incomplete manifest
+> unless explicitly overridden, fails fast and names the offending file, and deploys every
+> `.sql` file under `db/stored-procedures/` (recursively — see below).
+>
+> The competing-locations problem this register flagged is also closed: the 13 files that
+> used to live in `Existing Store Procedures/StoredProcedures/` are relocated (via `git mv`,
+> bodies unchanged except the mandated BOM strip on 6 of them) into
+> `db/stored-procedures/relocated-legacy/`. That folder is retired to a pointer `README.md`.
+> `db/stored-procedures/` (flat directory + `relocated-legacy/` subdirectory) is now the
+> single authoritative location for every procedure's DDL. The subdirectory split exists
+> only because `db/tools/verify-capture.sh` — M0-01-02's harness, not editable by this task
+> — enumerates the flat directory with a non-recursive glob and hard-fails any file whose
+> manifest status is not `missing`; putting the 13 relocated files there directly would have
+> broken that check (verified empirically: 25 hard failures before the subdirectory was
+> chosen). `db/deploy-stored-procedures.ps1` deploys both locations together; only
+> `verify-capture.sh` and a human reading the directory need to know about the split — see
+> `db/stored-procedures/README.md` for the full reasoning.
+>
+> **Still not resolved, deliberately, per this task's own constraints — escalated to a
+> human, not decided here:**
+> - `Sp_Print_MFGDC` vs. `Sp_Print_MfgDC` (case-only mismatch) — kept as declared, not
+>   renamed either side.
+> - `Sp_Print_PurchaseOrder` (unreferenced) — retained and deployed, not deleted.
+> - The 4 genuinely-absent procedure names above are exactly as absent as before; nothing in
+>   M0-01-03 could change that (no database access — R-01/R-02 constraints held throughout).
+>
+> **Why this is still Critical, not Resolved:** `db/deploy-stored-procedures.ps1` has **never
+> been executed against a real database** — no SQL Server instance or credential was
+> available to the session that wrote it, by design (see M0-01-03's own constraints). G0
+> exit criterion 1 ("a fresh, empty SQL Server can be brought to a working tenant database
+> from source control alone … and the app runs against it") is **not met** until a named
+> person runs `db/RUNBOOK-rebuild-tenant-database.md` end to end and records the outcome in
+> `db/REBUILD-DRILL-LOG.md` — which is currently a skeleton, every field `TBD`. Downgrade
+> this entry only after that drill succeeds (or after its failures are fixed and it
+> succeeds on a later attempt) — not on the strength of the tooling existing and looking
+> correct on inspection.
 
 ### R-05 — No automated tests, no CI
 **Confirmed.** No test project; `.github/` contains no workflows.
