@@ -200,9 +200,38 @@ for procedure changes.
 **Action.** Script all procedures from a live tenant database into
 `db/stored-procedures/`, one file each, and add a deployment step. **Do this before any
 other work** — it is cheap and it is currently a single-point-of-failure for the product.
-The worklist (`db/stored-procedures/manifest.csv`, 82 `missing` rows) and the capture
-tooling are M0-01-02's deliverables; **the DDL itself has not been captured yet** — this
-register entry stays Critical until it lands.
+
+> **Updated 2026-08-13 (M0-01-02 half B/C, Confirmed) — the gap is now 4, not 82, but read
+> the caveats before downgrading this to non-Critical.**
+>
+> **78 of the 82 `missing` procedures now have captured DDL** in `db/stored-procedures/`,
+> verified by `db/tools/verify-capture.sh` (0 hard failures) — faithful transcriptions
+> (`CREATE OR ALTER`, UTF-8 no BOM, LF, no body edits), each independently cross-checked
+> against the source text before capture. Full per-procedure record, source, date and
+> operator: `db/stored-procedures/CAPTURE-STATUS.md`. `INV-027` is now `Complete`
+> (`docs/kb/investigation-registry.md`).
+>
+> **4 remain genuinely absent** (not a tool defect — cross-checked against the source text
+> independently of the live query): `Sp_BomAnalysis`, `Sp_Print_Estimation`,
+> `Sp_Print_Receipts`, `Sp_Print_SingleProcessInspection`. Escalated in
+> `CAPTURE-STATUS.md` for a human decision, per procedure: dead code (delete the call
+> site) or latent defect (the calling screen throws on first use in any rebuilt
+> environment).
+>
+> **Why this stays Critical, not downgraded to Medium/Low, despite closing 78/82:**
+> 1. **Provenance is not a nominated production tenant.** The captured DDL's actual origin
+>    is `IQSMARTDEMO_DB_2025-26`, a demo database, manually relayed through a local
+>    `NexGenErpDb` copy — not a direct capture from a live customer tenant. Whether a demo
+>    tenant's procedure set is representative of production is exactly Q-14
+>    (`docs/kb/open-questions.md`), owned by M0-02 and still open. A "no" answer there
+>    would mean this capture is a starting point, not the final word, and the effective
+>    gap could reopen wider than 4.
+> 2. **No deployment path exists yet.** Capturing DDL into source control is necessary
+>    but not sufficient for "a fresh SQL Server can be brought to a working tenant
+>    database from source control alone" (G0 exit criterion 1) — that wiring is
+>    M0-01-03's job, not done here.
+> 3. The 4 still-open names are unresolved, not closed — one or more could be a live
+>    defect waiting to surface.
 
 ### R-05 — No automated tests, no CI
 **Confirmed.** No test project; `.github/` contains no workflows.

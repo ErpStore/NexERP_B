@@ -345,6 +345,51 @@ Stated explicitly, per the task's own requirement, not assumed away:
 | `Sp_TDSReport` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/AccountsService/TDSSummaryService.cs:76` |
 | `Sp_VendorPRRating` | missing | — | `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/ReportService/Rating_Services/PrPoRatingService.cs:106` |
 
+## M0-01-02 capture outcome (2026-08-13 update)
+
+The table above is **unchanged** — it is M0-01-01's reference-vs-scripted classification
+(what's declared in `Existing Store Procedures/StoredProcedures/` vs. what's called from
+C#/Razor), and that classification is still true regardless of what has since been
+captured into a *different* location. This section records what M0-01-02 did with the
+82 `missing` rows; it does not retroactively rewrite the `status` column above.
+
+**Result: 78 of the 82 `missing` procedures now have captured DDL** in
+`db/stored-procedures/` (operator PavanKunar, `db/tools/Export-StoredProcedures.ps1`,
+2026-08-13; verified by `db/tools/verify-capture.sh`, 0 hard failures). **4 remain
+genuinely absent** and are escalated as findings, not silently dropped:
+`Sp_BomAnalysis`, `Sp_Print_Estimation`, `Sp_Print_Receipts`,
+`Sp_Print_SingleProcessInspection`.
+
+**Source tenant — read the caveat, this is not a clean single-tenant capture.** The query
+ran against `NexGenErpDb` (local, `DESKTOP-FIIBE97\SQLEXPRESS`), but that database was
+empty of procedures until manually seeded from a script (`AllSp.sql`, local file, not
+committed) originally generated from a **different** database, `IQSMARTDEMO_DB_2025-26` —
+a demo/reference tenant reachable via the connection string already commented out in
+`ApplicationDbContextFactory.cs`. So the DDL's actual origin is `IQSMARTDEMO_DB_2025-26`,
+relayed through `NexGenErpDb`. Full chain of evidence: `db/stored-procedures/
+CAPTURE-STATUS.md`, "Provenance caveat". This is now the concrete input to **Q-14**
+(`docs/kb/open-questions.md`, owned by M0-02): whether a demo tenant's procedure set is
+representative of a production tenant's is unanswered, and this document does not answer
+it.
+
+**A tooling defect was found and fixed during this capture**, not a data-quality problem:
+3 of the 78 (`Sp_CreditDebitNoteSummaryReport`, `Sp_GetHSNSummaryReport`, `Sp_TDSReport`)
+initially failed because their deployed definitions carry a leading `-- ====...` comment
+before `CREATE PROCEDURE`, which `Export-StoredProcedures.ps1`'s regex did not originally
+tolerate. Fixed same day (see git history); re-captured cleanly, no procedure body
+altered.
+
+**`Sp_Print_CompanyDetails` scope clarification.** One of this task's own acceptance
+criteria states it should be "present in `db/stored-procedures/`" — but per the table
+above it is `scripted`, not `missing`, so it was correctly left untouched (it already
+lives in `Existing Store Procedures/StoredProcedures/`; M0-01-03 relocates the 13
+existing files, not M0-01-02). Flagged as a documented deviation, not silently resolved
+either direction — see `CAPTURE-STATUS.md`, Findings.
+
+Full per-procedure outcome, verification output and finding detail:
+`db/stored-procedures/CAPTURE-STATUS.md`. Investigation status: `INV-027` is now
+**Complete** (`docs/kb/investigation-registry.md`).
+
 ## Downstream consumers
 
 - **M0-01-02** (script the missing procedures from a live tenant DB) reads
