@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 dependencies: [KB-080, KB-082]
 ---
 
@@ -35,9 +35,9 @@ its children are `Completed` — it is never worked directly.
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Needs Review** | P0 | — | 0.5 d | G0 |
-| M0-15 | M0 | Toolchain and build baseline | DevOps | Blocked | P0 | M0-00 | 0.5 d | G0 |
-| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | Blocked | P1 | M0-00 | 0.5 d | G0 |
+| M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
+| M0-15 | M0 | Toolchain and build baseline | DevOps | **Ready** | P0 | M0-00 | 0.5 d | G0 |
+| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Ready** | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Ready** | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | Blocked | P0 | M0-00 | 1 d | G0 |
@@ -219,7 +219,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 0 | G0 | ⬜ Not met |
+| M0 | 24 | 1 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -227,20 +227,18 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-01, M0-01-01.
+**Currently `Ready`:** M0-04, M0-01, M0-01-01, M0-15, M0-08.
 
-**M0-00: `Needs Review` — one item left, owner-actionable only.**
+**M0-00: `Completed` (2026-08-13).**
 `migration/M0-00-vcs-baseline` merged to `master` via PR #1 (`5fcb2b1`); the follow-up
 visibility-correction branch `fix/M0-00a-correct-repo-visibility-finding` merged to
-`master` directly (`661482a`, no protection was blocking it — see next line). Repository
-visibility resolved: reported public (flawed test) → corrected to private (INV-034) →
-**owner deliberately made it public**, verified rigorously, Q-19 answered. **Confirmed via
-the public unauthenticated GitHub API, 2026-08-12: `master` branch protection is `false`**
-(`GET /repos/ErpStore/NexERP_B/branches/master` → `"protected": false`) — this is the one
-acceptance criterion still open, and it can only be closed by the repo owner in the GitHub
-UI (`Settings → Branches → Add rule` for `master`: require PR, block force-push, block
-deletion, leave required status checks unchecked until M0-07). Move to `Completed`, and
-M0-15/M0-08 to `Ready`, once that's done and confirmed.
+`master` directly (`661482a`). Repository visibility resolved: reported public (flawed
+test) → corrected to private (INV-034) → **owner deliberately made it public**, verified
+rigorously, Q-19 answered. The last open acceptance criterion — `master` branch
+protection — was closed by the repo owner in the GitHub UI on 2026-08-13 and reconfirmed
+via the authenticated GitHub API: `list_branches` on `ErpStore/NexERP_B` returns
+`{"name":"master","protected":true}`. All acceptance criteria met. M0-15 and M0-08 move
+to `Ready`.
 
 M3/M4 counts are the 14-step pattern multiplied across waves and will firm up as each wave's
 task files are generated.

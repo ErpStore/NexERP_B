@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 dependencies: [KB-080, KB-083, KB-060, KB-003, KB-004]
 ---
 
@@ -106,7 +106,7 @@ required and was not performed.
 | Push `pre-M0-00-baseline` tag to `origin` | **Done.** `git push origin pre-M0-00-baseline` succeeded — push credentials are configured in this environment (via Windows Git Credential Manager, using the owner's own cached login — see the visibility correction below). |
 | Push `migration/M0-00-vcs-baseline` branch to `origin`, open PR, merge to `master` | **Done, by the repo owner.** Branch pushed to `https://github.com/ErpStore/NexERP_B/pull/new/migration/M0-00-vcs-baseline`; PR #1 opened and merged by Kumar (merge commit `5fcb2b1` on `origin/master`, verified via `git fetch` + `git merge-base --is-ancestor`). |
 | Push and merge `fix/M0-00a-correct-repo-visibility-finding` (the visibility correction + Q-19 resolution) | **Done.** Pushed (2 commits: `b76246c`, `f0da262`); merged directly to `master` (`661482a`) once the repo was confirmed public and branch protection was confirmed off (see next row) — no PR review was bypassed that protection would otherwise have required. |
-| Protect `master` (PR required, no force-push, no deletion, **no** required status check yet — M0-07 adds that) | **Confirmed OFF, 2026-08-12.** Once the repository became public, `GET https://api.github.com/repos/ErpStore/NexERP_B/branches/master` (no auth needed) became a valid protection check: `"protected": false`. This is the one acceptance-criterion item still open at the end of this session, and it needs the repo owner in the GitHub UI — no available tool (no `gh` CLI, no API token, Claude in Chrome unavailable) can set this from the execution environment. **Action for the repo owner:** `https://github.com/ErpStore/NexERP_B/settings/branches` → Add rule for `master` → require a PR, block force-push, block deletion, leave required status checks unchecked until M0-07. |
+| Protect `master` (PR required, no force-push, no deletion, **no** required status check yet — M0-07 adds that) | **Done, 2026-08-13.** Confirmed OFF on 2026-08-12 (`GET /repos/ErpStore/NexERP_B/branches/master` → `"protected": false`); the repo owner added the rule via the GitHub UI (`Settings → Branches`) on 2026-08-13. Reconfirmed via the authenticated GitHub API (`list_branches` on `ErpStore/NexERP_B`): `{"name":"master","protected":true}`. This was the last open M0-00 acceptance criterion; task status moved to **Completed** in `task-tracker.md`. |
 | Repository visibility audit | **Corrected 2026-08-12, same session (INV-034).** Initially recorded as public based on `git ls-remote` "succeeding without authentication." That was wrong — see *Repository visibility correction* below. The repository is **private**. |
 
 ## Repository visibility correction (INV-034)
@@ -231,8 +231,10 @@ that cites a secret as evidence is itself a secret-bearing file the moment it's 
 
 1. Physical backup excluded `bin/obj/node_modules/.vs/.angular/dist` — see rationale
    under *Safety measures* above.
-2. Branch protection on `master` could not be completed in this session (no GitHub
-   credentials/CLI/browser session available) — recorded as pending above, owner-actionable.
+2. Branch protection on `master` could not be completed in the original 2026-08-12 session
+   (no GitHub credentials/CLI/browser session available); closed by the repo owner via the
+   GitHub UI on 2026-08-13 and reconfirmed via the GitHub API — see the *GitHub configuration*
+   table above.
 3. `docs/kb/investigation-registry.md` already carried the INV-029 row before this task
    started (it was expected to be missing per `tasks/M0-00.md`, written earlier the same
    day) — verified current and left unchanged rather than re-added.
