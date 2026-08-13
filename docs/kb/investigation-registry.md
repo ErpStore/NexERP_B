@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 ---
 
 # Investigation Registry
@@ -40,6 +40,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | ID | Topic | Status | Gap | Doc |
 |---|---|---|---|---|
 | INV-011 | Business rules — cross-module sweep | **Partial** | 12 rules extracted with evidence (calculation, FIFO stock, sales-order lifecycle, auth, approval, reporting, tenancy). Per-module extraction pending — see below | [KB-030](business-rules/business-rule-inventory.md) |
+| INV-027 | Stored-procedure DDL capture (all 94) | **Partial** (repository half complete 2026-08-13, M0-01-01) | The reference-vs-scripted reconciliation is done with no database access: 94 referenced, 13 declared, 11 `scripted`, 1 `case_mismatch` (`Sp_Print_MFGDC` vs. `Sp_Print_MfgDC`), 1 `unreferenced` (`Sp_Print_PurchaseOrder`, dead DDL), **82 `missing`** — the corrected figure, re-deriving and confirming R-04's existing "82" independently. Worklist: `db/stored-procedures/manifest.csv`. Reproducible via `db/tools/sp-inventory.sh` (scoped grep: `grep -rhoE "Sp_[A-Za-z0-9_]+" --include=*.cs --include=*.razor --exclude-dir=obj --exclude-dir=bin V.SMART \| sort -u`). Negative results recorded: no procedure name is referenced only from commented-out code; no evidence of a run-time-composed (string-concatenated/interpolated) procedure name anywhere a `.cs`/`.razor` grep can see. **Remaining gap, live-database half, owned by M0-01-02:** the DDL itself has not been captured — this method cannot see FastReport `.frx` data-source bindings, procedure-to-procedure `EXEC` calls, or names composed inside a stored procedure's own body, so `unreferenced`/`missing` verdicts are scoped to what C#/Razor calls, not to what a live tenant might additionally require. Do not close this investigation until the live-database capture lands (M0-01-02) and is verified (a later M0-01-02 session, then this row moves to Completed). | [KB-102](architecture/stored-procedure-inventory.md) |
 
 ## Scheduled — run one module ahead of its migration
 
@@ -60,7 +61,6 @@ before it is used.
 | INV-024 | `@code` triage per module (presentation / data / business) | `Pages/**` | one module ahead of each migration wave |
 | INV-025 | Delete-guard audit — all ~40 `CanDelete…Async` for the R-08 copy-paste pattern | `BusinessLayer/**` | Phase 0 |
 | INV-026 | Live database index inventory vs the EF model | production tenant DB | Phase 2 (blocks R-13) |
-| INV-027 | Stored-procedure DDL capture (all 94) | live tenant DB | **Phase 0 — highest priority** |
 | INV-028 | Row-level scoping via `User.StateCodesCsv` | grep `StateCodes` across `Pages/` and services | Phase 2 (blocks Q-08) |
 
 ## Reserved ids — allocate from here

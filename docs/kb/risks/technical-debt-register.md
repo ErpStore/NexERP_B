@@ -14,8 +14,8 @@ source_files:
   - V.SMART/V.SMART.Shared/Repository/MasterRepository/Admins/UserRepository.cs
 status: complete
 confidence: mixed
-last_verified: 2026-08-12
-dependencies: [KB-011, KB-012, KB-013, KB-040]
+last_verified: 2026-08-13
+dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
 # Technical Debt and Risk Register
@@ -184,12 +184,25 @@ binding in particular cannot be ported unchanged — a server-side API cannot ca
 > grep -rhoE "Sp_[A-Za-z0-9_]+" --include=*.cs --include=*.razor --exclude-dir=obj --exclude-dir=bin V.SMART | sort -u
 > ```
 > which returns exactly 94. Do not "correct" 94 upward on the strength of the unscoped count.
+>
+> **Independently re-verified 2026-08-13 (M0-01-01, Confirmed).** All of the above was
+> re-derived from scratch in a separate session, not copied from this register: 94
+> referenced / 13 declared / 11 exact `scripted` / 1 `case_mismatch`
+> (`Sp_Print_MFGDC` declared vs. `Sp_Print_MfgDC` called) / 1 `unreferenced`
+> (`Sp_Print_PurchaseOrder`) / **82 `missing`**. Same figures, independently reproduced. The
+> full reconciliation, methodology and per-name evidence now live in
+> [KB-102](../architecture/stored-procedure-inventory.md), with a machine-readable worklist
+> at `db/stored-procedures/manifest.csv` and a re-runnable reference-index generator at
+> `db/tools/sp-inventory.sh`. `db/stored-procedures/` did not exist before this task.
 **Impact.** A tenant database cannot be rebuilt from the repository. Reports and the entire
 `ReportExecutor` path break in any fresh environment. No review, no versioning, no rollback
 for procedure changes.
 **Action.** Script all procedures from a live tenant database into
 `db/stored-procedures/`, one file each, and add a deployment step. **Do this before any
 other work** — it is cheap and it is currently a single-point-of-failure for the product.
+The worklist (`db/stored-procedures/manifest.csv`, 82 `missing` rows) and the capture
+tooling are M0-01-02's deliverables; **the DDL itself has not been captured yet** — this
+register entry stays Critical until it lands.
 
 ### R-05 — No automated tests, no CI
 **Confirmed.** No test project; `.github/` contains no workflows.
