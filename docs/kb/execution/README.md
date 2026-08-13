@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 dependencies: [KB-001, KB-002, KB-003, KB-005, KB-020, KB-030, KB-040, KB-041, KB-050, KB-051, KB-052, KB-053, KB-060, KB-070, KB-071, KB-081, KB-082, KB-083, KB-084]
 ---
 
@@ -291,6 +291,19 @@ None. M0 starts immediately.
 | **M0-06** | Remove the seeded default Administrator credential | Security | P1 | M0-12-01 | 1 d | [↗](tasks/M0-06.md) |
 | **M0-14** | Gate `DetailedErrors` on `IsDevelopment()` | Security | P2 | M0-03-01 | 0.5 d | [↗](tasks/M0-14.md) |
 | **M0-11** | Product decision — silent FIFO under-issue (Q-01) | Product Decision | P0 | M0-13 | decision | [↗](tasks/M0-11.md) |
+
+**Note on M0-08's scope, 2026-08-13.** M0-08's title ("`.gitignore` + remove committed build
+output") describes what R-14 originally claimed was needed. That claim was false — verified
+`git ls-files` (both before and, decisively, after M0-00 first tracked `frontend/`, `docs/`
+and `.github/`) contains zero paths matching build output, IDE state, or a dependency
+directory. Removing something never committed would mean a destructive history rewrite for no
+reason, colliding with M0-05. M0-08's actual delivered scope — unchanged in dependency shape,
+just corrected in substance — was: **verify** the property holds after M0-00's commits,
+**harden** the protection by duplicating the frontend-pilot's nested ignore rules at the
+repository root (so they survive M2-C11 archiving that directory), **add** a proven CI guard
+script (`tools/check-no-build-output.sh`) for M0-07 to wire in, and **correct** R-14 in
+[KB-060](../risks/technical-debt-register.md) rather than silently leaving a wrong,
+Confirmed-marked entry in the register. See R-14's entry there for the full evidence trail.
 
 ### Parallel Work
 

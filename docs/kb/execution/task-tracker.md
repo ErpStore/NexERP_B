@@ -37,8 +37,8 @@ its children are `Completed` — it is never worked directly.
 |---|---|---|---|---|---|---|---|---|
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Ready** | P0 | M0-00 | 0.5 d | G0 |
-| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Ready** | P1 | M0-00 | 0.5 d | G0 |
-| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
+| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed** | P1 | M0-00 | 0.5 d | G0 |
+| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked *(needs M0-15)* | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Ready** | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | Blocked | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | Blocked | P0 | M0-00 | 0.5 d | G0 |
@@ -219,7 +219,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 2 | G0 | ⬜ Not met |
+| M0 | 24 | 3 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -227,7 +227,18 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-15, M0-08.
+**Currently `Ready`:** M0-04, M0-15 *(blocked in this execution environment — no .NET SDK)*.
+
+**M0-08: `Completed` (2026-08-13).** R-14 corrected (build output was never committed; the
+real gap was root-level ignore protection and CI enforcement, both now closed) — see
+[KB-060 R-14](../risks/technical-debt-register.md) for the full evidence, including two
+proofs run this session: the new root `.gitignore` rules resolve `dist/`, `node_modules/`
+and `.angular/` standalone even with the nested `frontend/vsmart-erp/.gitignore` temporarily
+removed (simulating M2-C11), and `tools/check-no-build-output.sh` was proven to both pass on
+a clean tree and fail (naming the exact path) on a deliberately force-added build artifact.
+`dotnet build` regression guard not run — no .NET SDK in this environment; no source file
+was touched, so the guarded risk doesn't apply. M0-07 remains `Blocked` — it still needs
+M0-15, which needs a `.NET`-capable environment.
 
 **M0-01-02: `Blocked` — half A done (2026-08-13), half B needs a human DBA.**
 Delivered `db/tools/Export-StoredProcedures.ps1` (marked UNVERIFIED — no database reachable

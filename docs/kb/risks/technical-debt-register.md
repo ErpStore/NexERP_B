@@ -374,46 +374,6 @@ endpoints.
 timeouts (note the 60 s command timeout and 300 s report timeout already configured).
 **Action.** Capture an execution-plan baseline from a production-sized tenant before Phase 3.
 
-### R-14 — ~~Build output committed to the repository~~ → **RETRACTED / RESTATED**
-**Retracted 2026-08-12 (INV-029).** The original entry claimed — marked *Confirmed* — that
-`frontend/vsmart-erp/dist/`, `frontend/vsmart-erp/.angular/cache/`, `.vs/` and
-`*.csproj.user` were committed. **That is false.** It conflated *present on disk* with
-*tracked by git*.
-
-Verified against `git ls-files` (2,162 tracked paths):
-
-| Pattern | Tracked files |
-|---|---|
-| `dist/` · `.angular` · `node_modules/` · `.vs/` · `csproj.user` · `/bin/` · `/obj/` | **0 each** |
-
-They are correctly ignored — `frontend/vsmart-erp/.gitignore:4,10,32` and the root
-`.gitignore:9,37`. Per [KB-002](../source-of-truth-rules.md), the repository is
-authoritative over the register: **the register was wrong.** Acting on it as written would
-have meant an unnecessary destructive history rewrite, colliding with M0-05.
-
-**Restated risk (Confirmed).** The real issue is the inverse — large parts of the tree are
-**not tracked at all**:
-
-| Path | Tracked files in `HEAD` | Consequence |
-|---|---|---|
-| **`V.SMART/V.SMART.Api/`** — the entire Web API project | **0** | **The backend the React app is being built on is not in source control.** Untracked, not gitignored (`git check-ignore` exits non-zero) |
-| **`docs/`** — the entire knowledge base | **0** | All analysis, ADRs, risk register and the execution plan exist only on one disk |
-| `frontend/` (the whole Angular pilot) | **0** | |
-| `.github/` (incl. an empty `workflows/`) | **0** | CI cannot run until this is committed |
-| `NexGen-ERP---2025-master.sln` (the solution that builds) | **untracked** | a fresh clone gets a different, deleted-on-disk `.sln` |
-
-The only tracked `.sln` is `Bhargavi V.SMART ERP - 2025.sln`, which is *deleted* in the
-working tree. So a fresh clone does not reproduce the developer's environment, and CI cannot
-run until `.github/` is committed. This bears directly on gate **G0**'s "rebuild from source
-control alone" criterion.
-
-**Action.** Handled by **M0-00** (deliberate disposition for all 37 working-tree entries,
-including committing `.github/` and resolving the solution-file rename) and **M0-08**
-(verify the ignore rules, hoist them somewhere durable — the nested
-`frontend/vsmart-erp/.gitignore` disappears when M2-C11 archives the pilot — and add an
-automated check so the property is enforced rather than assumed). No history rewrite is
-needed for build output.
-
 ---
 
 ## Medium
@@ -516,6 +476,68 @@ middleware; no `ProblemDetails`.
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in
 `V.SMART.csproj`.
 **Action.** Move to build parameters.
+
+### R-14 — ~~Build output committed to the repository~~ → **retracted 2026-08-12, re-verified and closed 2026-08-13 (M0-08)**
+**Re-rated High → Medium, 2026-08-13.** The original entry claimed — marked *Confirmed* —
+that `frontend/vsmart-erp/dist/`, `frontend/vsmart-erp/.angular/cache/`, `.vs/` and
+`*.csproj.user` were committed. **That was always false**; it conflated *present on disk*
+with *tracked by git*, and INV-029 retracted it on 2026-08-12. Preserving the retraction
+narrative here rather than deleting it, per KB-060's own id-stability rule.
+
+**Re-verified 2026-08-13 (M0-08), after M0-00 committed `docs/`, `frontend/` and `.github/`
+for the first time** — the exact moment the original 2026-08-12 finding could not rule out,
+since `git add frontend/` on a tree containing `node_modules/`/`dist/` is precisely how this
+risk becomes real:
+
+```bash
+git ls-files | grep -E -i "(^|/)(bin|obj|dist|node_modules|\.angular|\.vs|out-tsc|bazel-out|packages)/|\.(user|suo|userosscache|rsuser)$|\.db-lock$|(^|/)TestResults/|\.vsidx$"
+```
+
+**No output** — confirmed against 2,335 tracked paths (up from 2,162 pre-M0-00). Ignore
+resolution confirmed for every path R-14 originally named:
+`frontend/vsmart-erp/dist` → `frontend/vsmart-erp/.gitignore:4`;
+`frontend/vsmart-erp/node_modules` → `frontend/vsmart-erp/.gitignore:10`;
+`frontend/vsmart-erp/.angular/cache` → `frontend/vsmart-erp/.gitignore:32`;
+`.vs/` → `.gitignore:37`; `*.csproj.user` → `.gitignore:9`. **No history rewrite was, or is,
+needed** — acting on the original instruction would have been an unnecessary destructive
+rewrite colliding with M0-05.
+
+**The residual risk that justified keeping this entry open (not deleting it):** the three
+frontend-specific rules (`dist`, `node_modules`, `.angular/cache`) were, until this task,
+ignored **only** by `frontend/vsmart-erp/.gitignore` — a file [M2-C11](../execution/README.md#m2c--react-foundation)
+deletes when it archives the Angular pilot, at which point the protection would silently
+disappear. Additionally, nothing *enforced* the property; it held by inspection, not by a
+check with an exit code.
+
+**Closed by M0-08, 2026-08-13:**
+1. Root-level `.gitignore` now carries `**/dist/`, `**/.angular/`, `**/out-tsc/`,
+   `**/coverage/`, `*.db-lock` (delimited "M0-08" block, end of file) — protection that
+   survives M2-C11 removing the nested file. **Proven, not assumed:** `frontend/vsmart-erp/.gitignore`
+   was temporarily moved aside and `git check-ignore -v` re-run against `frontend/vsmart-erp/dist/`,
+   `.../node_modules/` and `.../.angular/cache` — all three still resolved, now against the
+   **root** `.gitignore:371-373`, before the nested file was restored. (`node_modules/` and
+   `.vs/`/`*.user` already had root-level coverage — `.gitignore:286` and `:9,37`
+   respectively — and needed no duplicate.)
+2. `tools/check-no-build-output.sh` — dependency-free (`git` + shell), runs from the
+   repository root with no arguments, exits `1` and names every offending path if any build
+   output/IDE state/dependency directory is ever tracked, `0` otherwise. **Proven**, not just
+   written: a throwaway `frontend/vsmart-erp/dist/main.js` was force-added
+   (`git add -f`), the script was confirmed to exit `1` and name that exact path, then the
+   addition was fully reverted (`git reset` + `rm -rf` + re-run confirming `PASS`) — so the
+   guard is trustworthy before M0-07 wires it into CI.
+3. Verified no over-matching: `git check-ignore -v` reports no match for
+   `V.SMART/V.SMART.Shared/V.SMART.Shared.csproj` or `docs/kb/INDEX.md`, and the before/after
+   `git ls-files` diff across this task shows **zero** removals — no currently-tracked file
+   became invisible.
+
+**Remaining action, handed to M0-07 explicitly:** wire `bash tools/check-no-build-output.sh`
+into CI as a step that fails the build on non-zero exit. Until that lands, the property holds
+because nothing has violated it yet, not because anything would stop a future violation — that
+gap, not committed build output, is this entry's residual Medium-rated risk. A Windows-hosted
+`.ps1` sibling was deliberately **not** written here: no CI runner OS has been decided yet
+(M0-15 is blocked in this environment on a missing .NET SDK, so it has not produced that
+recommendation) — inventing one would violate [KB-083](../execution/prompt-template.md)'s
+generation rule against fabricating undetermined facts.
 
 ---
 
