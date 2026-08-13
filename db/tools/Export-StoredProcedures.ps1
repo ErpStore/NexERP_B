@@ -3,22 +3,36 @@
  db/tools/Export-StoredProcedures.ps1
 ================================================================================
 
- THIS SCRIPT IS UNVERIFIED.
+ STATUS: run against a real database, twice, with real bugs found and fixed.
 
- It has NOT been executed against any database, in this environment or any
- other. The AI session that wrote it has no database credentials and no
+ It was authored by an AI session with no database credentials and no
  network path to a SQL Server instance, by design (task M0-01-02 / R-01,
- R-02 -- see docs/kb/risks/technical-debt-register.md). Nothing here has
- been run.
-
- Before running this against a real tenant database:
+ R-02 -- see docs/kb/risks/technical-debt-register.md) -- so it could not
+ be tested by that session. It has since actually been executed by the repo
+ owner:
+   - 2026-08-13, first rehearsal: against NexGenErpDb (DESKTOP-FIIBE97\
+     SQLEXPRESS), which at the time had zero Sp_* procedures deployed. Found
+     three parameter-shape/certificate bugs against a modern (22.x) SqlServer
+     module -- fixed (see git history).
+   - 2026-08-13, real capture: against the same NexGenErpDb after the repo
+     owner manually deployed a procedure set originally scripted from
+     IQSMARTDEMO_DB_2025-26 into it. 75 of 82 `missing` procedures captured
+     cleanly; 3 initially failed ("unrecognized leading statement") because
+     their deployed definitions carry a leading `-- ====...` header comment
+     that the leading-statement regex did not tolerate -- fixed here, same
+     day. 4 were genuinely not found (real gap, not a tool defect).
+   - See db/stored-procedures/CAPTURE-STATUS.md for the full record and
+     provenance caveats (NexGenErpDb is the query source; IQSMARTDEMO_DB_2025-26
+     is the DDL's actual origin -- these are not the same tenant).
+ This has NOT been rehearsed against any OTHER tenant database, and no
+ session has verified this script's behaviour against a genuinely
+ unmodified, connection-only-once production tenant. Treat every new
+ target as unverified until you have:
    1. Read db/RUNBOOK-capture-stored-procedures.md in full.
-   2. Rehearse this script end-to-end against a NON-PRODUCTION copy of a
-      tenant database first, and inspect a handful of the output .sql files
-      by hand -- diff one against what you see in SSMS's "Script Procedure
-      as CREATE" for the same object.
-   3. Only then run it against the nominated production-tenant copy per the
-      runbook.
+   2. Run with -DryRun first and inspected the summary.
+   3. Spot-checked a handful of output files by hand -- diff one against
+      what you see in SSMS's "Script Procedure as CREATE" for the same
+      object.
 
  Cmdlet / module availability has NOT been verified in this environment
  either:
@@ -349,18 +363,32 @@ foreach ($row in $worklist) {
     }
 
     # --- Step 3: the ONE permitted transformation ------------------------
-    $createOrAlterPattern = '^\s*(CREATE\s+OR\s+ALTER|CREATE|ALTER)\s+PROCEDURE'
+    # Tolerate -- but do not strip -- a leading SQL comment block before the
+    # CREATE/ALTER PROCEDURE keyword. Some procedures in this tenant are
+    # deployed with a header comment (e.g. a "-- ====...." divider) directly
+    # above the CREATE statement, in the same batch, so OBJECT_DEFINITION()
+    # legitimately returns that comment as part of the module text.
+    # db/tools/verify-capture.sh's own spec ("first *non-comment* statement
+    # is CREATE OR ALTER PROCEDURE") already allows this; this regex
+    # previously did not, and silently refused every procedure shaped that
+    # way. Found during M0-01-02's real capture run, 2026-08-13
+    # (Sp_CreditDebitNoteSummaryReport, Sp_GetHSNSummaryReport,
+    # Sp_TDSReport -- see db/stored-procedures/CAPTURE-STATUS.md). The
+    # comment text itself is never altered or removed -- only the
+    # CREATE/ALTER keyword pair that follows it is ever rewritten, and only
+    # the first match in the definition is touched.
+    $commentOrSpace = '(?:\s|--[^\r\n]*(?:\r?\n|$)|/\*[\s\S]*?\*/)*'
+    $createOrAlterPattern = "^$commentOrSpace(CREATE\s+OR\s+ALTER|CREATE|ALTER)\s+PROCEDURE"
     if ($definition -notmatch "(?i)$createOrAlterPattern") {
-        Write-Warning "  Did not find a recognizable leading CREATE/ALTER PROCEDURE statement. Refusing to guess -- writing nothing. Inspect this one by hand."
+        Write-Warning "  Did not find a recognizable leading CREATE/ALTER PROCEDURE statement (even allowing a leading comment block). Refusing to guess -- writing nothing. Inspect this one by hand."
         $results.Add([pscustomobject]@{ ProcedureName = $procName; Status = 'FAILED - unrecognized leading statement' })
         continue
     }
-    $converted = [regex]::Replace(
-        $definition,
-        '^(\s*)(CREATE\s+OR\s+ALTER|CREATE|ALTER)(\s+PROCEDURE)',
-        '$1CREATE OR ALTER$3',
-        [System.Text.RegularExpressions.RegexOptions]'IgnoreCase, Multiline'
+    $leadingStatementRegex = New-Object System.Text.RegularExpressions.Regex(
+        "^($commentOrSpace)(CREATE\s+OR\s+ALTER|CREATE|ALTER)(\s+PROCEDURE)",
+        [System.Text.RegularExpressions.RegexOptions]'IgnoreCase'
     )
+    $converted = $leadingStatementRegex.Replace($definition, '$1CREATE OR ALTER$3', 1)
 
     # Line-ending normalization only (README convention #3 -- encoding, not
     # a body edit). CR/CRLF -> LF.
