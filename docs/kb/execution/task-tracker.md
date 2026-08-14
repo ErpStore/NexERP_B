@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-14
 dependencies: [KB-080, KB-082]
 ---
 
@@ -35,21 +35,21 @@ its children are `Completed` — it is never worked directly.
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Needs Review** | P0 | — | 0.5 d | G0 |
-| M0-15 | M0 | Toolchain and build baseline | DevOps | Blocked | P0 | M0-00 | 0.5 d | G0 |
-| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | Blocked | P1 | M0-00 | 0.5 d | G0 |
+| M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
+| M0-15 | M0 | Toolchain and build baseline | DevOps | **Ready** | P0 | M0-00 | 0.5 d | G0 |
+| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Ready** | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Ready** | P0 | — | 1 d | G0 |
-| M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | Blocked | P0 | M0-00 | 1 d | G0 |
-| M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | Blocked | P0 | M0-00 | 0.5 d | G0 |
+| M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
+| M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Ready** | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | Blocked | P0 | M0-03-01 | 0.5 d | G0 |
 | M0-03-03 | M0 | — fail-fast startup validation | Security | Blocked | P0 | M0-03-02 | 0.5 d | G0 |
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
-| M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **Ready** | P0 | — | 4–5 d | G0 |
-| M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Ready** | P0 | — | 1 d | G0 |
-| M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | Blocked | P0 | M0-01-01 | 2 d | G0 |
-| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | Blocked | P0 | M0-01-02 | 1 d | G0 |
-| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | Blocked | P1 | M0-01-02 | 1 d | G0 |
+| M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
+| M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
+| M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
+| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
+| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Ready** | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Blocked | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | Blocked | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
@@ -219,7 +219,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 0 | G0 | ⬜ Not met |
+| M0 | 24 | 3 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -227,20 +227,36 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-01, M0-01-01.
+**Currently `Ready`:** M0-04, M0-15, M0-08, M0-03, M0-03-01, M0-02.
 
-**M0-00: `Needs Review` — one item left, owner-actionable only.**
-`migration/M0-00-vcs-baseline` merged to `master` via PR #1 (`5fcb2b1`); the follow-up
-visibility-correction branch `fix/M0-00a-correct-repo-visibility-finding` merged to
-`master` directly (`661482a`, no protection was blocking it — see next line). Repository
-visibility resolved: reported public (flawed test) → corrected to private (INV-034) →
-**owner deliberately made it public**, verified rigorously, Q-19 answered. **Confirmed via
-the public unauthenticated GitHub API, 2026-08-12: `master` branch protection is `false`**
-(`GET /repos/ErpStore/NexERP_B/branches/master` → `"protected": false`) — this is the one
-acceptance criterion still open, and it can only be closed by the repo owner in the GitHub
-UI (`Settings → Branches → Add rule` for `master`: require PR, block force-push, block
-deletion, leave required status checks unchecked until M0-07). Move to `Completed`, and
-M0-15/M0-08 to `Ready`, once that's done and confirmed.
+**M0-00: `Completed` 2026-08-14.** `migration/M0-00-vcs-baseline` merged to `master` via
+PR #1 (`5fcb2b1`); the follow-up visibility-correction branch
+`fix/M0-00a-correct-repo-visibility-finding` merged to `master` directly (`661482a`).
+Repository visibility resolved: reported public (flawed test) → corrected to private
+(INV-034) → **owner deliberately made it public**, verified rigorously, Q-19 answered. The
+one item this document previously recorded as still open — `master` requiring a pull
+request — is now also satisfied: **re-checked via the public unauthenticated GitHub API,
+2026-08-14: `master` branch protection is `true`** (`GET
+/repos/ErpStore/NexERP_B/branches/master` → `"protected": true`, `"protection": {
+"enabled": true }`), corroborated the same day by a real push
+(`migration/M0-01-03-sp-deployment-and-rebuild-runbook` → `master`, merge commit
+`661f042`) receiving `remote: Bypassed rule violations for refs/heads/master: - Changes
+must be made through a pull request.` — i.e. a require-PR rule is configured and was
+bypassed by an account with override rights, not absent. **This directly contradicts this
+document's 2026-08-12 note that `"protected": false`** — the owner must have enabled
+protection sometime between the two checks; the exact date/time isn't independently known
+and isn't asserted here beyond "before 2026-08-14." All M0-00 acceptance criteria in
+[tasks/M0-00.md](tasks/M0-00.md) are now met. M0-15 and M0-08 move to `Ready`.
+
+¹ **M0-01-03: `Needs Review`, not `Blocked`, despite being incomplete.** All repository-side
+deliverables are done and already merged to `master` (same merge commit `661f042` above) —
+`db/deploy-stored-procedures.ps1`, `db/RUNBOOK-rebuild-tenant-database.md`, the 13 legacy
+procedures relocated into `db/stored-procedures/relocated-legacy/`, and the KB updated. What
+remains is a human-executed rebuild drill against a real, disposable SQL Server instance
+(`db/REBUILD-DRILL-LOG.md` is a skeleton, every field `TBD`) — an external prerequisite this
+task's own constraints forbid an AI session from performing. G0 exit criterion 1 is **not**
+met until that drill runs and succeeds. See
+[tasks/M0-01-03.md](tasks/M0-01-03.md#execution-record-2026-08-13) for the full record.
 
 M3/M4 counts are the 14-step pattern multiplied across waves and will firm up as each wave's
 task files are generated.
