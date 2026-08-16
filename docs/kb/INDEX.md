@@ -4,7 +4,7 @@ title: Knowledge Base Index and RAG Strategy
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 ---
 
 # Knowledge Base Index and RAG Strategy
@@ -44,6 +44,7 @@ last_verified: 2026-08-12
 | TASK-* | [Task specifications + execution prompts](execution/tasks/) | **proposal** | active | — | 2026-08-12 |
 | KB-085 | [M0-00 Version-Control Baseline Decision Log](execution/M0-00-baseline-decisions.md) | execution | active | — | 2026-08-12 |
 | KB-102 | [Stored-Procedure Reference/DDL Reconciliation](architecture/stored-procedure-inventory.md) | architecture | complete | confirmed | 2026-08-13 |
+| KB-103 | [Server-Side Authorization — Implementation Spec](architecture/server-side-authorization-spec.md) | architecture | complete | mixed | 2026-08-13 |
 | ADR-001 | [Preserve the existing backend](decisions/ADR-001-keep-existing-backend.md) | decision | accepted | — | 2026-08-12 |
 | ADR-002 | [REST API layer & conventions](decisions/ADR-002-rest-api-layer.md) | decision | accepted | — | 2026-08-12 |
 | ADR-003 | [React stack](decisions/ADR-003-react-stack.md) | decision | accepted | — | 2026-08-12 |
@@ -61,13 +62,13 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-080 – KB-089 | Execution plan meta-documents | KB-080 … KB-084 |
 | KB-085 | **Claimed 2026-08-12 by M0-00** — [M0-00-baseline-decisions.md](execution/M0-00-baseline-decisions.md) | allocated |
 | KB-086 – KB-087 | *(proposed by M0-07/M0-15/M0-01-01 before this table existed — reconcile or re-map into KB-100+ when those tasks run; KB-085 is no longer free — see row above)* | provisional |
-| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01), KB-110–113 (M2-B08…B11). **Next free: KB-103**, or KB-114+ |
+| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01), KB-103 (M2-A01-01), KB-110–113 (M2-B08…B11). **Next free: KB-104**, or KB-114+ |
 | ADR-nnn | Architecture decisions | through ADR-005 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-034 (030–033 reserved, next free INV-035 — see investigation-registry.md) |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
 | R-nn | Risks | through R-37 |
-| Q-nn | Open questions | through Q-19 |
+| Q-nn | Open questions | through Q-21 |
 
 A task that produces a durable document allocates the next free **KB-1xx** id, adds its row
 to the registry above, and records the id in the task's *Documentation Updates* section.
@@ -85,6 +86,7 @@ Use this table before searching the repository.
 | Entities, tables, DbContexts, migrations, seed data, `Ref*SubId` chains, stored procedures | KB-012 |
 | Which stored procedures exist and which are missing DDL | KB-102 |
 | Login, JWT, roles, screen rights, approval authority, QR login | KB-013 |
+| How server-side authorization is to be built — filter, attributes, truth table, 403 body | KB-103, ADR-004 |
 | Tenants, connection strings, host resolution | KB-014 |
 | Blazor pages, routes, MudBlazor components, `@code` density, the Angular pilot | KB-015 |
 | Which modules exist, what depends on what, migration order | KB-020 |

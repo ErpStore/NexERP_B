@@ -4,7 +4,7 @@ title: Open Questions and Unknowns
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 ---
 
 # Open Questions and Unknowns
@@ -41,6 +41,8 @@ recommendation says so.
 | **Q-16** | What are the actual reverse-proxy / deployment topology and TLS termination? | **Inferred** from `UseForwardedHeaders` with cleared `KnownNetworks`/`KnownProxies` and per-tenant subdomains. Not confirmed. | Phase 6, CORS and cookie configuration |
 | **Q-17** | Are `ScreenManagement` rows (distinct from `Screens`) used at runtime, and how do the two relate? | Both are seeded; `Screens` is clearly the permission catalogue. `ScreenManagement`'s role is **Unknown**. | Admin module (3.3) |
 | **Q-18** | What is the retention/backup policy for tenant databases and for the flat-file logs? | **Unknown.** Relevant to R-23 and to rollback planning. | Phase 6 |
+| **Q-20** | Do duplicate `(UserId, ScreenId)` rows — or duplicate `Screens.ScreenName` values — exist in any **live** tenant database? | **Unknown; nothing prevents them.** Confirmed 2026-08-13 (M2-A01-01, F-2): there is no `HasIndex`, `HasAlternateKey` or unique constraint on `UserRight` or `Screens` anywhere in `ApplicationDbContext.cs`, and `Screens.cs:14-15` is `[Required]` only. The 152 **seeded** names are unique even case-insensitively (F-1), so a correctly-seeded tenant is unambiguous — but that is a property of the seed, enforced by nothing. `RightsHelper.cs:8` resolves ties with `FirstOrDefault`, i.e. by query order, and [KB-103](architecture/server-side-authorization-spec.md) D-2 deliberately mirrors that. If duplicates do occur, mirroring becomes actively dangerous rather than merely faithful. | [KB-103](architecture/server-side-authorization-spec.md) D-2, M2-A01-02; needs DB access — pairs naturally with M0-02's cross-tenant sweep |
+| **Q-21** | Does the API login path (`AuthController`) call `SyncRightsForUserAsync`, as the Blazor login does? | **Unknown — the file is not in this checkout.** Confirmed 2026-08-13 (M2-A01-01, D-5): `Login.razor:345-348` calls `userRightService.SyncRightsForUserAsync` when `user.UserId == 1`, and `UserRightService.cs:62-77` inserts a full-rights `UserRight` row for every screen the user lacks one for. That is how administrators pass deny-by-default **without** a bypass. If the API login path does not do the same, an administrator who authenticates **only** through the API never receives rows for screens seeded after their last Blazor login, and starts getting 403s on new screens. `V.SMART/V.SMART.Api/` is absent from the working tree and the index (M0-00 G2 deferred it to M0-03-01), so this cannot be checked yet. | [KB-103](architecture/server-side-authorization-spec.md) D-5, M2-A01-02, M2-A07; needs M0-03-01 |
 
 ## Questions the analysis answered — recorded so they are not re-asked
 

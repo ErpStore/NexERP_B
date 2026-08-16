@@ -81,8 +81,8 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | Blocked | P0 | G0 | 1–2 wks | G2 |
-| M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | Blocked | P0 | G0 | 2 d | G2 |
-| M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | Blocked | P0 | M2-A01-01 | 3 d | G2 |
+| M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed** *(ahead of G0 — see note)* | P0 | G0 | 2 d | G2 |
+| M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | Blocked *(spec ready; still needs G0)* | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | Blocked | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | Blocked | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
@@ -221,7 +221,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 3 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | 0 | G2 | ⬜ Not met |
+| M2 | 52 | 1 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -231,6 +231,19 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 else in M0 is genuinely startable right now — every remaining task needs a `.NET` SDK, live
 database/DBA access, or a human with production/organisational credentials this session does
 not have. See the M0-04 and M0-01-02 notes below for what's been prepared and handed off.
+
+**M2-A01-01: `Completed` (2026-08-13) — executed AHEAD OF GATE G0, deliberately.**
+M2's stated prerequisite is "M2 does not start before G0", and G0 is not passed. This one
+task was run anyway as an explicit, user-approved decision: it is the only M2 task that
+writes **no code**, needs no .NET/database/credentials, and draws entirely on inputs that are
+already `Complete` (ADR-004, KB-013/INV-004). Delivered
+[KB-103](../architecture/server-side-authorization-spec.md) — all 8 open ADR-004 decisions
+answered, an 8-row truth table citing `RightsHelper.cs` line by line, and a mechanically
+extracted 152-screen appendix. INV-036 registered; **Q-20** and **Q-21** raised. **G0 was not
+marked passed and no code was written** — M2-A01-02 still waits for G0. Two notable findings:
+the screen-name comparison is ordinal in-memory .NET equality (not an EF/collation question,
+as the task brief assumed), and the cache key **must** include `TenantId` or it becomes a
+cross-tenant authorization defect, since `UserId` is only unique per tenant.
 
 **M0-04: `Blocked` — runbook delivered (2026-08-13), rotation needs a human.**
 [`docs/runbooks/credential-rotation.md`](../runbooks/credential-rotation.md): full procedure,
