@@ -36,7 +36,7 @@ its children are `Completed` — it is never worked directly.
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
-| M0-15 | M0 | Toolchain and build baseline | DevOps | **Ready** | P0 | M0-00 | 0.5 d | G0 |
+| M0-15 | M0 | Toolchain and build baseline | DevOps | **Blocked** *(half A done; needs a .NET SDK)* | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed** | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked *(needs M0-15)* | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked** *(runbook done; needs a human with production access)* | P0 | — | 1 d | G0 |
@@ -227,10 +227,22 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-15 *(blocked in this execution environment — no .NET SDK)*. Nothing
-else in M0 is genuinely startable right now — every remaining task needs a `.NET` SDK, live
-database/DBA access, or a human with production/organisational credentials this session does
-not have. See the M0-04 and M0-01-02 notes below for what's been prepared and handed off.
+**Currently `Ready`: none.** Every remaining M0 task needs a `.NET` SDK, live database/DBA
+access, or a human with production/organisational credentials. Three tasks now sit in a
+**half-A-done, awaiting-external-input** state — M0-15, M0-01-02 and M0-04 — each with its
+tooling, runbook and document skeleton already written so the outstanding half is as small as
+possible. See their notes below.
+
+**M0-15: `Blocked` — half A done (2026-08-13), half B needs a .NET SDK.**
+Delivered [KB-104](M0-15-build-baseline.md) (§1, §2, §6 complete; §3–§5 pending) and
+`tools/measure-build-baseline.ps1` (**UNVERIFIED** — no SDK here to run it), which collects
+every required measurement in one command and writes a paste-able `SUMMARY.md` outside the
+repository. **Finding that reassigns work:** the solution declares four projects but source
+control holds three — `NexGen-ERP---2025-master.sln:12` references `V.SMART.Api.csproj`, which
+is untracked and *not* gitignored. **A fresh clone cannot build the solution at all**, which is
+a G0 blocker ("rebuild from source control alone") owned by **M0-03-01**, not M0-15. KB-083's
+stale solution-file warning was rewritten accordingly. **To finish:** run the script on a
+machine with the SDK, paste back `SUMMARY.md`.
 
 **M2-A01-01: `Completed` (2026-08-13) — executed AHEAD OF GATE G0, deliberately.**
 M2's stated prerequisite is "M2 does not start before G0", and G0 is not passed. This one

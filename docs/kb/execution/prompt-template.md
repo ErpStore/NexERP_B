@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-13
 dependencies: [KB-080, KB-002, KB-003, KB-005]
 ---
 
@@ -259,18 +259,42 @@ Only these have been confirmed to work in this repository as of 2026-08-12
 
 | Purpose | Command | Verified result |
 |---|---|---|
-| Build the API and its dependencies | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | 0 errors, 6,695 warnings, ~3 min |
-| Build the Blazor host | `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` | not yet measured |
-| Build the whole solution | `dotnet build NexGen-ERP---2025-master.sln` | **not verified** — includes the MAUI head, which needs workloads. Also see the solution-file warning below |
-| Working-tree state | `git status --porcelain` | 37 entries as of 2026-08-12 |
+| Build the API and its dependencies | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | 0 errors, 6,695 warnings, ~3 min *(INV-029, 2026-08-12, on the original developer machine)*. **Does not run on a fresh clone** — that project is not in source control; see the warning below |
+| Build the Blazor host | `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` | still not measured — M0-15 half B measures it |
+| Build the whole solution | `dotnet build NexGen-ERP---2025-master.sln` | **fails on a fresh clone (Confirmed 2026-08-13)** — the solution references a `.csproj` that is not in source control. See the warning below |
+| Working-tree state | `git status --porcelain` | 0 entries (clean) since M0-00 completed; was 37 before it |
 | Search committed history | `git grep -l "<pattern>" HEAD` | works |
+| Assert no build output is tracked | `bash tools/check-no-build-output.sh` | exits 0; added and proven by M0-08 |
 
-**Solution-file warning (Confirmed, INV-029).** The solution on disk,
-`NexGen-ERP---2025-master.sln`, is **untracked**. The only `.sln` in `HEAD` is
-`Bhargavi V.SMART ERP - 2025.sln`, which is **deleted** in the working tree. So the file
-every build command names is not in source control, and a fresh clone gets a different one
-whose validity is **Unknown**. Until **M0-00** resolves this, prefer per-project build
-commands (`dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`) over solution-level ones.
+**Solution-file warning — rewritten 2026-08-13 (M0-15 half A). The original problem is fixed;
+a different, larger one replaced it.**
+
+The 2026-08-12 version of this warning said the solution on disk was untracked and `HEAD`
+held a different, deleted `.sln`. **M0-00 resolved that** — `NexGen-ERP---2025-master.sln` is
+now the single tracked solution. But its conclusion ("prefer per-project builds") still
+stands, for a stronger reason:
+
+> The solution declares **four** projects (`NexGen-ERP---2025-master.sln:6,8,10,12`) and
+> source control contains **three**. `V.SMART\V.SMART.Api\V.SMART.Api.csproj` is referenced at
+> `:12` but is absent from both the working tree and the git index, and is **not** gitignored
+> — M0-00 group G2 deferred committing it to **M0-03-01** because its `appsettings.json`
+> carries a JWT secret. `git ls-files '*.csproj'` returns exactly three paths.
+> **Confirmed 2026-08-13.**
+
+Consequences for anyone writing a prompt:
+
+- **On a fresh clone**, the solution build fails before compilation — MSBuild cannot load a
+  solution referencing a missing project. Installing MAUI workloads does not fix it.
+- **On the original developer machine**, where the untracked directory still exists, the
+  solution loads and the *separate* MAUI-workload question applies instead.
+- The API build command above therefore works there and **not** on a clone. Do not put it in a
+  prompt that a fresh session is expected to run.
+- **Prefer `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj`** as the one build command
+  that works from source control alone today.
+
+This is also a **G0 blocker**: G0 requires rebuilding from source control alone, and the
+solution does not currently load. Owned by M0-03-01, not by M0-15. Full analysis in
+[KB-104](M0-15-build-baseline.md) §1.
 
 **Toolchain note (Confirmed, INV-029).** Projects target `net9.0`; only the .NET **10**
 SDK is installed (10.0.300, 10.0.302). The build succeeds through SDK roll-forward. Any

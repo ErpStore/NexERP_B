@@ -45,6 +45,7 @@ last_verified: 2026-08-13
 | KB-085 | [M0-00 Version-Control Baseline Decision Log](execution/M0-00-baseline-decisions.md) | execution | active | — | 2026-08-12 |
 | KB-102 | [Stored-Procedure Reference/DDL Reconciliation](architecture/stored-procedure-inventory.md) | architecture | complete | confirmed | 2026-08-13 |
 | KB-103 | [Server-Side Authorization — Implementation Spec](architecture/server-side-authorization-spec.md) | architecture | complete | mixed | 2026-08-13 |
+| KB-104 | [Build and Toolchain Baseline](execution/M0-15-build-baseline.md) | execution | **partial** — half B pending a .NET run | mixed | 2026-08-13 |
 | ADR-001 | [Preserve the existing backend](decisions/ADR-001-keep-existing-backend.md) | decision | accepted | — | 2026-08-12 |
 | ADR-002 | [REST API layer & conventions](decisions/ADR-002-rest-api-layer.md) | decision | accepted | — | 2026-08-12 |
 | ADR-003 | [React stack](decisions/ADR-003-react-stack.md) | decision | accepted | — | 2026-08-12 |
@@ -62,7 +63,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-080 – KB-089 | Execution plan meta-documents | KB-080 … KB-084 |
 | KB-085 | **Claimed 2026-08-12 by M0-00** — [M0-00-baseline-decisions.md](execution/M0-00-baseline-decisions.md) | allocated |
 | KB-086 – KB-087 | *(proposed by M0-07/M0-15/M0-01-01 before this table existed — reconcile or re-map into KB-100+ when those tasks run; KB-085 is no longer free — see row above)* | provisional |
-| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01), KB-103 (M2-A01-01), KB-110–113 (M2-B08…B11). **Next free: KB-104**, or KB-114+ |
+| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01), KB-103 (M2-A01-01), KB-104 (M0-15), KB-110–113 (M2-B08…B11). **Next free: KB-105**, or KB-114+ |
 | ADR-nnn | Architecture decisions | through ADR-005 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-034 (030–033 reserved, next free INV-035 — see investigation-registry.md) |
@@ -105,6 +106,7 @@ Use this table before searching the repository.
 | What should I work on next; is task X ready? | KB-081 |
 | What blocks what; what can run in parallel; critical path | KB-082 |
 | How do I write/regenerate a task execution prompt | KB-083 |
+| What builds, with which SDK, how long, how many warnings; what CI should run | KB-104 |
 | How do I close a task or a milestone gate | KB-084 |
 | The prompt for a specific task | `execution/tasks/<TASK-ID>.md` |
 | Why a decision was made | `decisions/` |
