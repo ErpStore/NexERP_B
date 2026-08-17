@@ -1,0 +1,188 @@
+# .github/workflows/ci.yml
+#
+# The repository's first CI pipeline. Task M0-07; documented in full at
+# docs/kb/execution/ci-pipeline.md (KB-087). Read that before changing anything here.
+#
+# Stages, in this order and deliberately as separate steps:
+#     hygiene guard -> restore -> build -> analyzer warning gate
+#
+# It compiles. It ships nothing: there is no publish, deploy or release step
+# (deployment topology is open question Q-16), and it needs no secret -- if the
+# build ever starts needing a connection string, that is a finding for M0-03, not
+# something to paste into Actions secrets. This repository is public.
+#
+# WHAT IS DELIBERATELY NOT HERE
+#   * `dotnet test` -- there is NO test project in the solution (INV-023,
+#     Confirmed). M0-12-01 creates the first one and adds the step at the marked
+#     placeholder below. A test step added before then is either red or vacuously
+#     green, and both teach the team to ignore CI.
+#   * `-warnaserror` / `TreatWarningsAsErrors` -- the baseline is ~6,693 warnings
+#     (ci/warning-baseline.json). Warnings-as-errors would make CI permanently red.
+#     The gate is a ratchet against a committed baseline instead.
+#   * A frontend job -- no React code exists yet (that is M2-C01); the Angular
+#     pilot under frontend/vsmart-erp/ is archived by M2-C11.
+#
+# PROJECTS BUILT, AND THE ONE EXCLUDED
+#   Built:    V.SMART/V.SMART.Api  and  V.SMART/V.SMART.Web
+#             (each transitively builds V.SMART/V.SMART.Shared)
+#   EXCLUDED: V.SMART/V.SMART (the .NET MAUI head) -- and therefore the whole
+#             solution build, `dotnet build NexGen-ERP---2025-master.sln`.
+#             Why: KB-086 (docs/kb/execution/M0-15-build-baseline.md) sections 4 and 7.
+#             The solution build succeeds on a developer workstation only when the
+#             MAUI workloads are installed AND obj/ is fully clean; a dirty obj/
+#             produced file-lock failures, and whether a workload-free hosted
+#             runner can build it at all is recorded as **Unknown** -- untested.
+#             Cost of the exclusion, stated plainly: a regression in the MAUI head
+#             is NOT caught by CI until someone builds the solution locally.
+#             Revisit when Q-11 (the MAUI app's future -- docs/kb/open-questions.md)
+#             is answered. If the answer is "keep it", a follow-up task adds a
+#             separate job with `dotnet workload install` on a Windows runner.
+#
+# RUNNER: windows-latest. See KB-087 "Runner choice" for the decision and its cost.
+
+name: CI
+
+on:
+  push:
+    # All branches. migration/* branches must be checked before review, not at it.
+    branches: ['**']
+  pull_request:
+    branches: [master]
+
+# Superseded pushes to the same ref are cancelled rather than queued behind each
+# other -- a full cold build here is measured in minutes, not seconds.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Restore, build and gate analyzer warnings
+    runs-on: windows-latest
+    # Local cold builds: Api ~1m23s-2m27s, Web ~1m19s-1m20s (KB-086 section 3), plus a
+    # cold NuGet restore on a runner with no warm cache. 45 = roughly double a
+    # generous estimate of the whole job; it is a runaway-guard, not a target.
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # History is not needed: nothing here inspects past commits.
+          fetch-depth: 1
+
+      # M0-08's repository-hygiene guard. Fails the job (exit 1, listing every
+      # offending path) if build output, IDE state or a dependency directory is
+      # ever TRACKED by git. This is what keeps R-14 closed rather than
+      # closed-once. M0-08 owns the script; this workflow only calls it.
+      # Runs first: it is instant, and there is no point building a tree that has
+      # bin/ committed into it.
+      - name: Hygiene guard - no build output tracked
+        shell: bash
+        run: bash tools/check-no-build-output.sh
+
+      # global.json (owned by M0-15) pins the SDK to 10.0.400 with
+      # rollForward: latestFeature. setup-dotnet honours it, so the runner and a
+      # developer workstation resolve the same SDK. Projects target net9.0 and
+      # build through roll-forward; do NOT assume `dotnet --version` reports 9.x.
+      - name: Set up .NET SDK (pinned by global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Report toolchain
+        run: |
+          dotnet --version
+          dotnet --list-sdks
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # ---------------------------------------------------------------- restore
+      # Its own step on purpose: a NuGet-feed failure is then diagnosable at a
+      # glance instead of being buried in build output. Every build below uses
+      # --no-restore, so restore happens exactly once, here.
+      - name: Restore
+        run: |
+          dotnet restore V.SMART/V.SMART.Api/V.SMART.Api.csproj
+          dotnet restore V.SMART/V.SMART.Web/V.SMART.Web.csproj
+
+      # ------------------------------------------------------------------ build
+      # --no-incremental is REQUIRED, not stylistic: an incremental build reports
+      # FEWER warnings than a cold one, so a gate reading an incremental log
+      # silently under-reports and passes builds it should fail.
+      # -v normal is REQUIRED: the counting rule reads MSBuild's own warning
+      # summary block, which lower verbosities do not print.
+      # -bl produces a binary log, uploaded below -- for the first CI failure
+      # nobody can reproduce locally.
+      - name: Build V.SMART.Api
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj `
+            --no-restore --no-incremental -v normal -nologo `
+            -bl:artifacts/api.binlog | Tee-Object -FilePath artifacts/api-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build V.SMART.Web
+        run: |
+          dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj `
+            --no-restore --no-incremental -v normal -nologo `
+            -bl:artifacts/web.binlog | Tee-Object -FilePath artifacts/web-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # --------------------------------------------------- analyzer warning gate
+      # Ratchet against ci/warning-baseline.json:
+      #   total above baseline           -> FAIL
+      #   a code absent from baseline    -> FAIL
+      #   total below baseline           -> PASS + an explicit instruction to
+      #                                     lower the committed baseline
+      # Never -warnaserror. The counting rule is documented in the script header
+      # and in ci/warning-baseline.json. Each project is gated against its OWN
+      # baseline (Web's is higher than Api's -- KB-086 section 8).
+      - name: Analyzer warning gate - V.SMART.Api
+        run: >
+          pwsh tools/compare-warnings.ps1
+          -LogPath artifacts/api-build.log
+          -BaselinePath ci/warning-baseline.json
+          -Target V.SMART.Api
+
+      - name: Analyzer warning gate - V.SMART.Web
+        run: >
+          pwsh tools/compare-warnings.ps1
+          -LogPath artifacts/web-build.log
+          -BaselinePath ci/warning-baseline.json
+          -Target V.SMART.Web
+
+      # ============================================================= M0-12-01 ===
+      # PLACEHOLDER - the `dotnet test` step goes HERE, and nowhere else.
+      #
+      # Owner: task M0-12-01 ("Create the test project and wire it into CI").
+      # Until that task lands there is no test project in the solution
+      # (INV-023, Confirmed) and `dotnet test` finds nothing -- so it must NOT be
+      # added here early. When M0-12-01 lands, insert below:
+      #
+      #   - name: Test
+      #     run: dotnet test <test project or solution> --no-build ...
+      #
+      # and update docs/kb/execution/prompt-template.md (KB-083) section
+      # "Test commands - do not use yet" in the same commit.
+      # =========================================================================
+
+      - name: Upload build logs and binary logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.run_id }}
+          path: |
+            artifacts/*.log
+            artifacts/*.binlog
+          retention-days: 14
+          if-no-files-found: warn
