@@ -531,6 +531,51 @@ including committing `.github/` and resolving the solution-file rename) and **M0
 automated check so the property is enforced rather than assumed). No history rewrite is
 needed for build output.
 
+**M0-08 closure (2026-08-17) — build-output half of R-14: severity re-rated High → Low
+(preventive, enforced).** Re-audited after M0-00 and the intervening M0-01/M0-03/M0-15 work,
+which is the event that could have made the original claim true (`git add frontend/` on a
+tree containing `node_modules/`, `dist/` and `.angular/`):
+
+| Check | Observed 2026-08-17 |
+|---|---|
+| `git ls-files` | **2,451** tracked paths (was 2,162 at the 2026-08-12 audit) |
+| `git ls-files \| grep -E -i "(^\|/)(bin\|obj\|dist\|node_modules\|\.angular\|\.vs\|out-tsc\|bazel-out\|packages)/\|\.(user\|suo\|userosscache\|rsuser)$\|\.db-lock$\|(^\|/)TestResults/\|\.vsidx$"` | **no output** (exit 1). Still zero — committing `frontend/` did not drag build output in |
+| All 2,451 tracked paths piped through `git check-ignore -v --stdin` | **no output** — no new rule shadows an already-tracked file |
+
+The durable-protection gap is now closed. With `frontend/vsmart-erp/.gitignore` temporarily
+moved aside — the state M2-C11 creates permanently — every previously nested-only path still
+resolves against the **root** `.gitignore`: `frontend/vsmart-erp/dist` → `.gitignore:381`
+(`**/dist/`), `frontend/vsmart-erp/.angular/cache` → `.gitignore:382` (`**/.angular/`),
+`frontend/vsmart-erp/node_modules` → `.gitignore:286` (`node_modules/`), `.vs` →
+`.gitignore:37`, `*.csproj.user` → `.gitignore:9`, `bin`/`obj` → `.gitignore:30,31`.
+The nested file was restored byte-identical and is **not** modified by M0-08.
+
+**Enforcement (the residual action, now discharged).** `tools/check-no-build-output.sh` runs
+the identical audit pattern, needs only `git` and a POSIX shell, takes no arguments, resolves
+the repository root itself, and exits `1` listing every offending path. Proven in both
+directions this session: exit `0` on the current tree, and exit `1` naming the path after a
+throwaway `V.SMART/dist/m008-guard-proof.txt` was force-added (then fully reverted; exit `0`
+again). **The exact CI step M0-07 must add:**
+
+```yaml
+- name: No build output tracked
+  run: bash tools/check-no-build-output.sh
+```
+
+A `.ps1` sibling was **not** created: it is conditional on a Windows-hosted CI runner, and
+[KB-086](../execution/M0-15-build-baseline.md) does not settle the runner OS. If M0-07 picks
+`windows-latest`, note that `bash` is available on GitHub's Windows images, so the `.sh` guard
+still runs; a `.ps1` is only needed for a runner without any shell. Recorded as a decision for
+M0-07, not invented here.
+
+No React ignore rules were added — no React app exists yet, so its output paths are unknown.
+**M2-C01 must add its own build-output rules to the root `.gitignore`** when it scaffolds the
+React app; `**/dist/` already covers the common case.
+
+The **restated** half of R-14 (large parts of the tree untracked) is *not* closed by M0-08 and
+keeps its High rating for the parts still outstanding; `V.SMART/V.SMART.Api/` and `docs/` are
+now tracked (commits `2c224b6`, M0-00), the `.sln` disposition remains M0-00's record.
+
 ---
 
 ## Medium

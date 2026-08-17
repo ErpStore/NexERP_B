@@ -331,6 +331,17 @@ None. M0 starts immediately.
 **Must remain sequential:**
 - `M0-00 → M0-08 → M0-07`. All three rewrite repository-wide state (`.gitignore`, tracked
   file set, CI config); running them concurrently guarantees conflicts.
+  **M0-08's scope changed (2026-08-17): removal → verification + prevention + enforcement.**
+  Its title still says "remove committed build output", but R-14's "committed" claim was
+  false (KB-060 R-14, INV-029 amendment): `git ls-files` has never contained a build-output,
+  IDE-state or dependency path, so there was nothing to remove and no history rewrite to do —
+  which matters, because acting on R-14 as written would have collided with M0-05, the only
+  task authorised to rewrite history. The real work, and what M0-08 delivered, is (a)
+  re-auditing *after* M0-00 first tracked `frontend/`, since `git add frontend/` on a tree
+  containing `node_modules/` is exactly how the risk becomes real, (b) hoisting the ignore
+  rules from `frontend/vsmart-erp/.gitignore` (which M2-C11 deletes) into the **root**
+  `.gitignore`, and (c) `tools/check-no-build-output.sh`, the guard **M0-07 must wire in** as
+  a CI step (`bash tools/check-no-build-output.sh`).
 - `M0-03-01 → M0-03-02 → M0-03-03`. Same configuration surface, three passes.
 - `M0-03` + `M0-04` → `M0-05`. Purging history before rotation leaves live credentials
   exposed in forks and clones; purging before externalisation loses the working config.

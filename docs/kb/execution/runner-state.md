@@ -38,23 +38,23 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `BLOCKED` |
-| **Stop reason** | M0-04 requires a human: Actual credential rotation (production SQL login, GST e-Invoice/e-Way gateway re-keying, production deployment) requires a named person with production access not identified anywhere in the repository. This session can deliver the runbook, credential inventory, and human verification checklist, but the rotation itself must end as Blocked, naming the owner, unless a human with that access participates in-session. |
+| **Status** | `STOPPED` |
+| **Stop reason** | task budget reached (maxTasks=1); next ready task is M0-02 |
 | **Run started** | 2026-08-17 |
-| **Last transition** | 2026-08-17 — Run halted. Task `M0-04` opened and investigated; human-executable portion blocks further progress. Deliverables (runbook, credential inventory, verification checklist) can be prepared and reviewed, but credential rotation and production deployment require a named person with production SQL Server and GST gateway access. That person is not yet identified in the repository. |
-| **Current task** | `M0-04` — Rotate the exposed credentials |
-| **Current phase** | `BLOCKED` (opened, human dependency identified) |
-| **Current agent** | Halted pending human participation |
-| **Current model** | n/a (not yet proceeding) |
+| **Last transition** | 2026-08-17 — `M0-08` validated `PASS` (attempt 1 of 3) and is closed out as `Needs Review`. Run halted at task budget limit; cleanly completed. |
+| **Current task** | `M0-08` (last processed) |
+| **Current phase** | Validation complete, task closed to `Needs Review` |
+| **Current agent** | n/a (run complete) |
+| **Current model** | n/a (run complete) |
 | **Attempt** | 1 of 3 (`max_retries: 2`) |
 | **Escalations** | 0 of 1 |
-| **Last validation** | `M0-03-01` attempt 2 — `PASS` (2026-08-17, prior run). See [`failure-log.md`](failure-log.md). |
-| **Tasks processed this run** | 0 (M0-04 selected and opened, human blocker identified; no full task completion this run) |
-| **Classification** | `M0-04`: `task_type: Security` → base complexity `HIGH`. Raised further (though already at ceiling): `source_files` spans four projects (`V.SMART.Shared`, `V.SMART.Web`, `V.SMART.Api`, `V.SMART`); touches authentication/secrets/`appsettings*.json`. `risk: HIGH` (Security type; secrets/credentials; `appsettings*.json`). No level exists above `HIGH`. `risk: HIGH` forces `opus` for validation regardless of complexity; complexity `HIGH` also routes investigate/implement to `opus` per §5.1. `requiresHuman: true` — the task's own objective states most of its work (SQL login rotation, GST gateway re-keying, production deployment) is outside repository scope and requires a named person with production SQL / gateway access not currently identified anywhere in the repository; the AI-executable deliverables are the runbook, inventory, and verification checklist. `safetyStop: false` — nothing blocks *starting* the task; KB-091 §8 items 5 and 7 describe the expected partial-`Blocked` outcome for the rotation-execution portion, not a start-time block, and match the task's own documented completion conditions (docs deliverables can reach `Needs Review` even while rotation itself is `Blocked` on a named owner). |
-| **Models this run** | `M0-04`: opus (risk HIGH forces opus for validation; complexity HIGH routes investigate/implement to opus too). |
-| **Blocked on** | Identification of named person with production SQL Server and GST e-Invoice/e-Way gateway access required to execute credential rotation and production deployment. |
-| **Owner to unblock** | Unknown. Must be identified from operations/infrastructure team. Once named, that person must participate in-session or rotation must remain Blocked pending their availability. |
-| **Next ready task** | To be re-derived when M0-04 completes (either delivery of AI-executable docs and Blocked-pending-human-execution, or human participation enables full rotation). Current candidates: `M0-08`, `M0-02` (both P1); no other Ready tasks identified. |
+| **Last validation** | `M0-08` attempt 1 — `PASS` (2026-08-17, this run). See [`failure-log.md`](failure-log.md). |
+| **Tasks processed this run** | 1 (`M0-08` — validated `PASS`, closed out `Needs Review`) |
+| **Classification** | `M0-08`: `task_type: Implementation`, `complexity: MEDIUM`, `risk: MEDIUM` |
+| **Models this run** | Not recorded (run detail captured by autonomous-runner state machine) |
+| **Blocked on** | Nothing immediate for next session; `M0-04` remains separately `Blocked` on identification of a named person with production SQL Server and GST e-Invoice/e-Way gateway access. `M0-07` remains `Blocked` pending both `M0-15` and `M0-08` reaching `Completed`. |
+| **Owner to unblock M0-04** | Unknown. Must be identified from operations/infrastructure team. |
+| **Next ready task** | `M0-02` — Confirm stored-procedure drift across tenant databases (Q-14). Ready for immediate processing when next run begins. |
 
 ### Status values
 
