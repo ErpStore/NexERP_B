@@ -9,11 +9,36 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-12
-dependencies: [KB-080, KB-081, KB-083]
+last_verified: 2026-08-16
+dependencies: [KB-080, KB-081, KB-083, KB-088, KB-089]
 ---
 
 # Review, Handoff and Done Templates
+
+## Session close-out — do this before reporting
+
+The repository, not the conversation, is what survives this session. Run this checklist
+before writing the final report; each item is a place where knowledge is otherwise lost.
+
+- [ ] **`tasks/<TASK-ID>.md`** — `## Execution Record (<date>)` appended: what was actually
+      done, what the commands actually printed, what differed from the plan and why.
+      Frontmatter `status` and `last_verified` updated.
+- [ ] **[`task-tracker.md`](task-tracker.md)** (KB-081) — status row updated. If the honest
+      status is `Needs Review` or `Blocked`, say which and why, with the owner named.
+- [ ] **[`current-task.md`](current-task.md)** (KB-089) — **rewritten** for the next task, not
+      appended to. Next task chosen by
+      [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+      Anything this task discovered that the next one needs is carried across.
+- [ ] **Discoveries recorded where they belong**, per
+      [KB-088 §4](workflow.md#4-which-documents-to-update) — investigation registry (including
+      negative results), business rules (with `file:line`), risks, open questions, ADRs.
+- [ ] **Nothing important exists only in this conversation.** Read back the session: any
+      finding, decision, assumption or gotcha that a future session would need and cannot find
+      in the repository is a gap to close now.
+- [ ] **No document updated that did not actually change.** Documentation noise costs every
+      future session real context.
+
+Then write the Task Handoff below, and **stop** — do not start the next task.
 
 ## Task Handoff
 
@@ -178,6 +203,12 @@ A task is Done when **all** of the following hold:
 6. Diff reviewed against the reviewer checklist.
 7. Committed on its own branch, single-scope, independently revertible.
 8. Tracker (KB-081) updated.
+9. `current-task.md` (KB-089) handed over to the next task, and the session close-out
+   checklist above is clear.
+
+Reaching all nine leaves the task at `REVIEW`. `COMPLETED` additionally requires whatever
+human step the task's *Completion Conditions* names — normally the merge
+([KB-088 §3](workflow.md#who-may-set-completed)).
 
 ### Milestone
 

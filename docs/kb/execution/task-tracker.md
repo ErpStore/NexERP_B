@@ -9,21 +9,46 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-14
-dependencies: [KB-080, KB-082]
+last_verified: 2026-08-16
+dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
 # Master Progress Tracker
 
-The single place task status is recorded. Update it as the **last step** of every task,
-after the diff is reviewed and committed.
+The single place task status is recorded, for **every** task. Update it as the **last step**
+of every task, after the diff is reviewed and committed.
 
-**Statuses:** `Not Started` · `Ready` · `Blocked` · `In Progress` · `Needs Review` ·
-`Completed`
+> **Looking for what to work on right now?** Read
+> [`current-task.md`](current-task.md) (KB-089) instead — it holds the one active task and
+> the minimum needed to execute it. This document is the *status of everything*; that one is
+> *the thing to do next*. When they disagree, this document is authoritative on status and
+> `current-task.md` must be corrected.
+>
+> Procedure for opening, completing and handing over a task:
+> [`workflow.md`](workflow.md) (KB-088).
+
+**Lifecycle:** `PLANNED → READY → IN_PROGRESS → IMPLEMENTATION → TESTING → REVIEW →
+COMPLETED`, with `BLOCKED` as an orthogonal flag rather than a phase
+([KB-088 §1](workflow.md#1-task-lifecycle)).
+
+The tables below use this document's original vocabulary. They are the same states:
+
+| Canonical | Used in the tables below |
+|---|---|
+| `PLANNED` | `Not Started` |
+| `READY` | `Ready` |
+| `IN_PROGRESS` / `IMPLEMENTATION` / `TESTING` | `In Progress` |
+| `REVIEW` | `Needs Review` |
+| `COMPLETED` | `Completed` |
+| *(flag)* `BLOCKED` | `Blocked` |
 
 - `Ready` = every prerequisite is `Completed` and the task can be opened now.
-- `Blocked` = a prerequisite is incomplete, **or** an external answer is missing.
-- `Needs Review` = the work is done and committed on its branch, awaiting review.
+- `Blocked` = a prerequisite is incomplete, **or** an external answer is missing. Record
+  which, and who can unblock it — blocked-on-a-task and blocked-on-a-human are different
+  problems.
+- `Needs Review` = the work is done and committed on its branch, awaiting review. This is the
+  normal end state of an execution session; `Completed` requires integration
+  ([KB-088 §3](workflow.md#who-may-set-completed)).
 - **Completed tasks are never deleted.** The record of what was done is the point.
 
 **Parent tasks** (e.g. `M0-03`) are containers. A parent becomes `Completed` only when all
@@ -227,7 +252,9 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-15, M0-08, M0-03, M0-03-01, M0-02.
+**Currently `Ready`:** M0-04, M0-15, M0-08, M0-03, M0-03-01, M0-02. **Active task: M0-15** — see
+[`current-task.md`](current-task.md). Selection rule for what becomes active next:
+[KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-00: `Completed` 2026-08-14.** `migration/M0-00-vcs-baseline` merged to `master` via
 PR #1 (`5fcb2b1`); the follow-up visibility-correction branch

@@ -1,6 +1,6 @@
 ---
 doc_id: KB-083
-title: Fresh-Session Execution Prompt — Canonical Template and Generation Rules
+title: Execution Prompt, Generation Rules and Verified Commands
 module: execution
 source_files: []
 entities: []
@@ -9,57 +9,96 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-12
-dependencies: [KB-080, KB-002, KB-003, KB-005]
+last_verified: 2026-08-16
+dependencies: [KB-080, KB-002, KB-003, KB-005, KB-088, KB-090]
 ---
 
-# Fresh-Session Execution Prompt — Template and Generation Rules
+# Execution Prompt, Generation Rules and Verified Commands
 
-Every task in [KB-080](README.md) carries a copy-paste prompt for an AI session that has
-**never seen any prior conversation**. This document is the canonical template those prompts
-are generated from, plus the rules that keep them honest.
+This document holds three things: **the session prompt**, the **generation rules** that keep
+task files honest, and the **verified repository commands** table — the single authoritative
+list of what actually builds and tests in this repository.
+
+## The execution prompt
+
+The whole prompt for a fresh session is:
+
+```text
+Read CLAUDE.md and docs/kb/execution/current-task.md.
+Execute the current task according to the repository's migration workflow.
+Do not start the next task.
+```
+
+Nothing is pasted. No previous prompt, no conversation history, no architecture recap. If a
+session cannot proceed from those three lines, the **repository** is missing something, and
+fixing that is part of the work.
+
+- Invariant context — architecture, authority order, standing constraints:
+  [`CLAUDE.md`](../../../CLAUDE.md) at the repository root.
+- The active task: [`current-task.md`](current-task.md) (KB-089).
+- The procedure: [`workflow.md`](workflow.md) (KB-088).
+
+### The superseded model
+
+Every task file under `tasks/` written before 2026-08-16 ends with a **"Fresh-Session
+Execution Prompt"** block — ~150 lines restating the project objective, architecture,
+source-of-truth rules, anti-repetition clause, constraints, execution procedure and final
+report format, identically, in all 105 files.
+
+**Those blocks are obsolete.** `CLAUDE.md` and `current-task.md` now supply everything they
+restated, once, instead of 105 times. When opening an existing task file, read its
+specification sections and **skip the trailing prompt block**. New task files are written to
+[`task-template.md`](task-template.md) (KB-090), which has no such block.
+
+The existing files are not being rewritten for this alone — the specifications above the
+block remain accurate and several carry Execution Records worth keeping.
 
 ## The operating model this serves
 
 ```
-ONE TASK → ONE FRESH SESSION → READ KB → CHECK REGISTRY → INVESTIGATE ONLY IF NEEDED
-        → IMPLEMENT ONLY THAT TASK → TEST → DOCUMENT → COMMIT → REVIEW → STOP
+ONE TASK → ONE FRESH SESSION → READ CLAUDE.md + current-task.md → CHECK REGISTRY
+        → INVESTIGATE ONLY IF NEEDED → IMPLEMENT ONLY THAT TASK → TEST → DOCUMENT
+        → COMMIT → HAND OVER current-task.md → STOP
 ```
 
-The executing session's persistent context is **the repository + `docs/kb/` + the task
-prompt**. Nothing else. A prompt that cannot be executed from those three things alone is a
-defective prompt.
+The executing session's persistent context is **the repository**. Nothing else. A task that
+cannot be executed from the repository alone is a defective task.
 
 ## Generation rules
 
-These are binding on whoever writes or regenerates a prompt.
+These are binding on whoever writes or regenerates a **task file**
+([`task-template.md`](task-template.md)) — and were binding on the prompts that preceded them.
 
 1. **No placeholders.** Every `<…>` in the template is replaced with the task's real value.
-   A prompt containing an unfilled placeholder is not shippable.
-2. **Never invent a path.** Every file, directory, service, and command named in a prompt
+   A task file containing an unfilled placeholder is not shippable.
+2. **Never invent a path.** Every file, directory, service, and command named in a task file
    must exist in the repository at generation time, or be explicitly marked
    `TO BE CREATED`. Verify before writing.
 3. **Cite `file:line` for behaviour claims.** "Login swallows exceptions" is not evidence;
    `V.SMART/V.SMART.Shared/Repository/MasterRepository/Admins/UserRepository.cs:44-48` is.
 4. **Classify every factual claim** as `Confirmed` / `Inferred` / `Unknown`, per
    [KB-002](../source-of-truth-rules.md). Never state an inference as fact.
-5. **Prompts are generated when their inputs exist.** M0 and M2 prompts are written now
-   because their inputs are the current repository. Module-wave prompts (M3/M4) are
+5. **Task files are generated when their inputs exist.** M0 and M2 task files are written
+   now because their inputs are the current repository. Module-wave files (M3/M4) are
    generated **at the start of their wave**, after that wave's `INV-0xx` business-rule
-   investigation completes — because the prompt's *Business Rules to Preserve* section is
-   that investigation's output. Writing them earlier would mean inventing rules, which
-   violates rule 4 and the project's core constraint. See
-   [KB-080 §11](README.md#11-m3--core-modules).
-6. **One task per prompt. One session per prompt.** The closing instruction forbidding the
-   next task is not decoration — it is what makes each unit independently reviewable and
-   reversible.
-7. **Regenerate, don't patch.** If a task's scope changes, regenerate its whole prompt file
-   and bump `last_verified`. Half-edited prompts drift from the task spec above them.
+   investigation completes — because the *Business Rules* section is that investigation's
+   output. Writing them earlier would mean inventing rules, which violates rule 4 and the
+   project's core constraint. See [KB-080 §11](README.md#11-m3--core-modules).
+6. **One task per file. One session per task.** The instruction forbidding the next task is
+   not decoration — it is what makes each unit independently reviewable and reversible.
+7. **Regenerate, don't patch.** If a task's scope changes, regenerate the whole file and bump
+   `last_verified`. Half-edited files drift from the task they describe.
+8. **Reference, never duplicate.** A task file that restates a business rule, an ADR or an
+   architecture section instead of linking to it goes stale silently — and then it lies. This
+   rule is why the per-task prompt preamble was removed: 105 copies of the same paragraph
+   cannot be kept true.
 
-## Anti-repetition clause (mandatory in every prompt)
+## Anti-repetition clause
 
-Every prompt must carry this verbatim, because the same repository will be worked on by many
-independent sessions that cannot see each other:
+This is now stated once, in [`CLAUDE.md`](../../../CLAUDE.md) and
+[KB-088 §2](workflow.md#2-starting-a-session), rather than copied into every task. It binds
+every session, because the same repository is worked on by many independent sessions that
+cannot see each other:
 
 > Before investigating the repository, search `docs/kb/investigation-registry.md` and the
 > relevant knowledge-base documents via `docs/kb/INDEX.md`. If an investigation is
@@ -81,9 +120,19 @@ Last verified:  YYYY-MM-DD
 
 ---
 
-## The template
+## The legacy prompt template — historical
 
-Everything between the rules below is copied into each task file, with values substituted.
+> **Superseded 2026-08-16.** This block is retained so that the ~105 task files containing a
+> copy of it remain interpretable, and so the reasoning behind each section is not lost. **Do
+> not generate new prompts from it.** New task files use
+> [`task-template.md`](task-template.md) (KB-090); the session prompt is the three lines at
+> the top of this document.
+>
+> Where each section went: the *Role* / *Project Objective* / *Current Architecture* /
+> *Source of Truth* / *Constraints* / *Execution Procedure* preamble is now
+> [`CLAUDE.md`](../../../CLAUDE.md); *Current Task* … *Acceptance Criteria* is now
+> [`current-task.md`](current-task.md) plus the task file; the *Final Response* format is
+> [KB-084](review-templates.md).
 
 ```text
 ============================================================

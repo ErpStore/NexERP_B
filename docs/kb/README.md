@@ -14,6 +14,15 @@ This is the **persistent source of truth** for how the existing ERP works and ho
 React frontend will be built. It exists so that the same parts of the repository are not
 investigated twice.
 
+## Executing the migration
+
+If you are here to **do work** rather than to look something up, you need only two files:
+[`../../CLAUDE.md`](../../CLAUDE.md) at the repository root (invariant context) and
+[`execution/current-task.md`](execution/current-task.md) (the one active task). The procedure
+is [`execution/workflow.md`](execution/workflow.md).
+
+The rest of this knowledge base is read **on demand**, only where the current task points.
+
 ## How to use this knowledge base
 
 1. **Before investigating anything**, read [`INDEX.md`](INDEX.md) and
@@ -51,6 +60,7 @@ See [`source-of-truth-rules.md`](source-of-truth-rules.md). Summary:
 | Risks | [`risks/`](risks/) | Technical debt register, severity-classified |
 | Plan | [`migration/`](migration/) | Phased migration strategy |
 | Decisions | [`decisions/`](decisions/) | ADRs |
+| Execution | [`execution/`](execution/) | The active task, the workflow, the plan, task specs, progress |
 | Meta | [`investigation-registry.md`](investigation-registry.md), [`open-questions.md`](open-questions.md) | What has been investigated; what is still unknown |
 
 ## Repository layout (physical)
