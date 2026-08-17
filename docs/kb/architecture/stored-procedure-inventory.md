@@ -15,7 +15,7 @@ database_tables: []
 business_rules: []
 status: complete
 confidence: confirmed
-last_verified: 2026-08-13
+last_verified: 2026-08-17
 dependencies: [KB-011, KB-012, KB-060, ADR-005]
 ---
 
@@ -25,6 +25,15 @@ dependencies: [KB-011, KB-012, KB-060, ADR-005]
 `db/stored-procedures/README.md` and `db/tools/sp-inventory.sh` are M0-01-01's four
 deliverables. This task requires **no database access** — everything in it is derived from
 the repository as it stands on 2026-08-13.
+
+> **Per-tenant caveat (added 2026-08-17 by M0-02 / INV-030).** This inventory, and the
+> captured DDL in `db/stored-procedures/`, describe **one** database. Multi-tenancy is
+> database-per-tenant, and whether the stored procedures differ between tenants is **still
+> undecided** — Q-14, tracked in [KB-103](stored-procedure-drift.md), which holds the
+> comparison method and the tooling. **No tenant comparison has been run** (`db/drift/` is
+> empty), so nothing here may be read as evidence that the artefact set is representative of
+> every tenant. It is a single artefact set *by assumption* until fingerprints from ≥2 tenant
+> databases are compared.
 
 ## doc_id note
 

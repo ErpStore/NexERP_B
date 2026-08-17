@@ -71,6 +71,7 @@ file. **No history rewrite is required for R-14.** Enforcement is now mechanical
 | ID | Topic | Status | Gap | Doc |
 |---|---|---|---|---|
 | INV-011 | Business rules — cross-module sweep | **Partial** | 12 rules extracted with evidence (calculation, FIFO stock, sales-order lifecycle, auth, approval, reporting, tenancy). Per-module extraction pending — see below | [KB-030](business-rules/business-rule-inventory.md) |
+| INV-030 | Stored-procedure drift across tenant databases (Q-14) | **Partial** (2026-08-17, M0-02 tooling half) | **The question is not answered — it is undecided, which is not the same as "no drift".** Method and database-free tooling delivered: `db/tools/list-deployed-procedures.sql` extended with *Query B* (`FINGERPRINT_QUERY_VERSION 2`) emitting `schema_name`, `procedure_name`, `create_date`, `modify_date`, `definition_length`, **`hash_raw`** and **`hash_normalised`** — the pre-existing single `DefinitionSha256Hex` (CR/TAB-stripped only) was neither, a Confirmed gap found by this task; plus `db/tools/compare-tenant-fingerprints.sh` (classifies `identical`/`cosmetic`/`divergent`/`missing_in_tenant`/`extra_in_tenant`, prints the arithmetic, aborts loudly on header mismatch, malformed row, `NULL` hash or duplicate row — each of those failure modes exercised against synthetic fixtures on 2026-08-17, no database, no fabricated CSV in `db/drift/`), `db/RUNBOOK-tenant-drift-check.md` and `db/drift/README.md`. **Negative result, Confirmed:** `db/drift/` contains no tenant fingerprint, so zero tenants have been compared. **Blocker:** a DBA holding `VIEW DEFINITION` on **≥2** tenant databases, plus a working tenant list (Q-12 unanswered); a session may not acquire or reuse a credential. **Owner:** DBA — first candidate operator **PavanKunar** (ran the M0-01-02 capture), with the migration lead to resolve which database the "baseline" label denotes given the `IQSMARTDEMO_DB_2025-26` → `NexGenErpDb` provenance caveat in `db/stored-procedures/CAPTURE-STATUS.md`. Do **not** re-derive the tooling; re-open only to run the comparison once CSVs land. | [KB-103](architecture/stored-procedure-drift.md) |
 
 ## Scheduled — run one module ahead of its migration
 
@@ -101,7 +102,7 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 
 | ID | Reserved for | Task | Status |
 |---|---|---|---|
-| INV-030 | Stored-procedure drift across tenant databases (Q-14) | M0-02 | Reserved |
+| INV-030 | Stored-procedure drift across tenant databases (Q-14) | M0-02 | **Allocated and in use — `Partial`, see the Partial table above** |
 | INV-031 | Test-harness feasibility — can `ApplicationDbContext` be hosted in a test process, and under which EF provider? (`ToView(null)` × 65 makes InMemory doubtful) | M0-12-01 | Reserved |
 | INV-032 | Decimal representation across the HTTP wire — format, precision source, rounding mode | M2-C10 | Reserved |
 | INV-033 | Screen-name → route mapping for permission-filtered navigation | M2-C03 | Reserved |
