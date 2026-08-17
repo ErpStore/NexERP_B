@@ -287,6 +287,24 @@ MAUI build to CI running on a runner with the workloads pre-installed (e.g.
 `actions/setup-dotnet` plus an explicit `dotnet workload install` step), separately from this
 recommendation.
 
+### CI hygiene step (added by M0-08, 2026-08-17)
+
+So that M0-07 finds every CI input in one place: before (or alongside) the build step, run the
+repository-hygiene guard M0-08 committed. It exits `1`, listing the offending paths, if any
+build output, IDE state or dependency directory is ever tracked by git.
+
+```yaml
+- name: No build output tracked
+  run: bash tools/check-no-build-output.sh
+```
+
+It needs only `git` and a POSIX shell, takes no arguments, and resolves the repository root
+itself, so it is runnable from anywhere in the tree. Verified 2026-08-17: exit `0` on the
+current tree, and exit `1` naming the path when one was deliberately force-added. `bash` is
+present on GitHub's `windows-latest` images as well as the Linux ones, so **no `.ps1` sibling
+was created**; if M0-07 selects a runner with no shell at all, that is when one becomes
+necessary. See KB-060 R-14.
+
 ## 8. Warning baseline for M0-07
 
 **The number M0-07 gates against: 6,695 warnings**, from
