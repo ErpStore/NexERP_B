@@ -36,6 +36,21 @@ dependencies: [KB-081, KB-082, KB-088]
 
 ---
 
+## Objective
+
+Remove every credential and environment-specific value from the `appsettings.json` files that
+ship in the repository, and source them at runtime from user-secrets in development and
+environment variables elsewhere, so that no secret is readable from a checkout and each host
+is configured per environment rather than per commit.
+
+The hosts in scope are `V.SMART.Web` and `V.SMART.Api`. Behaviour must not change: the same
+configuration keys resolve to the same values at runtime, only their storage moves. Rotating
+the exposed credentials is **not** part of this task — that is `M0-04` — and neither is purging
+them from git history, which is `M0-05`. Full specification, including the exact files expected
+to change: [`tasks/M0-03-01.md`](tasks/M0-03-01.md).
+
+---
+
 ## Run State
 
 | Field | Value |
@@ -154,6 +169,25 @@ No automated tests — no test project exists (INV-023). `dotnet test` **must no
 Verification is a successful build, a manual start of each host against user-secrets-supplied
 configuration, and a `git grep` sweep proving credentials are gone from the working tree. Full
 steps: [`tasks/M0-03-01.md` § Testing`](tasks/M0-03-01.md#testing).
+
+## Documentation Updates
+
+Landing this task requires these documents to be updated in the same commit — the task is not
+complete while any of them still describes the old arrangement:
+
+- `docs/CONFIGURATION.md` *(created by this task — does not exist on `master` yet)* — how each
+  host is configured, which keys
+  are required, and how to populate them via user-secrets locally and environment variables
+  elsewhere. This is the document a new developer follows to get a working checkout running.
+- [`tasks/M0-03-01.md`](tasks/M0-03-01.md) — record the outcome and move `status` to
+  `Needs Review`.
+- [`task-tracker.md`](task-tracker.md) (KB-081) — M0-03-01 → `Needs Review`. KB-081 is the
+  status authority; update it as the last step.
+- [`docs/kb/risks/technical-debt-register.md`](../risks/technical-debt-register.md) — close or
+  amend the entry covering credentials committed in `appsettings.json`, noting that history
+  still contains them until `M0-05` runs.
+- Any secret discovered that was not already known belongs in
+  [`open-questions.md`](../open-questions.md), not in a commit message.
 
 ## Completion Conditions
 
