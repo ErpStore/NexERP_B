@@ -38,12 +38,12 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `BLOCKED` |
-| **Stop reason** | **Branch-point safety stop before starting M0-15** (KB-091 §8). `migration/M0-15-build-baseline` was cut from `migration/M0-08-gitignore-build-output`, not from `master`: `e0a7092` (M0-08) is an ancestor of HEAD, and `git merge-base HEAD master` is `31cfa95` — an earlier commit. M0-08 is **`Needs Review`** (committed, unmerged), not `Completed`, per [KB-081 line 65](task-tracker.md). A build baseline measured on this unreviewed mixture is not reproducible, which is the precise failure M0-15 exists to prevent. Pre-documented as a safety stop in this file and in `current-task.md` before the run. |
+| **Status** | `STOPPED` |
+| **Stop reason** | Previous run (2026-08-17) stopped on the M0-15 branch-point safety stop; **that condition has since been resolved** and no run is currently live. History: the run halted at SELECT because `migration/M0-15-build-baseline` sat on `migration/M0-08-gitignore-build-output` rather than `master`, so a build baseline measured there would not have been reproducible — the precise failure M0-15 exists to prevent. Resolved the same day by re-cutting the branch from `master` (route (b) below). |
 | **Run started** | — |
-| **Last transition** | 2026-08-17 — safety stop at selection phase |
-| **Current task** | `M0-15` — Toolchain and build baseline (`READY` per KB-081; dependency-ready but **not start-ready** — blocked by the branch-point safety stop above) |
-| **Current phase** | SELECT (selection completed; no implementation phase opened) |
+| **Last transition** | 2026-08-17 — branch re-cut from `master`; both pre-run safety flags cleared, status returned to `STOPPED` |
+| **Current task** | `M0-15` — Toolchain and build baseline (`Ready` per KB-081, and now **start-ready**: both KB-091 §8 pre-run flags are cleared) |
+| **Current phase** | — |
 | **Current agent** | — |
 | **Current model** | — |
 | **Attempt** | 0 of 3 (`max_retries: 2`) |
@@ -51,8 +51,8 @@ corrected.
 | **Last validation** | none |
 | **Tasks completed this run** | 0 |
 | **Next task** | `M0-15` remains top-ranked once unblocked (P0, only dependency M0-00 is Completed). Do not silently switch to `M0-02` (P1, needs DBA access) — that would evade rather than resolve the stop. |
-| **Blocked on** | M0-08's review status. M0-15 cannot produce a reproducible baseline while its branch sits on unmerged, unreviewed M0-08 work. Resolve by one of: (a) review and merge M0-08, move it to `Completed` in KB-081, then re-cut M0-15 from `master`; (b) re-cut `migration/M0-15-build-baseline` from `master` now, leaving M0-08 to separate review — this drops commits `461295c` and `bf42db1` (INFRA runner checkpoints) from the branch; (c) explicitly accept a baseline of known-compromised reproducibility and record that decision. |
-| **Owner to unblock** | Repo maintainer / lead engineer. This is a branch-management decision, **not an implementation step of M0-15**, so no task session can take it unilaterally. Do not silently retarget to `M0-02` — that evades the stop rather than resolving it. |
+| **Blocked on** | — (cleared 2026-08-17 by the re-cut) |
+| **Owner to unblock** | — |
 
 ### Status values
 
@@ -79,17 +79,20 @@ its branch, which someone has to reconcile.
 
 ## Pre-run flags for `M0-15`
 
-Both are `safetyStop` conditions ([KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks))
-and a run will halt on them rather than measure something unreproducible. **One is now resolved;
-one still stands.**
+Both were `safetyStop` conditions ([KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks))
+and a run will halt on them rather than measure something unreproducible. **Both are now
+resolved (2026-08-17). Kept as history — re-check them, do not assume they stay clear.**
 
-- 🔴 **Branch point — OPEN.** `migration/M0-15-build-baseline` was cut from
-  `migration/M0-08-gitignore-build-output`, not from `master`. A build baseline measured on an
-  unreviewed mixture is not reproducible, which is exactly what M0-15 exists to prevent.
-  Re-verified 2026-08-17: `git merge-base --is-ancestor e0a7092 HEAD` → true;
-  `git merge-base HEAD master` → `31cfa95`; `git branch --contains e0a7092` lists
-  `migration/M0-08-gitignore-build-output`. M0-08 is `Needs Review` at
-  [KB-081 line 65](task-tracker.md). **This is what stopped the 2026-08-17 run.**
+- ✅ **Branch point — RESOLVED 2026-08-17 by re-cutting from `master`.** The branch had been cut
+  from `migration/M0-08-gitignore-build-output`; this stopped the first run. It was reset to
+  `master` and the three non-M0-08 commits were cherry-picked back, dropping only `e0a7092`
+  (M0-08), which remains safe on its own branch. New history:
+  `31cfa95` (master) → `998f7d0` → `7905c83` → `fece832`.
+  Verified: `git merge-base HEAD master` → `31cfa95`, **identical to master's tip**;
+  `git merge-base --is-ancestor e0a7092 HEAD` → false.
+  Pre-re-cut state is preserved at tag `backup/M0-15-pre-recut-2026-08-17` (`ef861c3`).
+  **Side effect:** M0-08's `Needs Review` status travelled with `e0a7092`, so KB-081 on this
+  branch again lists M0-08 as `Ready`. It self-corrects when M0-08 is reviewed and merged.
 - ✅ **Dirty working tree — RESOLVED 2026-08-17.**
   `V.SMART/V.SMART.Shared/Services/MultiCompanyService/TenantDbContextFactory.cs` and
   `V.SMART/V.SMART.Web/appsettings.json` were stashed as
@@ -100,4 +103,6 @@ one still stands.**
   `V.SMART.Api/` remains untracked **by design** — see the untracked-directory checkout trap in
   `CLAUDE.md`; never stash or clean it.
 
-Reconcile the open flag before starting a run, or the runner will stop here and record it again.
+No flag is open as of 2026-08-17, so a run may open M0-15. Re-verify both before each run —
+they are cheap to check (`git merge-base HEAD master`, `git status --porcelain`) and expensive
+to get wrong, since the whole point of M0-15 is a baseline someone else can reproduce.
