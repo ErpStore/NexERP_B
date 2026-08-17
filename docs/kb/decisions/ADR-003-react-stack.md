@@ -2,15 +2,23 @@
 doc_id: ADR-003
 title: React frontend stack selection
 module: decisions
-status: accepted
+status: superseded
+superseded_by: ADR-006
 confidence: n/a
-last_verified: 2026-08-12
-dependencies: [KB-015, KB-050, KB-051]
+last_verified: 2026-08-17
+dependencies: [KB-015, KB-050, KB-051, ADR-006]
 ---
 
 # ADR-003 — React frontend stack
 
-**Status:** Accepted · **Date:** 2026-08-12
+**Status:** ~~Accepted~~ **SUPERSEDED by [ADR-006](ADR-006-blazor-only-delivery.md) on 2026-08-17** · **Date:** 2026-08-12
+
+> The React rebuild was cancelled. The product stays on Blazor Server and requirements are
+> delivered module by module on the existing application — see
+> [ADR-006](ADR-006-blazor-only-delivery.md) for the decision and
+> [KB-090](../migration/blazor-only-estimate.md) for the effort, timeline and budget that
+> replace [KB-070](../migration/migration-strategy.md)/[KB-071](../migration/milestones.md).
+> This document is retained only as the record of the stack evaluation that was done.
 
 ## Context
 

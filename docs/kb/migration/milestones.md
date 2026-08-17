@@ -15,6 +15,13 @@ dependencies: [KB-020, KB-041, KB-050, KB-052, KB-060, KB-070, ADR-001, ADR-002,
 
 # Milestone Tracker
 
+> **⚠ Superseded in part, 2026-08-17.** The React rebuild this document plans was
+> cancelled by [ADR-006](../decisions/ADR-006-blazor-only-delivery.md). The product stays on
+> Blazor Server and requirements are delivered module by module on the existing app.
+> For current scope, effort, timeline and budget see
+> [KB-090](blazor-only-estimate.md). What remains valid here: the module dependency order,
+> the Phase-0 stabilisation work, and the extract-before-rebuild principle.
+
 > **Proposal / living document.** [KB-070](migration-strategy.md) is the *strategy* — why the
 > phases exist and in what order. This is the *execution tracker* — the concrete, checkable
 > unit of work for each phase, the gate that closes it, and where we currently are.

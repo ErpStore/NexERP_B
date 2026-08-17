@@ -45,9 +45,11 @@ last_verified: 2026-08-13
 | KB-085 | [M0-00 Version-Control Baseline Decision Log](execution/M0-00-baseline-decisions.md) | execution | active | — | 2026-08-12 |
 | ADR-001 | [Preserve the existing backend](decisions/ADR-001-keep-existing-backend.md) | decision | accepted | — | 2026-08-12 |
 | ADR-002 | [REST API layer & conventions](decisions/ADR-002-rest-api-layer.md) | decision | accepted | — | 2026-08-12 |
-| ADR-003 | [React stack](decisions/ADR-003-react-stack.md) | decision | accepted | — | 2026-08-12 |
+| ADR-003 | [React stack](decisions/ADR-003-react-stack.md) | decision | **superseded by ADR-006** | — | 2026-08-17 |
 | ADR-004 | [Server-side authorization](decisions/ADR-004-server-side-authorization.md) | decision | accepted (**P0**) | — | 2026-08-12 |
 | ADR-005 | [Reporting & printing](decisions/ADR-005-reporting-and-printing.md) | decision | accepted | — | 2026-08-12 |
+| ADR-006 | [Blazor-only delivery (drops React)](decisions/ADR-006-blazor-only-delivery.md) | decision | accepted | — | 2026-08-17 |
+| KB-090 | [Blazor-Only Effort, Timeline & Budget Estimate](migration/blazor-only-estimate.md) | **proposal** | active | estimate | 2026-08-17 |
 | KB-102 | [Stored-Procedure Inventory Reconciliation](architecture/stored-procedure-inventory.md) | as-is | complete | confirmed | 2026-08-13 |
 
 ## doc_id allocation
@@ -62,7 +64,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-085 | **Claimed 2026-08-12 by M0-00** — [M0-00-baseline-decisions.md](execution/M0-00-baseline-decisions.md) | allocated |
 | KB-086 – KB-087 | *(proposed by M0-07/M0-15/M0-01-01 before this table existed — reconcile or re-map into KB-100+ when those tasks run; KB-085 is no longer free — see row above)* | provisional |
 | **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-110–113 (M2-B08…B11). **Next free: KB-103**, or KB-114+ |
-| ADR-nnn | Architecture decisions | through ADR-005 |
+| ADR-nnn | Architecture decisions | through ADR-006 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-034 (030–033 reserved, next free INV-035 — see investigation-registry.md) |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
@@ -96,6 +98,8 @@ Use this table before searching the repository.
 | Old route → new route | KB-053 |
 | Risks, defects, severity, what to fix first | KB-060 |
 | Timeline, phases, sequencing, rollback | KB-070 |
+| Which UI stack are we building on, and why not React | ADR-006 (supersedes ADR-003) |
+| What does the whole programme cost, how long, module by module | KB-090 |
 | What are we working on now, task-level checklist, exit gates | KB-071 |
 | Is the backend ASP.NET Core Web API? | KB-071 (§ Backend platform), ADR-001, ADR-002 |
 | The full executable plan: milestones → tasks → prompts | KB-080 |

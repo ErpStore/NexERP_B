@@ -11,6 +11,13 @@ dependencies: [KB-020, KB-041, KB-050, KB-052, KB-060]
 
 # Phased Migration Strategy
 
+> **⚠ Superseded in part, 2026-08-17.** The React rebuild this document plans was
+> cancelled by [ADR-006](../decisions/ADR-006-blazor-only-delivery.md). The product stays on
+> Blazor Server and requirements are delivered module by module on the existing app.
+> For current scope, effort, timeline and budget see
+> [KB-090](blazor-only-estimate.md). What remains valid here: the module dependency order,
+> the Phase-0 stabilisation work, and the extract-before-rebuild principle.
+
 > **Proposal.** Estimates are engineering-effort ranges for a small team (2–3 backend,
 > 2–3 frontend, 1 QA), not commitments. They assume the existing Blazor app keeps running
 > and serving users throughout.
