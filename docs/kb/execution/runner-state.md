@@ -38,23 +38,23 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `RUNNING` |
-| **Stop reason** | n/a — run in progress |
+| **Status** | `STOPPED` |
+| **Stop reason** | task budget reached (maxTasks=1); next ready task is M0-02 |
 | **Run started** | 2026-08-17 |
-| **Last transition** | 2026-08-17 — `M0-08` validated `PASS` (attempt 1 of 3) and is closed out as `Needs Review`⁵, not `Completed` (integration/merge is a human step per KB-088 "Who may set COMPLETED"; see [`tasks/M0-08.md` § Execution Record](tasks/M0-08.md#execution-record-2026-08-17)). Re-applying the ready-task selection rule against the tracker as it now stands: candidates are tasks with every Hard prerequisite genuinely `Completed`, not a parent container, and not blocked on an unscheduled human step. `M0-04` stays excluded (`Blocked`⁴ on an unidentified human owner, unchanged). `M0-08` is no longer a candidate — it is `Needs Review`, not `Ready`. `M0-03` is a parent container (skipped). `M0-07`'s Hard prerequisites (`M0-15`, `M0-08`) are both `Needs Review`, not `Completed`, so it stays `Blocked`. The only remaining candidate is `M0-02` (P1, `depends_on: [M0-01-02]`, which is `Completed`; not a parent; not blocked on a human step — Q-14 is what M0-02 itself answers, not a prerequisite it is waiting on). **`M0-02` selected**, uncontested (sole candidate, no rank tie-break needed). |
-| **Current task** | `M0-02` — Confirm stored-procedure drift across tenant databases (Q-14) |
-| **Current phase** | Not yet opened — selection only, per this session's instruction not to implement |
-| **Current agent** | n/a (selection only) |
-| **Current model** | n/a (not yet proceeding) |
-| **Attempt** | 0 of 3 (`max_retries: 2`) |
+| **Last transition** | 2026-08-17 — `M0-08` validated `PASS` (attempt 1 of 3) and is closed out as `Needs Review`. Run halted at task budget limit; cleanly completed. |
+| **Current task** | `M0-08` (last processed) |
+| **Current phase** | Validation complete, task closed to `Needs Review` |
+| **Current agent** | n/a (run complete) |
+| **Current model** | n/a (run complete) |
+| **Attempt** | 1 of 3 (`max_retries: 2`) |
 | **Escalations** | 0 of 1 |
 | **Last validation** | `M0-08` attempt 1 — `PASS` (2026-08-17, this run). See [`failure-log.md`](failure-log.md). |
-| **Tasks processed this run** | 1 (`M0-08` — validated `PASS`, closed out `Needs Review`; `M0-02` chosen next, not yet opened) |
-| **Classification** | `M0-02`: `task_type: Investigation` → base complexity to be assessed when the task is actually opened; not pre-classified here since this session's instruction is selection only, not implementation. |
-| **Models this run** | Not yet assigned for `M0-02` — classification deferred to the session that opens it. |
-| **Blocked on** | Nothing for `M0-02`. `M0-04` remains separately `Blocked`⁴ on identification of a named person with production SQL Server and GST e-Invoice/e-Way gateway access — unresolved, carried forward, not this run's active task. `M0-07` remains `Blocked` pending `M0-15` and `M0-08` both reaching `Completed` (i.e. reviewed and merged). |
-| **Owner to unblock M0-04** | Unknown. Must be identified from operations/infrastructure team. Once named, that person must participate in-session or rotation must remain Blocked pending their availability. |
-| **Next ready task** | To be re-derived when `M0-02` completes, per the ready-task selection rule against the tracker at that time. |
+| **Tasks processed this run** | 1 (`M0-08` — validated `PASS`, closed out `Needs Review`) |
+| **Classification** | `M0-08`: `task_type: Implementation`, `complexity: MEDIUM`, `risk: MEDIUM` |
+| **Models this run** | Not recorded (run detail captured by autonomous-runner state machine) |
+| **Blocked on** | Nothing immediate for next session; `M0-04` remains separately `Blocked` on identification of a named person with production SQL Server and GST e-Invoice/e-Way gateway access. `M0-07` remains `Blocked` pending both `M0-15` and `M0-08` reaching `Completed`. |
+| **Owner to unblock M0-04** | Unknown. Must be identified from operations/infrastructure team. |
+| **Next ready task** | `M0-02` — Confirm stored-procedure drift across tenant databases (Q-14). Ready for immediate processing when next run begins. |
 
 ### Status values
 
