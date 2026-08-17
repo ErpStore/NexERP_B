@@ -16,7 +16,7 @@ source_files:
   - db/RUNBOOK-rebuild-tenant-database.md
 status: complete
 confidence: mixed
-last_verified: 2026-08-13
+last_verified: 2026-08-17
 dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
@@ -90,6 +90,32 @@ remove the hardcoded connection strings from C# source** (M0-03-02). Purge from 
 (`git filter-repo`, M0-05) — this is damage limitation, not a remedy; rotation is the remedy.
 Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, not `sa`.
 
+> **Status update, 2026-08-17 (M0-03-01, Confirmed by direct inspection):** the
+> **working-tree configuration files are now clean**. `V.SMART/V.SMART.Web/appsettings.json`
+> declares `ConnectionStrings:MasterDb` as `""` and the commented production connection
+> string (the production host and the `bspl` user named above) was **deleted outright**;
+> `V.SMART/V.SMART.Api/appsettings.json` likewise carries `""`. Both hosts now take the value
+> from user-secrets (development) or `ConnectionStrings__MasterDb` (servers/CI) — see
+> [`docs/CONFIGURATION.md`](../../CONFIGURATION.md). `git grep -n "Password=" --
+> "V.SMART/V.SMART.Web" "V.SMART/V.SMART.Api"` and the equivalent grep for the production
+> host's IP address both return zero hits.
+>
+> **Still outstanding, and not touched by M0-03-01:**
+> - the hardcoded connection strings in the two `MigrationData` factories and
+>   `MauiProgram.cs` — **M0-03-02**;
+> - rotation of every exposed credential — **M0-04** (the values are compromised regardless
+>   of the working tree being clean);
+> - the git-history purge — **M0-05**. `git grep -l "<the SA password>" HEAD` still returns
+>   the committed files, which is expected at this point and is not an M0-03-01 failure.
+> - the plaintext per-tenant connection strings in the `Tenants` table (KB-014) — file
+>   configuration was never their source, so this task could not affect them.
+>
+> **Finding, 2026-08-17 (M0-03-01):** the SA password literal is quoted **in this document**
+> at line 36 and in several `docs/kb/execution/tasks/*.md` files (inside example `git grep`
+> commands), exactly repeating the R-02 exposure pattern recorded below. M0-05's purge
+> surface therefore includes KB documents, not only source files. Out of scope for M0-03-01,
+> which is forbidden from rewriting history.
+
 ### R-02 — JWT signing secret committed
 **Confirmed.** `V.SMART.Api/appsettings.json` `Jwt:Secret` holds a hardcoded default value
 containing the literal words "Change In Production" — i.e. it was never rotated.
@@ -97,6 +123,28 @@ containing the literal words "Change In Production" — i.e. it was never rotate
 complete cross-tenant compromise once the API is live.
 **Action.** Move to secret storage; rotate; fail startup if the secret is missing or is
 the known default (M0-03-01, M0-03-03).
+
+> **Status update, 2026-08-17 (M0-03-01, Confirmed by direct inspection and by running the
+> host):** `V.SMART/V.SMART.Api/appsettings.json` now has `Jwt:Secret` as `""`; the value is
+> supplied by user-secrets locally and by `Jwt__Secret` on servers/CI. Rotation (M0-04) and
+> the history purge (M0-05) remain outstanding — the previously committed value stays
+> compromised.
+>
+> **Finding for M0-03-03 (Confirmed, reproduced 2026-08-17, not inferred):** the existing
+> guard `builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("Jwt:Secret
+> is missing from configuration.")` at `V.SMART/V.SMART.Api/Program.cs:56-57` is a **null**
+> check only. Now that `appsettings.json` declares the key with an empty value — which is what
+> M0-03-01 mandates, so the configuration shape is discoverable — the key resolves to `""`,
+> never `null`, so that message can no longer fire. Removing the `Jwt:Secret` user-secret and
+> starting the host produces instead
+> `System.ArgumentException: IDX10703: Cannot create a
+> 'Microsoft.IdentityModel.Tokens.SymmetricSecurityKey', key length is zero.` at
+> `V.SMART/V.SMART.Api/Program.cs:58`. **The fail-fast safety property still holds — the host
+> does not start** — but the diagnostic is a framework message, not the application's own.
+> A second, independent copy of the same null-only guard exists at
+> `V.SMART/V.SMART.Api/Auth/JwtTokenService.cs:20-21` and is not mentioned in M0-03-01's or
+> M0-03-03's task file. M0-03-03 must harden **both**, and must check for empty/whitespace,
+> the known default value, and minimum length — not merely `null`.
 
 > **Note, updated 2026-08-13 (M0-00 incident; visibility corrected to private, then
 > SUPERSEDED by an owner decision to make the repo public again, all 2026-08-12).** The
