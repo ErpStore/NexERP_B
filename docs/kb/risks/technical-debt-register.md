@@ -134,13 +134,17 @@ the known default (M0-03-01, M0-03-03).
 > guard `builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("Jwt:Secret
 > is missing from configuration.")` at `V.SMART/V.SMART.Api/Program.cs:56-57` is a **null**
 > check only. Now that `appsettings.json` declares the key with an empty value — which is what
-> M0-03-01 mandates, so the configuration shape is discoverable — the key resolves to `""`,
-> never `null`, so that message can no longer fire. Removing the `Jwt:Secret` user-secret and
-> starting the host produces instead
-> `System.ArgumentException: IDX10703: Cannot create a
-> 'Microsoft.IdentityModel.Tokens.SymmetricSecurityKey', key length is zero.` at
-> `V.SMART/V.SMART.Api/Program.cs:58`. **The fail-fast safety property still holds — the host
-> does not start** — but the diagnostic is a framework message, not the application's own.
+> M0-03-01 mandates, so the configuration shape is discoverable — the guard's behaviour now
+> depends on *how* the secret is missing. Both cases were run, not inferred:
+>
+> | How `Jwt:Secret` is missing | Observed startup failure |
+> |---|---|
+> | Key **removed** from every configuration source (removed from `appsettings.json` *and* no user-secret / `Jwt__Secret`) | `System.InvalidOperationException: Jwt:Secret is missing from configuration.` at `V.SMART/V.SMART.Api/Program.cs:56` — the application's own message, as designed |
+> | Key **present but blank** (`""` in `appsettings.json`, no user-secret / `Jwt__Secret`) | `System.ArgumentException: IDX10703: Cannot create a 'Microsoft.IdentityModel.Tokens.SymmetricSecurityKey', key length is zero.` at `V.SMART/V.SMART.Api/Program.cs:58` — a framework message, not the application's own |
+>
+> **The fail-fast safety property holds in both cases — the host does not start.** The gap is
+> diagnostic quality in the second case, which is the one the committed configuration shape
+> produces on a machine with no secret configured. That is the case M0-03-03 must close.
 > A second, independent copy of the same null-only guard exists at
 > `V.SMART/V.SMART.Api/Auth/JwtTokenService.cs:20-21` and is not mentioned in M0-03-01's or
 > M0-03-03's task file. M0-03-03 must harden **both**, and must check for empty/whitespace,
