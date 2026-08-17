@@ -61,13 +61,13 @@ its children are `Completed` — it is never worked directly.
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
-| M0-15 | M0 | Toolchain and build baseline | DevOps | **Needs Review**² | P0 | M0-00 | 0.5 d | G0 |
-| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Needs Review**⁵ | P1 | M0-00 | 0.5 d | G0 |
-| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
+| M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
+| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
+| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Ready** | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
-| M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Needs Review**³ | P0 | M0-00 | 0.5 d | G0 |
-| M0-03-02 | M0 | — hardcoded connection strings in C# | Security | Blocked | P0 | M0-03-01 | 0.5 d | G0 |
+| M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
+| M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Ready** | P0 | M0-03-01 | 0.5 d | G0 |
 | M0-03-03 | M0 | — fail-fast startup validation | Security | Blocked | P0 | M0-03-02 | 0.5 d | G0 |
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
@@ -82,7 +82,7 @@ its children are `Completed` — it is never worked directly.
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | Blocked | P1 | M0-12-01 | 1 d | G0 |
-| M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | Blocked | P2 | M0-03-01 | 0.5 d | G0 |
+| M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Ready** | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | Blocked | P0 | M0-13 | decision | G0 |
 
 ## M1 — Repository Understanding · Gate G1 ✅
@@ -244,7 +244,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 3 | G0 | ⬜ Not met |
+| M0 | 24 | 6 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -252,9 +252,10 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**M0-03-01: `Needs Review` 2026-08-17.** See note ³ above and
+**M0-03-01: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and
+merged to `master` (`f55db52`). See note ³ above and
 [`tasks/M0-03-01.md` § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17) for
-the full record. `M0-03-02` remains `Blocked` until M0-03-01 is reviewed and merged.
+the full record. `M0-03-02` and `M0-14` are now `Ready` — their prerequisite is satisfied.
 
 **Currently `Ready`:** none (M0-02 moved to `Blocked`⁶ on 2026-08-17; M0-03 is a parent
 container, not worked directly; M0-04 is `Blocked`⁴ on an unidentified human owner; M0-08
@@ -264,8 +265,10 @@ pointed at it so a human or a later run resumes rather than restarts. Selection 
 becomes active next, once unblocked or once another task is chosen:
 [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
-**M0-15: `Needs Review` 2026-08-17.** Committed on `migration/M0-15-build-baseline`
-(`fd9ae21`), not merged. Produced `docs/kb/execution/M0-15-build-baseline.md` (KB-086):
+**M0-15: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and merged to
+`master` (`854551f`); the branch has since been deleted. Originally committed on
+`migration/M0-15-build-baseline`
+(`fd9ae21`). Produced `docs/kb/execution/M0-15-build-baseline.md` (KB-086):
 0 errors on Api (6,695 warnings), Web (6,698 warnings, previously unmeasured) and Shared
 (13,341 warnings) from two clean runs each; the solution build (previously unverified)
 succeeds reproducibly from a clean `obj` (0 errors, 13,367 warnings) but is **Unknown**
@@ -312,13 +315,13 @@ met until that drill runs and succeeds. See
 M3/M4 counts are the 14-step pattern multiplied across waves and will firm up as each wave's
 task files are generated.
 
-² **M0-15: `Needs Review`, not `Blocked`.** All deliverables are done and committed on its own
+² **M0-15: `Completed` 2026-08-17** — reviewed and signed off by the repository owner; merged to `master` via `854551f`. Prior record follows. All deliverables are done and committed on its own
 branch (`fd9ae21`, unmerged) — the baseline document, the `global.json` pin, and every KB-083 /
 KB-003 update the task specified are landed. What remains is the human review-and-merge step;
 see the note above and [tasks/M0-15.md § Execution Record](tasks/M0-15.md#execution-record-2026-08-17)
 for the full record.
 
-³ **M0-03-01: `Needs Review`, not `Blocked`.** Validated `PASS` on attempt 2 of 3 (1
+³ **M0-03-01: `Completed` 2026-08-17** — reviewed and signed off by the repository owner; merged to `master` via `f55db52`. Prior record follows. Validated `PASS` on attempt 2 of 3 (1
 escalation on attempt 1, resolved by re-reading acceptance criterion 8 literally — see
 [tasks/M0-03-01.md § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17)). All
 deliverables are committed on `migration/M0-03-01-appsettings-secrets` (`2f1a8cf`), unmerged
@@ -349,7 +352,7 @@ and the task file offers `Needs Review` for those documents alone as a legitimat
 run did not produce them — it halted on the blocked half. That documentation remains available
 work for whoever picks this up.
 
-⁵ **M0-08: `Needs Review`, not `Completed`.** Validated `PASS` on attempt 1 of 3. All
+⁵ **M0-08: `Completed` 2026-08-17** — reviewed and signed off by the repository owner; merged to `master` via `f873a9a`. Prior record follows. Validated `PASS` on attempt 1 of 3. All
 deliverables are committed on `migration/M0-08-build-output-guard` (`963909f`, cut from
 `master` @ `4994fcf`), unmerged — build-output/IDE-state/dependency-directory audit is clean
 (2,452 tracked paths, guard pattern produces no output), `tools/check-no-build-output.sh` is
@@ -361,9 +364,10 @@ V.SMART/V.SMART.Api/V.SMART.Api.csproj` → 0 errors, 6,695 warnings (baseline-e
 superseded earlier attempt also exists at `migration/M0-08-gitignore-build-output`
 (`e0a7092`) — left unmerged and untouched; a reviewer should pick one branch to merge. Full
 record: [tasks/M0-08.md § Execution Record](tasks/M0-08.md#execution-record-2026-08-17).
-`M0-07` stays `Blocked` — its Hard prerequisites (`M0-15`, `M0-08`) are both `Needs Review`,
-not `Completed`, and the *Ready-task selection rule*'s "not `REVIEW`" clause does not count
-either as satisfying it.
+`M0-07` is now **`Ready`** — both its Hard prerequisites (`M0-15`, `M0-08`) reached `Completed`
+on 2026-08-17 when the repository owner signed them off, so the *Ready-task selection rule*'s
+"not `REVIEW`" clause no longer excludes it. It is the top P0 candidate, and clearing it
+unblocks nine further tasks behind `M0-12-01`.
 
 ⁶ **M0-02: `Blocked` on a human, not on a task.** Committed on
 `migration/M0-02-sp-drift-across-tenants` (`c1ab752`), unmerged. The **tooling half is
