@@ -39,20 +39,20 @@ corrected.
 | Field | Value |
 |---|---|
 | **Status** | `STOPPED` |
-| **Stop reason** | Previous run (2026-08-17) stopped on the M0-15 branch-point safety stop; **that condition has since been resolved** and no run is currently live. History: the run halted at SELECT because `migration/M0-15-build-baseline` sat on `migration/M0-08-gitignore-build-output` rather than `master`, so a build baseline measured there would not have been reproducible — the precise failure M0-15 exists to prevent. Resolved the same day by re-cutting the branch from `master` (route (b) below). |
-| **Run started** | — |
-| **Last transition** | 2026-08-17 — branch re-cut from `master`; both pre-run safety flags cleared, status returned to `STOPPED` |
-| **Current task** | `M0-15` — Toolchain and build baseline (`Ready` per KB-081, and now **start-ready**: both KB-091 §8 pre-run flags are cleared) |
-| **Current phase** | — |
-| **Current agent** | — |
-| **Current model** | — |
-| **Attempt** | 0 of 3 (`max_retries: 2`) |
+| **Stop reason** | task budget reached (maxTasks=1); next ready task is M0-03-01 |
+| **Run started** | 2026-08-17 |
+| **Last transition** | 2026-08-17 — Autonomous runner reached task budget limit after completing M0-15 implementation and validation (PASS verdict). Task is in `REVIEW` status; cannot be marked `COMPLETED` by an execution session (requires human review and merge). Runner halted cleanly at task boundary per KB-091 §7.1 (task budget policy). |
+| **Current task** | `M0-15` — Toolchain and build baseline (status: `REVIEW`, validation: PASS, 1 attempt, 0 escalations) |
+| **Current phase** | STOPPED. No task open. |
+| **Current agent** | — (runner stopped) |
+| **Current model** | `haiku-4.5-20251001` (execution model) |
+| **Attempt** | 1 of 3 (`max_retries: 2`) |
 | **Escalations** | 0 of 1 |
-| **Last validation** | none |
-| **Tasks completed this run** | 0 |
-| **Next task** | `M0-15` remains top-ranked once unblocked (P0, only dependency M0-00 is Completed). Do not silently switch to `M0-02` (P1, needs DBA access) — that would evade rather than resolve the stop. |
-| **Blocked on** | — (cleared 2026-08-17 by the re-cut) |
-| **Owner to unblock** | — |
+| **Last validation** | **PASS** (2026-08-17, attempt 1) |
+| **Tasks processed this run** | 1 (`M0-15` reached `REVIEW` status) |
+| **Next task** | `M0-03-01` — dependency-ready per KB-082 |
+| **Blocked on** | — |
+| **Owner to unblock** | — (no human action required to proceed; runner may open M0-03-01 on next invocation) |
 
 ### Status values
 
