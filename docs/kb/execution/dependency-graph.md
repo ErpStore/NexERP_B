@@ -9,8 +9,8 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
-dependencies: [KB-080, KB-081]
+last_verified: 2026-08-16
+dependencies: [KB-080, KB-081, KB-088]
 ---
 
 # Task Dependency Graph
@@ -257,3 +257,55 @@ Everything marked **Hard** above. In particular, and against intuition:
 
 M0 does **not** need the frontend team. If frontend engineers are idle during M0, the honest
 options are `M2-C01`/`M2-C04-*` prototyping against mocks — not starting module work.
+
+---
+
+## Ready-task selection rule
+
+Applied at the end of every task to choose the next `current-task.md`
+([KB-088 §7](workflow.md#7-selecting-the-next-task)). It is deterministic so that two
+independent sessions reach the same answer — and so that "what's next" never depends on
+someone remembering a conversation.
+
+**1. Build the candidate set** from [KB-081](task-tracker.md). A task is a candidate when:
+
+- every **Hard** prerequisite above is genuinely `COMPLETED` — not `REVIEW`. A prerequisite
+  that is committed but unmerged still blocks a merge-dependent successor; check the tracker's
+  footnotes, which record exactly this distinction for M0-03, M0-08 and M0-01-03;
+- every **Information** dependency has an actual answer — an unanswered `Q-nn` means the task
+  proceeds on a guess, which is worse than waiting;
+- it is not a parent container (`M0-03`, `M0-12`, `M2-B12`, `M2-C04`, `M2-C05`, `M2-C08`,
+  `M2-D02` are never worked directly — only their children);
+- it is not blocked on a human step nobody has scheduled. Such a task is `BLOCKED` with a
+  named owner, and **surfacing it to that owner is itself the useful action**.
+
+**2. Remove same-file conflicts.** Drop any candidate sharing a surface with in-flight work,
+per *Same-file conflicts — never parallelise* above. Two sessions editing `Program.cs` or
+`appsettings.json` in parallel produce a merge, not progress.
+
+**3. Rank**, in order:
+
+1. **P0 before P1 before P2.**
+2. **Most downstream unblocking** — count tasks whose `depends_on` names it. `M2-B07` blocks
+   every controller task; nothing else in M2-B comes close.
+3. **On the critical path** (§ *Project critical path*) before off it.
+4. **Longest lead time first** where a dependency is external. `M0-01-*` needs DBA access and
+   cannot be accelerated by engineering effort — it is the binding constraint the moment that
+   access takes more than a few days.
+5. **Smaller estimate** as the final tie-break, to keep review batches small.
+
+**4. If two candidates are equally ranked and genuinely independent, say so and let the owner
+choose.** Do not pick silently — parallel capacity is a staffing question, and the honest
+answer ("these two can run in parallel, they touch nothing in common") is more useful than an
+arbitrary pick.
+
+**5. Write the winner into [`current-task.md`](current-task.md) and stop.** Do not implement
+it.
+
+### Worked example
+
+At 2026-08-16 the tracker lists `M0-15` and `M0-02` as `Ready`. Both are candidates. Neither
+shares a file with the other. `M0-15` is P0, `M0-02` is P1 → **M0-15** wins at rank step 1,
+without needing the later steps. It is also on the critical path via `M0-07`, and `M0-02`
+depends on DBA access that no one has scheduled — so `M0-02` is arguably `BLOCKED` on a human
+rather than `Ready`, which is a tracker correction worth making when someone next touches it.

@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-17
 dependencies: [KB-001, KB-002, KB-003, KB-005, KB-020, KB-030, KB-040, KB-041, KB-050, KB-051, KB-052, KB-053, KB-060, KB-070, KB-071, KB-081, KB-082, KB-083, KB-084]
 ---
 
@@ -29,26 +29,39 @@ dependencies: [KB-001, KB-002, KB-003, KB-005, KB-020, KB-030, KB-040, KB-041, K
 
 ## How this plan is organised
 
-The required hierarchy is `PROJECT → MILESTONE → TASK → FRESH-SESSION PROMPT`. It is
-paginated across files rather than held in one, because a single file containing 25
-detail sections plus a ~120-line prompt for every task would be unusable:
+The required hierarchy is `PROJECT → MILESTONE → TASK`. It is paginated across files rather
+than held in one, because a single file containing 25 detail sections for every task would be
+unusable:
 
 | Level | Lives in |
 |---|---|
 | Project, milestones, task summaries, graphs, gates | **this document** |
-| Full task specification + its fresh-session prompt | `tasks/<TASK-ID>.md`, one file per task |
+| **The one active task** | **[KB-089](current-task.md)** — start here |
+| **How a session runs, start to finish** | **[KB-088](workflow.md)** |
+| Full task specification | `tasks/<TASK-ID>.md`, one file per task |
 | Master progress tracker | [KB-081](task-tracker.md) |
-| Dependency graph, critical path, parallel plan | [KB-082](dependency-graph.md) |
-| Prompt template + generation rules | [KB-083](prompt-template.md) |
+| Dependency graph, critical path, next-task selection | [KB-082](dependency-graph.md) |
+| Generation rules + verified commands | [KB-083](prompt-template.md) |
 | Milestone review / handoff / DoD templates | [KB-084](review-templates.md) |
+| Template for new task files | [KB-090](task-template.md) |
 
-Working loop:
+**This document is ~55 KB. Deep-link to the section you need; do not read it end to end.**
+
+Working loop — **the repository is the persistent memory; the conversation is temporary
+execution context**:
 
 ```
-Open tasks/M0-00.md → copy the prompt at the bottom → paste into a NEW AI session
-   → that session executes ONLY M0-00 → review the diff → test → commit
-   → mark Completed in KB-081 → open the next task in ANOTHER new session
+NEW session → "Read CLAUDE.md and docs/kb/execution/current-task.md.
+               Execute the current task. Do not start the next task."
+   → it executes ONLY that task → test → review the diff → commit
+   → it updates KB-081 and rewrites current-task.md for the next task → STOP
+   → ANOTHER new session repeats, with nothing pasted in
 ```
+
+> **Superseded 2026-08-16.** The earlier loop was "open `tasks/<ID>.md`, copy the
+> ~150-line prompt at the bottom, paste it into a new session." Those prompt blocks are now
+> obsolete — their invariant content lives once in `CLAUDE.md` — and no prompt is copied
+> any more. See [KB-083 § The superseded model](prompt-template.md#the-superseded-model).
 
 ---
 
@@ -231,6 +244,20 @@ paths were real. All three are recorded as **INV-029**.
    `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → **0 errors, 6,695 warnings,
    ~3 min**. That warning count is the CI baseline — CI cannot use `-warnaserror` until it
    is reduced. → new task **M0-15**.
+
+   **Resolved 2026-08-17 by M0-15 (see [KB-086](M0-15-build-baseline.md)):** the whole-solution
+   build (`dotnet build NexGen-ERP---2025-master.sln`, including the MAUI head) **succeeds** —
+   0 errors, 13,367 warnings, ~4–4.5 min — reproducibly, but only from a clean `obj`; a dirty
+   `obj` produced 2 file-lock/permission errors unrelated to the code. Whether it succeeds on a
+   workload-free CI runner (the default assumption for a hosted GitHub Actions runner) is
+   **Unknown** — untestable in that session without a workload-free environment. M0-15
+   recommends CI build `V.SMART.Api` and `V.SMART.Web` explicitly rather than the solution, so
+   CI does not depend on either uncertainty; the MAUI head is then unbuilt in CI, a trade-off
+   relevant to Q-11 (the MAUI app's future). The SDK is now pinned via a root `global.json`
+   (`10.0.400`, `rollForward: latestFeature`) after the installed SDK set was observed to drift
+   (10.0.300/10.0.302 → 10.0.300/10.0.400) on the same machine with no repository change. The
+   warning baseline's dominant codes are the `CS86xx` nullable-reference family, not `MUD0002`
+   as originally described — `MUD0002` is 130 occurrences, 1.94% of the 6,695 total.
 
 ---
 
@@ -842,8 +869,16 @@ M0-00 → M0-08 → M0-07 → M0-12-01 → M0-13 → M0-11 → G0
 See [KB-082 §Parallel Execution](dependency-graph.md#parallel-execution-plan).
 
 ## 18. Master Progress Tracker
-See [KB-081](task-tracker.md). Statuses: `Not Started` · `Ready` · `Blocked` ·
-`In Progress` · `Needs Review` · `Completed`. Completed tasks are never deleted.
+See [KB-081](task-tracker.md) for the status of every task, and [KB-089](current-task.md) for
+the one that is active now.
+
+Lifecycle: `PLANNED → READY → IN_PROGRESS → IMPLEMENTATION → TESTING → REVIEW → COMPLETED`,
+with `BLOCKED` as an orthogonal flag ([KB-088 §1](workflow.md#1-task-lifecycle)). KB-081's
+tables use the equivalent legacy names — `Not Started` · `Ready` · `Blocked` · `In Progress` ·
+`Needs Review` · `Completed` — and the mapping is at the top of that document.
+
+A task is never `COMPLETED` merely because the code was written. Completed tasks are never
+deleted.
 
 ## 19. Git Strategy
 

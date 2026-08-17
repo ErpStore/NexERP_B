@@ -9,21 +9,46 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-14
-dependencies: [KB-080, KB-082]
+last_verified: 2026-08-17
+dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
 # Master Progress Tracker
 
-The single place task status is recorded. Update it as the **last step** of every task,
-after the diff is reviewed and committed.
+The single place task status is recorded, for **every** task. Update it as the **last step**
+of every task, after the diff is reviewed and committed.
 
-**Statuses:** `Not Started` · `Ready` · `Blocked` · `In Progress` · `Needs Review` ·
-`Completed`
+> **Looking for what to work on right now?** Read
+> [`current-task.md`](current-task.md) (KB-089) instead — it holds the one active task and
+> the minimum needed to execute it. This document is the *status of everything*; that one is
+> *the thing to do next*. When they disagree, this document is authoritative on status and
+> `current-task.md` must be corrected.
+>
+> Procedure for opening, completing and handing over a task:
+> [`workflow.md`](workflow.md) (KB-088).
+
+**Lifecycle:** `PLANNED → READY → IN_PROGRESS → IMPLEMENTATION → TESTING → REVIEW →
+COMPLETED`, with `BLOCKED` as an orthogonal flag rather than a phase
+([KB-088 §1](workflow.md#1-task-lifecycle)).
+
+The tables below use this document's original vocabulary. They are the same states:
+
+| Canonical | Used in the tables below |
+|---|---|
+| `PLANNED` | `Not Started` |
+| `READY` | `Ready` |
+| `IN_PROGRESS` / `IMPLEMENTATION` / `TESTING` | `In Progress` |
+| `REVIEW` | `Needs Review` |
+| `COMPLETED` | `Completed` |
+| *(flag)* `BLOCKED` | `Blocked` |
 
 - `Ready` = every prerequisite is `Completed` and the task can be opened now.
-- `Blocked` = a prerequisite is incomplete, **or** an external answer is missing.
-- `Needs Review` = the work is done and committed on its branch, awaiting review.
+- `Blocked` = a prerequisite is incomplete, **or** an external answer is missing. Record
+  which, and who can unblock it — blocked-on-a-task and blocked-on-a-human are different
+  problems.
+- `Needs Review` = the work is done and committed on its branch, awaiting review. This is the
+  normal end state of an execution session; `Completed` requires integration
+  ([KB-088 §3](workflow.md#who-may-set-completed)).
 - **Completed tasks are never deleted.** The record of what was done is the point.
 
 **Parent tasks** (e.g. `M0-03`) are containers. A parent becomes `Completed` only when all
@@ -36,7 +61,7 @@ its children are `Completed` — it is never worked directly.
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
-| M0-15 | M0 | Toolchain and build baseline | DevOps | **Ready** | P0 | M0-00 | 0.5 d | G0 |
+| M0-15 | M0 | Toolchain and build baseline | DevOps | **Needs Review**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Ready** | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Ready** | P0 | — | 1 d | G0 |
@@ -227,7 +252,25 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-15, M0-08, M0-03, M0-03-01, M0-02.
+**Currently `Ready`:** M0-04, M0-08, M0-03, M0-03-01, M0-02. **Active task: M0-03-01** — see
+[`current-task.md`](current-task.md). Selection rule for what becomes active next:
+[KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+
+**M0-15: `Needs Review` 2026-08-17.** Committed on `migration/M0-15-build-baseline`
+(`fd9ae21`), not merged. Produced `docs/kb/execution/M0-15-build-baseline.md` (KB-086):
+0 errors on Api (6,695 warnings), Web (6,698 warnings, previously unmeasured) and Shared
+(13,341 warnings) from two clean runs each; the solution build (previously unverified)
+succeeds reproducibly from a clean `obj` (0 errors, 13,367 warnings) but is **Unknown**
+without MAUI workloads — no workload-free environment was available to test it. Corrected
+this task's own premise that the warning baseline is "largely `MUD0002`" — measured,
+`MUD0002` is 130/6,695 (1.94%); `CS86xx` nullable-reference warnings dominate. Pinned the SDK
+via a new root `global.json` (`10.0.400`, `rollForward: latestFeature`) after observing the
+installed SDK set drift on the same machine since INV-029's 2026-08-12 measurement. Full
+record: [`tasks/M0-15.md` § Execution Record](tasks/M0-15.md#execution-record-2026-08-17).
+Independently re-validated: PASS on attempt 1 of 3, no scope violations, no regressions. M0-15
+remains a **hard** prerequisite for M0-07 until it is reviewed and merged — see
+[`dependency-graph.md`](dependency-graph.md) § Ready-task selection rule on why `REVIEW` does
+not unblock a merge-dependent successor.
 
 **M0-00: `Completed` 2026-08-14.** `migration/M0-00-vcs-baseline` merged to `master` via
 PR #1 (`5fcb2b1`); the follow-up visibility-correction branch
@@ -260,3 +303,9 @@ met until that drill runs and succeeds. See
 
 M3/M4 counts are the 14-step pattern multiplied across waves and will firm up as each wave's
 task files are generated.
+
+² **M0-15: `Needs Review`, not `Blocked`.** All deliverables are done and committed on its own
+branch (`fd9ae21`, unmerged) — the baseline document, the `global.json` pin, and every KB-083 /
+KB-003 update the task specified are landed. What remains is the human review-and-merge step;
+see the note above and [tasks/M0-15.md § Execution Record](tasks/M0-15.md#execution-record-2026-08-17)
+for the full record.
