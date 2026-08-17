@@ -4,7 +4,7 @@ title: Knowledge Base Index and RAG Strategy
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-13
+last_verified: 2026-08-17
 ---
 
 # Knowledge Base Index and RAG Strategy
@@ -43,6 +43,7 @@ last_verified: 2026-08-13
 | KB-084 | [Review & Handoff Templates](execution/review-templates.md) | meta | active | — | 2026-08-16 |
 | TASK-* | [Task specifications](execution/tasks/) | **proposal** | active | — | 2026-08-12 |
 | KB-085 | [M0-00 Version-Control Baseline Decision Log](execution/M0-00-baseline-decisions.md) | execution | active | — | 2026-08-12 |
+| KB-086 | [Build and Toolchain Baseline](execution/M0-15-build-baseline.md) | execution | complete | confirmed | 2026-08-17 |
 | KB-088 | [Repository-Driven Execution Workflow](execution/workflow.md) | meta | active | — | 2026-08-16 |
 | KB-089 | [**Current Task**](execution/current-task.md) | meta | active | — | 2026-08-16 |
 | KB-090 | [Task File Template](execution/task-template.md) | meta | active | — | 2026-08-16 |
@@ -64,9 +65,10 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | Range | Purpose | Allocated |
 |---|---|---|
 | KB-000 – KB-079 | Analysis knowledge base (as-is + proposals) | through KB-070 |
-| KB-080 – KB-099 | Execution plan meta-documents *(range extended 2026-08-16 — 080–089 was full)* | KB-080 … KB-085, KB-088 … KB-093. **Next free: KB-094** |
+| KB-080 – KB-099 | Execution plan meta-documents *(range extended 2026-08-16 — 080–089 was full)* | KB-080 … KB-086, KB-088 … KB-093. **Next free: KB-087, or KB-094** |
 | KB-085 | **Claimed 2026-08-12 by M0-00** — [M0-00-baseline-decisions.md](execution/M0-00-baseline-decisions.md) | allocated |
-| KB-086 – KB-087 | *(proposed by M0-07/M0-15/M0-01-01 before this table existed — still unclaimed on disk. The task that runs first takes one and records it here; `grep -rn "KB-086" docs/kb/` before claiming)* | provisional |
+| KB-086 | **Claimed 2026-08-17 by M0-15** — [M0-15-build-baseline.md](execution/M0-15-build-baseline.md) | allocated |
+| KB-087 | *(proposed by M0-07 before this table existed — still unclaimed on disk. `grep -rn "KB-087" docs/kb/` before claiming)* | provisional |
 | KB-088 – KB-090 | **Claimed 2026-08-16** — [workflow.md](execution/workflow.md), [current-task.md](execution/current-task.md), [task-template.md](execution/task-template.md) | allocated |
 | KB-091 – KB-093 | **Claimed 2026-08-16** — [autonomous-runner.md](execution/autonomous-runner.md), [failure-log.md](execution/failure-log.md), [runner-state.md](execution/runner-state.md) | allocated |
 | **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-110–113 (M2-B08…B11). **Next free: KB-103**, or KB-114+ |

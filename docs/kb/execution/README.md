@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-17
 dependencies: [KB-001, KB-002, KB-003, KB-005, KB-020, KB-030, KB-040, KB-041, KB-050, KB-051, KB-052, KB-053, KB-060, KB-070, KB-071, KB-081, KB-082, KB-083, KB-084]
 ---
 
@@ -244,6 +244,20 @@ paths were real. All three are recorded as **INV-029**.
    `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → **0 errors, 6,695 warnings,
    ~3 min**. That warning count is the CI baseline — CI cannot use `-warnaserror` until it
    is reduced. → new task **M0-15**.
+
+   **Resolved 2026-08-17 by M0-15 (see [KB-086](M0-15-build-baseline.md)):** the whole-solution
+   build (`dotnet build NexGen-ERP---2025-master.sln`, including the MAUI head) **succeeds** —
+   0 errors, 13,367 warnings, ~4–4.5 min — reproducibly, but only from a clean `obj`; a dirty
+   `obj` produced 2 file-lock/permission errors unrelated to the code. Whether it succeeds on a
+   workload-free CI runner (the default assumption for a hosted GitHub Actions runner) is
+   **Unknown** — untestable in that session without a workload-free environment. M0-15
+   recommends CI build `V.SMART.Api` and `V.SMART.Web` explicitly rather than the solution, so
+   CI does not depend on either uncertainty; the MAUI head is then unbuilt in CI, a trade-off
+   relevant to Q-11 (the MAUI app's future). The SDK is now pinned via a root `global.json`
+   (`10.0.400`, `rollForward: latestFeature`) after the installed SDK set was observed to drift
+   (10.0.300/10.0.302 → 10.0.300/10.0.400) on the same machine with no repository change. The
+   warning baseline's dominant codes are the `CS86xx` nullable-reference family, not `MUD0002`
+   as originally described — `MUD0002` is 130 occurrences, 1.94% of the 6,695 total.
 
 ---
 

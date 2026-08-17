@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-16
+last_verified: 2026-08-17
 dependencies: [KB-080, KB-002, KB-003, KB-005, KB-088, KB-090]
 ---
 
@@ -303,30 +303,33 @@ DO NOT START THE NEXT TASK.
 
 ## Verified repository commands
 
-Only these have been confirmed to work in this repository as of 2026-08-12
-(INV-029). Do not put an unverified command in a prompt.
+Confirmed as of 2026-08-17 (M0-15; see [KB-086](M0-15-build-baseline.md) for full detail,
+methodology and reproducibility evidence). Do not put an unverified command in a prompt.
 
 | Purpose | Command | Verified result |
 |---|---|---|
-| Build the API and its dependencies | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | 0 errors, 6,695 warnings, ~3 min |
-| Build the Blazor host | `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` | not yet measured |
-| Build the whole solution | `dotnet build NexGen-ERP---2025-master.sln` | **not verified** — includes the MAUI head, which needs workloads. Also see the solution-file warning below |
-| Working-tree state | `git status --porcelain` | 37 entries as of 2026-08-12 |
+| Build the API and its dependencies | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | 0 errors, 6,695 warnings, ~1m23s–2m27s (reproducible x2, KB-086 §3) |
+| Build the Blazor host | `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` | 0 errors, 6,698 warnings, ~1m19s–1m20s (reproducible x2, KB-086 §3) |
+| Build the whole solution | `dotnet build NexGen-ERP---2025-master.sln` | 0 errors, 13,367 warnings, ~4m7s–4m16s **on this machine, from a clean `obj`** (reproducible x2). A dirty `obj` produced 2 file-lock/permission errors unrelated to code. Whether it succeeds on a workload-free CI runner is **Unknown** — untested (KB-086 §4). **Not recommended for CI** — see KB-086 §7. |
+| Working-tree state | `git status --porcelain` | 0 entries (or only the by-design-untracked `V.SMART/V.SMART.Api/`) as of 2026-08-17, after M0-00 |
 | Search committed history | `git grep -l "<pattern>" HEAD` | works |
 
-**Solution-file warning (Confirmed, INV-029).** The solution on disk,
-`NexGen-ERP---2025-master.sln`, is **untracked**. The only `.sln` in `HEAD` is
-`Bhargavi V.SMART ERP - 2025.sln`, which is **deleted** in the working tree. So the file
-every build command names is not in source control, and a fresh clone gets a different one
-whose validity is **Unknown**. Until **M0-00** resolves this, prefer per-project build
-commands (`dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`) over solution-level ones.
+**Solution-file note (Confirmed, M0-00/M0-15).** `NexGen-ERP---2025-master.sln` is now
+**tracked** (resolved by M0-00, commit `d83e2ea`) and lists exactly 4 projects: `V.SMART.Shared`,
+`V.SMART` (MAUI), `V.SMART.Web`, `V.SMART.Api`. The earlier untracked-`.sln` risk this note
+used to describe is resolved.
 
-**Toolchain note (Confirmed, INV-029).** Projects target `net9.0`; only the .NET **10**
-SDK is installed (10.0.300, 10.0.302). The build succeeds through SDK roll-forward. Any
-prompt that pins an SDK version, or assumes `dotnet --version` reports 9.x, is wrong.
+**Toolchain note (Confirmed, M0-15, 2026-08-17).** Projects target `net9.0`; the installed
+SDKs are `10.0.300` and `10.0.400` (drifted from `10.0.300`/`10.0.302` recorded by INV-029 on
+2026-08-12, on the same machine, with no repository change — see KB-086 §1). The build
+succeeds through SDK roll-forward. A root `global.json` now pins the SDK to `10.0.400` with
+`rollForward: latestFeature` (KB-086 §6) — a prompt may assume this pin exists, but should
+still not assume `dotnet --version` reports 9.x.
 
-**Warning baseline (Confirmed).** 6,695 warnings, largely `MUD0002` MudBlazor analyzer
-warnings. CI (M0-07) must record this baseline and fail on *new* warnings — it cannot use
+**Warning baseline (Confirmed, KB-086 §5).** 6,695 warnings on the Api build. The dominant
+codes are the `CS86xx` nullable-reference-analysis family (`CS8602` alone is 23.6% of the
+total) — **not** `MUD0002` as previously described; `MUD0002` is 130 occurrences, 1.94% of the
+total. CI (M0-07) must record this baseline and fail on *new* warnings — it cannot use
 `-warnaserror` until the baseline is cleared.
 
 ## Test commands — do not use yet
