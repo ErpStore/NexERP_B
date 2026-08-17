@@ -39,7 +39,7 @@ corrected.
 | Field | Value |
 |---|---|
 | **Status** | `BLOCKED` |
-| **Stop reason** | `M0-02` analysis half cannot run: `db/drift/` contains zero per-tenant fingerprint CSVs (Confirmed). Answering Q-14 requires a DBA with `VIEW DEFINITION` on ≥2 tenant databases plus a working tenant list (Q-12 unanswered), and this session may not acquire or reuse any database credential. The tooling half is complete and committed (`c1ab752`); the task is `Blocked` awaiting per-tenant fingerprints, exactly as the task specification prescribes for this case. |
+| **Stop reason** | M0-02: implementer blocked: Analysis half cannot run: db/drift/ contains zero per-tenant fingerprint CSVs (Confirmed). Answering Q-14 requires a DBA with VIEW DEFINITION on at least two tenant databases plus a working tenant list (Q-12 is unanswered), and this session may not acquire or reuse any database credential. The tooling half is complete and committed; the task is Blocked awaiting per-tenant fingerprints, exactly as the task specification prescribes for this case. Absence of fingerprints is recorded as 'undecided', never as 'no drift'. |
 | **Run started** | 2026-08-17 |
 | **Last transition** | 2026-08-17 — `M0-02` tooling half implemented, committed on `migration/M0-02-sp-drift-across-tenants` (`c1ab752`), verified (synthetic-fixture harness tests, secret scan, build regression guard), and closed out: task file, `task-tracker.md`, investigation registry (INV-030 `Partial`), `open-questions.md` (Q-14 explicitly undecided), KB-103 all updated. Run halts here — no ready task remains (see below). |
 | **Current task** | `M0-02` — Confirm stored-procedure drift across tenant databases (Q-14) |
