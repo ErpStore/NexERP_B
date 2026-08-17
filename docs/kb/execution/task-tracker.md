@@ -66,7 +66,7 @@ its children are `Completed` — it is never worked directly.
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Ready** | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
-| M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Ready** | P0 | M0-00 | 0.5 d | G0 |
+| M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Needs Review**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | Blocked | P0 | M0-03-01 | 0.5 d | G0 |
 | M0-03-03 | M0 | — fail-fast startup validation | Security | Blocked | P0 | M0-03-02 | 0.5 d | G0 |
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
@@ -252,7 +252,11 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-**Currently `Ready`:** M0-04, M0-08, M0-03, M0-03-01, M0-02. **Active task: M0-03-01** — see
+**M0-03-01: `Needs Review` 2026-08-17.** See note ³ above and
+[`tasks/M0-03-01.md` § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17) for
+the full record. `M0-03-02` remains `Blocked` until M0-03-01 is reviewed and merged.
+
+**Currently `Ready`:** M0-04, M0-08, M0-03, M0-02. **Active task: M0-04** — see
 [`current-task.md`](current-task.md). Selection rule for what becomes active next:
 [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
@@ -309,3 +313,15 @@ branch (`fd9ae21`, unmerged) — the baseline document, the `global.json` pin, a
 KB-003 update the task specified are landed. What remains is the human review-and-merge step;
 see the note above and [tasks/M0-15.md § Execution Record](tasks/M0-15.md#execution-record-2026-08-17)
 for the full record.
+
+³ **M0-03-01: `Needs Review`, not `Blocked`.** Validated `PASS` on attempt 2 of 3 (1
+escalation on attempt 1, resolved by re-reading acceptance criterion 8 literally — see
+[tasks/M0-03-01.md § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17)). All
+deliverables are committed on `migration/M0-03-01-appsettings-secrets` (`2f1a8cf`), unmerged
+— note this is a **shorter branch name** than the one the task's own spec and git strategy
+name (`migration/M0-03-01-externalise-appsettings-secrets`); the work is on the shorter one.
+`V.SMART/V.SMART.Api/appsettings.json` and `V.SMART.Api.csproj` were already sanitised on
+disk by an unknown prior actor before this task ran (the directory is untracked, so git has
+no provenance) and are correctly **not** part of this branch's diff. `M0-03-02` stays
+`Blocked` — its Hard prerequisite is this task at `Completed`, and `Needs Review` does not
+satisfy that per the *Ready-task selection rule*'s "not `REVIEW`" clause.
