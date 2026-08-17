@@ -25,7 +25,7 @@ dependencies: [KB-081, KB-082, KB-088]
 |---|---|
 | **Task ID** | **M0-02** |
 | **Task** | Confirm stored-procedure drift across tenant databases (Q-14) |
-| **Status** | `READY` |
+| **Status** | `BLOCKED` — tooling half delivered and committed 2026-08-17 (`migration/M0-02-sp-drift-across-tenants`, `c1ab752`); analysis half awaiting per-tenant fingerprint CSVs |
 | **Milestone** | M0 — Stabilise (Gate G0) |
 | **Type** | Investigation |
 | **Priority** | P1 |
@@ -60,10 +60,14 @@ already in this repository's history (those are M0-04's/M0-05's concern).
 
 | Field | Value |
 |---|---|
-| **Runner state** | `NOT_STARTED` — no run has opened this task |
-| **Canonical status** | `READY` (the row above; KB-081 is authoritative) |
-| **Attempt** | 0 of 3 (`max_retries: 2`) |
-| **Failure log** | no M0-02 entries — [`failure-log.md`](failure-log.md) (KB-092) |
+| **Runner state** | `BLOCKED` — attempt 1 delivered the tooling half only, then stopped as designed |
+| **Canonical status** | `Blocked`⁶ (the row above; KB-081 is authoritative — see `task-tracker.md` footnote 6) |
+| **Attempt** | 1 of 3 (`max_retries: 2`) |
+| **Failure log** | no M0-02 entries — this is not a validation failure, it is the task's own documented `Blocked` outcome when `db/drift/` is empty. [`failure-log.md`](failure-log.md) (KB-092) |
+| **What ran** | `db/tools/list-deployed-procedures.sql` extended with `hash_raw`/`hash_normalised`; `db/tools/compare-tenant-fingerprints.sh`, `db/RUNBOOK-tenant-drift-check.md`, `db/drift/README.md` created and verified against synthetic fixtures (no database, no fabricated CSV); committed on `migration/M0-02-sp-drift-across-tenants` (`c1ab752`), unmerged. |
+| **Why it stopped** | `db/drift/` holds zero tenant fingerprint CSVs (Confirmed) — the analysis half cannot run without them, and this session may not acquire or reuse a database credential. |
+| **Blocked on** | A DBA with `VIEW DEFINITION` on ≥2 tenant databases, plus a working tenant list (Q-12 unanswered). Owner: DBA, first candidate operator **PavanKunar**. Full detail: [`tasks/M0-02.md` § Execution record](tasks/M0-02.md#execution-record--2026-08-17-tooling-half). |
+| **To resume** | Hand `db/RUNBOOK-tenant-drift-check.md` to the DBA, drop the resulting CSVs into `db/drift/`, then re-open at the task file's Implementation Steps §9. Do not re-derive the tooling. |
 
 **Live run state is in [`runner-state.md`](runner-state.md) (KB-093), not here.**
 

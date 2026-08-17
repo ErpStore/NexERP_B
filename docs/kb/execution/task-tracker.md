@@ -74,7 +74,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
 | M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
-| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Ready** | P1 | M0-01-02 | 1 d | G0 |
+| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Blocked**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Blocked | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | Blocked | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
@@ -256,10 +256,13 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 [`tasks/M0-03-01.md` § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17) for
 the full record. `M0-03-02` remains `Blocked` until M0-03-01 is reviewed and merged.
 
-**Currently `Ready`:** M0-02 (M0-03 is a parent container, not worked directly; M0-04 is
-`Blocked`⁴ on an unidentified human owner; M0-08 moved to `Needs Review`⁵ on 2026-08-17).
-**Active task: M0-02** — see [`current-task.md`](current-task.md). Selection rule for what
-becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+**Currently `Ready`:** none (M0-02 moved to `Blocked`⁶ on 2026-08-17; M0-03 is a parent
+container, not worked directly; M0-04 is `Blocked`⁴ on an unidentified human owner; M0-08
+moved to `Needs Review`⁵ on 2026-08-17).
+**Active task: M0-02** (`Blocked`) — see [`current-task.md`](current-task.md), which stays
+pointed at it so a human or a later run resumes rather than restarts. Selection rule for what
+becomes active next, once unblocked or once another task is chosen:
+[KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-15: `Needs Review` 2026-08-17.** Committed on `migration/M0-15-build-baseline`
 (`fd9ae21`), not merged. Produced `docs/kb/execution/M0-15-build-baseline.md` (KB-086):
@@ -361,3 +364,24 @@ record: [tasks/M0-08.md § Execution Record](tasks/M0-08.md#execution-record-202
 `M0-07` stays `Blocked` — its Hard prerequisites (`M0-15`, `M0-08`) are both `Needs Review`,
 not `Completed`, and the *Ready-task selection rule*'s "not `REVIEW`" clause does not count
 either as satisfying it.
+
+⁶ **M0-02: `Blocked` on a human, not on a task.** Committed on
+`migration/M0-02-sp-drift-across-tenants` (`c1ab752`), unmerged. The **tooling half is
+complete**: `db/tools/list-deployed-procedures.sql` extended with `hash_raw` +
+`hash_normalised` (Query B, `FINGERPRINT_QUERY_VERSION 2`), `db/tools/compare-tenant-fingerprints.sh`
+(classifies `identical`/`cosmetic`/`divergent`/`missing_in_tenant`/`extra_in_tenant`, fails
+loudly on header mismatch/malformed row/`NULL` hash/duplicate row — each exercised against
+synthetic fixtures, no fabricated CSV committed), `db/RUNBOOK-tenant-drift-check.md`,
+`db/drift/README.md`. `db/drift/` holds **zero** tenant fingerprint CSVs, so the **analysis
+half could not run** — per the task's own decision rule this is the expected first-pass
+outcome, not a failure. Q-14 is recorded in `docs/kb/open-questions.md` as **explicitly
+undecided** (not "no drift"); INV-030 is `Partial` (`docs/kb/investigation-registry.md`).
+**Blocked on:** a DBA with `VIEW DEFINITION` on ≥2 tenant databases, plus a working tenant
+list (Q-12 unanswered) — a session may not acquire or reuse a credential. **Owner:** DBA —
+first candidate operator **PavanKunar** (ran the M0-01-02 capture); the migration lead must
+also decide which database the "baseline" label denotes, given the `IQSMARTDEMO_DB_2025-26`
+→ `NexGenErpDb` provenance caveat in `db/stored-procedures/CAPTURE-STATUS.md`. Full record:
+[`tasks/M0-02.md` § Execution record](tasks/M0-02.md#execution-record--2026-08-17-tooling-half).
+To resume: hand `db/RUNBOOK-tenant-drift-check.md` to the DBA, drop the resulting CSVs into
+`db/drift/`, then re-open at the task's Implementation Steps §9 — do not re-derive the
+tooling.
