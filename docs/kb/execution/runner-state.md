@@ -38,23 +38,23 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `BLOCKED` |
-| **Stop reason** | M0-04 requires a human: Actual credential rotation (production SQL login, GST e-Invoice/e-Way gateway re-keying, production deployment) requires a named person with production access not identified anywhere in the repository. This session can deliver the runbook, credential inventory, and human verification checklist, but the rotation itself must end as Blocked, naming the owner, unless a human with that access participates in-session. |
+| **Status** | `RUNNING` |
+| **Stop reason** | n/a — run in progress |
 | **Run started** | 2026-08-17 |
-| **Last transition** | 2026-08-17 — Run halted. Task `M0-04` opened and investigated; human-executable portion blocks further progress. Deliverables (runbook, credential inventory, verification checklist) can be prepared and reviewed, but credential rotation and production deployment require a named person with production SQL Server and GST gateway access. That person is not yet identified in the repository. |
-| **Current task** | `M0-04` — Rotate the exposed credentials |
-| **Current phase** | `BLOCKED` (opened, human dependency identified) |
-| **Current agent** | Halted pending human participation |
+| **Last transition** | 2026-08-17 — `M0-08` validated `PASS` (attempt 1 of 3) and is closed out as `Needs Review`⁵, not `Completed` (integration/merge is a human step per KB-088 "Who may set COMPLETED"; see [`tasks/M0-08.md` § Execution Record](tasks/M0-08.md#execution-record-2026-08-17)). Re-applying the ready-task selection rule against the tracker as it now stands: candidates are tasks with every Hard prerequisite genuinely `Completed`, not a parent container, and not blocked on an unscheduled human step. `M0-04` stays excluded (`Blocked`⁴ on an unidentified human owner, unchanged). `M0-08` is no longer a candidate — it is `Needs Review`, not `Ready`. `M0-03` is a parent container (skipped). `M0-07`'s Hard prerequisites (`M0-15`, `M0-08`) are both `Needs Review`, not `Completed`, so it stays `Blocked`. The only remaining candidate is `M0-02` (P1, `depends_on: [M0-01-02]`, which is `Completed`; not a parent; not blocked on a human step — Q-14 is what M0-02 itself answers, not a prerequisite it is waiting on). **`M0-02` selected**, uncontested (sole candidate, no rank tie-break needed). |
+| **Current task** | `M0-02` — Confirm stored-procedure drift across tenant databases (Q-14) |
+| **Current phase** | Not yet opened — selection only, per this session's instruction not to implement |
+| **Current agent** | n/a (selection only) |
 | **Current model** | n/a (not yet proceeding) |
-| **Attempt** | 1 of 3 (`max_retries: 2`) |
+| **Attempt** | 0 of 3 (`max_retries: 2`) |
 | **Escalations** | 0 of 1 |
-| **Last validation** | `M0-03-01` attempt 2 — `PASS` (2026-08-17, prior run). See [`failure-log.md`](failure-log.md). |
-| **Tasks processed this run** | 0 (M0-04 selected and opened, human blocker identified; no full task completion this run) |
-| **Classification** | `M0-04`: `task_type: Security` → base complexity `HIGH`. Raised further (though already at ceiling): `source_files` spans four projects (`V.SMART.Shared`, `V.SMART.Web`, `V.SMART.Api`, `V.SMART`); touches authentication/secrets/`appsettings*.json`. `risk: HIGH` (Security type; secrets/credentials; `appsettings*.json`). No level exists above `HIGH`. `risk: HIGH` forces `opus` for validation regardless of complexity; complexity `HIGH` also routes investigate/implement to `opus` per §5.1. `requiresHuman: true` — the task's own objective states most of its work (SQL login rotation, GST gateway re-keying, production deployment) is outside repository scope and requires a named person with production SQL / gateway access not currently identified anywhere in the repository; the AI-executable deliverables are the runbook, inventory, and verification checklist. `safetyStop: false` — nothing blocks *starting* the task; KB-091 §8 items 5 and 7 describe the expected partial-`Blocked` outcome for the rotation-execution portion, not a start-time block, and match the task's own documented completion conditions (docs deliverables can reach `Needs Review` even while rotation itself is `Blocked` on a named owner). |
-| **Models this run** | `M0-04`: opus (risk HIGH forces opus for validation; complexity HIGH routes investigate/implement to opus too). |
-| **Blocked on** | Identification of named person with production SQL Server and GST e-Invoice/e-Way gateway access required to execute credential rotation and production deployment. |
-| **Owner to unblock** | Unknown. Must be identified from operations/infrastructure team. Once named, that person must participate in-session or rotation must remain Blocked pending their availability. |
-| **Next ready task** | To be re-derived when M0-04 completes (either delivery of AI-executable docs and Blocked-pending-human-execution, or human participation enables full rotation). Current candidates: `M0-08`, `M0-02` (both P1); no other Ready tasks identified. |
+| **Last validation** | `M0-08` attempt 1 — `PASS` (2026-08-17, this run). See [`failure-log.md`](failure-log.md). |
+| **Tasks processed this run** | 1 (`M0-08` — validated `PASS`, closed out `Needs Review`; `M0-02` chosen next, not yet opened) |
+| **Classification** | `M0-02`: `task_type: Investigation` → base complexity to be assessed when the task is actually opened; not pre-classified here since this session's instruction is selection only, not implementation. |
+| **Models this run** | Not yet assigned for `M0-02` — classification deferred to the session that opens it. |
+| **Blocked on** | Nothing for `M0-02`. `M0-04` remains separately `Blocked`⁴ on identification of a named person with production SQL Server and GST e-Invoice/e-Way gateway access — unresolved, carried forward, not this run's active task. `M0-07` remains `Blocked` pending `M0-15` and `M0-08` both reaching `Completed` (i.e. reviewed and merged). |
+| **Owner to unblock M0-04** | Unknown. Must be identified from operations/infrastructure team. Once named, that person must participate in-session or rotation must remain Blocked pending their availability. |
+| **Next ready task** | To be re-derived when `M0-02` completes, per the ready-task selection rule against the tracker at that time. |
 
 ### Status values
 

@@ -62,7 +62,7 @@ its children are `Completed` — it is never worked directly.
 |---|---|---|---|---|---|---|---|---|
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Needs Review**² | P0 | M0-00 | 0.5 d | G0 |
-| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Ready** | P1 | M0-00 | 0.5 d | G0 |
+| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Needs Review**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
@@ -256,9 +256,10 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 [`tasks/M0-03-01.md` § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17) for
 the full record. `M0-03-02` remains `Blocked` until M0-03-01 is reviewed and merged.
 
-**Currently `Ready`:** M0-04, M0-08, M0-03, M0-02. **Active task: M0-04** — see
-[`current-task.md`](current-task.md). Selection rule for what becomes active next:
-[KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+**Currently `Ready`:** M0-02 (M0-03 is a parent container, not worked directly; M0-04 is
+`Blocked`⁴ on an unidentified human owner; M0-08 moved to `Needs Review`⁵ on 2026-08-17).
+**Active task: M0-02** — see [`current-task.md`](current-task.md). Selection rule for what
+becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-15: `Needs Review` 2026-08-17.** Committed on `migration/M0-15-build-baseline`
 (`fd9ae21`), not merged. Produced `docs/kb/execution/M0-15-build-baseline.md` (KB-086):
@@ -344,3 +345,19 @@ inventory, and the human verification checklist are all deliverable without prod
 and the task file offers `Needs Review` for those documents alone as a legitimate end state. The
 run did not produce them — it halted on the blocked half. That documentation remains available
 work for whoever picks this up.
+
+⁵ **M0-08: `Needs Review`, not `Completed`.** Validated `PASS` on attempt 1 of 3. All
+deliverables are committed on `migration/M0-08-build-output-guard` (`963909f`, cut from
+`master` @ `4994fcf`), unmerged — build-output/IDE-state/dependency-directory audit is clean
+(2,452 tracked paths, guard pattern produces no output), `tools/check-no-build-output.sh` is
+committed and exits 0 on the tree / 1 on a deliberately-added violation (proven in a scratch
+repo), root `.gitignore` covers the relevant patterns independent of the nested
+`frontend/vsmart-erp/.gitignore`, R-14 is corrected in place (not history-rewritten — none was
+needed), and INV-029 carries the negative-result amendment. `dotnet build
+V.SMART/V.SMART.Api/V.SMART.Api.csproj` → 0 errors, 6,695 warnings (baseline-exact). A
+superseded earlier attempt also exists at `migration/M0-08-gitignore-build-output`
+(`e0a7092`) — left unmerged and untouched; a reviewer should pick one branch to merge. Full
+record: [tasks/M0-08.md § Execution Record](tasks/M0-08.md#execution-record-2026-08-17).
+`M0-07` stays `Blocked` — its Hard prerequisites (`M0-15`, `M0-08`) are both `Needs Review`,
+not `Completed`, and the *Ready-task selection rule*'s "not `REVIEW`" clause does not count
+either as satisfying it.
