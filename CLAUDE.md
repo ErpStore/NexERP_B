@@ -174,14 +174,21 @@ At present: prefer per-project `dotnet build <path>.csproj` over solution-level 
 
 ## Known traps — do not rediscover these
 
-- **Untracked-directory checkout trap.** `V.SMART.Api/` is largely untracked; some branches
-  track only `Program.cs` / `V.SMART.Api.csproj` from it. Switching branches can silently
-  **delete** those files from disk. A build failing on a missing `Main` right after a branch
-  switch is this, not corruption — restore with `git show <branch>:<path> > <path>`.
-- Use `git grep --untracked`, not plain `git grep` — plain `git grep` silently skips
-  `V.SMART.Api/`.
-- The root `NexGen-ERP---2025-master.sln` is untracked; the only tracked `.sln` is deleted in
-  the working tree.
+- **Untracked-directory checkout trap.** The 11 `V.SMART.Api/` source files are tracked on
+  `master` as of `623b1e1`, so this no longer bites there. It still bites on any branch cut
+  **before** that merge — including both `migration/M0-03-01-*` branches — where the directory
+  is untracked or only partly tracked, and switching branches can silently **delete** those
+  files from disk. A build failing on a missing `Main` right after a branch switch is this, not
+  corruption — restore with `git show <branch>:<path> > <path>`.
+  **Second-order form:** if Visual Studio is open when a checkout removes project files, it may
+  rewrite `NexGen-ERP---2025-master.sln` to drop the now-missing project and save it. Restore
+  with `git checkout -- NexGen-ERP---2025-master.sln`, then reload the solution in VS or it will
+  do it again.
+- On `master`, plain `git grep` now finds the `V.SMART.Api/` sources. Use `git grep --untracked`
+  when working on a branch that predates `623b1e1`, or when deliberately searching files that
+  are still untracked — note `bin/` and `obj/` are *ignored*, which `--untracked` does not cover.
+- The root `NexGen-ERP---2025-master.sln` is **tracked** — added by `d83e2ea` (M0-00) — and is
+  present in the working tree. It is the only `.sln` in the repository.
 - Build warning baseline is ~6,695, largely MudBlazor `MUD0002`. CI must fail on *new*
   warnings; it cannot use `-warnaserror` until that is cleared.
 - `MauiAppBuilder.Configuration` does **not** include environment variables by default,
