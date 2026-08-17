@@ -332,6 +332,25 @@ other work** — it is cheap and it is currently a single-point-of-failure for t
 
 ### R-05 — No automated tests, no CI
 **Confirmed.** No test project; `.github/` contains no workflows.
+
+> **Status 2026-08-17 (M0-07) — the CI half is addressed, the tests half is untouched, and
+> neither is fully closed.**
+>
+> - **CI: built, not yet live.** `.github/workflows/ci.yml` now runs hygiene guard → restore →
+>   build → analyzer warning gate on every push and every PR to `master`, gated against a
+>   committed, ratcheting baseline in `ci/warning-baseline.json` (Api 6,693 / Web 6,695
+>   warnings, 0 errors) with no `-warnaserror`. The gate was proven to fail on a deliberately
+>   introduced warning and to tolerate a decrease. **But it has never executed on a hosted
+>   runner** — an execution session cannot push — so there is no green run, `master` does not
+>   yet carry the workflow, the baseline is still marked `provisional`, and no required status
+>   check exists. Full and honest detail: [KB-087](../execution/ci-pipeline.md) §7 (what was
+>   verified) and §8 (what was not).
+> - **Tests: unchanged.** There is still no test project (INV-023). M0-07 deliberately added
+>   **no** `dotnet test` step, only a commented placeholder naming **M0-12-01**. The "every
+>   refactor is unverifiable" impact below therefore still stands in full.
+>
+> This risk closes when M0-12-01/M0-13 land characterisation tests **and** CI is green on
+> `master` as a required check — not before.
 **Impact.** ~250k LOC of business logic with no regression safety net, about to undergo the
 largest change in its life. Every refactor is unverifiable.
 **Action.** Stand up CI (build + analyzers) immediately (M0-07). Add characterisation tests

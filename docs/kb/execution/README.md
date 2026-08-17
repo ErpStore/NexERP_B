@@ -391,6 +391,12 @@ otherwise **M0-12-01 → M0-13 → M0-11**.
 - [ ] Exposed credentials rotated, confirmed by the person with production access.
 - [ ] Repository visibility deliberately decided and recorded.
 - [ ] CI green on `master`, running on every push, with a recorded warning baseline.
+      *(M0-07, 2026-08-17: the pipeline, the gate and the baseline exist and are proven
+      locally — `.github/workflows/ci.yml`, `ci/warning-baseline.json`, [KB-087](ci-pipeline.md).
+      The box stays **unticked**: the workflow has never run on a hosted runner, `master` does
+      not yet carry it, the committed baseline is still marked `provisional` until the runner
+      regenerates it, and no required status check exists. See KB-087 §8 for exactly what is
+      and is not verified.)*
 - [ ] `CalculationService` and `StockManagerService` characterisation tests passing in CI.
 - [ ] Q-01 answered and recorded in [open-questions.md](../open-questions.md).
 
@@ -903,7 +909,7 @@ project). Remote: `https://github.com/ErpStore/NexERP_B.git`. Default branch `ma
 | Scope | One task per branch. Never mix two task ids in one branch. |
 | Merge | Never merge or push to `master` from an execution session. Leave the branch for review. |
 | Rollback | Revert the branch's merge commit. Each task is independently reversible **because** it is single-scope. |
-| Protection | `master` protected, requiring CI green + one review, from M0-07 onward. |
+| Protection | `master` protected, requiring one review. **The required *CI* status check is still outstanding.** M0-00 protected `master` but deliberately added no required check because no CI existed; M0-07 (2026-08-17) created the check — job name `Restore, build and gate analyzer warnings` in `.github/workflows/ci.yml` — but an execution session has no GitHub admin rights and cannot push, so it has never run and is not yet required. **Action for a human with admin rights:** after the first green run on `master`, add that check to `master`'s branch protection. Rollback ordering matters — remove the required check *before* ever deleting the workflow, or `master` becomes unmergeable. See [KB-087](ci-pipeline.md) §8. |
 
 **Precondition (M0-00): resolved 2026-08-12.** The working tree previously had 37
 uncommitted entries against a single-commit history. M0-00 gave each entry a human-decided

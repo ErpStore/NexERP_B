@@ -31,8 +31,35 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-010 | External integrations (e-Invoice, e-Way, IFSC, SMTP, biometric) | Complete | `E_Invoice/**`, `EinvoiceDatabaseService.cs`, `EWayDatabaseService.cs`, `BankService.cs`, URL scan | [KB-011](architecture/backend-architecture.md#integrations-with-external-systems) | 2026-08-12 |
 | INV-021 | Angular pilot: scope and value | Complete | `frontend/vsmart-erp/src/**`, `package.json` | [KB-015](architecture/frontend-architecture-existing.md#the-angular-19-pilot-frontendvsmart-erp) | 2026-08-12 |
 | INV-022 | Background jobs / scheduled tasks | Complete | grep for `IHostedService`, `BackgroundService`, `PeriodicTimer`, Hangfire, Quartz — **none exist** | [KB-010](architecture/system-overview.md#background-processing) | 2026-08-12 |
-| INV-023 | Testing and CI | Complete | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
+| INV-023 | Testing and CI | Complete *(CI half amended 2026-08-17 by M0-07 — see below. The "no test project" finding is **unchanged**.)* | no test project in `.sln`; `.github/` had no workflows | [KB-010](architecture/system-overview.md#testing), [KB-087](execution/ci-pipeline.md), R-05 | 2026-08-17 |
 | INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility. **Solution-build gap closed 2026-08-17 by M0-15** — see below.)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`, `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj`, `dotnet build NexGen-ERP---2025-master.sln`, `dotnet workload list` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands), [KB-086](execution/M0-15-build-baseline.md) | 2026-08-17 |
+
+**M0-07 amendment to INV-023 (2026-08-17) — CI now exists in the repository, but has never
+run.** `.github/workflows/ci.yml` runs hygiene guard → restore → build → analyzer warning gate
+on every push and every PR to `master`, on `windows-latest`, gated against a committed
+ratcheting baseline in `ci/warning-baseline.json` (`V.SMART.Api` 6,693 / `V.SMART.Web` 6,695
+warnings, 0 errors, SDK `10.0.400`). No `-warnaserror` anywhere.
+**The "no test project" finding is unchanged and remains true** — M0-07 added a commented
+placeholder naming M0-12-01 and deliberately no `dotnet test`.
+*Evidence:* `.github/workflows/ci.yml`; `ci/warning-baseline.json`;
+[KB-087](execution/ci-pipeline.md) §7 (gate proven to fail on a deliberately introduced
+`CS1030` and to pass with a ratchet notice below baseline — both observed locally).
+*Not verified (KB-087 §8):* **no green run URL and no failed run URL exist** — an execution
+session cannot push, so the workflow has never executed on a GitHub-hosted runner; the
+baseline is marked `provisional` until the runner regenerates it; and no required status check
+is configured on `master`. Confidence: **Confirmed** for what the files contain and for the
+local gate behaviour; **Unknown** for runner behaviour.
+
+**M0-07 amendment to INV-029 (2026-08-17) — runner-vs-local warning count: NOT YET COMPARED.**
+This is an explicit negative result, recorded so no future session assumes it was done. The
+runner has never built this repository, so no runner-side warning count exists. What *is*
+newly Confirmed is a local-vs-local delta that every later comparison must account for:
+splitting restore into its own step and building with `--no-restore --no-incremental -v normal`
+yields **6,693** (Api) and **6,695** (Web) — 2 and 3 lower than KB-086's 6,695/6,698, because
+the restore-time `NU1608` warnings no longer appear in the build log. The arithmetic reconciles
+exactly against KB-086 §5; every other code matches count-for-count. When the workflow first
+runs, the **runner's** numbers become the baseline and the runner-vs-local delta must be
+recorded here.
 
 **M0-15 amendment (2026-08-17), closing the solution-build gap INV-029 left open:** the
 solution build **succeeds** — 0 errors, 13,367 warnings, ~4–4.5 min — but only reproducibly
