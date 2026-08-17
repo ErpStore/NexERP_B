@@ -56,6 +56,7 @@ last_verified: 2026-08-17
 | ADR-004 | [Server-side authorization](decisions/ADR-004-server-side-authorization.md) | decision | accepted (**P0**) | — | 2026-08-12 |
 | ADR-005 | [Reporting & printing](decisions/ADR-005-reporting-and-printing.md) | decision | accepted | — | 2026-08-12 |
 | KB-102 | [Stored-Procedure Inventory Reconciliation](architecture/stored-procedure-inventory.md) | as-is | complete | confirmed | 2026-08-13 |
+| KB-103 | [Stored-Procedure Drift Across Tenant Databases (Q-14)](architecture/stored-procedure-drift.md) | as-is | partial | mixed | 2026-08-17 |
 
 ## doc_id allocation
 
@@ -71,7 +72,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-087 | *(proposed by M0-07 before this table existed — still unclaimed on disk. `grep -rn "KB-087" docs/kb/` before claiming)* | provisional |
 | KB-088 – KB-090 | **Claimed 2026-08-16** — [workflow.md](execution/workflow.md), [current-task.md](execution/current-task.md), [task-template.md](execution/task-template.md) | allocated |
 | KB-091 – KB-093 | **Claimed 2026-08-16** — [autonomous-runner.md](execution/autonomous-runner.md), [failure-log.md](execution/failure-log.md), [runner-state.md](execution/runner-state.md) | allocated |
-| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-110–113 (M2-B08…B11). **Next free: KB-103**, or KB-114+ |
+| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11). **Next free: KB-104**, or KB-114+ |
 | ADR-nnn | Architecture decisions | through ADR-005 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-034 (030–033 reserved, next free INV-035 — see investigation-registry.md) |
@@ -125,6 +126,7 @@ Use this table before searching the repository.
 | Whether something has already been investigated | KB-003 |
 | What is still unknown | KB-004 |
 | Which stored procedures exist and which are missing | KB-102 |
+| Do stored procedures differ between tenants? (Q-14 drift check, method + tooling) | KB-103 |
 
 ## RAG strategy
 
