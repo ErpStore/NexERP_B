@@ -63,7 +63,7 @@ its children are `Completed` — it is never worked directly.
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
-| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Ready** | P0 | M0-15, M0-08 | 2 d | G0 |
+| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Blocked**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
@@ -389,3 +389,30 @@ also decide which database the "baseline" label denotes, given the `IQSMARTDEMO_
 To resume: hand `db/RUNBOOK-tenant-drift-check.md` to the DBA, drop the resulting CSVs into
 `db/drift/`, then re-open at the task's Implementation Steps §9 — do not re-derive the
 tooling.
+
+⁷ **M0-07: `Blocked` on a human, not on a task — environment, not a defect.** Committed on
+`migration/M0-07-ci-pipeline` (`5106929`, three commits `f2672be`/`777e46c`/`5106929`),
+unmerged and **not pushed to `origin`**. `.github/workflows/ci.yml` (restore → build Api/Web
+→ analyzer gate, `check-no-build-output.sh` guard, `M0-12-01` test-step placeholder),
+`tools/compare-warnings.{ps1,sh}`, `ci/warning-baseline.json` (Api 6,693 / Web 6,695
+warnings, reproduced twice locally, per-code identical to a fresh measurement) and
+[KB-087](ci-pipeline.md) all exist and were verified locally to the fullest extent possible
+without a hosted runner: the gate correctly fails on a synthetic new warning code (`CS1030`,
+exit 1 both script variants) and correctly ratchets on an improvement. **Six acceptance
+criteria remain unmet, all for the same root cause:** `ci/warning-baseline.json` self-declares
+`"measured_on": "developer-workstation"` / `"provisional": true` rather than runner-produced;
+no Actions run has ever executed (branch absent from `origin` — `git ls-remote --heads
+origin` confirms); `master` carries no `ci.yml` at all (`git ls-tree -r --name-only master --
+.github` → only `copilot-instructions.md`, `prompts/convert-to-zoho-ui.prompt.md`); and the
+required-status-check on branch protection needs GitHub organisation admin rights (`gh`
+CLI not installed here). **Blocked on:** (a) confirming Q-20 — whether `ErpStore` has
+GitHub-hosted Actions runner minutes at all — and (b) a human with push permission on this
+branch and GitHub organisation admin rights on `master`'s branch protection. **Owner:**
+migration lead / repository admin (unnamed in the KB; first candidate is whoever holds
+`ErpStore` GitHub org admin — not yet identified). Full record:
+[`tasks/M0-07.md` § Execution Record](tasks/M0-07.md#execution-record-2026-08-17) and
+[`failure-log.md`](failure-log.md) (M0-07 attempt 1, category `environment`). To resume:
+answer Q-20, then have the owner push `migration/M0-07-ci-pipeline`, observe one green
+Actions run, regenerate `ci/warning-baseline.json` from the runner's own numbers (runner wins
+on any disagreement with the local 6,693/6,695), merge to `master`, and add the check to
+branch protection — do not re-derive the pipeline or the gate script.
