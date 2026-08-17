@@ -38,23 +38,23 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `STOPPED` |
-| **Stop reason** | task budget reached (maxTasks=1); next ready task is M0-04 |
+| **Status** | `BLOCKED` |
+| **Stop reason** | M0-04 requires a human: Actual credential rotation (production SQL login, GST e-Invoice/e-Way gateway re-keying, production deployment) requires a named person with production access not identified anywhere in the repository. This session can deliver the runbook, credential inventory, and human verification checklist, but the rotation itself must end as Blocked, naming the owner, unless a human with that access participates in-session. |
 | **Run started** | 2026-08-17 |
-| **Last transition** | 2026-08-17 — `M0-03-01` closed out. Attempt 1 validated `FAIL` on acceptance criterion 8 (`architecture` category — a spec contradiction between the task's own `Jwt:Secret -> ""` mandate and its read-only `Program.cs` constraint), diagnosed and escalated per KB-091 §6.3 (1 of 1 escalation used); resolved by re-reading criterion 8 literally (it names "removed," not "blanked") rather than by any code or spec change. Attempt 2 validated **`PASS`** — all 11 acceptance criteria met, `scopeOk: true`, `failureCategory: none`. Task moved to `Needs Review` (committed on `migration/M0-03-01-appsettings-secrets` at `2f1a8cf`, unmerged — note this differs from the branch name originally specified). Full record: [`tasks/M0-03-01.md` § Execution Record`](tasks/M0-03-01.md#execution-record-2026-08-17). Selected `M0-04` next per the ready-task selection rule (KB-082): candidates were M0-04, M0-08, M0-03 (parent, skipped), M0-02 — `M0-03-02` did not become a candidate because M0-03-01 is `Needs Review`, not `Completed`; P0 tier narrowed to M0-04 alone (M0-08/M0-02 are P1). Run stopped at task budget (maxTasks=1). |
-| **Current task** | `M0-03-01` — completed with 2 attempts and 1 escalation; validation result PASS; status REVIEW |
-| **Current phase** | `REVIEW` |
-| **Current agent** | none (run halted) |
-| **Current model** | n/a (run halted) |
-| **Attempt** | 2 of 3 (`max_retries: 2`) — M0-03-01 complete |
-| **Escalations** | 1 of 1 — M0-03-01 complete |
-| **Last validation** | `M0-03-01` attempt 2 — `PASS` (2026-08-17). See [`failure-log.md`](failure-log.md) for the attempt-1 `FAIL`/diagnosis pair. |
-| **Tasks processed this run** | 1 (`M0-03-01`, `REVIEW`) |
-| **Classification** | `M0-03-01`: `task_type: Security` → base complexity `HIGH`, capped there; `risk: HIGH` forced `opus` throughout. See [`failure-log.md`](failure-log.md) for how that played out. |
-| **Models this run** | `M0-03-01`: opus (risk HIGH). |
-| **Blocked on** | — |
-| **Owner to unblock** | — |
-| **Next ready task** | `M0-04` — ready to open |
+| **Last transition** | 2026-08-17 — Run halted. Task `M0-04` opened and investigated; human-executable portion blocks further progress. Deliverables (runbook, credential inventory, verification checklist) can be prepared and reviewed, but credential rotation and production deployment require a named person with production SQL Server and GST gateway access. That person is not yet identified in the repository. |
+| **Current task** | `M0-04` — Rotate the exposed credentials |
+| **Current phase** | `BLOCKED` (opened, human dependency identified) |
+| **Current agent** | Halted pending human participation |
+| **Current model** | n/a (not yet proceeding) |
+| **Attempt** | 1 of 3 (`max_retries: 2`) |
+| **Escalations** | 0 of 1 |
+| **Last validation** | `M0-03-01` attempt 2 — `PASS` (2026-08-17, prior run). See [`failure-log.md`](failure-log.md). |
+| **Tasks processed this run** | 0 (M0-04 selected and opened, human blocker identified; no full task completion this run) |
+| **Classification** | `M0-04`: `task_type: Security` → base complexity `HIGH`. Raised further (though already at ceiling): `source_files` spans four projects (`V.SMART.Shared`, `V.SMART.Web`, `V.SMART.Api`, `V.SMART`); touches authentication/secrets/`appsettings*.json`. `risk: HIGH` (Security type; secrets/credentials; `appsettings*.json`). No level exists above `HIGH`. `risk: HIGH` forces `opus` for validation regardless of complexity; complexity `HIGH` also routes investigate/implement to `opus` per §5.1. `requiresHuman: true` — the task's own objective states most of its work (SQL login rotation, GST gateway re-keying, production deployment) is outside repository scope and requires a named person with production SQL / gateway access not currently identified anywhere in the repository; the AI-executable deliverables are the runbook, inventory, and verification checklist. `safetyStop: false` — nothing blocks *starting* the task; KB-091 §8 items 5 and 7 describe the expected partial-`Blocked` outcome for the rotation-execution portion, not a start-time block, and match the task's own documented completion conditions (docs deliverables can reach `Needs Review` even while rotation itself is `Blocked` on a named owner). |
+| **Models this run** | `M0-04`: opus (risk HIGH forces opus for validation; complexity HIGH routes investigate/implement to opus too). |
+| **Blocked on** | Identification of named person with production SQL Server and GST e-Invoice/e-Way gateway access required to execute credential rotation and production deployment. |
+| **Owner to unblock** | Unknown. Must be identified from operations/infrastructure team. Once named, that person must participate in-session or rotation must remain Blocked pending their availability. |
+| **Next ready task** | To be re-derived when M0-04 completes (either delivery of AI-executable docs and Blocked-pending-human-execution, or human participation enables full rotation). Current candidates: `M0-08`, `M0-02` (both P1); no other Ready tasks identified. |
 
 ### Status values
 

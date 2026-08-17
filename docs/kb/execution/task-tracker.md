@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Needs Review**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Ready** | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | Blocked | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Ready** | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Needs Review**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | Blocked | P0 | M0-03-01 | 0.5 d | G0 |
@@ -325,3 +325,22 @@ disk by an unknown prior actor before this task ran (the directory is untracked,
 no provenance) and are correctly **not** part of this branch's diff. `M0-03-02` stays
 `Blocked` — its Hard prerequisite is this task at `Completed`, and `Needs Review` does not
 satisfy that per the *Ready-task selection rule*'s "not `REVIEW`" clause.
+
+⁴ **M0-04: `Blocked` on a human, not on a task.** The 2026-08-17 run opened it and stopped at
+classification without cutting a branch or attempting work — `tasksAttempted: 0`. Its blocking
+dependency is organisational, not technical: the actual rotation needs a named person with
+production SQL Server access and access to the GST e-Invoice / e-Way gateway account, and **no
+such person is identified anywhere in the repository**. Who unblocks it is itself the open
+question; it must be answered from the operations/infrastructure team, and that person has to
+participate in-session or the rotation stays blocked pending their availability.
+
+The status is recorded here so the *Ready-task selection rule* stops re-selecting it — while it
+read `Ready` at P0, every run picked it and stopped in the same place. Move it back to `Ready`
+once an owner is named.
+
+**Part of this task is not blocked.** The task file's own objective splits it: the rotation
+runbook (`docs/runbooks/credential-rotation.md`, which does not exist yet), the credential-usage
+inventory, and the human verification checklist are all deliverable without production access,
+and the task file offers `Needs Review` for those documents alone as a legitimate end state. The
+run did not produce them — it halted on the blocked half. That documentation remains available
+work for whoever picks this up.
