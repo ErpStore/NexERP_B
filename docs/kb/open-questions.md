@@ -41,13 +41,17 @@ recommendation says so.
 | **Q-16** | What are the actual reverse-proxy / deployment topology and TLS termination? | **Inferred** from `UseForwardedHeaders` with cleared `KnownNetworks`/`KnownProxies` and per-tenant subdomains. Not confirmed. | Phase 6, CORS and cookie configuration |
 | **Q-17** | Are `ScreenManagement` rows (distinct from `Screens`) used at runtime, and how do the two relate? | Both are seeded; `Screens` is clearly the permission catalogue. `ScreenManagement`'s role is **Unknown**. | Admin module (3.3) |
 | **Q-18** | What is the retention/backup policy for tenant databases and for the flat-file logs? | **Unknown.** Relevant to R-23 and to rollback planning. | Phase 6 |
+| **Q-20** | Are all **38** Master sub-modules in scope, or can dormant ones (e.g. `ProjectTypeMaster`, `Factor`, `ScreenManagement` — see Q-17) be retired rather than migrated? Each retirement removes 2.5–5 d. | Unknown — needs product owner. | M3M sizing ([KB-088](execution/M3-masters-milestone-plan.md)) |
+| **Q-21** | Is the MAUI hybrid app (`V.SMART`) in scope for the React rebuild, or does it stay on Blazor Hybrid indefinitely? | Unknown. KB-070 defers it to Q-11 but never resolves the Master-module implication: the MAUI app shares `Pages/` with Blazor, so migrated masters must keep working there. | M3F-A03, programme scope |
+| **Q-22** | Confirmed team size and start date, so the calendar in KB-088 §4.2 resolves to dates rather than durations. | Unknown. | Scheduling |
+| **Q-23** | Does the licence position on the acquired codebase permit redistribution under a new brand? **No `LICENSE`, `COPYING` or `NOTICE` file exists anywhere in this repository** (verified 2026-08-18). | Unknown — legal question, not an engineering one. | **The entire programme** |
 
 ## Questions the analysis answered — recorded so they are not re-asked
 
 | Question | Answer | Source |
 |---|---|---|
 | Can the existing backend serve a React SPA without modification? | No — but additively, not by rewriting. Six specific additions required. | [KB-041](api/api-readiness-assessment.md) |
-| Is there an existing API to build on? | 6 endpoints, 2 controllers. `CurrencyController` is a valid template. | [KB-040](api/api-overview.md) |
+| Is there an existing API to build on? | ~~6 endpoints, 2 controllers.~~ **WRONG — corrected 2026-08-18 (INV-035).** `V.SMART.Api` has **never been committed**: the directory is absent, `git log --all` on that path is empty, and there is no `*Controller.cs` anywhere in the tree. The solution references the missing project, so it does not build. **The HTTP surface is 0%.** | [KB-088](execution/M3-masters-milestone-plan.md#0-baseline-correction--read-this-first) |
 | Where is business logic? | Split: 128,518 LOC in services (reusable) and ~184,000 LOC inside Razor `@code` (must be extracted). | [KB-011](architecture/backend-architecture.md), [KB-015](architecture/frontend-architecture-existing.md) |
 | Is authorization enforced server-side? | **No.** UI only. Hard blocker. | [KB-013](architecture/auth-and-permissions.md), [ADR-004](decisions/ADR-004-server-side-authorization.md) |
 | Are there background jobs? | None. | INV-022 |

@@ -76,7 +76,8 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 | INV-032 | Decimal representation across the HTTP wire — format, precision source, rounding mode | M2-C10 | Reserved |
 | INV-033 | Screen-name → route mapping for permission-filtered navigation | M2-C03 | Reserved |
 | INV-034 | Repository visibility correction (moved to Completed table above) | M0-00 | Completed |
-| **INV-035 +** | **next free** | — | — |
+| INV-035 | **`V.SMART.Api` does not exist** — solution references a never-committed project; KB-001/KB-041/KB-071 claims of "2 controllers, ~10% built, `CurrencyController` proven" are false. Correct those docs. | M3F-A01 | **Confirmed 2026-08-18** |
+| **INV-036 +** | **next free** | — | — |
 
 Before claiming an id: `grep -rn "INV-0[0-9][0-9]" docs/` across **both** `docs/kb/` and
 `docs/kb/execution/tasks/`, then add the row here in the same change that uses it. Never

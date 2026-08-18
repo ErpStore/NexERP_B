@@ -43,6 +43,7 @@ last_verified: 2026-08-13
 | KB-084 | [Review & Handoff Templates](execution/review-templates.md) | meta | active | — | 2026-08-12 |
 | TASK-* | [Task specifications + execution prompts](execution/tasks/) | **proposal** | active | — | 2026-08-12 |
 | KB-085 | [M0-00 Version-Control Baseline Decision Log](execution/M0-00-baseline-decisions.md) | execution | active | — | 2026-08-12 |
+| KB-088 | [M3-Masters Milestone Plan & Effort Calculation](execution/M3-masters-milestone-plan.md) | **proposal** | active | — | 2026-08-18 |
 | ADR-001 | [Preserve the existing backend](decisions/ADR-001-keep-existing-backend.md) | decision | accepted | — | 2026-08-12 |
 | ADR-002 | [REST API layer & conventions](decisions/ADR-002-rest-api-layer.md) | decision | accepted | — | 2026-08-12 |
 | ADR-003 | [React stack](decisions/ADR-003-react-stack.md) | decision | accepted | — | 2026-08-12 |
@@ -61,13 +62,14 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-080 – KB-089 | Execution plan meta-documents | KB-080 … KB-084 |
 | KB-085 | **Claimed 2026-08-12 by M0-00** — [M0-00-baseline-decisions.md](execution/M0-00-baseline-decisions.md) | allocated |
 | KB-086 – KB-087 | *(proposed by M0-07/M0-15/M0-01-01 before this table existed — reconcile or re-map into KB-100+ when those tasks run; KB-085 is no longer free — see row above)* | provisional |
+| KB-088 | **Claimed 2026-08-18** — [M3-masters-milestone-plan.md](execution/M3-masters-milestone-plan.md); supersedes KB-070 §Phase 3.1–3.3 and KB-071 for Master-module scope and effort | allocated |
 | **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-110–113 (M2-B08…B11). **Next free: KB-103**, or KB-114+ |
 | ADR-nnn | Architecture decisions | through ADR-005 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
-| INV-nnn | Investigation registry rows | through INV-034 (030–033 reserved, next free INV-035 — see investigation-registry.md) |
+| INV-nnn | Investigation registry rows | through INV-035 (030–033 reserved, next free INV-036 — see investigation-registry.md) |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
 | R-nn | Risks | through R-37 |
-| Q-nn | Open questions | through Q-19 |
+| Q-nn | Open questions | through Q-23 |
 
 A task that produces a durable document allocates the next free **KB-1xx** id, adds its row
 to the registry above, and records the id in the task's *Documentation Updates* section.
@@ -103,6 +105,7 @@ Use this table before searching the repository.
 | What blocks what; what can run in parallel; critical path | KB-082 |
 | How do I write/regenerate a task execution prompt | KB-083 |
 | How do I close a task or a milestone gate | KB-084 |
+| Master-module scope, milestone plan and effort calculation | **KB-088** |
 | The prompt for a specific task | `execution/tasks/<TASK-ID>.md` |
 | Why a decision was made | `decisions/` |
 | Whether something has already been investigated | KB-003 |

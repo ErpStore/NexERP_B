@@ -153,6 +153,20 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 Each wave expands to 14 tasks per the module pattern ([KB-080 §10](README.md#10-module-migration-task-pattern)).
 Task files are generated at wave start — see [KB-080 §11](README.md#11-m3--core-modules).
 
+> **Master-module scope and estimates below are superseded by
+> [KB-088](M3-masters-milestone-plan.md)** (2026-08-18), which re-measured the module
+> against the working tree. Three corrections that change planning:
+>
+> 1. **`V.SMART.Api` has never been committed** (INV-035) — the solution does not build and
+>    the HTTP surface starts at 0%, not the ~10% asserted in KB-001/KB-041/KB-071.
+> 2. **Masters contain 38 sub-masters, not the ~18 named in waves M3-1…M3-3** — 78 pages,
+>    130 routes, 41 permission screens, 54,715 Razor LOC. The 3+4+2 = 9-week wave estimate
+>    is roughly half of the measured 248–472 person-days.
+> 3. **Masters use zero stored procedures** — so **M0-01 does not gate M3**. The two can
+>    run in parallel, which shortens the critical path.
+>
+> Rows M3-1…M3-3 stay for id stability; use KB-088 for scope, sequencing and effort.
+
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M3-1-01 | M3 | Wave M3-1 business-rule investigation *(exemplar written)* | Investigation | Blocked | P0 | G2 | 3 d | G3 |
