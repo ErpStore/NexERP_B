@@ -106,7 +106,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | Blocked | P0 | G0 | 1–2 wks | G2 |
-| M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | Blocked | P0 | G0 | 2 d | G2 |
+| M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Needs Review**¹³ | P0 | G0 *(exception)* | 2 d | G2 |
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | Blocked | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | Blocked | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | Blocked | P0 | M2-A01-03 | 1 d | G2 |
@@ -246,7 +246,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | 0 | G2 | ⬜ Not met |
+| M2 | 52 | 0 *(1 `Needs Review` — M2-A01-01, gate exception¹³)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -265,6 +265,48 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 `M0-03-03` was unblocked by this and is itself now `Completed`. An older, superseded branch of
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
+
+---
+
+### ¹³ M2-A01-01 — `Needs Review`, executed 2026-08-18 under a **deliberate G0 gate exception**
+
+**This is the first M2 task to be worked, and G0 has not passed.** Recording it here so the
+deviation is visible rather than silent.
+
+`M2-A01-01` declares `depends_on: [G0]`, and [KB-080 §9](README.md#9-m2--foundation) states
+*"Gate G0 must have passed. Not negotiable."* Zero of G0's seven exit criteria were ticked on
+2026-08-18. The task was nonetheless opened by the **explicit in-session decision of the
+repository owner (Vivek)**, after the four G0 blockers (`M0-01-03`'s rebuild drill, `M0-04`,
+`M0-07`'s hosted-runner/branch-protection gap, `M0-12-01`) were laid out to him.
+
+**Rationale.** `M2-A01-01` produces documentation only and changes no behaviour. The two
+things G0 guarantees — a reproducible environment from stored-procedure DDL, and
+characterisation tests proving behaviour preservation — are prerequisites for *changing*
+behaviour. Every input this task needed already existed in the working tree.
+
+**The exception is confined to `M2-A01-01`.** It does **not** transfer to `M2-A01-02` or any
+other M2 task. The moment code is written against the specification, G0's rationale applies
+in full: [KB-104](../architecture/server-side-authorization-spec.md) §9 lists verification
+that cannot even run until `M0-12-01` creates a test project, and `M0-12-01` is `Blocked`¹².
+**Every other M2 task stays `Blocked` on G0.** M2's completed count stays at 0 in the rollup
+below — `Needs Review` is not `Completed` ([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)).
+
+**Delivered on `migration/M2-A01-01-authorization-spec`**, documentation only, no `V.SMART/`
+file touched: [KB-104](../architecture/server-side-authorization-spec.md) (new,
+`status: proposal`), plus INV-035 and an INV-004 amendment in
+[`investigation-registry.md`](../investigation-registry.md), three new questions
+(**Q-22, Q-23, Q-24**) in [`open-questions.md`](../open-questions.md), and routing entries in
+[`INDEX.md`](../INDEX.md). Full record:
+[`tasks/M2-A01-01.md` § Execution Record (2026-08-18)](tasks/M2-A01-01.md#execution-record-2026-08-18).
+
+**`Q-23` blocks `M2-A02`.** The task found that `AuthController.Login` never calls
+`SyncRightsForUserAsync` while the Blazor login path does, and only for `UserId == 1` — so a
+user who has only ever authenticated through the API can hold zero `UserRight` rows and, once
+the filter is live, would be 403'd from every annotated endpoint. That must be settled before
+the filter is applied to `CurrencyController`, or the vertical slice will fail on its first
+request. It does **not** block `M2-A01-02`.
+
+---
 
 **Currently `Ready`:** none, as of the M0-02 deferral merge (2026-08-18). Every M0 task is now
 `Completed`, `Blocked` on a named human, or `Needs Review` and therefore not re-selectable:

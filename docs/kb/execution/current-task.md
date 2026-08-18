@@ -21,77 +21,93 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — `Blocked` on a human. Attempt 2 repeated attempt 1's empty return.
+## Active task: **none.** Gate G0 still bars M2, and no M0 task is selectable.
 
-`M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
-(its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
-**twice**, 2026-08-18: attempt 1 and attempt 2 of 4, both `opus`. **Both times the implementer
-returned no result** — no diff, no text, no tool output — so validation could not run either
-time (`{"verdict": "none", "note": "validation did not complete"}`). Verified at this
-close-out: no `migration/M0-12-01-*` branch exists, no `tests/` directory exists at the
-repository root, `git status --porcelain` is clean, and `master`'s tip is unchanged. **Nothing
-was implemented on either attempt — there is nothing to resume mid-way through.**
+Nothing is in progress. The last session closed `M2-A01-01` (below) under a one-off,
+owner-authorised gate exception; **that exception is spent and does not transfer.** No task
+satisfies the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
-**Why this is now `Blocked`, not a retry.** Attempt 1 was diagnosed — from inside that run's
-own workflow completion log, which is not visible afterward — as a transient upstream `529
-Overloaded` on both its agents, and the earlier version of this file correctly said "just
-re-run the runner," explicitly flagging: *"If attempt 2 fails the same way, that repetition is
-the signal worth investigating — a single 529 is not."* Attempt 2 has now failed the exact
-same way. **This close-out session cannot see the workflow's agent-completion log for attempt
-2** (that visibility only exists from inside the run that produced it), so it cannot confirm
-or rule out a second `529` versus a systemic dispatch problem. Per the standing rule never to
-silently guess, a third attempt is **not** recommended until a human checks the
-dispatch/agent-invocation layer — spending the two remaining attempts on the same unverified
-assumption that has already failed twice is not a reasonable use of the retry budget.
+**Do not open `M2-A01-02`, or any other M2 task.** Every one of them declares `G0` — directly
+or transitively — and G0 has **zero of seven exit criteria ticked**
+([KB-080 §7](README.md#7-m0--stabilise)). `M2-A01-01` was exempted only because it produces
+documentation and changes no behaviour. `M2-A01-02` writes the authorization filter, and
+[KB-104 §9](../architecture/server-side-authorization-spec.md) lists verification for it that
+**cannot run until `M0-12-01` creates a test project** — which is itself `Blocked`.
 
-Full record: [`tasks/M0-12-01.md` § Execution Record (2026-08-18) — Attempt 2](tasks/M0-12-01.md#execution-record-2026-08-18--attempt-2-repeated-empty-return).
-Attempts logged: [`failure-log.md` § M0-12-01 · attempt 1](failure-log.md#m0-12-01--attempt-1--2026-08-18)
-and [§ attempt 2](failure-log.md#m0-12-01--attempt-2--2026-08-18).
-Status authority: [`task-tracker.md`](task-tracker.md) (KB-081) footnote 12. Runner state:
-[`runner-state.md`](runner-state.md) (KB-093). Open question: **Q-21** in
+## What a human must clear, before anything else can move
+
+Four blockers, three of them the repository owner's. This is the whole critical path.
+
+| # | Blocker | Status | Owner |
+|---|---|---|---|
+| 1 | **`M0-12-01`** — create the test project and wire it into CI | `Blocked`¹² — three dispatches (2026-08-18), all returned no result. **1 of 4 attempts left.** Do not spend it on a fourth identical re-dispatch before someone inspects the agent-dispatch layer (**Q-21**) | Whoever administers the runner's dispatch layer; fallback **Vivek** |
+| 2 | **`M0-01-03`** — rebuild drill | `Needs Review`¹ — repo-side work merged; `db/REBUILD-DRILL-LOG.md` is a skeleton, every field `TBD`. A hard G0 exit criterion | **Vivek** — needs a disposable SQL Server instance |
+| 3 | **`M0-07`** — CI green on `master` | `Completed`⁷ as a task, but the G0 box stays **unticked**: never run on a hosted runner, `master` does not carry the workflow, `ci/warning-baseline.json` is still `provisional`, no required status check exists (**Q-20**) | **Vivek** — GitHub org admin |
+| 4 | **`M0-04`** — rotate the exposed credentials | `Blocked`⁴ — owner never identified. Also blocks `M0-05` (purge secrets from history), whose other prerequisite `M0-03` is `Completed` | Unidentified ops/infra person |
+
+Blocked transitively behind `M0-12-01`: `M0-12`, `M0-12-02`, `M0-13`, `M0-09`, `M0-10`,
+`M0-06`, `M0-11`. Parent containers, never worked directly: `M0-01`, `M0-12`.
+
+Full detail and candidate owners: [`runner-state.md`](runner-state.md) (KB-093);
+[`task-tracker.md`](task-tracker.md) (KB-081) footnotes 1, 4, 7, 12, 13.
+
+> **Bookkeeping inconsistency, inherited, not yet reconciled.** `runner-state.md` records
+> `M0-12-01` attempts 1–3 of 4, while the narrative that preceded this rewrite described the
+> attempt-2 close-out. Both were left uncommitted by the prior halt and were preserved
+> verbatim in commit `a5e253b` rather than silently reconciled. **Settle which is right before
+> spending `M0-12-01`'s last attempt.**
+
+## Most recently closed: `M2-A01-01` — Implementation spec from ADR-004
+
+`Needs Review` on `migration/M2-A01-01-authorization-spec`. Documentation only; no `.cs`,
+`.razor`, `.csproj` or `.json` file touched. `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`
+→ **0 errors, 6,695 warnings**, matching the [KB-086](M0-15-build-baseline.md) baseline exactly,
+which is how "nothing under `V.SMART/` changed" was proven. Executed under the gate exception
+described in [KB-081 footnote 13](task-tracker.md) and
+[KB-104 §12](../architecture/server-side-authorization-spec.md).
+
+**Deliverable:** [`architecture/server-side-authorization-spec.md`](../architecture/server-side-authorization-spec.md),
+`doc_id` **KB-104** (not `KB-016` as the task file suggested — the INDEX allocation rule
+reserves `KB-1xx` for task-produced contract specs; the task file's own instruction to verify
+against the INDEX is what produced this). Full record:
+[`tasks/M2-A01-01.md` § Execution Record (2026-08-18)](tasks/M2-A01-01.md#execution-record-2026-08-18).
+
+### Discoveries a future session must reuse rather than re-derive
+
+- **`Program.cs` line numbers have shifted again.** In `V.SMART/V.SMART.Api/Program.cs`,
+  `UseAuthentication()` is at **`:121`** and `UseAuthorization()` at **`:122`** — the
+  `M2-A01-01` task file says `:114`/`:115`. `JwtTokenService`'s claim list is at `:29-35`, not
+  `:25-31`. Both API and Web `Program.cs` are shared composition roots; **always re-read
+  before citing a line number in either.**
+- **`RightsHelper`'s screen-name match is LINQ-to-Objects, not SQL.**
+  `UserRightsRepository.cs:27` calls `ToListAsync()` before `RightsHelper.cs:8` runs, so the
+  comparison is ordinal and case-sensitive. Pushing it into SQL would make it
+  collation-dependent and silently *widen* access. This single fact decides the filter's
+  design ([KB-104 §D-1](../architecture/server-side-authorization-spec.md)).
+- **`Screens.ScreenName` is `nvarchar(max)`** — SQL Server cannot index it as a key column, so
+  no uniqueness is enforceable on it as declared.
+- **`CurrentUserService.GetUserIdAsync()` returns `0`** for a missing or unparseable claim
+  (`:59-65`). Anything on the API side that needs a user id must read the claim directly.
+- **No code path writes a `Screens` row** — the 152 seeded rows are the entire runtime
+  catalogue (Confirmed negative result; the full list is KB-104 Appendix A).
+- **`M2-B05` must not "correct" the seed's typos.** `Id = 82` is `"Sub-Contrect GRN"`; `Id =
+  107` is `"Advaceadjustment"`. They are the canonical matching strings.
+
+### Three new questions, one of which blocks a specific task
+
+| ID | In one line | Blocks |
+|---|---|---|
+| **Q-22** | Do duplicate `(UserId, ScreenId)` rows exist in live tenant DBs? Nothing in the model prevents them, and the rights query has no `OrderBy`, so Blazor's `FirstOrDefault` is **already non-deterministic today** | Nothing immediately — decides whether the filter faithfully reproduces correct behaviour or a latent bug |
+| **Q-23** | An API-only user acquires **no** `UserRight` rows: `AuthController.Login` never calls `SyncRightsForUserAsync`, and the Blazor path does so only for `UserId == 1` | **`M2-A02`** — the filter would 403 an administrator out of the vertical slice on its first request |
+| **Q-24** | All five `UserRight` write sites are in the **Blazor** host, none in the API, so cross-process cache invalidation does not exist and the ≈60 s TTL is the only staleness bound | Scope of `M2-A01-03` |
+
+`Q-23` does **not** block `M2-A01-02`; it blocks `M2-A02`. All three are in
 [`open-questions.md`](../open-questions.md).
 
-**Owner to unblock: whoever administers the runner's agent-dispatch layer — not named in the
-repository; fall back to the repository owner (Vivek).** Attempts used: 2 of 4; two remain,
-held in reserve. The task specification itself is unchanged and still believed valid — this is
-not a content problem, it is an unconfirmed-cause repeated dispatch failure.
+## Other open blockers, unchanged by this session
 
-**Do not re-dispatch `M0-12-01` a third time, and do not start a different task from this
-file, until a human has looked at the dispatch layer.** `M0-12-01` is the narrowest bottleneck
-in M0 (four tasks — `M0-12-02`, `M0-13`, `M0-09`, `M0-06` — declare it as their dependency);
-re-selecting past it would just reach the same stop again once those are opened, and blindly
-retrying it a third time risks exhausting the last of its budget on the same unexamined
-failure mode.
-
-## Other open blockers, unaffected by this stop
-
-- **`Needs Review`** — implemented, validated `PASS`, committed on its own branch, awaiting a
-  human review-and-merge/sign-off step that no autonomous session may perform on its own
-  authority ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)):
-  `M0-01-03`.
-- **`Blocked` on an unscheduled human**, not on any task: `M0-04` (unidentified owner — tracker
-  footnote 4).
-- **Transitively `Blocked`** behind `M0-12-01`: `M0-12`, `M0-12-02`, `M0-13`, `M0-09`, `M0-10`,
-  `M0-06`, `M0-11`.
-- **A parent container**, never worked directly: `M0-01`, `M0-12`.
-
-Full detail on why each is blocked and who the candidate owner is:
-[`runner-state.md`](runner-state.md) (KB-093) § *Blocked on* / *Owner to unblock ...* rows,
-and [`task-tracker.md`](task-tracker.md) (KB-081) footnotes 1, 4, 12.
-
-## Most recently closed: `M0-14` — Gate `DetailedErrors` on `IsDevelopment()`
-
-Validated `PASS`, `Completed` (Vivek sign-off, merge `275c6e2`). Full record:
-[`tasks/M0-14.md` § Execution Record (2026-08-18)](tasks/M0-14.md#execution-record-2026-08-18).
-Discoveries from this task that a future session should reuse rather than re-derive:
-
-- **Line numbers in `V.SMART/V.SMART.Web/Program.cs` have shifted again.** The
-  `DetailedErrors` assignment is now at line 198 (was 192 before `M0-03-03` landed); the
-  `AddRazorComponents().AddInteractiveServerComponents()` registration and the
-  tenant/DbContext registrations shifted by the same 6 lines. Always re-read the file before
-  citing a line number in it — it is a shared composition root that several M0 tasks touch.
-- **`V.SMART/V.SMART.Web/appsettings.json` no longer has a `DetailedError` key** (deleted,
-  proven dead — INV-029 amendment, 2026-08-18).
-- **Q-16** (deployment topology / `ASPNETCORE_ENVIRONMENT` in production) remains **Unknown**
-  — still open, still worth resolving before relying on any `IsDevelopment()` gate in
-  production.
+- **`Needs Review`** — implemented, validated, committed on its own branch, awaiting a human
+  review-and-merge step no autonomous session may perform
+  ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)): `M0-01-03`, `M0-02`,
+  and now `M2-A01-01`.
+- **`Blocked` on an unscheduled human**, not on any task: `M0-04`.
