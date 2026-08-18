@@ -21,49 +21,47 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — `Ready`. Attempt 1 died on a transient API error; just retry.
+## Active task: `M0-12-01` — `Blocked` on a human. Attempt 2 repeated attempt 1's empty return.
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
-(attempt 1 of 4, `opus`). **The implementer returned no result** — no diff, no text, no tool
-output — so validation could not run
-(`{"verdict": "none", "note": "validation did not complete"}`). Verified at close-out: no
-`migration/M0-12-01-*` branch exists, no `tests/` directory exists at the repository root,
-`git status --porcelain` is clean, and `master`'s tip is unchanged. **Nothing was implemented,
-so there is nothing to resume mid-way through — start attempt 2 from a clean slate.**
+**twice**, 2026-08-18: attempt 1 and attempt 2 of 4, both `opus`. **Both times the implementer
+returned no result** — no diff, no text, no tool output — so validation could not run either
+time (`{"verdict": "none", "note": "validation did not complete"}`). Verified at this
+close-out: no `migration/M0-12-01-*` branch exists, no `tests/` directory exists at the
+repository root, `git status --porcelain` is clean, and `master`'s tip is unchanged. **Nothing
+was implemented on either attempt — there is nothing to resume mid-way through.**
 
-**Why — CONFIRMED, and it is not a dispatch fault.** The workflow's completion record for that
-run shows both of its agents terminating on a transient upstream error:
+**Why this is now `Blocked`, not a retry.** Attempt 1 was diagnosed — from inside that run's
+own workflow completion log, which is not visible afterward — as a transient upstream `529
+Overloaded` on both its agents, and the earlier version of this file correctly said "just
+re-run the runner," explicitly flagging: *"If attempt 2 fails the same way, that repetition is
+the signal worth investigating — a single 529 is not."* Attempt 2 has now failed the exact
+same way. **This close-out session cannot see the workflow's agent-completion log for attempt
+2** (that visibility only exists from inside the run that produced it), so it cannot confirm
+or rule out a second `529` versus a systemic dispatch problem. Per the standing rule never to
+silently guess, a third attempt is **not** recommended until a human checks the
+dispatch/agent-invocation layer — spending the two remaining attempts on the same unverified
+assumption that has already failed twice is not a reasonable use of the retry budget.
 
-```
-[investigate:M0-12-01] failed: API Error: 529 Overloaded
-[implement:M0-12-01]   failed: API Error: 529 Overloaded
-```
-
-`agents_error: 2` of 5. The implementer emitted nothing because it never ran to completion.
-**No human action is required and no tooling audit is warranted** — an earlier version of this
-file asked the owner to audit the runner's dispatch layer before retrying, and that instruction
-is **withdrawn**. It was written from inside the failed run, which could not see why its own
-agents were killed. Acting on it would have been time spent on a false trail — and it did cost
-one run: a later selection pass read this file, honoured the stale human gate, and safety-stopped
-without dispatching (`safety stop before starting M0-12-01`).
-
-**Just re-run the runner.** If attempt 2 fails the *same* way, that repetition is the signal
-worth investigating — a single 529 is not.
-
-Full record: [`tasks/M0-12-01.md` § Execution Record (2026-08-18)](tasks/M0-12-01.md#execution-record-2026-08-18).
-Attempt logged: [`failure-log.md` § M0-12-01 · attempt 1](failure-log.md#m0-12-01--attempt-1--2026-08-18).
+Full record: [`tasks/M0-12-01.md` § Execution Record (2026-08-18) — Attempt 2](tasks/M0-12-01.md#execution-record-2026-08-18--attempt-2-repeated-empty-return).
+Attempts logged: [`failure-log.md` § M0-12-01 · attempt 1](failure-log.md#m0-12-01--attempt-1--2026-08-18)
+and [§ attempt 2](failure-log.md#m0-12-01--attempt-2--2026-08-18).
 Status authority: [`task-tracker.md`](task-tracker.md) (KB-081) footnote 12. Runner state:
-[`runner-state.md`](runner-state.md) (KB-093).
+[`runner-state.md`](runner-state.md) (KB-093). Open question: **Q-21** in
+[`open-questions.md`](../open-questions.md).
 
-**Owner to unblock: nobody — there is no human gate on this task.** Attempts used: 1 of 4;
-three remain. The task specification is unchanged and valid — do not re-plan it, just
-re-dispatch.
+**Owner to unblock: whoever administers the runner's agent-dispatch layer — not named in the
+repository; fall back to the repository owner (Vivek).** Attempts used: 2 of 4; two remain,
+held in reserve. The task specification itself is unchanged and still believed valid — this is
+not a content problem, it is an unconfirmed-cause repeated dispatch failure.
 
-**Do not start a different task from this file.** `M0-12-01` is the narrowest bottleneck in
-M0 (four tasks — `M0-12-02`, `M0-13`, `M0-09`, `M0-06` — declare it as their dependency), and
-re-selecting past it without resolving the blocker would just reach the same stop again once
-those are opened.
+**Do not re-dispatch `M0-12-01` a third time, and do not start a different task from this
+file, until a human has looked at the dispatch layer.** `M0-12-01` is the narrowest bottleneck
+in M0 (four tasks — `M0-12-02`, `M0-13`, `M0-09`, `M0-06` — declare it as their dependency);
+re-selecting past it would just reach the same stop again once those are opened, and blindly
+retrying it a third time risks exhausting the last of its budget on the same unexamined
+failure mode.
 
 ## Other open blockers, unaffected by this stop
 

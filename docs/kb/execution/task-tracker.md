@@ -76,7 +76,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Ready**¹² | P0 | M0-07 | 0.5 d | G0 |
+| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Blocked**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | Blocked | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
@@ -642,3 +642,33 @@ three remain. Status is therefore restored to `Ready`, not left `Blocked` on a h
 nothing human-held is in the way.
 **Blocks:** `M0-12-02`, `M0-13`, `M0-09`, `M0-06`, and transitively `M0-10` and `M0-11` — the
 same four-plus-two tasks M0-07's completion was about to unblock.
+
+**Update, 2026-08-18 — attempt 2 repeated the exact same failure; status moves back to
+`Blocked`, this time on a human, not on nothing.** The re-dispatch this footnote recommended
+was carried out: attempt 2 of 4, `opus`, same classification. **The implementer again
+returned no result at all** — no diff, no text, no tool output — and the validator again
+recorded `{"verdict": "none", "note": "validation did not complete"}`. Re-verified at
+close-out: still no `migration/M0-12-01-*` branch, still no `tests/` directory, `git
+status --porcelain` clean, `master` tip unchanged. Nothing was implemented on either attempt.
+
+This footnote's own attempt-1 text named the exact falsification condition that has now been
+met: *"If attempt 2 fails the same way, that repetition is the signal worth investigating — a
+single 529 is not."* Two consecutive empty implementer returns, same task, same model, same
+complexity classification, is that repetition. This close-out session cannot independently
+re-confirm a second `529 Overloaded` — the workflow's agent-completion log that let the first
+misdiagnosis get corrected is visible only from inside the run that produced it, not from a
+close-out session reading the repository afterward. **So this is recorded honestly as
+`Blocked` on a human — specifically, someone who can read the runner's dispatch/agent-invocation
+logs for both cycles and confirm or rule out a systemic (not transient) cause — rather than
+re-dispatched a third time on the same unverified assumption.** Attempts used: 2 of 4; two
+remain, held in reserve until the cause is checked. Full record:
+[`tasks/M0-12-01.md` § Execution Record (2026-08-18) — Attempt 2](tasks/M0-12-01.md#execution-record-2026-08-18--attempt-2-repeated-empty-return);
+attempt logged in [`failure-log.md`](failure-log.md#m0-12-01--attempt-2--2026-08-18). See also
+open question **Q-21** in [`open-questions.md`](../open-questions.md).
+
+**Owner to unblock:** whoever administers the autonomous runner / agent-dispatch
+infrastructure for this project. No such person is named anywhere in the repository; in their
+absence, the repository owner (**Vivek**) is the fallback contact, consistent with every other
+`Blocked`-on-a-human row in this table that lacks a more specific named owner (compare `M0-04`
+footnote 4). This is a **runner-health** question, not a task-specification question — no
+change to `tasks/M0-12-01.md` is indicated by anything found this session.

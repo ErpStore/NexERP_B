@@ -485,3 +485,48 @@ closed without an Actions run, and none should be asserted as verified in the me
 
 **Next attempt routed to** — no model. Human action item; a stronger model cannot obtain a
 credential or a runner.
+
+---
+
+### M0-12-01 · attempt 2 · 2026-08-18
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (implementation, dispatched) |
+| Validator verdict | none |
+| Failure category | environment |
+
+**What failed** — same as attempt 1: the implementer agent returned **no result** — no diff,
+no text, no tool output. The validator again returned no verdict
+(`{"verdict": "none", "note": "validation did not complete"}`). Re-confirmed at close-out:
+`git branch -a` shows no `migration/M0-12-01-*` branch, `tests/` does not exist at the
+repository root, `git status --porcelain` is clean aside from this close-out's own KB edits,
+and `git log --oneline -5` shows the tip unchanged (`d3a30b6` at the time of this entry).
+
+**Root cause** — **not independently confirmed this session, and stated as such rather than
+guessed.** Attempt 1's entry above was originally misdiagnosed as a dispatch-layer fault, then
+corrected once the workflow's own agent-completion log became visible, to a transient upstream
+`529 Overloaded` on both the `investigate` and `implement` agents. That log is only visible
+from inside the run that produced it; this close-out session, run afterward, has no access to
+it and cannot say whether attempt 2 also hit a `529`, hit something else, or reveals a
+systemic problem. What **is** confirmed is the symptom: two consecutive dispatches of the same
+task, same model, same classification, both produced zero output.
+
+Attempt 1's own disposition explicitly named this as the condition worth escalating on: *"If
+attempt 2 fails the same way, that repetition is the signal worth investigating — a single 529
+is not."* That condition is now met.
+
+**Evidence** — see
+[`tasks/M0-12-01.md` § Execution Record (2026-08-18) — Attempt 2](tasks/M0-12-01.md#execution-record-2026-08-18--attempt-2-repeated-empty-return)
+for the full verification commands and output.
+
+**Disposition** — `blocked`. A third same-spec retry would spend another slice of the 4-attempt
+budget on the same unverified assumption that already failed to hold twice. This is recorded
+as a safety stop pending a human check of the dispatch/agent-invocation layer, not as a task
+defect — nothing indicates `tasks/M0-12-01.md` itself needs to change. Attempts used: 2 of 4;
+two remain, held in reserve.
+
+**Next attempt routed to** — no model, pending human confirmation of the cause. See Q-21 in
+[`open-questions.md`](../open-questions.md) and [`task-tracker.md`](task-tracker.md) (KB-081)
+footnote 12 for the owner and full context.
