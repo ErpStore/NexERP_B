@@ -74,7 +74,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
 | M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
-| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Needs Review**⁶ | P1 | M0-01-02 | 1 d | G0 |
+| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Blocked | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | Blocked | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
@@ -244,7 +244,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 10 | G0 | ⬜ Not met |
+| M0 | 24 | 11 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -383,8 +383,9 @@ on 2026-08-17 when the repository owner signed them off, so the *Ready-task sele
 "not `REVIEW`" clause no longer excludes it. It is the top P0 candidate, and clearing it
 unblocks nine further tasks behind `M0-12-01`.
 
-⁶ **M0-02: `Needs Review` — Q-14 explicitly deferred 2026-08-18 by Vivek.** Was `Blocked` on a human, not on a task; that block is now closed by decision rather than by evidence. Committed on
-`migration/M0-02-sp-drift-across-tenants` (`c1ab752`), unmerged. The **tooling half is
+⁶ **M0-02: `Completed` 2026-08-18 — Q-14 explicitly deferred by Vivek, then signed off and merged. `Completed` here means the *task* closed, NOT that Q-14 was answered.** Was `Blocked` on a human, not on a task; that block is closed by decision rather than by evidence. Committed on
+`migration/M0-02-sp-drift-across-tenants` (`c1ab752`), merged via `8f358ed`; the deferral
+itself on `migration/M0-02-defer-q14` (`f4d9482`), merged via `71f2f56`. The **tooling half is
 complete**: `db/tools/list-deployed-procedures.sql` extended with `hash_raw` +
 `hash_normalised` (Query B, `FINGERPRINT_QUERY_VERSION 2`), `db/tools/compare-tenant-fingerprints.sh`
 (classifies `identical`/`cosmetic`/`divergent`/`missing_in_tenant`/`extra_in_tenant`, fails
@@ -403,6 +404,27 @@ also decide which database the "baseline" label denotes, given the `IQSMARTDEMO_
 To resume: hand `db/RUNBOOK-tenant-drift-check.md` to the DBA, drop the resulting CSVs into
 `db/drift/`, then re-open at the task's Implementation Steps §9 — do not re-derive the
 tooling.
+
+**Sign-off, 2026-08-18.** **Vivek** — who is also Q-14's named owner — signed off M0-02 and the
+deferral is merged (`71f2f56`). The task moves `Needs Review` → `Completed`; the M0 rollup goes
+from 10 to 11. Nothing depends on M0-02, so no other row moves.
+
+**Read this closure precisely, because it is easy to misread.** `Completed` means the *task*
+discharged its obligation — [KB-080 §7](README.md) accepts "Q-14 answered **or explicitly
+deferred with reason**", and this took the second path. It does **not** mean the question was
+answered. **Zero tenants were fingerprinted and zero compared, so stored-procedure drift is
+`undecided` — never "no drift".** A single fingerprint compared against nothing classifies
+every procedure `identical`; that is arithmetic, not evidence. INV-030 correctly remains
+`Partial` and KB-103 §4 correctly remains `TBD`; neither should be "finished" by anyone tidying
+up.
+
+**Risk accepted while deferred:** `db/stored-procedures/` stays a single artefact set *by
+assumption*, and `db/deploy-stored-procedures.ps1` has no per-tenant path — so a deployment can
+overwrite one tenant's customised procedure with another tenant's, silently, with no test to
+catch it (INV-023). The captured DDL's provenance compounds it: it originated in the demo
+database `IQSMARTDEMO_DB_2025-26`, so it may describe no production tenant at all. **Reopen on
+any CSV landing in `db/drift/`, or on any per-tenant report or statutory-document surprise in
+the field.**
 
 **Closed by deferral, 2026-08-18.** **Vivek** (repository owner / migration lead), as the
 **named owner**, explicitly deferred Q-14 rather than schedule DBA time. That is a valid close
