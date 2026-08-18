@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-16
+last_verified: 2026-08-18
 dependencies: [KB-081, KB-089, KB-091]
 ---
 
@@ -117,6 +117,58 @@ not `InvalidOperationException: Jwt:Secret is missing from configuration.`
 `V.SMART/V.SMART.Api/Program.cs:56-57` can never fire. The criterion is **unsatisfiable
 alongside the same task's mandated end state**; it is a specification contradiction, not an
 implementation defect. Every other criterion is objectively met.
+
+---
+
+### M0-12-01 · attempt 1 · 2026-08-18
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (implementation, dispatched) |
+| Validator verdict | none |
+| Failure category | environment |
+
+**What failed** — the implementer agent returned **no result**: no diff, no text, no tool
+output for the entire attempt. There was nothing for the validator to check, so it also
+returned no verdict (`{"verdict": "none", "note": "validation did not complete"}`). Confirmed
+at close-out that nothing was produced on disk or in git: `git branch -a` shows no
+`migration/M0-12-01-*` branch, `tests/` does not exist at the repository root, `git status
+--porcelain` on `master` is clean (aside from this close-out's own KB edits), and `git log
+--oneline -5` shows the tip unchanged at `d79e1a4` (the M0-07 sign-off commit that made this
+task Ready).
+
+**Root cause** — **CONFIRMED: a transient upstream API error, not a dispatch defect and not a
+task defect.** This entry originally recorded the cause as "unknown … most consistent with a
+dispatch/runner-layer fault"; that was written from inside the run, which could not see why its
+agents died. The workflow's completion record shows both of this cycle's agents terminating
+server-side:
+
+```
+[investigate:M0-12-01] failed: API Error: 529 Overloaded
+[implement:M0-12-01]   failed: API Error: 529 Overloaded
+```
+
+`agents_error: 2` of 5. 529 is an upstream overload, explicitly documented as usually temporary.
+The implementer emitted nothing because it never ran to completion. There is correspondingly no
+partial implementation, compiler error or failing assertion to diagnose — and nothing to fix.
+
+**Evidence** — see [`tasks/M0-12-01.md` § Execution Record (2026-08-18)](tasks/M0-12-01.md#execution-record-2026-08-18)
+for the full verification commands and their output.
+
+**Disposition** — recorded `blocked` by the run itself, per
+[KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) item 1: an empty
+implementer return with nothing to retry against is a safety stop rather than a silent
+re-dispatch. That stop was correct behaviour. **The status has since been restored to `Ready`**
+in [KB-081](task-tracker.md) footnote 12, because the confirmed cause is transient and nothing
+human-held blocks the task. Attempts used: 1 of 4; three remain.
+
+**Next attempt routed to** — the same route as attempt 1 (`opus` implementer, no change).
+**Action required: none beyond re-running the runner.** The earlier instruction to audit the
+dispatch mechanism is withdrawn — the fault was upstream 529 overload, not a runner defect, and
+an audit would be time spent on a false trail. If a retry fails the *same* way again, that is
+when to suspect something systemic. No KB-091 §6.3 escalation trigger applied — there was no
+failure content to classify as `business-rule` or `architecture`.
 
 **Evidence** — `V.SMART/V.SMART.Api/appsettings.json:12` (`"Secret": ""`);
 `V.SMART/V.SMART.Api/Program.cs:56-58`; the Production-environment run output quoted above.

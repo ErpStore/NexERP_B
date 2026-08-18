@@ -76,7 +76,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Ready** | P0 | M0-07 | 0.5 d | G0 |
+| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Ready**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | Blocked | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
@@ -459,10 +459,22 @@ actually enforced by CI rather than only documented.
 **Sign-off, 2026-08-18 — and the one criterion carried forward, not met.** Vivek signed off
 M0-07 with **five of six** acceptance criteria satisfied. The sixth — *branch protection
 requires the CI check as a required status* — is **still not done**, and `Completed` here does
-not assert otherwise. It is a GitHub Settings → Rules action no session can perform. The
-ruleset itself already exists (the 2026-08-18 `master` pushes reported "Bypassed rule
-violations … Changes must be made through a pull request"), so what remains is adding this
-check to it — configuration, not creation.
+not assert otherwise. It is a GitHub settings action no session can perform.
+
+**Correction, same day — where that setting lives is NOT confirmed.** An earlier version of this
+footnote stated that a **ruleset** already existed on `master` and that only adding the check to
+it remained. That was an inference from GitHub's push output ("Bypassed rule violations … Changes
+must be made through a pull request"), and the API contradicts it:
+`GET /repos/ErpStore/NexERP_B/rulesets` returns `[]`, including with `?includes_parents=true`, so
+**no ruleset is visible at all** — the repository owner confirms none was created.
+
+What *is* Confirmed: `GET /repos/ErpStore/NexERP_B/branches/master` reports `"protected": true`,
+so protection exists by some mechanism. Which mechanism is **Unknown** from an unauthenticated
+session — `/branches/master/protection` and `/orgs/ErpStore/rulesets` both return `401`. Most
+likely **classic branch protection** (Settings → **Branches**), possibly an org-level ruleset
+that an unauthenticated caller cannot enumerate. **Check Settings → Branches first, not
+Settings → Rules.** Recorded rather than quietly amended, because M0-07's outstanding criterion
+depends on knowing where the control actually is.
 
 **Consequence while it stays undone:** CI runs and reports, but nothing *enforces* it. A red
 build does not block a merge, and `master` can still be pushed directly. The pipeline is
@@ -597,3 +609,36 @@ carries `file:line` evidence for all five C# files.
 only. The **history** half is `M0-05`, which stays `Blocked` — its other prerequisite `M0-04`
 (rotation) is still blocked on an unidentified owner. The committed credentials remain live
 and exposed in git history until both run.
+
+¹² **M0-12-01: `Ready` — attempt 1 aborted on a transient API error, 2026-08-18. Not blocked on
+anything; just re-run.** (The close-out below was written as `Blocked` "on a human"; that
+diagnosis was wrong and is corrected at the end of this footnote.) `M0-07` had already
+satisfied this task's sole Hard prerequisite and it was correctly selected `Ready` and
+dispatched (attempt 1 of 4, `opus`). The dispatched implementer **returned no result at all** —
+no diff, no text, no tool output — so the validator also returned no verdict
+(`{"verdict": "none", "note": "validation did not complete"}`). Verified at close-out: no
+`migration/M0-12-01-*` branch exists, no `tests/` directory exists at the repository root,
+`git status --porcelain` is clean, and the `master` tip is unchanged at `d79e1a4`. **Nothing
+was implemented; nothing needs to be reverted.** This is not a specification defect (contrast
+`M0-03-01`, which failed validation with a concrete, quoted exception) and not a missing
+credential (contrast `M0-02`/`M0-04`) — it is an execution/dispatch anomaly with no artefact to
+diagnose. Full record: [`tasks/M0-12-01.md` § Execution Record (2026-08-18)](tasks/M0-12-01.md#execution-record-2026-08-18);
+attempt logged in [`failure-log.md`](failure-log.md#m0-12-01--attempt-1--2026-08-18).
+**Root cause — CONFIRMED, and it is not a dispatch defect.** The close-out above recorded the
+cause as "unknown" and asked the repository owner to audit the runner's agent-invocation layer.
+That was wrong, and is corrected here: the workflow's own completion record shows **both**
+agents for this cycle terminated on a transient upstream API error —
+
+```
+[investigate:M0-12-01] failed: API Error: 529 Overloaded
+[implement:M0-12-01]   failed: API Error: 529 Overloaded
+```
+
+— i.e. 2 of the run's 5 agents errored server-side (`agents_error: 2`). The implementer returned
+nothing because it never ran to completion, not because dispatch mis-fired. **No owner action is
+required and no tooling audit is warranted.** The correct response is simply to **re-run the
+runner**; the task specification is unchanged and needs no re-work. Attempts used: 1 of 4, so
+three remain. Status is therefore restored to `Ready`, not left `Blocked` on a human, because
+nothing human-held is in the way.
+**Blocks:** `M0-12-02`, `M0-13`, `M0-09`, `M0-06`, and transitively `M0-10` and `M0-11` — the
+same four-plus-two tasks M0-07's completion was about to unblock.
