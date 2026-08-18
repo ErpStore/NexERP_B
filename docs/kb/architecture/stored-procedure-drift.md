@@ -18,7 +18,7 @@ database_tables: [Tenants]
 business_rules: []
 status: partial
 confidence: mixed
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 dependencies: [KB-012, KB-014, KB-060, ADR-005]
 ---
 
@@ -157,7 +157,7 @@ tenant data; no fingerprint CSV was fabricated in `db/drift/`**:
 | `identical` / `cosmetic` / `divergent` / `missing_in_tenant` / `extra_in_tenant` | TBD / TBD / TBD / TBD / TBD |
 | Arithmetic closure | TBD |
 | Divergent procedures, by name | TBD |
-| Answer to Q-14 | **Unknown — undecided, not "no drift"** |
+| Answer to Q-14 | **Unknown — undecided, not "no drift"**. **Explicitly deferred 2026-08-18 by Vivek** — see the deferral decision below |
 
 **Blocker.** A DBA with `VIEW DEFINITION` on **at least two** tenant databases, plus a working
 tenant list. Neither is obtainable by an AI session: this repository contains no tenant
@@ -174,6 +174,27 @@ who is the obvious first candidate), with the migration lead to resolve which da
 `db/deploy-stored-procedures.ps1` has no per-tenant path. Any later per-tenant surprise — a
 report that renders different figures after a deployment, or a procedure that vanishes from
 one customer — traces back to this gap.
+
+### Deferral decision — 2026-08-18
+
+**Q-14 is explicitly deferred. Named owner: Vivek** (repository owner / migration lead).
+
+This closes M0-02 via the second of the two paths [KB-080 §7](../execution/README.md) allows —
+*"Q-14 answered **or explicitly deferred with reason"*. It does **not** close the question, and
+§4's `TBD` rows above stay `TBD` **by design**: filling them in from zero fingerprints would be
+the exact error this document exists to prevent.
+
+| | |
+|---|---|
+| Decision | Defer Q-14; do not schedule DBA time now |
+| Decided by | **Vivek**, 2026-08-18 |
+| Reason | No DBA with `VIEW DEFINITION` on ≥2 tenant databases is scheduled; a session may not acquire or reuse a credential (R-01) |
+| Evidence state at deferral | `db/drift/` holds **zero** fingerprint CSVs — **zero tenants compared** (Confirmed, re-verified 2026-08-18) |
+| What this is **not** | It is **not** a finding of "no drift". Drift remains **undecided** |
+| Risk accepted | The consequence recorded immediately above, in full — accepted knowingly, not overlooked |
+| Reopen trigger | Any CSV landing in `db/drift/`, **or** any per-tenant report / statutory-document surprise in the field |
+| On reopen | Resume at [`tasks/M0-02.md`](../execution/tasks/M0-02.md) Implementation Steps §9. **Do not re-derive the tooling** — it is complete and verified |
+| Still owed by Vivek on reopen | Which database the "baseline" label denotes, given §1's provenance caveat — ideally fingerprint both, as `baseline-demo-origin` and `baseline-relay` |
 
 ## 5. What happens when the fingerprints land
 

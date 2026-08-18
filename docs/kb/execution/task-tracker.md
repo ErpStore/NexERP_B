@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -74,7 +74,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
 | M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
-| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Blocked**⁶ | P1 | M0-01-02 | 1 d | G0 |
+| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Needs Review**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Blocked | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | Blocked | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
@@ -257,13 +257,13 @@ merged to `master` (`f55db52`). See note ³ above and
 [`tasks/M0-03-01.md` § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17) for
 the full record. `M0-03-02` and `M0-14` are now `Ready` — their prerequisite is satisfied.
 
-**Currently `Ready`:** none (M0-02 moved to `Blocked`⁶ on 2026-08-17; M0-03 is a parent
+**Currently `Ready`:** none (M0-02 moved to `Needs Review`⁶ on 2026-08-18 — Q-14 explicitly deferred by Vivek; M0-03 is a parent
 container, not worked directly; M0-04 is `Blocked`⁴ on an unidentified human owner; M0-08
 moved to `Needs Review`⁵ on 2026-08-17).
-**Active task: M0-02** (`Blocked`) — see [`current-task.md`](current-task.md), which stays
-pointed at it so a human or a later run resumes rather than restarts. Selection rule for what
-becomes active next, once unblocked or once another task is chosen:
-[KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+**M0-02 is no longer the active task** — it moved to `Needs Review`⁶ on 2026-08-18 when
+Vivek explicitly deferred Q-14 (named owner, reason recorded). Live run state is
+[`runner-state.md`](runner-state.md) (KB-093), not this file. Selection rule for what
+becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-15: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and merged to
 `master` (`854551f`); the branch has since been deleted. Originally committed on
@@ -369,7 +369,7 @@ on 2026-08-17 when the repository owner signed them off, so the *Ready-task sele
 "not `REVIEW`" clause no longer excludes it. It is the top P0 candidate, and clearing it
 unblocks nine further tasks behind `M0-12-01`.
 
-⁶ **M0-02: `Blocked` on a human, not on a task.** Committed on
+⁶ **M0-02: `Needs Review` — Q-14 explicitly deferred 2026-08-18 by Vivek.** Was `Blocked` on a human, not on a task; that block is now closed by decision rather than by evidence. Committed on
 `migration/M0-02-sp-drift-across-tenants` (`c1ab752`), unmerged. The **tooling half is
 complete**: `db/tools/list-deployed-procedures.sql` extended with `hash_raw` +
 `hash_normalised` (Query B, `FINGERPRINT_QUERY_VERSION 2`), `db/tools/compare-tenant-fingerprints.sh`
@@ -389,6 +389,18 @@ also decide which database the "baseline" label denotes, given the `IQSMARTDEMO_
 To resume: hand `db/RUNBOOK-tenant-drift-check.md` to the DBA, drop the resulting CSVs into
 `db/drift/`, then re-open at the task's Implementation Steps §9 — do not re-derive the
 tooling.
+
+**Closed by deferral, 2026-08-18.** **Vivek** (repository owner / migration lead), as the
+**named owner**, explicitly deferred Q-14 rather than schedule DBA time. That is a valid close
+for the G0 deliverable, which [KB-080 §7](README.md) states as "Q-14 answered **or explicitly
+deferred with reason**". **Zero tenants were fingerprinted and zero compared, so drift is
+undecided — this is emphatically not a finding of "no drift".** Risk knowingly accepted:
+`db/stored-procedures/` stays a single artefact set *by assumption* and
+`db/deploy-stored-procedures.ps1` has no per-tenant path, so a deployment can overwrite one
+tenant's customised procedure with another's, silently, with no test to catch it. Reopen on any
+CSV landing in `db/drift/` or any per-tenant report surprise in the field; the tooling is
+complete and must not be re-derived. Full record:
+[`tasks/M0-02.md` § Deferral](tasks/M0-02.md#deferral--2026-08-18-q-14-explicitly-deferred).
 
 ⁷ **M0-07: `Blocked` on environment access, not on a defect.** The 2026-08-18 run implemented
 the task in full and then failed validation on six acceptance criteria that cannot be
