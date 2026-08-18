@@ -63,7 +63,7 @@ its children are `Completed` — it is never worked directly.
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
-| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Needs Review**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
+| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
@@ -75,8 +75,8 @@ its children are `Completed` — it is never worked directly.
 | M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
-| M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Blocked | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | Blocked | P0 | M0-07 | 0.5 d | G0 |
+| M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
+| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Ready** | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | Blocked | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
@@ -244,7 +244,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 11 | G0 | ⬜ Not met |
+| M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -438,9 +438,9 @@ CSV landing in `db/drift/` or any per-tenant report surprise in the field; the t
 complete and must not be re-derived. Full record:
 [`tasks/M0-02.md` § Deferral](tasks/M0-02.md#deferral--2026-08-18-q-14-explicitly-deferred).
 
-⁷ **M0-07: `Needs Review` 2026-08-18 — the environment block is cleared; the pipeline is green
-and merged.** It had been `Blocked` on six acceptance criteria that could not be satisfied
-from this workstation. Vivek cleared them on 2026-08-18:
+⁷ **M0-07: `Completed` 2026-08-18 — signed off by Vivek, with one acceptance criterion
+explicitly carried forward (see below).** It had been `Blocked` on six acceptance criteria that
+could not be satisfied from this workstation. Vivek cleared five of them on 2026-08-18:
 
 | Criterion | State |
 |---|---|
@@ -456,12 +456,21 @@ committed baseline as measured by the runner, after `M0-03-02`, `M0-03-03` and `
 already landed on `master`. The hygiene guard (`check-no-build-output.sh`, from `M0-08`) is now
 actually enforced by CI rather than only documented.
 
-**What remains before `Completed`:** (a) human sign-off, and (b) adding this CI check as a
-required status in `master`'s existing ruleset — the ruleset is already present (the 2026-08-18
-`master` pushes reported "Bypassed rule violations … Changes must be made through a pull
-request"), so this is configuration, not creation. **Until M0-07 is `Completed`, `M0-12-01`
-stays `Blocked`** — the *Ready-task selection rule* requires a Hard prerequisite at `Completed`,
-not `Needs Review` — and with it the nine tasks behind it.
+**Sign-off, 2026-08-18 — and the one criterion carried forward, not met.** Vivek signed off
+M0-07 with **five of six** acceptance criteria satisfied. The sixth — *branch protection
+requires the CI check as a required status* — is **still not done**, and `Completed` here does
+not assert otherwise. It is a GitHub Settings → Rules action no session can perform. The
+ruleset itself already exists (the 2026-08-18 `master` pushes reported "Bypassed rule
+violations … Changes must be made through a pull request"), so what remains is adding this
+check to it — configuration, not creation.
+
+**Consequence while it stays undone:** CI runs and reports, but nothing *enforces* it. A red
+build does not block a merge, and `master` can still be pushed directly. The pipeline is
+advisory until that setting lands.
+
+**What this sign-off unblocks:** `M0-12-01` (create the test project and wire it into CI) moves
+`Blocked` → `Ready` — the first `Ready` task since M0-14 closed. Behind it, still `Blocked` on
+`M0-12-01` itself: `M0-12-02`, `M0-13`, `M0-09`, `M0-06`, and transitively `M0-10` and `M0-11`.
 
 The earlier diagnosis was explicit that **the pipeline, the warning gate and the documentation
 contain no defect** — only their verification was blocked. The green run confirms that.
