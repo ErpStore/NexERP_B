@@ -82,7 +82,7 @@ its children are `Completed` — it is never worked directly.
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | Blocked | P1 | M0-12-01 | 1 d | G0 |
-| M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Needs Review**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
+| M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | Blocked | P0 | M0-13 | decision | G0 |
 
 ## M1 — Repository Understanding · Gate G1 ✅
@@ -244,7 +244,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 7 | G0 | ⬜ Not met |
+| M0 | 24 | 8 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -483,7 +483,7 @@ per INV-029's untracked-directory finding) is stated honestly in the code commen
 cannot leak the value it covers; M0-04 is positioned to confirm or replace it against the real
 historical value during rotation.
 
-¹⁰ **M0-14: `Needs Review` 2026-08-18.** Implemented and committed on
+¹⁰ **M0-14: `Completed` 2026-08-18 — reviewed, approved by Vivek, and merged.** Implemented and committed on
 `migration/M0-14-gate-detailed-errors` (`db41ebc`, cut on top of `master@028e834`, i.e. after
 both `M0-03-01` and `M0-03-03` had already landed on `master` — no same-file merge was
 actually needed in practice, despite the task file's conflict-risk warning). Independently
@@ -503,3 +503,13 @@ close-out corrects it to `Needs Review` per
 conditions include a human review-and-merge step, which no session may perform on its own
 authority. No task in the tracker is `Ready` after this close-out — see the *Currently
 `Ready`* note above.
+
+**Sign-off, 2026-08-18.** **Vivek** reviewed M0-14 and approved it ("looks fine"), and it was
+merged to `master` as `275c6e2`. That is the human review-and-merge step this footnote
+describes, so the task moves `Needs Review` → `Completed`; the M0 rollup goes from 7 to 8. No
+task depends on M0-14, so nothing else moves with it. **The queue stays empty:** M0's remaining
+work is blocked on three human owners — M0-04 (production SQL / GST gateway credential owner,
+still unidentified), M0-07 (`origin` push + GitHub org admin), and M0-01-03 (the rebuild drill
+against a disposable SQL Server, a hard G0 exit criterion). `M0-03-03` is merged but still
+awaits its own sign-off, and `M0-02`'s Q-14 deferral is committed on
+`migration/M0-02-defer-q14` and still unmerged.
