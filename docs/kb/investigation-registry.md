@@ -32,7 +32,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-021 | Angular pilot: scope and value | Complete | `frontend/vsmart-erp/src/**`, `package.json` | [KB-015](architecture/frontend-architecture-existing.md#the-angular-19-pilot-frontendvsmart-erp) | 2026-08-12 |
 | INV-022 | Background jobs / scheduled tasks | Complete | grep for `IHostedService`, `BackgroundService`, `PeriodicTimer`, Hangfire, Quartz — **none exist** | [KB-010](architecture/system-overview.md#background-processing) | 2026-08-12 |
 | INV-023 | Testing and CI | Complete | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
-| INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility. **Solution-build gap closed 2026-08-17 by M0-15** — see below.)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`, `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj`, `dotnet build NexGen-ERP---2025-master.sln`, `dotnet workload list` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands), [KB-086](execution/M0-15-build-baseline.md) | 2026-08-17 |
+| INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility. **Solution-build gap closed 2026-08-17 by M0-15** — see below.)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`, `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj`, `dotnet build NexGen-ERP---2025-master.sln`, `dotnet workload list` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands), [KB-086](execution/M0-15-build-baseline.md) | 2026-08-18 |
 
 **M0-15 amendment (2026-08-17), closing the solution-build gap INV-029 left open:** the
 solution build **succeeds** — 0 errors, 13,367 warnings, ~4–4.5 min — but only reproducibly
@@ -127,6 +127,27 @@ Last verified:  2026-08-18
   startup cases testable here: `AddDbContext` does not open a connection at startup, so a
   host with valid-shaped but non-resolving configuration reaches "Application started".
   Confidence: **Confirmed** (observed, 2026-08-18).
+
+**M0-14 amendment (2026-08-18) — negative result on `DetailedError` binding. Re-verified
+after M0-03-01 and M0-03-03 both landed; do not re-derive.**
+
+```yaml
+Finding:        Grepped case-insensitively for "DetailedError" across V.SMART/; exactly two
+                hits, no binding code anywhere in the solution. The appsettings.json key is
+                read by nothing.
+Evidence:       git grep -in "DetailedError" -- "V.SMART/" ->
+                V.SMART/V.SMART.Web/Program.cs:198 (options.DetailedErrors = true; — the
+                hardcoded literal, inside the AddServerSideBlazor block starting at line 196)
+                V.SMART/V.SMART.Web/appsettings.json:14 ("DetailedError": true — dead key)
+Business rule:  n/a
+Confidence:     Confirmed (the two hits, and the absence of any binding code)
+Last verified:  2026-08-18
+```
+
+Resolution taken: `Program.cs:198` now reads
+`options.DetailedErrors = builder.Environment.IsDevelopment();`; the dead
+`"DetailedError": true` key was deleted from `appsettings.json` rather than bound, since it
+was proven dead. See KB-060 R-20 (resolved).
 
 **M0-08 amendment (2026-08-17) — negative result, re-verified after M0-00. Do not re-derive
 this.** No build output, IDE state or dependency directory is tracked by git. R-14's original
