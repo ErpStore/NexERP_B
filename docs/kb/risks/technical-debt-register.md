@@ -704,11 +704,20 @@ misdiagnosed.
 **Action.** Let infrastructure failures propagate to a 500; keep 401 for genuine
 credential failure.
 
-### R-20 — `DetailedErrors = true` unconditionally in Blazor Server
-**Confirmed.** `AddServerSideBlazor(o => o.DetailedErrors = true)` in
-`V.SMART.Web/Program.cs`, plus `"DetailedError": true` in `appsettings.json`.
+### R-20 — `DetailedErrors = true` unconditionally in Blazor Server — RESOLVED by M0-14
+**Confirmed.** Was `AddServerSideBlazor(o => o.DetailedErrors = true)` at
+`V.SMART/V.SMART.Web/Program.cs:198` (inside the block starting at line 196), plus
+`"DetailedError": true` at `V.SMART/V.SMART.Web/appsettings.json:14`.
 **Impact.** Stack traces reach the browser in production.
-**Action.** Gate on `IsDevelopment()`.
+**Action taken (2026-08-18, M0-14).** `Program.cs:198` now reads
+`options.DetailedErrors = builder.Environment.IsDevelopment();`. The JSON key was proven dead
+— `git grep -in "DetailedError" -- "V.SMART/"` returned exactly the two hits above and no
+binding code anywhere in the solution — so it was deleted from `appsettings.json` rather than
+bound. No `appsettings.Development.json` override was needed: `IsDevelopment()` yields `true`
+there already, matching current Development behaviour.
+**Residual risk (Q-16, open):** this fix is only effective if `ASPNETCORE_ENVIRONMENT` is
+genuinely not `Development` in production. That is a deployment fact this repository cannot
+verify; see [KB-004](../open-questions.md) Q-16.
 
 ### R-21 — Incomplete `IQSMART` → `V.SMART` rename
 **Confirmed.** `V.SMART.Web/Program.cs` imports five `IQSMART.Shared.*` namespaces

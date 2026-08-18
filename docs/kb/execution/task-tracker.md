@@ -82,7 +82,7 @@ its children are `Completed` — it is never worked directly.
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | Blocked | P1 | M0-12-01 | 1 d | G0 |
-| M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Ready** | P2 | M0-03-01 | 0.5 d | G0 |
+| M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Needs Review**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | Blocked | P0 | M0-13 | decision | G0 |
 
 ## M1 — Repository Understanding · Gate G1 ✅
@@ -267,13 +267,17 @@ Review` does not satisfy that per the *Ready-task selection rule*'s "not `REVIEW
 older, superseded branch of the same name (no `-csharp` suffix) also exists, cut from a
 pre-M0-15-recut point — do not merge it.
 
-**Currently `Ready`:** `M0-14` (P2, same Hard prerequisite `M0-03-01` as `M0-03-02`;
-genuinely independent — no shared file per `dependency-graph.md` § Same-file conflicts). It is
-the **sole** `Ready` candidate as of `M0-03-03`'s close-out (2026-08-18, footnote 9): `M0-03-03`
+**Currently `Ready`:** none, as of `M0-14`'s close-out (2026-08-18, footnote 10). `M0-14`
 itself moved `Ready` → `Needs Review` and is not re-selectable until reviewed and merged.
-(M0-02 is `Blocked`⁶; M0-03 is a parent container, not worked directly; M0-04 is `Blocked`⁴ on
-an unidentified human owner; M0-08 is `Completed`.)
-**Active task: M0-14** — see [`current-task.md`](current-task.md). Selection rule for what
+(M0-02 is `Blocked`⁶; M0-03 is a parent container, not worked directly; M0-03-03 is `Needs
+Review`⁹, not re-selectable; M0-04 is `Blocked`⁴ on an unidentified human owner; M0-07 is
+`Blocked`⁷ on repository-owner/DevOps access; M0-01-03 is `Needs Review`¹, not re-selectable;
+everything downstream of M0-07/M0-12 stays `Blocked` transitively; M0-08 and M0-15 are
+`Completed`.) No task satisfies the *Ready-task selection rule* this cycle — the runner has
+nothing to open without a human unblocking one of M0-02, M0-04, M0-07, or reviewing/merging
+M0-01-03, M0-03-03 or M0-14.
+**Active task:** none — see [`current-task.md`](current-task.md), which now records this as
+the hand-off state rather than pointing at an in-progress task. Selection rule for what
 becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-15: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and merged to
@@ -478,3 +482,24 @@ provenance (a pre-M0-03-01 `V.SMART.Api/appsettings.json` value that was never c
 per INV-029's untracked-directory finding) is stated honestly in the code comment. A digest
 cannot leak the value it covers; M0-04 is positioned to confirm or replace it against the real
 historical value during rotation.
+
+¹⁰ **M0-14: `Needs Review` 2026-08-18.** Implemented and committed on
+`migration/M0-14-gate-detailed-errors` (`db41ebc`, cut on top of `master@028e834`, i.e. after
+both `M0-03-01` and `M0-03-03` had already landed on `master` — no same-file merge was
+actually needed in practice, despite the task file's conflict-risk warning). Independently
+validated **PASS** on attempt 1 of 3, 0 escalations, `scopeOk: true`, `failureCategory: none`
+— all eleven acceptance criteria `MET`; the two-environment manual runtime check was correctly
+reported as not performed (no reachable SQL Server instance in this environment, independently
+confirmed by the validator), which the task file's own fallback instruction treats as an
+acceptable outcome, not a gap. `Program.cs:198`'s `options.DetailedErrors` now derives from
+`builder.Environment.IsDevelopment()`; the dead `"DetailedError"` key at
+`appsettings.json:14` was deleted after `git grep` proved it unbound. KB-060 R-20 marked
+resolved with exact evidence; KB-003 INV-029 amended with the negative-binding finding. Full
+record:
+[`tasks/M0-14.md` § Execution Record](tasks/M0-14.md#execution-record-2026-08-18).
+The implementing session had incorrectly self-set `status: Completed` in the task file; this
+close-out corrects it to `Needs Review` per
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) — the task's completion
+conditions include a human review-and-merge step, which no session may perform on its own
+authority. No task in the tracker is `Ready` after this close-out — see the *Currently
+`Ready`* note above.

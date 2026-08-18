@@ -195,7 +195,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddServerSideBlazor(options =>
 {
-    options.DetailedErrors = true;
+    options.DetailedErrors = builder.Environment.IsDevelopment();
 });
 
 // Core Tenant + Context
