@@ -74,7 +74,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
 | M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
-| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Blocked**⁶ | P1 | M0-01-02 | 1 d | G0 |
+| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Needs Review**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Blocked | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | Blocked | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
@@ -257,25 +257,24 @@ merged to `master` (`f55db52`). See note ³ above and
 [`tasks/M0-03-01.md` § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17) for
 the full record. `M0-03-02` and `M0-14` are now `Ready` — their prerequisite is satisfied.
 
-**M0-03-02: `Needs Review` 2026-08-18.** Implemented and committed on
-`migration/M0-03-02-hardcoded-connection-strings-csharp` (`e6e5295`, cut from
-`master@0a20d62`), unmerged. Validated `PASS` on attempt 1 of 3, 0 escalations, `scopeOk:
-true`, no regressions. Full record:
+**M0-03-02: `Completed` 2026-08-18.** Implemented on
+`migration/M0-03-02-hardcoded-connection-strings-csharp` (`e6e5295`), validated `PASS` on
+attempt 1 of 3, 0 escalations, `scopeOk: true`, no regressions; reviewed by Vivek and merged
+to `master` (`ec2f0f3` + `7fbb768`). Full record:
 [`tasks/M0-03-02.md` § Execution Record](tasks/M0-03-02.md#execution-record-2026-08-18).
-`M0-03-03` stays `Blocked` — its Hard prerequisite is this task at `Completed`, and `Needs
-Review` does not satisfy that per the *Ready-task selection rule*'s "not `REVIEW`" clause. An
-older, superseded branch of the same name (no `-csharp` suffix) also exists, cut from a
-pre-M0-15-recut point — do not merge it.
+`M0-03-03` was unblocked by this and is itself now `Completed`. An older, superseded branch of
+the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
+merge it**.
 
-**Currently `Ready`:** none, as of `M0-14`'s close-out (2026-08-18, footnote 10). `M0-14`
-itself moved `Ready` → `Needs Review` and is not re-selectable until reviewed and merged.
-(M0-02 is `Blocked`⁶; M0-03 is a parent container, not worked directly; M0-03-03 is `Needs
-Review`⁹, not re-selectable; M0-04 is `Blocked`⁴ on an unidentified human owner; M0-07 is
-`Blocked`⁷ on repository-owner/DevOps access; M0-01-03 is `Needs Review`¹, not re-selectable;
-everything downstream of M0-07/M0-12 stays `Blocked` transitively; M0-08 and M0-15 are
-`Completed`.) No task satisfies the *Ready-task selection rule* this cycle — the runner has
-nothing to open without a human unblocking one of M0-02, M0-04, M0-07, or reviewing/merging
-M0-01-03, M0-03-03 or M0-14.
+**Currently `Ready`:** none, as of the M0-02 deferral merge (2026-08-18). Every M0 task is now
+`Completed`, `Blocked` on a named human, or `Needs Review` and therefore not re-selectable:
+M0-02 is `Needs Review`⁶ (Q-14 explicitly deferred by Vivek, its named owner); M0-03 is a
+`Completed` parent container, never worked directly; M0-03-01/02/03 and M0-14 are `Completed`;
+M0-01-03 is `Needs Review`¹, awaiting a human-executed rebuild drill; M0-04 is `Blocked`⁴ on an
+unidentified credential owner; M0-07 is `Blocked`⁷ on `origin` push plus GitHub org admin
+rights; M0-05 stays `Blocked` because M0-04 has not run; everything downstream of
+M0-07/M0-12-01 stays `Blocked` transitively. No task satisfies the *Ready-task selection rule*
+— **the runner cannot open anything until a human clears M0-04, M0-07 or M0-01-03's drill.**
 **Active task:** none — see [`current-task.md`](current-task.md), which now records this as
 the hand-off state rather than pointing at an in-progress task. Selection rule for what
 becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
@@ -384,7 +383,7 @@ on 2026-08-17 when the repository owner signed them off, so the *Ready-task sele
 "not `REVIEW`" clause no longer excludes it. It is the top P0 candidate, and clearing it
 unblocks nine further tasks behind `M0-12-01`.
 
-⁶ **M0-02: `Blocked` on a human, not on a task.** Committed on
+⁶ **M0-02: `Needs Review` — Q-14 explicitly deferred 2026-08-18 by Vivek.** Was `Blocked` on a human, not on a task; that block is now closed by decision rather than by evidence. Committed on
 `migration/M0-02-sp-drift-across-tenants` (`c1ab752`), unmerged. The **tooling half is
 complete**: `db/tools/list-deployed-procedures.sql` extended with `hash_raw` +
 `hash_normalised` (Query B, `FINGERPRINT_QUERY_VERSION 2`), `db/tools/compare-tenant-fingerprints.sh`
@@ -404,6 +403,18 @@ also decide which database the "baseline" label denotes, given the `IQSMARTDEMO_
 To resume: hand `db/RUNBOOK-tenant-drift-check.md` to the DBA, drop the resulting CSVs into
 `db/drift/`, then re-open at the task's Implementation Steps §9 — do not re-derive the
 tooling.
+
+**Closed by deferral, 2026-08-18.** **Vivek** (repository owner / migration lead), as the
+**named owner**, explicitly deferred Q-14 rather than schedule DBA time. That is a valid close
+for the G0 deliverable, which [KB-080 §7](README.md) states as "Q-14 answered **or explicitly
+deferred with reason**". **Zero tenants were fingerprinted and zero compared, so drift is
+undecided — this is emphatically not a finding of "no drift".** Risk knowingly accepted:
+`db/stored-procedures/` stays a single artefact set *by assumption* and
+`db/deploy-stored-procedures.ps1` has no per-tenant path, so a deployment can overwrite one
+tenant's customised procedure with another's, silently, with no test to catch it. Reopen on any
+CSV landing in `db/drift/` or any per-tenant report surprise in the field; the tooling is
+complete and must not be re-derived. Full record:
+[`tasks/M0-02.md` § Deferral](tasks/M0-02.md#deferral--2026-08-18-q-14-explicitly-deferred).
 
 ⁷ **M0-07: `Blocked` on environment access, not on a defect.** The 2026-08-18 run implemented
 the task in full and then failed validation on six acceptance criteria that cannot be
