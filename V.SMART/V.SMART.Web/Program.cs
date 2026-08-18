@@ -179,6 +179,12 @@ using V.SMARTV.Shared.BusinessLayer.BusinessService.IBusinessService.IAccountsSe
 
 var builder = WebApplication.CreateBuilder(args);
 
+// M0-03-03 — fail fast on a missing, empty or known-default ConnectionStrings:MasterDb,
+// before MasterDbContext is registered below. requireJwt: false — this host has no Jwt
+// section. Throws InvalidOperationException naming the key and the remediation, never the
+// value.
+StartupConfigurationValidator.Validate(builder.Configuration, requireJwt: false);
+
 // ===============================
 // Services Registration
 // ===============================

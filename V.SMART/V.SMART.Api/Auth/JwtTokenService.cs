@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using V.SMART.Shared.Data.Master.Admin;
+using V.SMART.Shared.Services;
 
 namespace V.SMART.Api.Auth
 {
@@ -17,8 +18,11 @@ namespace V.SMART.Api.Auth
 
         public string CreateToken(User user, int tenantId)
         {
-            var secret = _configuration["Jwt:Secret"]
-                ?? throw new InvalidOperationException("Jwt:Secret missing");
+            // M0-03-03: defer to the one code path that decides whether Jwt:Secret is
+            // acceptable, so this guard cannot drift from the startup one. Startup
+            // validation means this should never throw in a host that is running.
+            StartupConfigurationValidator.ValidateJwtSecret(_configuration);
+            var secret = _configuration["Jwt:Secret"]!;
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

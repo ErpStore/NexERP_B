@@ -163,6 +163,22 @@ Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, 
 > `Payments.razor:1412`, `Receipts.razor:1414`, `AdvanceAdjustment.razor:1359`, and
 > `V.SMART/V.SMART.Api/wwwroot/config/tenant.json:2,5`. **None is a credential.**
 
+> **Status update, 2026-08-18 (M0-03-03, Confirmed by running both hosts):** both web hosts
+> now **refuse to start** when `ConnectionStrings:MasterDb` is missing, empty, whitespace, or
+> equal to a known pre-rotation default. The check is
+> `V.SMART/V.SMART.Shared/Services/StartupConfigurationValidator.cs`, called from
+> `V.SMART/V.SMART.Api/Program.cs` and `V.SMART/V.SMART.Web/Program.cs` immediately after
+> `WebApplication.CreateBuilder(args)`. The known-default deny-list is held as **SHA-256 hex
+> digests only** — no plaintext re-enters the tree — and covers the six distinct historical
+> connection strings recoverable from git history (`c12c5b2` Web `appsettings.json`, both
+> `MigrationData` factories, `MauiProgram.cs`, and the later local variant on `6dbf4b4`),
+> plus one further local variant recorded by an earlier session from the then-untracked
+> `V.SMART.Api/appsettings.json`. It is a **tripwire, not a security control**: it catches
+> only exact matches of values already known to be leaked.
+> **This closes only the "fail startup" clause of the action above. Rotation (M0-04), the
+> history purge (M0-05) and the plaintext per-tenant connection strings in the `Tenants`
+> table (KB-014) all remain open.**
+
 ### R-02 — JWT signing secret committed
 **Confirmed.** `V.SMART.Api/appsettings.json` `Jwt:Secret` holds a hardcoded default value
 containing the literal words "Change In Production" — i.e. it was never rotated.
@@ -221,6 +237,36 @@ the known default (M0-03-01, M0-03-03).
 > "confirm... as part of M0-00" was followed for `appsettings.json` itself (correctly
 > deferred, never committed) but not for *this document quoting the value*, which is the
 > gap that caused the exposure.
+
+> **Status update, 2026-08-18 (M0-03-03, Confirmed by running the host — every case below was
+> executed, not inferred):** the "**fail startup if the secret is missing or is the known
+> default**" clause of the action above is **DELIVERED**. `V.SMART.Api` now throws
+> `InvalidOperationException` before any other registration when `Jwt:Secret` is null, empty,
+> whitespace, shorter than 32 UTF-8 bytes, or equal to the known default (matched by SHA-256
+> digest — the plaintext is not in the tree), and when `Jwt:Issuer` or `Jwt:Audience` is
+> missing or empty. Observed:
+>
+> | Case | Observed |
+> |---|---|
+> | `Jwt:Secret` unset | `InvalidOperationException: Startup configuration is invalid: Jwt:Secret is missing, empty, or whitespace…` |
+> | `Jwt:Secret` empty | same message |
+> | `Jwt:Secret` 10 characters | `…Jwt:Secret is shorter than the required 32 bytes in UTF-8…` |
+> | `Jwt:Secret` = the known default | `…Jwt:Secret matches a known published default value (see …R-02)…` |
+> | `Jwt:Issuer` / `Jwt:Audience` whitespace | `…Jwt:Issuer is missing, empty, or whitespace…` / same for `Jwt:Audience` |
+> | all keys set to valid non-default values | host starts normally |
+>
+> No message repeats the offending value (R-23: the flat-file logger writes plaintext per user
+> per day). The `IDX10703` framework message recorded above is no longer reachable — the
+> application's own message now fires first.
+>
+> The **second guard** flagged above at `V.SMART/V.SMART.Api/Auth/JwtTokenService.cs:20-21`
+> was also hardened: it now delegates to
+> `StartupConfigurationValidator.ValidateJwtSecret(IConfiguration)` instead of carrying its own
+> null-only `?? throw`, so there is exactly one code path deciding whether `Jwt:Secret` is
+> acceptable and the two cannot drift.
+>
+> **Still open: rotation (M0-04) and the history purge (M0-05).** The previously committed
+> secret stays compromised; this task only guarantees it cannot be *used*.
 
 ### R-03 — Authorization enforced only in the UI layer
 **Confirmed.** `BaseUserRightsComponent` + `RightsHelper` are the only permission checks;
