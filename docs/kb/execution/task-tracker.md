@@ -67,8 +67,8 @@ its children are `Completed` — it is never worked directly.
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
-| M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Needs Review**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
-| M0-03-03 | M0 | — fail-fast startup validation | Security | Blocked | P0 | M0-03-02 | 0.5 d | G0 |
+| M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
+| M0-03-03 | M0 | — fail-fast startup validation | Security | **Ready** | P0 | M0-03-02 | 0.5 d | G0 |
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
@@ -244,7 +244,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 6 | G0 | ⬜ Not met |
+| M0 | 24 | 7 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -420,7 +420,7 @@ Recorded here so the *Ready-task selection rule* stops re-selecting it: while th
 `Ready` at P0 it was the top candidate, so every run picked it and stopped in the same place.
 Note the branch carries its own copy of this status change; reconcile when it is merged.
 
-⁸ **M0-03-02: `Needs Review`, not `Completed`, despite validation `PASS`.** Per
+⁸ **M0-03-02: `Completed` 2026-08-18 — reviewed, approved by Vivek, and merged.** It sat at `Needs Review` until that sign-off, because per
 [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed), this project requires
 human review and merge before a task can leave `Needs Review` — an autonomous session may
 never set `Completed` itself. All in-scope deliverables are done and committed on
@@ -435,3 +435,14 @@ step and, per the task's own scope limit, a MAUI-workload-capable build of
 `V.SMART/V.SMART/V.SMART.csproj`, which no session in this environment can perform. See
 [tasks/M0-03-02.md § Execution Record](tasks/M0-03-02.md#execution-record-2026-08-18) for the
 full record.
+
+**Sign-off, 2026-08-18.** **Vivek** reviewed M0-03-02 and approved it ("looks fine"), and it
+was merged to `master`: `ec2f0f3` (implementation, `e6e5295` + runner state `b62440c`) and
+`7fbb768` (knowledge-base close-out). That is the human review-and-merge step footnote 8
+describes, so the task moves `Needs Review` → `Completed` and `M0-03-03` moves `Blocked` →
+`Ready`, its Hard prerequisite now satisfied. **One verification gap is carried forward, not
+closed:** a MAUI-workload-capable build of `V.SMART/V.SMART/V.SMART.csproj` was never run —
+no session in this environment can perform one — so `MauiProgram.cs`'s configuration read is
+verified by inspection and by the `V.SMART.Shared` build, not by building the MAUI host. The
+close-out commit `3378656` was originally made directly on `master`, contrary to the branch
+rule; it was moved to `kb/M0-03-02-closeout` and merged through review instead.
