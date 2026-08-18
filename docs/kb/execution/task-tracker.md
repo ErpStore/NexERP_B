@@ -63,7 +63,7 @@ its children are `Completed` — it is never worked directly.
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
-| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Blocked**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
+| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Needs Review**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
@@ -438,14 +438,33 @@ CSV landing in `db/drift/` or any per-tenant report surprise in the field; the t
 complete and must not be re-derived. Full record:
 [`tasks/M0-02.md` § Deferral](tasks/M0-02.md#deferral--2026-08-18-q-14-explicitly-deferred).
 
-⁷ **M0-07: `Blocked` on environment access, not on a defect.** The 2026-08-18 run implemented
-the task in full and then failed validation on six acceptance criteria that cannot be
-satisfied from this workstation: they require the branch pushed to `origin`, a GitHub-hosted
-Actions run to execute and go green, a merge to `master`, and GitHub org admin rights to
-configure branch protection. The `gh` CLI is not installed, the branch is absent from
-`origin`, and `master` carries no `ci.yml`. The diagnosis was explicit that **the pipeline,
-the warning gate and the documentation contain no defect** — only their verification is
-blocked.
+⁷ **M0-07: `Needs Review` 2026-08-18 — the environment block is cleared; the pipeline is green
+and merged.** It had been `Blocked` on six acceptance criteria that could not be satisfied
+from this workstation. Vivek cleared them on 2026-08-18:
+
+| Criterion | State |
+|---|---|
+| Branch pushed to `origin` | ✅ `migration/M0-07-ci-pipeline` pushed |
+| A GitHub-hosted Actions run executes | ✅ run [`32158375284`](https://github.com/ErpStore/NexERP_B/actions/runs/32158375284) on `772fea3` |
+| That run goes **green** | ✅ `conclusion: success`, all ten steps, 16:05:37→16:12:54 UTC (~7m17s) |
+| Both analyzer warning gates pass on a runner | ✅ `Analyzer warning gate — V.SMART.Api` and `— V.SMART.Web` both `success` |
+| Merged to `master` | ✅ this merge |
+| Branch protection requires the check | ❌ **still outstanding** — a GitHub settings action |
+
+The hosted run also settles what local verification could not: the gate passes against the
+committed baseline as measured by the runner, after `M0-03-02`, `M0-03-03` and `M0-14` had
+already landed on `master`. The hygiene guard (`check-no-build-output.sh`, from `M0-08`) is now
+actually enforced by CI rather than only documented.
+
+**What remains before `Completed`:** (a) human sign-off, and (b) adding this CI check as a
+required status in `master`'s existing ruleset — the ruleset is already present (the 2026-08-18
+`master` pushes reported "Bypassed rule violations … Changes must be made through a pull
+request"), so this is configuration, not creation. **Until M0-07 is `Completed`, `M0-12-01`
+stays `Blocked`** — the *Ready-task selection rule* requires a Hard prerequisite at `Completed`,
+not `Needs Review` — and with it the nine tasks behind it.
+
+The earlier diagnosis was explicit that **the pipeline, the warning gate and the documentation
+contain no defect** — only their verification was blocked. The green run confirms that.
 
 The work is committed and unmerged on `migration/M0-07-ci-pipeline` (four commits, ~1,500
 lines): the restore/build workflow, the analyzer warning gate with a committed baseline,

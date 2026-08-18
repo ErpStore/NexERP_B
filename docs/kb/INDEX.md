@@ -44,6 +44,7 @@ last_verified: 2026-08-17
 | TASK-* | [Task specifications](execution/tasks/) | **proposal** | active | — | 2026-08-12 |
 | KB-085 | [M0-00 Version-Control Baseline Decision Log](execution/M0-00-baseline-decisions.md) | execution | active | — | 2026-08-12 |
 | KB-086 | [Build and Toolchain Baseline](execution/M0-15-build-baseline.md) | execution | complete | confirmed | 2026-08-17 |
+| KB-087 | [CI Pipeline](execution/ci-pipeline.md) | execution | complete | confirmed | 2026-08-17 |
 | KB-088 | [Repository-Driven Execution Workflow](execution/workflow.md) | meta | active | — | 2026-08-16 |
 | KB-089 | [**Current Task**](execution/current-task.md) | meta | active | — | 2026-08-16 |
 | KB-090 | [Task File Template](execution/task-template.md) | meta | active | — | 2026-08-16 |
@@ -66,10 +67,10 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | Range | Purpose | Allocated |
 |---|---|---|
 | KB-000 – KB-079 | Analysis knowledge base (as-is + proposals) | through KB-070 |
-| KB-080 – KB-099 | Execution plan meta-documents *(range extended 2026-08-16 — 080–089 was full)* | KB-080 … KB-086, KB-088 … KB-093. **Next free: KB-087, or KB-094** |
+| KB-080 – KB-099 | Execution plan meta-documents *(range extended 2026-08-16 — 080–089 was full)* | KB-080 … KB-093 (contiguous — KB-087 claimed 2026-08-17 by M0-07). **Next free: KB-094** |
 | KB-085 | **Claimed 2026-08-12 by M0-00** — [M0-00-baseline-decisions.md](execution/M0-00-baseline-decisions.md) | allocated |
 | KB-086 | **Claimed 2026-08-17 by M0-15** — [M0-15-build-baseline.md](execution/M0-15-build-baseline.md) | allocated |
-| KB-087 | *(proposed by M0-07 before this table existed — still unclaimed on disk. `grep -rn "KB-087" docs/kb/` before claiming)* | provisional |
+| KB-087 | **Claimed 2026-08-17 by M0-07** — [ci-pipeline.md](execution/ci-pipeline.md) | allocated |
 | KB-088 – KB-090 | **Claimed 2026-08-16** — [workflow.md](execution/workflow.md), [current-task.md](execution/current-task.md), [task-template.md](execution/task-template.md) | allocated |
 | KB-091 – KB-093 | **Claimed 2026-08-16** — [autonomous-runner.md](execution/autonomous-runner.md), [failure-log.md](execution/failure-log.md), [runner-state.md](execution/runner-state.md) | allocated |
 | **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11). **Next free: KB-104**, or KB-114+ |
@@ -78,7 +79,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | INV-nnn | Investigation registry rows | through INV-034 (030–033 reserved, next free INV-035 — see investigation-registry.md) |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
 | R-nn | Risks | through R-37 |
-| Q-nn | Open questions | through Q-19 |
+| Q-nn | Open questions | through Q-20 (Q-20 claimed 2026-08-17 by M0-07 — note `M3-1-01` still says it expects to start at Q-20; it must start at Q-21) |
 
 A task that produces a durable document allocates the next free **KB-1xx** id, adds its row
 to the registry above, and records the id in the task's *Documentation Updates* section.
@@ -114,6 +115,7 @@ Use this table before searching the repository.
 | **How the autonomous runner works: agents, model routing, retries, escalation, safety stops** | **KB-091 — `execution/autonomous-runner.md`** |
 | Why a task failed validation, and what was already tried | KB-092 — `execution/failure-log.md` |
 | Is a run live, on what, and why did it stop | KB-093 — `execution/runner-state.md` |
+| What CI runs, why a CI build failed, how to change the warning baseline | KB-087 — `execution/ci-pipeline.md` |
 | Invariant project context an AI session needs first | `CLAUDE.md` at the repository root |
 | The full executable plan: milestones → tasks → gates | KB-080 *(55 KB — deep-link, do not read whole)* |
 | Status of every task; is task X ready? | KB-081 |

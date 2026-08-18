@@ -247,3 +247,189 @@ branch actually used does **not** match the name the task file mandates.
 **Next attempt routed to** — `opus`, KB-091 §6.3 trigger 2 (an architecture/design decision is
 required) and trigger 7 (validator `FAIL` category `architecture`). Not a code retry — a
 specification decision first.
+
+---
+
+### M0-07 · attempt 1 · 2026-08-17
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (implementer), opus (validator) |
+| Validator verdict | FAIL |
+| Failure category | environment |
+
+**What failed** — five acceptance criteria in `tasks/M0-07.md:342-370` that can only be
+satisfied by a GitHub Actions run and by GitHub admin rights, neither of which an execution
+session has:
+
+- *":354 `ci/warning-baseline.json` … all produced **on the runner**"* — the committed artefact
+  states the opposite of itself: `ci/warning-baseline.json:34-36`
+  `"measured_on": "developer-workstation"`, `"provisional": true`,
+  `"must_be_regenerated_on_runner": true`.
+- *":355-357 A deliberately introduced new warning makes CI **fail**"* — CI has never run. The
+  *gate* was proven to fail; the *pipeline* was not.
+- *":363 Two runs of the workflow on the same commit report an identical warning total"* — no
+  workflow run exists; only two local builds.
+- *":364 CI is green on `master`"* — `master` carries no workflow (`git ls-files` on `master`
+  has no `.github/workflows/ci.yml`); merging is forbidden from an execution session.
+- *":365-366 The CI check is a **required status check** in `master`'s branch protection"* —
+  needs GitHub organisation admin rights.
+
+Also **not checkable**, for the same reason: *":360 `tools/check-no-build-output.sh` runs as a
+CI step and its non-zero exit fails the job"* — the step is wired at
+`.github/workflows/ci.yml:83-85`, but "the job honours a non-zero exit" was never observed.
+
+**Root cause** — a task-specification vs. runner-policy conflict, not a defect: `tasks/M0-07.md:249,458-459`
+require pushing the branch and iterating until CI is green, while the runner prompt's hard
+constraints forbid any push, and `master`'s branch protection needs a human admin. Open
+question **Q-20** (`docs/kb/open-questions.md:43`) records that hosted-runner availability for
+`ErpStore` is itself unconfirmed.
+
+**Evidence** — everything the validator *could* check independently passed, re-run on
+2026-08-17 on this workstation (SDK 10.0.400, commit `5106929`):
+
+- `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-restore --no-incremental -v normal -nologo -bl:<path>`
+  → `exit=0`, `6693 Warning(s)`, `0 Error(s)`, 2m13s. Second identical build → `6693 Warning(s)`
+  again (local idempotence).
+- `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj --no-restore --no-incremental -v normal -nologo`
+  → `exit=0`, `6695 Warning(s)`, `0 Error(s)`.
+- Both gate variants against the real logs → `Gate: PASSED (equal to baseline)`, exit 0. The
+  committed per-code table for `V.SMART.Api` reproduces exactly: 38 codes, sum 6,693.
+- Gate on a log carrying one synthetic new code → exit **1**, naming `CS1030  x1 (baseline: absent)`
+  and `delta +1`, from both `tools/compare-warnings.ps1` and `tools/compare-warnings.sh`.
+- Ratchet, baseline raised to 6,694 against 6,693 → exit **0** plus
+  `ACTION REQUIRED: lower the committed baseline`.
+- `bash tools/check-no-build-output.sh` → `OK -- no build output … is tracked`, exit 0.
+- Scope clean: `git diff --name-status 8b67f3d..HEAD` touches no `.csproj`, `.cs` or `.razor`;
+  `git diff HEAD -- V.SMART/V.SMART.Api/Program.cs` is empty, so the temporary `#warning` was
+  fully reverted. No `dotnet test` invocation and no `-warnaserror` flag exists — the only
+  matches are prose in comments.
+
+**Disposition** — `blocked`, not `retry`. A same-spec retry at any model cannot push a branch,
+trigger an Actions run, or edit branch protection; re-running the implementer would only
+reproduce this entry. The engineering work is complete and independently verified locally.
+
+**Decision the orchestrator needs to take** (one of):
+
+- **A** — grant an explicit, in-conversation instruction to push `migration/M0-07-ci-pipeline`
+  (the task file already permits it at :458-459; the runner's hard constraint currently does
+  not), then let the session regenerate `ci/warning-baseline.json` from the runner and record
+  the runner-vs-local delta in INV-029.
+- **B** — accept M0-07 as **partially complete / BLOCKED on Q-20**, leave the five
+  runner-dependent criteria open against a human action item, and do not tick KB-080 §7's
+  "CI green on `master`" G0 box (it is correctly still unticked at
+  `docs/kb/execution/README.md:393-399`).
+- **C** — amend `tasks/M0-07.md` to split the runner-dependent criteria into a successor task
+  owned by a human with GitHub admin rights.
+
+**Next attempt routed to** — no model. KB-091 §6.3: this is an external-dependency stop
+(hosted runner + admin rights), so it needs a human decision, not a stronger model.
+
+---
+
+### M0-07 · attempt 1 · diagnosis · 2026-08-17
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where), line 282. **No fix
+applied.**)*
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | environment (confirmed — not re-classified) |
+
+**Reproduced** — yes, independently, on branch `migration/M0-07-ci-pipeline`, HEAD `5106929`.
+The five failing criteria are git/GitHub facts, so they reproduce without a build:
+
+```
+$ git ls-tree -r --name-only master -- .github
+.github/copilot-instructions.md
+.github/prompts/convert-to-zoho-ui.prompt.md          <- no ci.yml on master (criterion :364)
+
+$ git ls-remote --heads origin
+refs/heads/claude/remote-control-fyzk2l
+refs/heads/fix/M0-00a-correct-repo-visibility-finding
+refs/heads/master                       31cfa95
+refs/heads/migration/M0-00-vcs-baseline
+                                        <- migration/M0-07-ci-pipeline is NOT on origin,
+                                           so no Actions run can exist (criteria :355-357, :363)
+
+$ gh --version
+bash: gh: command not found                            <- branch protection cannot even be
+                                                          inspected, let alone set (:365-366)
+
+$ sed -n '34,40p' ci/warning-baseline.json
+"measured_on": "developer-workstation",
+"provisional": true,
+"must_be_regenerated_on_runner": true,
+"runner_os": "windows-11-developer-workstation (...) -- NOT a GitHub-hosted runner",
+                                                       <- the artefact self-declares the
+                                                          criterion :352-354 unmet
+```
+
+**Root cause** — confirmed, and unchanged from the validator's classification: the six
+outstanding criteria are all satisfiable **only** by (a) pushing `migration/M0-07-ci-pipeline`
+to `origin`, (b) a GitHub-hosted Actions run, (c) a merge to `master`, and (d) GitHub
+organisation admin rights on branch protection. The runner's hard constraints forbid (a)–(c)
+(`allowMerge=false`, no push), (d) is not held by any session, and the `gh` CLI is not
+installed on this workstation. **No code defect exists** — this is
+[KB-091 §8 trigger 5](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)
+(environment unavailable) *and* trigger 7 (would require a merge or a push), i.e. a safety
+stop, not a bug.
+
+**Additional evidence — I looked specifically for a latent defect hiding behind the
+environment stop, and found none:**
+
+- `.github/workflows/ci.yml` read end to end. Step order is guard (`:83-85`) → SDK setup
+  (`:91-94`) → restore (`:113-116`) → build Api (`:126-132`) / Web (`:134-139`) → gate
+  (`:150-162`). No `continue-on-error:` on any step, no `|| true`, no `exit 0` swallowing a
+  failure, no `if:` other than `always()` on the artefact upload (`:180`). Both build steps
+  re-raise the exit code explicitly (`if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`,
+  `:132`, `:139`), which is the only place `Tee-Object` could otherwise have masked one.
+- `tools/compare-warnings.ps1` parses clean:
+  `[Parser]::ParseFile(...)` → `PARSE OK`, 0 parse errors.
+- `bash -n tools/compare-warnings.sh` → OK; `bash -n tools/check-no-build-output.sh` → OK;
+  `bash tools/check-no-build-output.sh` → `OK -- no build output, IDE state, or dependency
+  directory is tracked.`, exit **0**.
+- Not machine-validated, and stated as such: `ci.yml` YAML syntax (no `python`/`yaml` and no
+  YAML parser on this workstation — "Python was not found"), and `pwsh` (`:152`, `:159`) which
+  exists on `windows-latest` but not here. Both are runner-side unknowns that only an Actions
+  run can close; neither is evidence of a defect.
+
+**Why no fix was applied** — every route to green is either impossible or dishonest:
+
+- Pushing the branch / merging to `master` — forbidden by the runner's hard constraints
+  (`allowMerge=false`), and `tasks/M0-07.md:457` itself says "Do not merge. Do not push to
+  `master`." The permission at `:458-459` to push the *feature* branch is granted by the task
+  file but withheld by the runner prompt; a session cannot reconcile that on its own.
+- Deleting or rewording the `"provisional": true` / `"measured_on": "developer-workstation"`
+  provenance fields in `ci/warning-baseline.json` would make criterion :352-354 *appear* met
+  while the numbers were still local. That is exactly the "silently adjusted check" this
+  workflow forbids — and worse than the failure, because the next task would trust a baseline
+  no runner ever produced.
+- Amending the criteria is a task-specification change, not a debugger's call.
+
+**Disposition** — `blocked`, agreeing with attempt 1. **A same-spec retry is now a loop under
+[KB-091 §6.4](autonomous-runner.md#64-retry-rules)**: re-running the implementer cannot acquire
+a push permission, a hosted runner or admin rights, and would only re-emit the entry above.
+Do not spend attempt 2 on it.
+
+**Decision the orchestrator needs to take** — unchanged; options **A** / **B** / **C** in the
+entry above still stand, and **B** (accept as partially complete, `BLOCKED` on Q-20, leave the
+G0 "CI green on `master`" box unticked at `docs/kb/execution/README.md:393-399`) is the only
+one a session can take without a human first lifting a constraint. Note that Q-20
+(`docs/kb/open-questions.md:43`) — whether `ErpStore` has hosted-runner minutes at all — must
+be answered *before* option A is worth attempting, or the push buys nothing.
+
+**Residual risk** — the engineering is verified only locally, so three things stay genuinely
+unknown until CI runs once: (i) whether the runner's warning totals match the local 6,693 /
+6,695 (INV-029's open comparison — if they differ, the runner's number becomes the baseline);
+(ii) whether `ci.yml` is syntactically valid to GitHub's parser, never machine-checked here;
+(iii) whether the hygiene guard's non-zero exit actually fails the job. None of these can be
+closed without an Actions run, and none should be asserted as verified in the meantime.
+
+**Next attempt routed to** — no model. Human action item; a stronger model cannot obtain a
+credential or a runner.
