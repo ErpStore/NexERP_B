@@ -21,7 +21,7 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — `Blocked` on a human (runner fault, not content)
+## Active task: `M0-12-01` — `Ready`. Attempt 1 died on a transient API error; just retry.
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
@@ -29,20 +29,36 @@ dependencies: [KB-081, KB-082, KB-088]
 output — so validation could not run
 (`{"verdict": "none", "note": "validation did not complete"}`). Verified at close-out: no
 `migration/M0-12-01-*` branch exists, no `tests/` directory exists at the repository root,
-`git status --porcelain` is clean, and `master`'s tip is unchanged. **Nothing was implemented;
-there is nothing to resume mid-way through — the next session either re-dispatches the
-implementer or investigates why the dispatch produced nothing.**
+`git status --porcelain` is clean, and `master`'s tip is unchanged. **Nothing was implemented,
+so there is nothing to resume mid-way through — start attempt 2 from a clean slate.**
+
+**Why — CONFIRMED, and it is not a dispatch fault.** The workflow's completion record for that
+run shows both of its agents terminating on a transient upstream error:
+
+```
+[investigate:M0-12-01] failed: API Error: 529 Overloaded
+[implement:M0-12-01]   failed: API Error: 529 Overloaded
+```
+
+`agents_error: 2` of 5. The implementer emitted nothing because it never ran to completion.
+**No human action is required and no tooling audit is warranted** — an earlier version of this
+file asked the owner to audit the runner's dispatch layer before retrying, and that instruction
+is **withdrawn**. It was written from inside the failed run, which could not see why its own
+agents were killed. Acting on it would have been time spent on a false trail — and it did cost
+one run: a later selection pass read this file, honoured the stale human gate, and safety-stopped
+without dispatching (`safety stop before starting M0-12-01`).
+
+**Just re-run the runner.** If attempt 2 fails the *same* way, that repetition is the signal
+worth investigating — a single 529 is not.
 
 Full record: [`tasks/M0-12-01.md` § Execution Record (2026-08-18)](tasks/M0-12-01.md#execution-record-2026-08-18).
 Attempt logged: [`failure-log.md` § M0-12-01 · attempt 1](failure-log.md#m0-12-01--attempt-1--2026-08-18).
 Status authority: [`task-tracker.md`](task-tracker.md) (KB-081) footnote 12. Runner state:
 [`runner-state.md`](runner-state.md) (KB-093).
 
-**Owner to unblock:** **Vivek** (repository owner / migration lead) — check the runner's
-dispatch/agent-invocation layer for this cycle before retrying, in case the fault recurs.
-Attempts used: 1 of 4; three retries remain. The task specification itself is unchanged and
-valid — do not re-plan it, just re-dispatch once the dispatch fault is understood (or found
-not to reproduce).
+**Owner to unblock: nobody — there is no human gate on this task.** Attempts used: 1 of 4;
+three remain. The task specification is unchanged and valid — do not re-plan it, just
+re-dispatch.
 
 **Do not start a different task from this file.** `M0-12-01` is the narrowest bottleneck in
 M0 (four tasks — `M0-12-02`, `M0-13`, `M0-09`, `M0-06` — declare it as their dependency), and
