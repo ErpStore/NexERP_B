@@ -12,11 +12,16 @@ source_files:
   - V.SMART/V.SMART.Shared/Services/CurrentUserService.cs
   - V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs
   - V.SMART/V.SMART.Shared/Repository/MasterRepository/Admins/UserRepository.cs
+  - V.SMART/V.SMART.Shared/Data/MigrationData/ApplicationDbContextFactory.cs
+  - V.SMART/V.SMART.Shared/Data/MigrationData/MasterDbContextFactory.cs
+  - V.SMART/V.SMART/MauiProgram.cs
+  - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/EInvoiceAPIService/EinvoiceDatabaseService.cs
+  - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/EInvoiceAPIService/EWayDatabaseService.cs
   - db/deploy-stored-procedures.ps1
   - db/RUNBOOK-rebuild-tenant-database.md
 status: complete
 confidence: mixed
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
@@ -115,6 +120,48 @@ Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, 
 > commands), exactly repeating the R-02 exposure pattern recorded below. M0-05's purge
 > surface therefore includes KB documents, not only source files. Out of scope for M0-03-01,
 > which is forbidden from rewriting history.
+
+> **Status update, 2026-08-18 (M0-03-02, Confirmed by direct inspection and by
+> `git grep --untracked`):** the **working tree now holds no database-credential literal at
+> all**, in C# or in configuration. The C# sites listed above, with the line numbers they
+> occupied before this task, were:
+>
+> | File | Lines (pre-M0-03-02) | What was there |
+> |---|---|---|
+> | `V.SMART/V.SMART.Shared/Data/MigrationData/ApplicationDbContextFactory.cs` | `:13` active, `:14` commented | SA literal; commented production host `154.61.76.112,1533` / `bspl` |
+> | `V.SMART/V.SMART.Shared/Data/MigrationData/MasterDbContextFactory.cs` | `:11` commented, `:12` active | commented production host; active SA literal |
+> | `V.SMART/V.SMART/MauiProgram.cs` | `:228` commented, `:231` active, `:235` commented | production host; active SA literal; third host `VK-7-HP\SQLEXPRESS` |
+> | `V.SMART/V.SMART.Web/appsettings.json`, `V.SMART/V.SMART.Api/appsettings.json` | — | already cleaned by M0-03-01 |
+>
+> Both design-time factories now resolve their connection string through
+> `V.SMART/V.SMART.Shared/Data/MigrationData/DesignTimeConnectionString.cs` (environment
+> variable, then this project's user-secrets) and **throw** when neither supplies a value —
+> `MasterDbContextFactory` on `ConnectionStrings:MasterDb`, `ApplicationDbContextFactory` on
+> the new `ConnectionStrings:DesignTimeTenantDb` (it builds a *tenant* context, so it must
+> not overload the master key). `MauiProgram.cs` reads `ConnectionStrings__MasterDb` /
+> `ConnectionStrings:MasterDb`; the two commented registrations are deleted. There is no
+> default value anywhere — see [`docs/CONFIGURATION.md`](../../CONFIGURATION.md).
+>
+> The **gateway** credential (item 4 above) is a *distinct* credential requiring its own
+> rotation, with its own owner and its own procedure — it is not covered by any
+> connection-string remediation. Its comments at
+> `EinvoiceDatabaseService.cs:1413-1414` and `EWayDatabaseService.cs:900-901` are now
+> deleted; the values remain compromised until **M0-04** rotates them at the GST gateway.
+>
+> **Still outstanding:** rotation of every exposed value (**M0-04**), the git-history purge
+> (**M0-05** — `git grep -l "<the SA password>" HEAD` still returns the committed files and
+> several KB documents, which is expected), and the plaintext per-tenant connection strings
+> in the `Tenants` table (KB-014).
+>
+> **Correction, 2026-08-18 (M0-03-02):** item 2's `bspl` list is stale in one respect.
+> `V.SMART/V.SMART.Web/Components/App.razor` and
+> `V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Identity_Pages/Login.razor` contain
+> **no** occurrence of `bspl` in any casing today (`grep -ic` returns `0` for both). The
+> surviving non-credential occurrences are `Pages/Home.razor:198,316` (public contact email
+> `contactbspl@nexgenerp.com`), `V.SMART.Shared.csproj:19-20` (image file names),
+> `Components/ProcessingOverlay.razor:31` (image name), three `upi://pay` sample strings in
+> `Payments.razor:1412`, `Receipts.razor:1414`, `AdvanceAdjustment.razor:1359`, and
+> `V.SMART/V.SMART.Api/wwwroot/config/tenant.json:2,5`. **None is a credential.**
 
 ### R-02 — JWT signing secret committed
 **Confirmed.** `V.SMART.Api/appsettings.json` `Jwt:Secret` holds a hardcoded default value

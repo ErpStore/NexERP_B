@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 ---
 
 # Investigation Registry
@@ -47,6 +47,45 @@ Warning baseline `6,695` (Api build) confirmed reproducible across two clean run
 dominant codes are the `CS86xx` nullable-reference family, **not** `MUD0002` as this row
 previously implied — `MUD0002` is only 130 occurrences (1.94%). Full detail, evidence and
 methodology: [KB-086](execution/M0-15-build-baseline.md).
+
+**M0-03-02 amendment (2026-08-18) — the credential exposure INV-029 recorded was not only in
+configuration files, and not only database credentials. Confirmed by direct reading of the
+files and by `git grep --untracked`.**
+- **Hardcoded in C#, now removed from the working tree.** The SA password, the production
+  host `154.61.76.112,1533` and the `bspl` password were C# string literals at
+  `V.SMART/V.SMART.Shared/Data/MigrationData/ApplicationDbContextFactory.cs:13-14`,
+  `V.SMART/V.SMART.Shared/Data/MigrationData/MasterDbContextFactory.cs:11-12` and
+  `V.SMART/V.SMART/MauiProgram.cs:228,231,235` (line numbers as they stood before M0-03-02;
+  re-verified unchanged on 2026-08-18 immediately before editing). All three now read
+  configuration — `ConnectionStrings:MasterDb`, and the new
+  `ConnectionStrings:DesignTimeTenantDb` for the per-tenant design-time factory. Confidence:
+  **Confirmed**.
+- **A distinct, non-database credential.**
+  `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/EInvoiceAPIService/EinvoiceDatabaseService.cs:1413-1414`
+  and `…/EWayDatabaseService.cs:900-901` held trailing comments containing a **GST e-Invoice /
+  e-Way gateway** user name and password — a different system, a different owner and a
+  different rotation procedure from the SQL Server credentials. The running code already took
+  both as parameters of `GetUserNameandPassword(string username, string password)`, so the
+  literals were dead. The comments are deleted; the values still require their own rotation in
+  M0-04. Confidence: **Confirmed**.
+- **Negative result — do not re-derive.** The literal `bspl` outside the credential sites is
+  **not** a credential: `V.SMART/V.SMART.Shared/Pages/Home.razor:198,316` (public contact
+  email address), `V.SMART/V.SMART.Shared/V.SMART.Shared.csproj:19-20` and
+  `V.SMART/V.SMART.Shared/Components/ProcessingOverlay.razor:31` (image file names),
+  `Payments.razor:1412`, `Receipts.razor:1414`, `AdvanceAdjustment.razor:1359` (`upi://pay`
+  sample strings), `V.SMART/V.SMART.Api/wwwroot/config/tenant.json:2,5` (tenant name / UNC
+  path). **Correction to the earlier list:** `V.SMART/V.SMART.Web/Components/App.razor` and
+  `V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Identity_Pages/Login.razor` were named as
+  `bspl` hits by KB-060 R-01 and by the M0-03-02 task file; `grep -ic bspl` returns **0** for
+  both today. Confidence: **Confirmed**.
+- **`dotnet ef` is installed here** (`dotnet ef --version` → `10.0.11`), and the design-time
+  factories were smoke-tested with it: `dotnet ef dbcontext info --project
+  V.SMART/V.SMART.Shared/V.SMART.Shared.csproj --startup-project
+  V.SMART/V.SMART.Web/V.SMART.Web.csproj --context <MasterDbContext|ApplicationDbContext>
+  --framework net9.0`. `--framework` is **required** (the library multi-targets), and
+  `V.SMART.Api` cannot be the startup project — it does not reference
+  `Microsoft.EntityFrameworkCore.Design`; `V.SMART.Web` does
+  (`V.SMART/V.SMART.Web/V.SMART.Web.csproj:12`). Confidence: **Confirmed**.
 
 **M0-08 amendment (2026-08-17) — negative result, re-verified after M0-00. Do not re-derive
 this.** No build output, IDE state or dependency directory is tracked by git. R-14's original

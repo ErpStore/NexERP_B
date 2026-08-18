@@ -1410,8 +1410,8 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.EInvoiceAPIService
             try
             {
                 AuthEinvoice auth = new AuthEinvoice();
-                auth.UserName = username;//"API_Bhargavispl";
-                auth.Password = password;//"$Winbspl789";
+                auth.UserName = username;
+                auth.Password = password;
                 return auth;
             }
             catch (Exception ex)

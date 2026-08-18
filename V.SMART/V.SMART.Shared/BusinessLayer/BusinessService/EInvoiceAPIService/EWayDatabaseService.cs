@@ -897,8 +897,8 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.EInvoiceAPIService
             try
             {
                 AuthEWay auth = new AuthEWay();
-                auth.UserName = username;//"API_Bhargavispl";
-                auth.Password = password;//"$Winbspl789";
+                auth.UserName = username;
+                auth.Password = password;
                 return auth;
             }
             catch (Exception ex)
