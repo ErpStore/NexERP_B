@@ -39,7 +39,7 @@ corrected.
 | Field | Value |
 |---|---|
 | **Status** | `BLOCKED` |
-| **Stop reason** | Environment — KB-091 §8 safety-limit triggers 5 (a required environment is unavailable: no GitHub-hosted Actions runner, no `gh` CLI, no GitHub organisation admin rights) and 7 (the remaining path requires a push to `origin` and a merge to `master`, both outside this session's granted permissions). Six of M0-07's acceptance criteria are satisfiable only that way; the pipeline, gate and docs contain no defect. Full diagnosis: `failure-log.md` (M0-07 attempt 1, category `environment`). |
+| **Stop reason** | M0-07: blocked during diagnosis (environment): Six M0-07 acceptance criteria are satisfiable only by pushing the branch to origin, a GitHub-hosted Actions run, a merge to master, and GitHub org admin rights on branch protection — all of which the runner's hard constraints and this workstation forbid or lack (no gh CLI, branch absent from origin, master carries no ci.yml); the pipeline, gate and docs themselves contain no defect. |
 | **Run started** | 2026-08-17 |
 | **Last transition** | 2026-08-17 — M0-07 attempt 1 validated `FAIL` (5 criteria unmet, 1 not checkable, all environment-caused; see the validator verdict recorded in `failure-log.md`), diagnosed as `blocked`/`environment` (not a same-spec-retry candidate per KB-091 §6.4), and closed out: `tasks/M0-07.md` gained an Execution Record and its frontmatter `status` was set to `Blocked`; `task-tracker.md` row and footnote⁷ updated; this file's Status set to `BLOCKED`. Work is committed on `migration/M0-07-ci-pipeline` (`5106929`), unmerged, not pushed. |
 | **Current task** | `M0-07` — CI pipeline: restore → build → analyzers |
