@@ -1,15 +1,26 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
 namespace V.SMART.Shared.Data.MigrationData
 {
+    /// <summary>
+    /// Design-time factory for <see cref="MasterDbContext"/>. Used only by the
+    /// <c>dotnet ef</c> tooling; never used by an application host.
+    /// </summary>
     public class MasterDbContextFactory : IDesignTimeDbContextFactory<MasterDbContext>
     {
+        // Same key the runtime hosts use (M0-03-01, docs/CONFIGURATION.md): there is only
+        // one master database, at design time as at run time.
+        private const string ConnectionStringKey = "ConnectionStrings:MasterDb";
+
         public MasterDbContext CreateDbContext(string[] args)
         {
+            var connectionString = DesignTimeConnectionString.Resolve(
+                ConnectionStringKey,
+                "the master database 'dotnet ef' should target for MasterDbContext");
+
             var optionsBuilder = new DbContextOptionsBuilder<MasterDbContext>();
-            //optionsBuilder.UseSqlServer("Server=154.61.76.112,1533;Database=IQSmartDb_Master;User Id=bspl;Password=U^b1p7j61;TrustServerCertificate=True;MultipleActiveResultSets=true;");
-            optionsBuilder.UseSqlServer("Server=DESKTOP-R60MNGC\\SQLEXPRESS;Database=IQSmartDb_Master;User Id=sa;Password=aDMIN@123;TrustServerCertificate=True;MultipleActiveResultSets=true;");
+            optionsBuilder.UseSqlServer(connectionString);
 
             return new MasterDbContext(optionsBuilder.Options);
         }

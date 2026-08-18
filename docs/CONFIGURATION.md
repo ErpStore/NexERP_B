@@ -6,9 +6,8 @@ key is present with an empty value so the shape is discoverable, and the value i
 at run time by .NET user-secrets (developer machines) or environment variables (servers and
 CI).
 
-Established by task **M0-03-01**. Hardcoded credentials still present in C# source are
-handled by M0-03-02; rotation of the already-exposed values is M0-04; purging them from git
-history is M0-05.
+Established by task **M0-03-01** and extended to C# source by **M0-03-02**; rotation of the
+already-exposed values is M0-04; purging them from git history is M0-05.
 
 ## Keys, and which host needs which
 
@@ -86,7 +85,41 @@ $env:Jwt__Secret = "<32+ byte random string>"
 
 Note: the .NET MAUI head (`V.SMART/V.SMART`) does **not** read environment variables by
 default — `MauiAppBuilder.Configuration` has no environment-variable provider unless one is
-added explicitly.
+added explicitly. `MauiProgram.cs` therefore reads `ConnectionStrings__MasterDb` directly
+from the process environment (falling back to `builder.Configuration`), and throws naming
+the variable if neither supplies a value.
+
+## Design-time keys — `dotnet ef` only
+
+The two `IDesignTimeDbContextFactory` implementations in
+`V.SMART/V.SMART.Shared/Data/MigrationData/` are used **only** by the `dotnet ef` tooling,
+never by a running host. They read their connection string through
+`DesignTimeConnectionString.Resolve` — the environment first, then this project's
+user-secrets — and **throw** if neither supplies one. There is no default value.
+
+| Key | Environment variable | Used by | Points at |
+|---|---|---|---|
+| `ConnectionStrings:MasterDb` | `ConnectionStrings__MasterDb` | `MasterDbContextFactory` | the master database (same key the hosts use) |
+| `ConnectionStrings:DesignTimeTenantDb` | `ConnectionStrings__DesignTimeTenantDb` | `ApplicationDbContextFactory` | *any* reachable tenant database — `ApplicationDbContext` is per tenant, so it deliberately does not overload the master key |
+
+```bash
+dotnet user-secrets set "ConnectionStrings:MasterDb"           "<master connection string>" --project V.SMART/V.SMART.Shared/V.SMART.Shared.csproj
+dotnet user-secrets set "ConnectionStrings:DesignTimeTenantDb" "<a tenant connection string>" --project V.SMART/V.SMART.Shared/V.SMART.Shared.csproj
+```
+
+Running the tooling (verified 2026-08-18). `--framework` is required because
+`V.SMART.Shared` multi-targets, and the startup project must be `V.SMART.Web` —
+`V.SMART.Api` does not reference `Microsoft.EntityFrameworkCore.Design`:
+
+```bash
+dotnet ef dbcontext info \
+  --project V.SMART/V.SMART.Shared/V.SMART.Shared.csproj \
+  --startup-project V.SMART/V.SMART.Web/V.SMART.Web.csproj \
+  --context MasterDbContext --framework net9.0
+```
+
+Per-tenant connection strings used at **run time** still come from the master database's
+`Tenants` table, not from configuration (KB-014). Nothing here changes that.
 
 ## Rules
 

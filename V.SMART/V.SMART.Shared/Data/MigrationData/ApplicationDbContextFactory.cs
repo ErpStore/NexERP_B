@@ -1,20 +1,25 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
 namespace V.SMART.Shared.Data.MigrationData
 {
+    /// <summary>
+    /// Design-time factory for the per-tenant <see cref="ApplicationDbContext"/>. Used only
+    /// by the <c>dotnet ef</c> tooling; the runtime path is
+    /// <c>Services/MultiCompanyService/TenantDbContextFactory</c>, which builds the same
+    /// context from <c>TenantInfo.ConnectionString</c> and is unaffected by this file.
+    /// </summary>
     public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<ApplicationDbContext>
     {
+        // A design-time run needs *some* tenant database. That is not the master database,
+        // so it gets its own key rather than overloading ConnectionStrings:MasterDb.
+        private const string ConnectionStringKey = "ConnectionStrings:DesignTimeTenantDb";
+
         public ApplicationDbContext CreateDbContext(string[] args)
         {
-
-            #region Local / Testing ConnectionString Local/Cloud
-
-            var connectionString = "Server=DESKTOP-R60MNGC\\SQLEXPRESS;Database=IQSmartDb_2025-26;User Id=sa;Password=aDMIN@123;TrustServerCertificate=True;MultipleActiveResultSets=true";
-            //var connectionString = "Server=154.61.76.112,1533;Database=IQSMARTDEMO_DB_2025-26;User Id=bspl;Password=U^b1p7j61;TrustServerCertificate=True;MultipleActiveResultSets=true";
-           
-            #endregion
-
+            var connectionString = DesignTimeConnectionString.Resolve(
+                ConnectionStringKey,
+                "any reachable tenant database 'dotnet ef' should target for ApplicationDbContext");
 
             var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
             optionsBuilder.UseSqlServer(connectionString);

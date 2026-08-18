@@ -221,18 +221,30 @@ namespace V.SMART
             builder.Services.AddScoped<IPathProvider, DesktopPathProvider>();
 
 
-            // Master Database (Cloud or Local)
-            // Uncomment the one you want
+            // Master Database — the connection string comes from configuration, never from a
+            // literal in this file (M0-03-02, docs/CONFIGURATION.md).
+            // MauiAppBuilder.Configuration has no environment-variable provider by default,
+            // unlike WebApplicationBuilder, so the variable is read directly. The
+            // configuration fall-back keeps the value overridable by any provider that is
+            // registered before this point.
+            var masterDbConnectionString =
+                Environment.GetEnvironmentVariable("ConnectionStrings__MasterDb")
+                ?? builder.Configuration.GetConnectionString("MasterDb");
 
-            //builder.Services.AddDbContext<MasterDbContext>(options =>
-            //    options.UseSqlServer("Server=154.61.76.112,1533;Database=IQSmartDb_Master;User Id=bspl;Password=U^b1p7j61;TrustServerCertificate=True;MultipleActiveResultSets=true;"));
+            if (string.IsNullOrWhiteSpace(masterDbConnectionString))
+            {
+                throw new InvalidOperationException(
+                    "Connection string 'ConnectionStrings:MasterDb' is not configured." +
+                    Environment.NewLine +
+                    "Set the environment variable ConnectionStrings__MasterDb before starting the desktop host," +
+                    Environment.NewLine +
+                    "    PowerShell:  $env:ConnectionStrings__MasterDb = \"<master connection string>\"" +
+                    Environment.NewLine +
+                    "There is deliberately no default value. See docs/CONFIGURATION.md.");
+            }
 
             builder.Services.AddDbContext<MasterDbContext>(options =>
-                options.UseSqlServer("Server=DESKTOP-R60MNGC\\SQLEXPRESS;Database=IQSmartDb_Master;User Id=sa;Password=aDMIN@123;TrustServerCertificate=True;MultipleActiveResultSets=true;"));
-
-
-            //builder.Services.AddDbContext<MasterDbContext>(options =>
-            //    options.UseSqlServer("Server=VK-7-HP\\SQLEXPRESS;Database=IQSmartDb_Master;User Id=sa;Password=aDMIN@123;TrustServerCertificate=True;MultipleActiveResultSets=true;"));
+                options.UseSqlServer(masterDbConnectionString));
 
             // Core Libraries
             builder.Services.AddMudServices();
