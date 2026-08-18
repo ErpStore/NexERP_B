@@ -63,7 +63,7 @@ its children are `Completed` — it is never worked directly.
 | M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
-| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Ready** | P0 | M0-15, M0-08 | 2 d | G0 |
+| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Blocked**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
@@ -389,3 +389,24 @@ also decide which database the "baseline" label denotes, given the `IQSMARTDEMO_
 To resume: hand `db/RUNBOOK-tenant-drift-check.md` to the DBA, drop the resulting CSVs into
 `db/drift/`, then re-open at the task's Implementation Steps §9 — do not re-derive the
 tooling.
+
+⁷ **M0-07: `Blocked` on environment access, not on a defect.** The 2026-08-18 run implemented
+the task in full and then failed validation on six acceptance criteria that cannot be
+satisfied from this workstation: they require the branch pushed to `origin`, a GitHub-hosted
+Actions run to execute and go green, a merge to `master`, and GitHub org admin rights to
+configure branch protection. The `gh` CLI is not installed, the branch is absent from
+`origin`, and `master` carries no `ci.yml`. The diagnosis was explicit that **the pipeline,
+the warning gate and the documentation contain no defect** — only their verification is
+blocked.
+
+The work is committed and unmerged on `migration/M0-07-ci-pipeline` (four commits, ~1,500
+lines): the restore/build workflow, the analyzer warning gate with a committed baseline,
+`tools/compare-warnings.ps1` and `tools/compare-warnings.sh`, plus the task and KB records.
+
+**Blocked on:** a person with push access to `origin` and GitHub org admin rights on branch
+protection. **Owner:** repository owner / DevOps. Once they push the branch and let Actions
+run, validation can resume from the same commit — do not re-implement.
+
+Recorded here so the *Ready-task selection rule* stops re-selecting it: while this row read
+`Ready` at P0 it was the top candidate, so every run picked it and stopped in the same place.
+Note the branch carries its own copy of this status change; reconcile when it is merged.
