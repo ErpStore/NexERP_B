@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 dependencies: [KB-089, KB-091, KB-092]
 ---
 
@@ -38,24 +38,22 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `BLOCKED` |
-| **Stop reason** | M0-02: implementer blocked: Analysis half cannot run: db/drift/ contains zero per-tenant fingerprint CSVs (Confirmed). Answering Q-14 requires a DBA with VIEW DEFINITION on at least two tenant databases plus a working tenant list (Q-12 is unanswered), and this session may not acquire or reuse any database credential. The tooling half is complete and committed; the task is Blocked awaiting per-tenant fingerprints, exactly as the task specification prescribes for this case. Absence of fingerprints is recorded as 'undecided', never as 'no drift'. |
+| **Status** | `STOPPED` |
+| **Stop reason** | task budget reached (maxTasks=1); next ready task is M0-14 |
 | **Run started** | 2026-08-17 |
-| **Last transition** | 2026-08-17 — `M0-02` tooling half implemented, committed on `migration/M0-02-sp-drift-across-tenants` (`c1ab752`), verified (synthetic-fixture harness tests, secret scan, build regression guard), and closed out: task file, `task-tracker.md`, investigation registry (INV-030 `Partial`), `open-questions.md` (Q-14 explicitly undecided), KB-103 all updated. Run halts here — no ready task remains (see below). |
-| **Current task** | `M0-02` — Confirm stored-procedure drift across tenant databases (Q-14) |
-| **Current phase** | `Blocked` — tooling half `Needs Review` (committed, unmerged); analysis half not started, awaiting DBA fingerprints |
+| **Last transition** | 2026-08-18 — `M0-03-02` implemented, committed on `migration/M0-03-02-hardcoded-connection-strings-csharp`, passed validation (verdict: `PASS`), task status marked `REVIEW`, awaiting merge. Run stops per budget limit; M0-14 is the next dependency-ready task. |
+| **Current task** | `M0-03-02` — Remove hardcoded connection strings from C# code |
+| **Current phase** | `REVIEW` — implementation complete, committed, passed validation |
 | **Current agent** | n/a (session ended) |
 | **Current model** | n/a |
 | **Attempt** | 1 of 3 (`max_retries: 2`) |
 | **Escalations** | 0 of 1 |
-| **Last validation** | `M0-02` attempt 1 — validation did not complete (`verdict: none`, `"validation did not complete"`); the session stopped at the tooling-half handoff point per the task's own decision rule before a full validator pass ran. See [`failure-log.md`](failure-log.md) if a retry is warranted — this is an expected `Blocked` outcome, not a validation failure requiring a retry. |
-| **Tasks processed this run** | 1 (`M0-02`, tooling half only, ended `Blocked`) |
-| **Classification** | `M0-02`: `task_type: Investigation`, `complexity: MEDIUM`, `risk: LOW` — no frontmatter override; derived from a database-free tooling build (shell comparison harness + runbook + KB updates), 1 hard dependency already `Completed`, no `business_rules`, read-only source files, and an expected two-session shape (tooling now, analysis only once a DBA drops fingerprint CSVs). |
+| **Last validation** | `M0-03-02` attempt 1 — `verdict: PASS` — task validation completed successfully. Implementation committed and staged for review/merge. |
+| **Tasks processed this run** | 1 (`M0-03-02`, full implementation, ended `REVIEW`) |
+| **Classification** | `M0-03-02`: `task_type: Implementation`, `complexity: MEDIUM`, `risk: MEDIUM` — hardcoded connection string removal from C# backend services and EF migration factories, 1 hard dependency on `M0-03-01` already `Completed`, no database schema changes, read+write to configuration/factory source files. |
 | **Models this run** | Not yet recorded — to be captured by the autonomous-runner state machine as the implementing session runs |
-| **Blocked on** | `M0-02`: a DBA with `VIEW DEFINITION` on ≥2 tenant databases, plus a working tenant list (Q-12 unanswered) — see the task file's Execution record. Separately: `M0-04` `Blocked` on an unidentified human owner (production SQL/GST gateway access); `M0-07` `Blocked` pending `M0-15` and `M0-08` reaching `Completed` (both currently `Needs Review`, unmerged); `M0-03-02` `Blocked` pending `M0-03-01` review/merge. |
-| **Owner to unblock M0-02** | DBA — first candidate operator **PavanKunar** (ran the M0-01-02 capture); migration lead must also resolve the baseline-tenant label ambiguity (see task file). |
-| **Owner to unblock M0-04** | Unknown. Must be identified from operations/infrastructure team. |
-| **Next ready task** | **None.** Re-derived at `M0-02`'s close-out per [`dependency-graph.md` § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule): `M0-02` is now `Blocked`, not `Ready`; `M0-03` is a parent container; `M0-04` is `Blocked` on an unidentified human owner; `M0-08`/`M0-03-01`/`M0-15` are `Needs Review`, not `Ready`. The tracker's `Ready` column is empty. `current-task.md` is left pointing at `M0-02` so a human or a later run resumes it rather than restarting, per the explicit close-out instruction for this session. |
+| **Blocked on** | None. M0-03-02 is now `REVIEW`, not blocked. Other ongoing blocks: `M0-02` blocked on DBA (per previous state); `M0-04` blocked on unidentified human owner; `M0-07` blocked pending M0-15 and M0-08 completion (both `Needs Review`, unmerged). |
+| **Next ready task** | `M0-14` (dependency-ready; other tasks require merge/review or are blocked). |
 
 ### Status values
 
