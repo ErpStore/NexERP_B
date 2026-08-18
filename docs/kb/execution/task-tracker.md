@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -67,7 +67,7 @@ its children are `Completed` — it is never worked directly.
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
-| M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Ready** | P0 | M0-03-01 | 0.5 d | G0 |
+| M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Needs Review**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
 | M0-03-03 | M0 | — fail-fast startup validation | Security | Blocked | P0 | M0-03-02 | 0.5 d | G0 |
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
@@ -257,13 +257,22 @@ merged to `master` (`f55db52`). See note ³ above and
 [`tasks/M0-03-01.md` § Execution Record](tasks/M0-03-01.md#execution-record-2026-08-17) for
 the full record. `M0-03-02` and `M0-14` are now `Ready` — their prerequisite is satisfied.
 
-**Currently `Ready`:** none (M0-02 moved to `Blocked`⁶ on 2026-08-17; M0-03 is a parent
-container, not worked directly; M0-04 is `Blocked`⁴ on an unidentified human owner; M0-08
-moved to `Needs Review`⁵ on 2026-08-17).
-**Active task: M0-02** (`Blocked`) — see [`current-task.md`](current-task.md), which stays
-pointed at it so a human or a later run resumes rather than restarts. Selection rule for what
-becomes active next, once unblocked or once another task is chosen:
-[KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+**M0-03-02: `Needs Review` 2026-08-18.** Implemented and committed on
+`migration/M0-03-02-hardcoded-connection-strings-csharp` (`e6e5295`, cut from
+`master@0a20d62`), unmerged. Validated `PASS` on attempt 1 of 3, 0 escalations, `scopeOk:
+true`, no regressions. Full record:
+[`tasks/M0-03-02.md` § Execution Record](tasks/M0-03-02.md#execution-record-2026-08-18).
+`M0-03-03` stays `Blocked` — its Hard prerequisite is this task at `Completed`, and `Needs
+Review` does not satisfy that per the *Ready-task selection rule*'s "not `REVIEW`" clause. An
+older, superseded branch of the same name (no `-csharp` suffix) also exists, cut from a
+pre-M0-15-recut point — do not merge it.
+
+**Currently `Ready`:** `M0-14` (P2, same Hard prerequisite `M0-03-01` as `M0-03-02`;
+genuinely independent — no shared file per `dependency-graph.md` § Same-file conflicts).
+(M0-02 is `Blocked`⁶; M0-03 is a parent container, not worked directly; M0-04 is `Blocked`⁴ on
+an unidentified human owner; M0-08 is `Completed`.)
+**Active task: M0-14** — see [`current-task.md`](current-task.md). Selection rule for what
+becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-15: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and merged to
 `master` (`854551f`); the branch has since been deleted. Originally committed on
@@ -410,3 +419,19 @@ run, validation can resume from the same commit — do not re-implement.
 Recorded here so the *Ready-task selection rule* stops re-selecting it: while this row read
 `Ready` at P0 it was the top candidate, so every run picked it and stopped in the same place.
 Note the branch carries its own copy of this status change; reconcile when it is merged.
+
+⁸ **M0-03-02: `Needs Review`, not `Completed`, despite validation `PASS`.** Per
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed), this project requires
+human review and merge before a task can leave `Needs Review` — an autonomous session may
+never set `Completed` itself. All in-scope deliverables are done and committed on
+`migration/M0-03-02-hardcoded-connection-strings-csharp` (`e6e5295`): both design-time
+factories and the MAUI host read connection strings from configuration with no default
+fallback and an actionable throw when unset; the two e-Invoice/e-Way gateway-credential
+comments are deleted with `GetUserNameandPassword`'s signature unchanged in both services;
+`git grep -n "Password="/"154.61"/"User Id=sa" -- "V.SMART/"` are all empty; the Api build is
+0 errors / 6,694 warnings (baseline 6,695, one fewer); KB-060 R-01 and the investigation
+registry are amended with `file:line` evidence. What remains is the human review-and-merge
+step and, per the task's own scope limit, a MAUI-workload-capable build of
+`V.SMART/V.SMART/V.SMART.csproj`, which no session in this environment can perform. See
+[tasks/M0-03-02.md § Execution Record](tasks/M0-03-02.md#execution-record-2026-08-18) for the
+full record.
