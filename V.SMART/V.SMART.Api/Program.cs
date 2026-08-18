@@ -19,6 +19,11 @@ using V.SMART.Shared.ViewModels;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// M0-03-03 — fail fast on missing, empty or known-default secrets, before anything below
+// consumes one (Jwt:Secret is read further down, and JwtTokenService is registered later).
+// Throws InvalidOperationException naming the key and the remediation, never the value.
+StartupConfigurationValidator.Validate(builder.Configuration, requireJwt: true);
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -53,8 +58,10 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod());
 });
 
-var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? throw new InvalidOperationException("Jwt:Secret is missing from configuration.");
+// Already validated above (M0-03-03): StartupConfigurationValidator is the single code path
+// that decides whether Jwt:Secret is acceptable — null, empty, whitespace, under 32 UTF-8
+// bytes and known-default values all threw InvalidOperationException before this line.
+var jwtSecret = builder.Configuration["Jwt:Secret"]!;
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

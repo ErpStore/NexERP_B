@@ -178,7 +178,7 @@ Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, 
 > **This closes only the "fail startup" clause of the action above. Rotation (M0-04), the
 > history purge (M0-05) and the plaintext per-tenant connection strings in the `Tenants`
 > table (KB-014) all remain open.** Implemented and validated `PASS` on
-> `migration/M0-03-03-startup-config-validation` (unmerged) — see
+> `migration/M0-03-03-startup-config-validation` (merged to `master` 2026-08-18) — see
 > [`tasks/M0-03-03.md` § Execution Record](../execution/tasks/M0-03-03.md#execution-record-2026-08-18).
 
 ### R-02 — JWT signing secret committed
@@ -269,7 +269,7 @@ the known default (M0-03-01, M0-03-03).
 >
 > **Still open: rotation (M0-04) and the history purge (M0-05).** The previously committed
 > secret stays compromised; this task only guarantees it cannot be *used*. Implemented and
-> validated `PASS` on `migration/M0-03-03-startup-config-validation` (unmerged) — see
+> validated `PASS` on `migration/M0-03-03-startup-config-validation` (merged to `master` 2026-08-18) — see
 > [`tasks/M0-03-03.md` § Execution Record](../execution/tasks/M0-03-03.md#execution-record-2026-08-18).
 
 ### R-03 — Authorization enforced only in the UI layer

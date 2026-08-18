@@ -450,7 +450,7 @@ close-out commit `3378656` was originally made directly on `master`, contrary to
 rule; it was moved to `kb/M0-03-02-closeout` and merged through review instead.
 
 ⁹ **M0-03-03: `Needs Review` 2026-08-18.** Implemented and committed on
-`migration/M0-03-03-startup-config-validation` (`34be11a`), unmerged. That commit's parent is
+`migration/M0-03-03-startup-config-validation` (`34be11a`), merged to `master` 2026-08-18.  That commit's parent is
 `d4ba526` — `master`'s tip at the time this task opened, not `0a20d62` as the branch's own
 close-out records first stated; `0a20d62` is only a transitive ancestor, corrected here.
 Independently validated **PASS** on attempt 1 of 4, 0 escalations, `scopeOk: true`,

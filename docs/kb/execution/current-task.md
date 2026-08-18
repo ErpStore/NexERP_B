@@ -54,7 +54,7 @@ Serves **R-20** in [KB-060](../risks/technical-debt-register.md).
 proceed).
 
 **M0-14 also edits `V.SMART/V.SMART.Web/Program.cs`, which `M0-03-03` has already edited on
-its own unmerged branch.** `M0-03-03` (`Needs Review` as of 2026-08-18, validated `PASS`,
+its own branch, now merged.** `M0-03-03` (`Needs Review` as of 2026-08-18, validated `PASS`,
 committed on `migration/M0-03-03-startup-config-validation`, commit `34be11a`, whose parent is
 `d4ba526` — `master`'s tip when this task opened, **not** `0a20d62` as an earlier record
 misstated — **not merged**) inserted 6 lines of startup-configuration-validation calls
@@ -114,7 +114,7 @@ Sole candidate — no rank tie-break needed.
 | Dependency | Class | State |
 |---|---|---|
 | **M0-03-01** — `appsettings.json` → environment / user-secrets | Hard (file-level only) | **Completed**, merged `f55db52`. Serialises edits to `V.SMART/V.SMART.Web/appsettings.json`. |
-| **M0-03-03** — fail-fast startup validation | Soft (file-level only) | **Needs Review**, committed and validated `PASS` but unmerged (`34be11a`). Both edit `V.SMART/V.SMART.Web/Program.cs`; expect a small merge if `M0-03-03` lands before this task's review — see conflict-risk note above. |
+| **M0-03-03** — fail-fast startup validation | Soft (file-level only) | **Needs Review**, committed, validated `PASS`, and merged to `master` 2026-08-18 (`34be11a`). Both edit `V.SMART/V.SMART.Web/Program.cs`; expect a small merge if `M0-03-03` lands before this task's review — see conflict-risk note above. |
 | M0-00 — clean version-control baseline | Hard | **Completed**, transitively via M0-03-01. |
 | Deployment environment configuration (`ASPNETCORE_ENVIRONMENT` genuinely not `Development` in production) | Information | **Unknown** — Q-16 (deployment topology) is unanswered. The fix is only effective if this holds; record it as an assumption and flag Q-16 in the final report. |
 
@@ -138,7 +138,7 @@ Read only these.
   reading (`AddRazorComponents().AddInteractiveServerComponents()` then
   `AddServerSideBlazor(options => { options.DetailedErrors = true; })`). **Re-verify these
   line numbers against your actual branch point** — `M0-03-01` (merged) shifted them once
-  already, and `M0-03-03` (unmerged, on its own branch) shifts them again by 6 lines if and
+  already, and `M0-03-03` (merged to `master` 2026-08-18) has already shifted them again by 6 lines
   when it merges.
 - `V.SMART/V.SMART.Web/appsettings.json` — the `"DetailedError": true` key (singular, not
   `DetailedErrors`), reported at line 15 as of 2026-08-12. Re-verify.
@@ -226,7 +226,7 @@ honest in-session end state is `Needs Review` once implemented, verified and com
 
 | | Task | Status |
 |---|---|---|
-| **Previous** | M0-03-03 — Fail-fast startup validation | `Needs Review` 2026-08-18 (validated PASS on attempt 1 of 4, unmerged, `migration/M0-03-03-startup-config-validation`, `34be11a`) |
+| **Previous** | M0-03-03 — Fail-fast startup validation | `Needs Review` 2026-08-18 (validated PASS on attempt 1 of 4, merged to `master` 2026-08-18, `migration/M0-03-03-startup-config-validation`, `34be11a`) |
 | **Current** | **M0-14 — Gate `DetailedErrors` on `IsDevelopment()`** | `READY` |
 | **Next (candidate)** | None else dependency-ready as of this selection — re-derive at M0-14's close-out. |
 
@@ -240,7 +240,7 @@ against the tracker at completion time, because status may have moved (in partic
 ## Open flags on this task
 
 - **Re-verify every line number this task file and `tasks/M0-14.md` cite** before editing —
-  both were last verified 2026-08-12, and `M0-03-01` (merged) and `M0-03-03` (unmerged, on
+  both were last verified 2026-08-12, and `M0-03-01` (merged) and `M0-03-03` (merged 2026-08-18, on
   its own branch) have each shifted `Program.cs` line numbers since.
 - **Check whether `M0-03-03` has merged before finishing this task's diff.** If it has,
   expect the small mechanical `Program.cs` merge its own task file already flags.
