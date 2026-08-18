@@ -87,6 +87,47 @@ files and by `git grep --untracked`.**
   `Microsoft.EntityFrameworkCore.Design`; `V.SMART.Web` does
   (`V.SMART/V.SMART.Web/V.SMART.Web.csproj:12`). Confidence: **Confirmed**.
 
+**M0-03-03 amendment (2026-08-18) — startup configuration guards before this task. The third
+and last amendment M0-03 makes to INV-029. Confirmed by direct reading of both composition
+roots on 2026-08-18, and by running both hosts.**
+
+```yaml
+Finding:        Before M0-03-03 the only configuration guard in either web host was a null
+                check on Jwt:Secret; empty, whitespace, too-short and known-default values
+                all passed, and ConnectionStrings:MasterDb had no check at all in either
+                host. A second, independent null-only copy of the Jwt:Secret guard sat in
+                the token service itself.
+Evidence:       V.SMART/V.SMART.Api/Program.cs:56-57 (the guard, pre-task)
+                V.SMART/V.SMART.Api/Program.cs:82-83 (unchecked connection string, pre-task)
+                V.SMART/V.SMART.Web/Program.cs:226-227 (unchecked connection string, pre-task)
+                V.SMART/V.SMART.Api/Auth/JwtTokenService.cs:20-21 (the duplicate guard)
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-18
+```
+
+- **Negative result — do not re-derive.** Grepped the whole tree for
+  `StartupConfigurationValidator`, `ValidateConfiguration` and `ValidateStartup` before
+  writing any code: the only hit was this task's own specification file. No configuration
+  validation helper of any kind existed in the solution. Confidence: **Confirmed**.
+- **Line numbers re-verified before editing (task file was accurate):**
+  `V.SMART/V.SMART.Api/Program.cs` is **118** lines, not the 119 the task file states; `:20`,
+  `:48-54`, `:56-57`, `:58`, `:60-74`, `:82-83`, `:103`, `:113-116` all held as cited.
+  `V.SMART/V.SMART.Web/Program.cs` `:180`, `:192`, `:226-227` all held.
+- **The pre-rotation plaintexts needed for the SHA-256 deny-list are recoverable from git
+  history**, so no session ever needs to be given them: the connection strings from
+  `c12c5b2` (`V.SMART.Web/appsettings.json`, both `MigrationData` factories,
+  `MauiProgram.cs`) and `6dbf4b4`, and the JWT secret from `44314ed^`
+  (`docs/kb/risks/technical-debt-register.md`, before that commit redacted it). Six distinct
+  connection-string values and one secret. **Negative result:** the pre-M0-03-01
+  `V.SMART/V.SMART.Api/appsettings.json` value is *not* recoverable — that file was never
+  committed with a connection string (`git rev-list --all` over the path, checked for
+  `Server=`, returns nothing). Confidence: **Confirmed**.
+- **Neither host needs a reachable SQL Server to start**, which is what made the six manual
+  startup cases testable here: `AddDbContext` does not open a connection at startup, so a
+  host with valid-shaped but non-resolving configuration reaches "Application started".
+  Confidence: **Confirmed** (observed, 2026-08-18).
+
 **M0-08 amendment (2026-08-17) — negative result, re-verified after M0-00. Do not re-derive
 this.** No build output, IDE state or dependency directory is tracked by git. R-14's original
 "committed" claim is contradicted by `git ls-files`: **2,451** tracked paths (2,162 at the

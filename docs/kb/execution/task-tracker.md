@@ -68,7 +68,7 @@ its children are `Completed` — it is never worked directly.
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
-| M0-03-03 | M0 | — fail-fast startup validation | Security | **Ready** | P0 | M0-03-02 | 0.5 d | G0 |
+| M0-03-03 | M0 | — fail-fast startup validation | Security | **Needs Review**⁹ | P0 | M0-03-02 | 0.5 d | G0 |
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
@@ -268,7 +268,9 @@ older, superseded branch of the same name (no `-csharp` suffix) also exists, cut
 pre-M0-15-recut point — do not merge it.
 
 **Currently `Ready`:** `M0-14` (P2, same Hard prerequisite `M0-03-01` as `M0-03-02`;
-genuinely independent — no shared file per `dependency-graph.md` § Same-file conflicts).
+genuinely independent — no shared file per `dependency-graph.md` § Same-file conflicts). It is
+the **sole** `Ready` candidate as of `M0-03-03`'s close-out (2026-08-18, footnote 9): `M0-03-03`
+itself moved `Ready` → `Needs Review` and is not re-selectable until reviewed and merged.
 (M0-02 is `Blocked`⁶; M0-03 is a parent container, not worked directly; M0-04 is `Blocked`⁴ on
 an unidentified human owner; M0-08 is `Completed`.)
 **Active task: M0-14** — see [`current-task.md`](current-task.md). Selection rule for what
@@ -446,3 +448,33 @@ no session in this environment can perform one — so `MauiProgram.cs`'s configu
 verified by inspection and by the `V.SMART.Shared` build, not by building the MAUI host. The
 close-out commit `3378656` was originally made directly on `master`, contrary to the branch
 rule; it was moved to `kb/M0-03-02-closeout` and merged through review instead.
+
+⁹ **M0-03-03: `Needs Review` 2026-08-18.** Implemented and committed on
+`migration/M0-03-03-startup-config-validation` (`34be11a`), unmerged. That commit's parent is
+`d4ba526` — `master`'s tip at the time this task opened, not `0a20d62` as the branch's own
+close-out records first stated; `0a20d62` is only a transitive ancestor, corrected here.
+Independently validated **PASS** on attempt 1 of 4, 0 escalations, `scopeOk: true`,
+`failureCategory: none` — twelve of thirteen acceptance criteria `MET`, the thirteenth (MAUI
+head build) correctly declared not checkable in this environment. No regressions found across
+the full branch diff (12 files, additive-or-delegating only).
+`V.SMART.Shared/Services/StartupConfigurationValidator.cs` (new) is the single place that
+decides whether `ConnectionStrings:MasterDb` and, for the API,
+`Jwt:Secret`/`Jwt:Issuer`/`Jwt:Audience` are acceptable; both hosts call it before any
+dependent registration; the known-defaults deny-list is stored as SHA-256 digests only, six of
+seven independently re-derived from git history by the validator. Full record:
+[`tasks/M0-03-03.md` § Execution Record](tasks/M0-03-03.md#execution-record-2026-08-18--close-out-reconciled-to-master).
+The implementing session had incorrectly self-set `status: Completed` in the task file; this
+close-out corrects it to `Needs Review` per
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) — the task's completion
+conditions include a human review-and-merge step, which no session may perform on its own
+authority. `M0-14` remains the only other `Ready` P0/P2 candidate — see the *Currently `Ready`*
+note above, now current again.
+
+One open item carried forward for **M0-04**'s author (not a defect in this task): one of the
+seven deny-list digests
+(`af0dd1d6b96a33ecd30ef530a7c245e9d91358a0ffa6ca255052f507edfdaba3`, at
+`StartupConfigurationValidator.cs:60`) could not be reproduced from git history — its
+provenance (a pre-M0-03-01 `V.SMART.Api/appsettings.json` value that was never committed,
+per INV-029's untracked-directory finding) is stated honestly in the code comment. A digest
+cannot leak the value it covers; M0-04 is positioned to confirm or replace it against the real
+historical value during rotation.

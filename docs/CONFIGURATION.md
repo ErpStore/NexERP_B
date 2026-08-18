@@ -121,6 +121,53 @@ dotnet ef dbcontext info \
 Per-tenant connection strings used at **run time** still come from the master database's
 `Tenants` table, not from configuration (KB-014). Nothing here changes that.
 
+## The hosts refuse to start when configuration is wrong — this is deliberate
+
+Added by task **M0-03-03**. Both `V.SMART.Api` and `V.SMART.Web` validate their configuration
+in `StartupConfigurationValidator.Validate(builder.Configuration, requireJwt: …)`
+(`V.SMART/V.SMART.Shared/Services/StartupConfigurationValidator.cs`), called immediately after
+`WebApplication.CreateBuilder(args)` and before anything consumes a secret. A failed check
+throws `InvalidOperationException` and the process stops.
+
+A host that starts with no secret configured, or with the published default JWT secret, is
+worse than one that will not start: the first silently issues forgeable tokens, the second
+tells you exactly what to fix.
+
+| Key | Checked in | Rejected when |
+|---|---|---|
+| `ConnectionStrings:MasterDb` | both hosts | missing, empty, whitespace, or equal to a known pre-rotation default |
+| `Jwt:Secret` | `V.SMART.Api` | missing, empty, whitespace, fewer than 32 bytes in UTF-8, or equal to the known default |
+| `Jwt:Issuer`, `Jwt:Audience` | `V.SMART.Api` | missing, empty, or whitespace |
+
+The message you will see takes this form (`<key>` is the failing key, `<KEY>` its
+environment-variable spelling):
+
+```
+Unhandled exception. System.InvalidOperationException: Startup configuration is invalid:
+<key> is missing, empty, or whitespace. This host deliberately refuses to start (task
+M0-03-03); see docs/CONFIGURATION.md.
+  Environment variable (servers, CI): <KEY>=<value>
+  User-secrets (developer machines): dotnet user-secrets set "<key>" "<value>" --project <this host's .csproj>
+  This message never repeats the offending value, because exception messages reach log files.
+```
+
+The middle clause varies with the reason: `is missing, empty, or whitespace`, `is shorter
+than the required 32 bytes in UTF-8, which is what SymmetricSecurityKey with HMAC-SHA256
+needs`, or `matches a known pre-rotation / published default value (see
+docs/kb/risks/technical-debt-register.md R-01 / R-02)`. Fix it by setting the key as
+described above and starting the host again.
+
+**Two things this is not.** The known-defaults list is stored as SHA-256 digests of the
+leaked values, never as plaintext, and it is a **tripwire, not a security control** — it
+catches only exact reuse of a value already known to be compromised, not a weak new one. And
+the message never echoes the value that failed, because this application's logger writes
+plaintext log files per user per day.
+
+**CI note.** A build agent with no secrets configured will hit this the moment it *runs* a
+host. Keep CI build-only, or give it dummy values that are not on the deny-list — a valid
+`ConnectionStrings:MasterDb` shape pointing at nothing, and a `Jwt:Secret` of at least 32
+bytes.
+
 ## Rules
 
 - Never put a credential in `appsettings.json` or `appsettings.Development.json`, in any
