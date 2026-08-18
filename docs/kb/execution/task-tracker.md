@@ -65,10 +65,10 @@ its children are `Completed` — it is never worked directly.
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Blocked**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
 | M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
-| M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Ready** | P0 | M0-00 | 1 d | G0 |
+| M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
-| M0-03-03 | M0 | — fail-fast startup validation | Security | **Needs Review**⁹ | P0 | M0-03-02 | 0.5 d | G0 |
+| M0-03-03 | M0 | — fail-fast startup validation | Security | **Completed**⁹ | P0 | M0-03-02 | 0.5 d | G0 |
 | M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
@@ -244,7 +244,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 8 | G0 | ⬜ Not met |
+| M0 | 24 | 10 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
 | M2 | 52 | 0 | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
@@ -453,7 +453,7 @@ verified by inspection and by the `V.SMART.Shared` build, not by building the MA
 close-out commit `3378656` was originally made directly on `master`, contrary to the branch
 rule; it was moved to `kb/M0-03-02-closeout` and merged through review instead.
 
-⁹ **M0-03-03: `Needs Review` 2026-08-18.** Implemented and committed on
+⁹ **M0-03-03: `Completed` 2026-08-18 — reviewed, approved by Vivek, and merged.** Implemented and committed on
 `migration/M0-03-03-startup-config-validation` (`34be11a`), merged to `master` 2026-08-18.  That commit's parent is
 `d4ba526` — `master`'s tip at the time this task opened, not `0a20d62` as the branch's own
 close-out records first stated; `0a20d62` is only a transitive ancestor, corrected here.
@@ -513,3 +513,26 @@ still unidentified), M0-07 (`origin` push + GitHub org admin), and M0-01-03 (the
 against a disposable SQL Server, a hard G0 exit criterion). `M0-03-03` is merged but still
 awaits its own sign-off, and `M0-02`'s Q-14 deferral is committed on
 `migration/M0-02-defer-q14` and still unmerged.
+
+¹¹ **M0-03: `Completed` 2026-08-18 — the parent closes with its last child.** All three
+children are `Completed` and merged: `M0-03-01` (`f55db52`), `M0-03-02` (`ec2f0f3` + `7fbb768`)
+and `M0-03-03` (`028e834`, signed off 2026-08-18). The parent was left reading `Ready`, which
+was actively misleading — a container is never worked directly, so a `Ready` P0 row invited
+every selection pass to consider a task nothing could execute.
+
+**Its Combined Acceptance Criteria were verified against the merged code on `master`, not
+assumed from the children's status** (2026-08-18, all ten):
+`git grep "Password=" -- "V.SMART/"` returns nothing outside `Migrations/`; no JWT secret
+literal remains; both `appsettings.json` files carry empty-valued keys only; both design-time
+factories resolve through `DesignTimeConnectionString.Resolve` (environment variable →
+configuration → actionable throw); `MauiProgram.cs` reads configuration with the three
+commented alternatives gone; `StartupConfigurationValidator.Validate` is wired into
+`V.SMART.Api/Program.cs:25` (`requireJwt: true`) and `V.SMART.Web/Program.cs:186`
+(`requireJwt: false`), enforcing a 32-byte minimum and a known-default digest deny-list;
+`docs/CONFIGURATION.md` documents the developer keys; the Api build is 0 errors; and R-01
+carries `file:line` evidence for all five C# files.
+
+**What this does not do:** M0-03 closes the *working-tree* half of G0's secrets criterion
+only. The **history** half is `M0-05`, which stays `Blocked` — its other prerequisite `M0-04`
+(rotation) is still blocked on an unidentified owner. The committed credentials remain live
+and exposed in git history until both run.
