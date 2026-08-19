@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-081, KB-082, KB-088]
 ---
 
@@ -25,7 +25,7 @@ dependencies: [KB-081, KB-082, KB-088]
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
-**twice**, 2026-08-18: attempt 1 and attempt 2 of 4, both `opus`. **Both times the implementer
+**twice**, 2026-08-18: attempt 1 and attempt 2 of 3, both `opus`. **Both times the implementer
 returned no result** — no diff, no text, no tool output — so validation could not run either
 time (`{"verdict": "none", "note": "validation did not complete"}`). Verified at this
 close-out: no `migration/M0-12-01-*` branch exists, no `tests/` directory exists at the
@@ -52,7 +52,7 @@ Status authority: [`task-tracker.md`](task-tracker.md) (KB-081) footnote 12. Run
 [`open-questions.md`](../open-questions.md).
 
 **Owner to unblock: whoever administers the runner's agent-dispatch layer — not named in the
-repository; fall back to the repository owner (Vivek).** Attempts used: 2 of 4; two remain,
+repository; fall back to the repository owner (Vivek).** Attempts used: **2 of 3 — one remains**,
 held in reserve. The task specification itself is unchanged and still believed valid — this is
 not a content problem, it is an unconfirmed-cause repeated dispatch failure.
 

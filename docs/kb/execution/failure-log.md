@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-081, KB-089, KB-091]
 ---
 
@@ -161,7 +161,7 @@ for the full verification commands and their output.
 implementer return with nothing to retry against is a safety stop rather than a silent
 re-dispatch. That stop was correct behaviour. **The status has since been restored to `Ready`**
 in [KB-081](task-tracker.md) footnote 12, because the confirmed cause is transient and nothing
-human-held blocks the task. Attempts used: 1 of 4; three remain.
+human-held blocks the task. Attempts used: 1 of 3; two remain. *(Denominator corrected 2026-08-19: the budget is 3 per KB-091 §6.4 and `migration-runner.js:43`, not 4.)*
 
 **Next attempt routed to** — the same route as attempt 1 (`opus` implementer, no change).
 **Action required: none beyond re-running the runner.** The earlier instruction to audit the
@@ -524,8 +524,9 @@ for the full verification commands and output.
 **Disposition** — `blocked`. A third same-spec retry would spend another slice of the 4-attempt
 budget on the same unverified assumption that already failed to hold twice. This is recorded
 as a safety stop pending a human check of the dispatch/agent-invocation layer, not as a task
-defect — nothing indicates `tasks/M0-12-01.md` itself needs to change. Attempts used: 2 of 4;
-two remain, held in reserve.
+defect — nothing indicates `tasks/M0-12-01.md` itself needs to change. Attempts used: **2 of 3 — one remains**, held in reserve.
+*(Denominator corrected 2026-08-19: the budget is 3, not 4 — KB-091 §6.4 "Attempt 3 fails →
+BLOCKED … Do not attempt a fourth", and `migration-runner.js:43` `maxRetries: 2`.)*
 
 **Next attempt routed to** — no model, pending human confirmation of the cause. See Q-21 in
 [`open-questions.md`](../open-questions.md) and [`task-tracker.md`](task-tracker.md) (KB-081)

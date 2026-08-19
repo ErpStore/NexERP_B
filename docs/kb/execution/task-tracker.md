@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -614,7 +614,7 @@ and exposed in git history until both run.
 anything; just re-run.** (The close-out below was written as `Blocked` "on a human"; that
 diagnosis was wrong and is corrected at the end of this footnote.) `M0-07` had already
 satisfied this task's sole Hard prerequisite and it was correctly selected `Ready` and
-dispatched (attempt 1 of 4, `opus`). The dispatched implementer **returned no result at all** —
+dispatched (attempt 1 of 3, `opus`). The dispatched implementer **returned no result at all** —
 no diff, no text, no tool output — so the validator also returned no verdict
 (`{"verdict": "none", "note": "validation did not complete"}`). Verified at close-out: no
 `migration/M0-12-01-*` branch exists, no `tests/` directory exists at the repository root,
@@ -637,7 +637,7 @@ agents for this cycle terminated on a transient upstream API error —
 — i.e. 2 of the run's 5 agents errored server-side (`agents_error: 2`). The implementer returned
 nothing because it never ran to completion, not because dispatch mis-fired. **No owner action is
 required and no tooling audit is warranted.** The correct response is simply to **re-run the
-runner**; the task specification is unchanged and needs no re-work. Attempts used: 1 of 4, so
+runner**; the task specification is unchanged and needs no re-work. Attempts used: 1 of 3, so
 three remain. Status is therefore restored to `Ready`, not left `Blocked` on a human, because
 nothing human-held is in the way.
 **Blocks:** `M0-12-02`, `M0-13`, `M0-09`, `M0-06`, and transitively `M0-10` and `M0-11` — the
@@ -645,7 +645,7 @@ same four-plus-two tasks M0-07's completion was about to unblock.
 
 **Update, 2026-08-18 — attempt 2 repeated the exact same failure; status moves back to
 `Blocked`, this time on a human, not on nothing.** The re-dispatch this footnote recommended
-was carried out: attempt 2 of 4, `opus`, same classification. **The implementer again
+was carried out: attempt 2 of 3, `opus`, same classification. **The implementer again
 returned no result at all** — no diff, no text, no tool output — and the validator again
 recorded `{"verdict": "none", "note": "validation did not complete"}`. Re-verified at
 close-out: still no `migration/M0-12-01-*` branch, still no `tests/` directory, `git
@@ -660,8 +660,11 @@ misdiagnosis get corrected is visible only from inside the run that produced it,
 close-out session reading the repository afterward. **So this is recorded honestly as
 `Blocked` on a human — specifically, someone who can read the runner's dispatch/agent-invocation
 logs for both cycles and confirm or rule out a systemic (not transient) cause — rather than
-re-dispatched a third time on the same unverified assumption.** Attempts used: 2 of 4; two
-remain, held in reserve until the cause is checked. Full record:
+re-dispatched a third time on the same unverified assumption.** Attempts used: **2 of 3 — one remains**, held in reserve until the cause is checked.
+*(Denominator corrected 2026-08-19: the budget is 3, not 4 — [KB-091 §6.4](autonomous-runner.md#64-retry-rules),
+"Attempt 3 fails → BLOCKED. Stop. … Do not attempt a fourth", matching `migration-runner.js:43`
+`maxRetries: 2, // 2 retries = up to 3 implementation attempts`. Earlier text here read "of 4",
+which no authority supports.)* Full record:
 [`tasks/M0-12-01.md` § Execution Record (2026-08-18) — Attempt 2](tasks/M0-12-01.md#execution-record-2026-08-18--attempt-2-repeated-empty-return);
 attempt logged in [`failure-log.md`](failure-log.md#m0-12-01--attempt-2--2026-08-18). See also
 open question **Q-21** in [`open-questions.md`](../open-questions.md).
