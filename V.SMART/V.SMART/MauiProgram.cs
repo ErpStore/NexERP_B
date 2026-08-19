@@ -248,7 +248,6 @@ namespace V.SMART
             builder.Services.AddScoped<ThemeStateService>();
             builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
             builder.Services.AddScoped<IColumnPreferenceService, ColumnPreferenceService>();
-            builder.Services.AddScoped<IExcelTemplateService, ExcelTemplateService>();
             builder.Services.AddSingleton<SessionTimeoutService>();
 
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>

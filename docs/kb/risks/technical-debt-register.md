@@ -940,20 +940,46 @@ middleware; no `ProblemDetails`.
 ### R-26 — Duplicated DI composition roots
 **Confirmed.** `V.SMART.Web/Program.cs` (34.8 KB, 242 registrations) and
 `V.SMART/MauiProgram.cs` (38.6 KB) register the same graph independently.
-**Impact.** They will drift; a service added to one host is missing in the other. **Already
-manifested (2026-08-19, INV-039):** 8 services registered in `MauiProgram.cs` were missing
-from `V.SMART.Web/Program.cs` — `IContractReviewService`, `IRouteCardService`,
-`IRouteCardRepository`, `IRouteCardSubRepository`, `IProductionReturnAssyRepository`,
-`IProductionReturnAssySubRepository`, `IProductionSCNAssyRepository`,
-`IProductionSCNAssySubRepository` — which threw a DI resolution error in the Blazor host for
-`/contractReviewMasterList`, `/routeCardList` and sibling routes.
-**Action.** Extract a shared `AddVSmartDomain(this IServiceCollection)` extension in
-`V.SMART.Shared` and call it from all three hosts. **Status (2026-08-19): in progress, not
-closed.** `M2-B07` attempt 1 produced this extension and wired all three hosts to it —
-uncommitted work preserved on `migration/M2-B07-add-vsmart-domain` (`a071716`) — but it is
-**unvalidated** (no test run, no `ValidateOnBuild` check) and the task is `Blocked`, not
-`Completed`. Do not treat this risk as closed until `M2-B07` closes. Full record:
-`docs/kb/execution/tasks/M2-B07.md` § Execution Record (2026-08-19).
+**Impact.** They will drift; a service added to one host is missing in the other.
+
+**Already manifested — the exact, measured divergence (Confirmed, M2-B07 attempt 2,
+2026-08-19).** Normalising every registration call on `master` and de-duplicating gives
+239 distinct real registrations in `V.SMART.Web/Program.cs` (242 matched lines; 240 distinct,
+one of which — `:253` — is commented out) against 239 in `V.SMART/MauiProgram.cs` (243
+matched lines). Their union is 249. Thirteen registrations diverged:
+
+| Divergence | Evidence (paths on `master`) |
+|---|---|
+| **6 registered only in MAUI** — `IRouteCardRepository`, `IRouteCardSubRepository`, `IProductionReturnAssyRepository`, `IProductionReturnAssySubRepository`, `IProductionSCNAssyRepository`, `IProductionSCNAssySubRepository` | `V.SMART/V.SMART/MauiProgram.cs:389,395` and siblings |
+| **7 registered only in Web** — `IAssemblyDefLabourService`, `IEstimateService`, `IJobOrderRepository`, `IJobOrderSubRepository`, `ILabourTrackRepository`, `IPrPoRatingService`, `IToolCribServices` | `V.SMART/V.SMART.Web/Program.cs` |
+| `IFileOpener` lifetime — `Scoped` in Web, `Singleton` in MAUI | `V.SMART/V.SMART.Web/Program.cs:267`, `V.SMART/V.SMART/MauiProgram.cs:274` |
+| `ReportService` registered twice in MAUI | `V.SMART/V.SMART/MauiProgram.cs:200,219` |
+| `AddHttpClient()` in Web only; MAUI registers a bare scoped `HttpClient` instead; the API had neither | `V.SMART/V.SMART.Web/Program.cs:243`, `V.SMART/V.SMART/MauiProgram.cs:256` |
+
+**Correction to the 2026-08-19 first pass (INV-039), which this supersedes.** That pass listed
+**8** MAUI-only services, including `IContractReviewService` and `IRouteCardService`. Both are
+in fact registered in the Blazor host too — `V.SMART/V.SMART.Web/Program.cs:467` and `:518` on
+`master` — so the MAUI-only set is 6, not 8, and the claim that `/contractReviewMasterList`
+and `/routeCardList` threw a DI resolution error in Blazor does not follow from those two
+registrations. See Q-31 in [`open-questions.md`](../open-questions.md).
+
+**Action.** Extract a shared `AddVSmartDomain(this IServiceCollection, IConfiguration)`
+extension in `V.SMART.Shared` and call it from all three hosts.
+
+**Status (2026-08-19): RESOLVED by `M2-B07`** — pending review of branch
+`migration/M2-B07-add-vsmart-domain`; not yet merged to `master`.
+**Evidence.** `V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`
+holds the single composition root; `V.SMART/V.SMART.Api/Program.cs`,
+`V.SMART/V.SMART.Web/Program.cs` and `V.SMART/V.SMART/MauiProgram.cs` each call it exactly
+once and retain 2 / 7 / 8 host-only registrations respectively, down from 1 / 242 / 243. The
+union is preserved exactly — 249 distinct before, 249 distinct after, nothing dropped and
+nothing invented. `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs`
+validates the whole graph with `BuildServiceProvider(validateScopes: true, validateOnBuild: true)`
+(5 tests, green; 84/84 in the suite). Builds observed: API 0 errors / 6,694 warnings; Web 0
+errors / 6,697 warnings; MAUI head 0 errors / 6,671 warnings.
+**What this does *not* close.** The `IFileOpener` lifetime divergence is a **host**
+registration and survives unchanged, by instruction — Web `Scoped`, MAUI `Singleton`. It is
+recorded here rather than silently normalised, and needs its own decision.
 
 ### R-27 — Hardcoded developer-machine values in the MAUI project
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in

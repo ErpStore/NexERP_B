@@ -6,8 +6,27 @@
 //
 // Host-specific abstractions are deliberately NOT registered here — each host supplies its
 // own implementation and that seam is the point:
-//     IPathProvider, IFileOpener, IFileUploadService
+//     IPathProvider, IFileOpener, IFileUploadService, a bare HttpClient,
+//     AuthenticationStateProvider, AddHttpClient()
 // plus IJSRuntime, which two domain services still take (see the notes below).
+//
+// Union reconciliation (Confirmed, M2-B07 — measured, not estimated). Normalising every
+// registration call on master and de-duplicating:
+//     V.SMART.Web/Program.cs      242 matched lines -> 240 distinct, of which one (`:253`)
+//                                 is commented out  -> 239 real
+//     V.SMART/MauiProgram.cs      243 matched lines -> 239 distinct
+//     union of the two                              =  249 distinct
+//     after M2-B07: this file (238 distinct) + the 11 distinct host registrations that
+//     remain across V.SMART.Web/Program.cs and V.SMART/MauiProgram.cs
+//                                                   =  249 distinct
+// i.e. nothing was dropped and nothing was invented. The 2 duplicate lines left in this file
+// (ICorrespondanceRepository, IEnquiryPurchaseService) are pre-existing duplicates of the two
+// former roots, carried over verbatim rather than tidied — last registration wins, identical
+// implementation either way.
+//
+// The one deliberate reclassification: IExcelTemplateService moved from host to domain (see
+// the comment at its registration below). The one deliberate host addition: AddHttpClient()
+// in V.SMART.Api/Program.cs, which the API lacked and four business services need.
 //
 // This file moves registrations only. No service implementation, constructor or lifetime
 // semantic is changed.
@@ -206,11 +225,24 @@ namespace V.SMART.Shared.DependencyInjection
         /// Adds the V.SMART domain object graph to <paramref name="services"/>.
         /// </summary>
         /// <remarks>
-        /// The host remains responsible for <c>IPathProvider</c>, <c>IFileOpener</c>,
-        /// <c>IFileUploadService</c> and, in Blazor hosts, <c>IJSRuntime</c>.
-        /// <c>V.SMART.Api</c> supplies none of these today, so <c>ReportService</c>,
-        /// <c>IUserService</c>, <c>IGSTITCService</c> and <c>IUserThemePreferenceService</c>
-        /// remain unresolvable there until M2-B08.
+        /// The host remains responsible for the seams: <c>IPathProvider</c>,
+        /// <c>IFileOpener</c>, <c>IFileUploadService</c>, a bare <c>HttpClient</c>,
+        /// <c>AuthenticationStateProvider</c>, <c>AddHttpClient()</c> and, in Blazor hosts,
+        /// <c>IJSRuntime</c>.
+        /// <para>
+        /// <c>V.SMART.Api</c> supplies <c>AuthenticationStateProvider</c> and
+        /// <c>AddHttpClient()</c> but none of the rest, so exactly six registrations here stay
+        /// unresolvable in that host until M2-B06 / M2-B08 — that gap is expected, not a
+        /// defect: <c>ReportService</c> (IPathProvider), <c>IUserService</c> (IPathProvider +
+        /// IJSRuntime), <c>IGSTITCService</c> (IPathProvider),
+        /// <c>IUserThemePreferenceService</c> (IJSRuntime), <c>ICompanyService</c>
+        /// (IFileUploadService + HttpClient) and <c>IItemService</c> (IFileUploadService).
+        /// </para>
+        /// <para>
+        /// Verified by <c>tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs</c>:
+        /// with the seams supplied, the whole graph passes
+        /// <c>BuildServiceProvider(validateScopes: true, validateOnBuild: true)</c>.
+        /// </para>
         /// </remarks>
         public static IServiceCollection AddVSmartDomain(
             this IServiceCollection services,
@@ -271,6 +303,16 @@ namespace V.SMART.Shared.DependencyInjection
             services.AddScoped<ILoggingService, FileLoggingService>();
             services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
             services.AddScoped<ExcelExportService>();
+
+            // Domain, not host UI, despite having been registered next to the UI services in
+            // both former composition roots: ExcelTemplateService takes only IUnitOfWork,
+            // ICommonService, CurrentUserService and ILoggingService
+            // (V.SMART/V.SMART.Shared/Services/ExcelTemplateService.cs:27-32), and seven
+            // business services take IExcelTemplateService in their constructors — leaving it
+            // host-side would make all seven unresolvable in V.SMART.Api, which is exactly the
+            // hole this task exists to close.
+            services.AddScoped<IExcelTemplateService, ExcelTemplateService>();
+
             services.AddScoped<ICorrespondanceRepository, CorrespondanceRepository>();
 
             // Requires IPathProvider from the host (see the remarks on this method).
@@ -632,14 +674,14 @@ namespace V.SMART.Shared.DependencyInjection
 
             #endregion
 
-            #region Registered only in the MAUI host before M2-B07 — see KB-003 INV-036
+            #region Registered only in the MAUI host before M2-B07 — see KB-003 INV-039
 
-            // These eight were present in V.SMART/MauiProgram.cs but missing from
-            // V.SMART.Web/Program.cs, which made /contractReviewMasterList and /routeCardList
-            // throw a DI resolution error in the Blazor host. Unioning the two graphs is what
-            // a single composition root does by construction.
-            services.AddScoped<IContractReviewService, ContractReviewService>();
-            services.AddScoped<IRouteCardService, RouteCardService>();
+            // These six were present in V.SMART/MauiProgram.cs but missing from
+            // V.SMART.Web/Program.cs, so any Blazor screen that injected one threw a DI
+            // resolution error. Unioning the two graphs is what a single composition root
+            // does by construction. (Correction to INV-039's first pass: IContractReviewService
+            // and IRouteCardService were NOT MAUI-only — V.SMART.Web/Program.cs:467 and :518 on
+            // master register both. They are registered above with the rest of their modules.)
             services.AddScoped<IRouteCardRepository, RouteCardRepository>();
             services.AddScoped<IRouteCardSubRepository, RouteCardSubRepository>();
             services.AddScoped<IProductionReturnAssyRepository, ProductionReturnAssyRepository>();

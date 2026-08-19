@@ -73,6 +73,13 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddHttpContextAccessor();
 
+// M2-B07 — host-platform registration, kept out of AddVSmartDomain() on purpose. Four
+// business services take IHttpClientFactory (BankService, PaymentsService, ReceiptsService,
+// AdvaceAdjustmentService), which only AddHttpClient() supplies. V.SMART.Web has had this
+// since before this task (Program.cs:232); the API did not, so those four would have stayed
+// unresolvable here.
+builder.Services.AddHttpClient();
+
 // M2-B07 — the whole domain graph (repositories, the IRepository<> open generic, UnitOfWork,
 // ~285 business services, MasterDbContext, the tenant-resolved ApplicationDbContext and
 // AutoMapper) now comes from the single shared composition root in V.SMART.Shared.
@@ -81,9 +88,19 @@ builder.Services.AddHttpContextAccessor();
 // activation time with a DI resolution error.
 //
 // Deliberately still absent, and therefore not resolvable in this host: IPathProvider,
-// IFileOpener and IFileUploadService have no V.SMART.Api implementation yet (M2-B08 and
-// M2-B06), so ReportService, IUserService, IGSTITCService and IUserThemePreferenceService
-// remain unresolvable here. That gap is expected and is not closed by this task.
+// IFileUploadService, IFileOpener, a bare HttpClient and IJSRuntime have no V.SMART.Api
+// implementation yet (M2-B08 and M2-B06). Exactly six registrations therefore stay
+// unresolvable here — measured, not assumed (M2-B07):
+//     ReportService                 needs IPathProvider
+//     IUserService                  needs IPathProvider + IJSRuntime
+//     IGSTITCService                needs IPathProvider
+//     IUserThemePreferenceService   needs IJSRuntime
+//     ICompanyService               needs IFileUploadService + a bare HttpClient
+//     IItemService                  needs IFileUploadService
+// That gap is expected and is not closed by this task. Because of it, this host cannot yet
+// run with ValidateOnBuild = true; the equivalent guarantee is enforced instead by
+// tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs, which validates the
+// full graph with the host seams supplied.
 builder.Services.AddVSmartDomain(builder.Configuration);
 
 builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>();
