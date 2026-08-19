@@ -78,7 +78,7 @@ its children are `Completed` — it is never worked directly.
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Ready** | P0 | M0-12-01 | 2.5 d | G0 |
-| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Needs Review**¹³ | P0 | M0-12-01 | 3 d | G0 |
+| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Ready** | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
@@ -267,9 +267,21 @@ the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut poi
 merge it**.
 
 **Currently `Ready`: `M0-12-02`, `M0-09`, `M0-06` — three tasks, none needing a human, as of
-the `M0-12-01` merge (`bdee81f`, 2026-08-19).** `M0-13`, the fourth task released by that
-merge, was implemented the same day and is now `Needs Review`¹³ (validator `PASS`, awaiting
-the owner's review/merge) — see its footnote for the full record.
+the `M0-13` merge (`3f6dfa8`, 2026-08-19).** `M0-13`, the fourth task released by the
+`M0-12-01` merge, was implemented, validated `PASS`, and merged the same day on the owner's
+instruction; it is `Completed`¹³. `dotnet test` re-run on `master` after that merge:
+**36 passed, 0 failed.**
+
+> **`M0-11` is released, and it is now blocked on *you*, not on a task.** Its sole Hard
+> prerequisite `M0-13` is `Completed`, so the dependency is genuinely clear. But `M0-11` is a
+> **Product Decision** — the Q-01 call on silent FIFO under-issue — and rule 1 of the
+> [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) excludes a task
+> "blocked on a human step nobody has scheduled… **surfacing it to that owner is itself the
+> useful action**". So it stays `Blocked`, with **Vivek** as the named owner, and no runner may
+> self-select it. What changed is the *reason*: it is no longer waiting on engineering work.
+> `M0-13`'s 25 tests pin the current behaviour — including R-07's silent under-allocation,
+> asserted deliberately as-is rather than fixed — so the decision is now made against a fixed
+> baseline instead of a moving one.
 
 `M0-12-01` is `Completed`: the owner cleared the Q-21 gate, authorised the push, and instructed
 the merge, all in-conversation on 2026-08-19. All 11 acceptance criteria are met — criterion 6

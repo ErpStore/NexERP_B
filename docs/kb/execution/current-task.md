@@ -60,12 +60,20 @@ zero) from KB-060.
 
 ## Most recently closed: `M0-13` — Characterisation tests for `StockManagerService`
 
-**`Needs Review`, not `Completed`** — implemented on
-`migration/M0-13-stockmanagerservice-characterisation` (commit `9d8d7be`), validated
-`PASS` (`scopeOk: true`, `failureCategory: none`, all 12 acceptance criteria `MET`), zero
-regressions. Only the repository owner may promote it to `Completed`
-([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)) — the branch is
-unmerged. Full record:
+**`Completed` and merged (`3f6dfa8`, 2026-08-19)** on the owner's in-conversation
+instruction. Implemented on `migration/M0-13-stockmanagerservice-characterisation` (commit
+`9d8d7be`), validated `PASS` (`scopeOk: true`, `failureCategory: none`, all 12 acceptance
+criteria `MET`), zero regressions. `dotnet test` re-run on `master` **after** the merge:
+**36 passed, 0 failed.**
+
+> **This released `M0-11`, and it is now blocked on the owner rather than on a task.** The
+> Q-01 product decision on silent FIFO under-issue has its dependency clear, but rule 1 of the
+> [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) keeps a
+> human-decision task `Blocked` with a named owner — **no runner may self-select it.**
+> `M0-13`'s tests pin R-07's current behaviour deliberately rather than fixing it, so the
+> decision is now made against a fixed baseline.
+
+Full record:
 [`tasks/M0-13.md` § Execution Record (2026-08-19)](tasks/M0-13.md#execution-record-2026-08-19).
 
 **What it did.** 25 new tests (suite 11 → 36, all green, run twice) pinning all 16
