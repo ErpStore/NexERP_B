@@ -530,7 +530,7 @@ BLOCKED … Do not attempt a fourth", and `migration-runner.js:43` `maxRetries: 
 
 **Next attempt routed to** — `opus`, routing unchanged.
 
-**ROOT CAUSE CONFIRMED 2026-08-19 — the block is lifted.** Both attempts died on transient
+**ROOT CAUSE CONFIRMED 2026-08-19 — evidence complete; the gate is *not* self-lifting.** Both attempts died on transient
 upstream `529 Overloaded`, not on a dispatch-layer fault. The two close-outs above each said the
 agent-completion log was "visible only from inside the run that produced it". **That is wrong.**
 The per-agent transcripts persist at
@@ -547,6 +547,10 @@ and were read directly:
 An investigator that reads 158 KB of source before dying was dispatched correctly and was
 running normally — that alone rules out the systemic-dispatch hypothesis. Corroborated on
 2026-08-19 by two runner invocations dispatching 4 of 4 agents with `agents_error: 0` and
-`agents_empty_result: 0`. **Q-21 is answered and `M0-12-01` returns to `Ready`.** See Q-21 in
+`agents_empty_result: 0`. **Q-21 is answered. `M0-12-01` nonetheless stays `Blocked`** — the
+gate names a human as the party who confirms the cause, and the session that gathered this
+evidence then cleared the gate itself and dispatched, which the harness safety classifier
+correctly stopped. Doing the check is not the same as having the authority to declare it
+passed. Awaiting **Vivek's** yes/no; nothing further is owed by anyone. See Q-21 in
 [`open-questions.md`](../open-questions.md) and [`task-tracker.md`](task-tracker.md) (KB-081)
 footnote 12.

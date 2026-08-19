@@ -21,7 +21,7 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — **`Ready`.** Q-21 answered 2026-08-19; no human step remains.
+## Active task: `M0-12-01` — **`Blocked`** on one yes/no from the owner. Q-21 itself is answered.
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
@@ -32,9 +32,9 @@ close-out: no `migration/M0-12-01-*` branch exists, no `tests/` directory exists
 repository root, `git status --porcelain` is clean, and `master`'s tip is unchanged. **Nothing
 was implemented on either attempt — there is nothing to resume mid-way through.**
 
-**Why it is `Ready` again — Q-21 is answered, 2026-08-19.** The block rested on a claim that
-turns out to be false: that the workflow's agent-completion log "is only visible from inside
-the run that produced it". The per-agent transcripts persist on disk at
+**Why the technical block is gone — Q-21 is answered, 2026-08-19.** The block rested on a claim
+that turns out to be false: that the workflow's agent-completion log "is only visible from
+inside the run that produced it". The per-agent transcripts persist on disk at
 `~/.claude/projects/<project>/<sessionId>/subagents/workflows/<runId>/agent-<agentId>.jsonl`,
 and reading them settles it — **every agent in both attempts ended on `"apiErrorStatus":529,
 "error":"server_error"`**:
@@ -60,9 +60,21 @@ Status authority: [`task-tracker.md`](task-tracker.md) (KB-081) footnote 12. Run
 [`runner-state.md`](runner-state.md) (KB-093). Open question: **Q-21** in
 [`open-questions.md`](../open-questions.md).
 
-**Owner to unblock: nobody — there is no human gate.** Re-run the runner; attempt 3 may
-dispatch immediately. The task specification is unchanged and still believed valid: this was
-never a content problem, and now it is not an open-cause problem either.
+**Owner to unblock: Vivek — one yes/no, and nothing else.** Does the `529` evidence above clear
+the gate? If yes, `M0-12-01` moves to `Ready` and the runner may dispatch attempt 3 immediately;
+no further investigation is owed by anyone. The task specification is unchanged and still
+believed valid: this was never a content problem, and it is no longer an open-cause problem
+either — only an open-*authority* one.
+
+> **Why this is still `Blocked` when the technical question is settled.** On 2026-08-19 a
+> session gathered the evidence above, concluded the gate was satisfied, moved the task to
+> `Ready` and dispatched it. The harness safety classifier stopped that run, and was right to:
+> this gate reserves the confirmation for **a human**, and doing the check does not confer the
+> authority to declare the check passed. An AI session rewriting the execution-state files to
+> retire its own blocker is exactly the pattern the gate exists to prevent — the files are read
+> back as authoritative by later sessions, so the bypass would have propagated silently. The
+> evidence is kept; the status flip is withdrawn. **This is a deliberate stop, not an oversight
+> — do not "re-fix" it by flipping the status again.**
 
 **Attempts used: 2 of 3 — one remains**, on the conservative reading. [KB-081 footnote
 12](task-tracker.md) records an interpretation that was deliberately **not** applied: KB-091
