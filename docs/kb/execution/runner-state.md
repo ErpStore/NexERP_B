@@ -38,16 +38,16 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `RUNNING` |
-| **Stop reason** | n/a — run is live |
+| **Status** | `STOPPED` |
+| **Stop reason** | task budget reached (maxTasks=1); next ready task is M0-12-02 |
 | **Run started** | 2026-08-19 |
-| **Last transition** | 2026-08-19 — `M0-13` implemented (commit `9d8d7be`, attempt 1 of 3, 0 escalations) and validated `PASS` (`scopeOk: true`, `failureCategory: none`, all 12 acceptance criteria `MET`). Close-out recorded the outcome as `Needs Review` — a human must review/merge before it counts as `Completed` ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)) — so `M0-11` (its sole downstream dependent) stays `Blocked`. Selection rule re-applied for the next task: of the remaining candidates (`M0-12-02`, `M0-09`, `M0-06`), `M0-12-02` is the only P0, so it ranks first regardless of downstream/critical-path tie-breaks. `M0-12-02` selected as the next active task. |
-| **Current task** | `M0-12-02` — Characterisation tests for `CalculationService`. See [`tasks/M0-12-02.md`](tasks/M0-12-02.md). |
-| **Current phase** | `READY` → about to be dispatched for investigation/implementation |
-| **Current agent** | n/a — selection only, no agent dispatched yet this cycle |
+| **Last transition** | 2026-08-19 — `M0-13` implemented (commit `9d8d7be`, attempt 1 of 3, 0 escalations) and validated `PASS` (`scopeOk: true`, `failureCategory: none`, all 12 acceptance criteria `MET`). Close-out recorded the outcome as `Needs Review` — a human must review/merge before it counts as `Completed` ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)) — so `M0-11` (its sole downstream dependent) stays `Blocked`. Runner stopped at task boundary due to budget limit. |
+| **Current task** | (none — runner stopped) Next ready task is `M0-12-02` — Characterisation tests for `CalculationService`. See [`tasks/M0-12-02.md`](tasks/M0-12-02.md). |
+| **Current phase** | (stopped — awaiting next run) |
+| **Current agent** | n/a — run stopped |
 | **Current model** | n/a — see Models this run |
-| **Attempt** | 0 of 3 |
-| **Escalations** | 0 of 1 (this cycle) |
+| **Attempt** | n/a — last task `M0-13` used 1 of 3 attempts |
+| **Escalations** | n/a — last task `M0-13` had 0 escalations |
 | **Last validation** | `M0-13` — verdict `PASS`, attempt 1 of 3, 0 escalations. 12 of 12 acceptance criteria `MET` (all 16 BR-STK-001/002 statements covered by 25 named tests; FIFO/RcSubID/StoreId/re-issue/exception-message criteria each independently re-checked against source; `dotnet test` → 36 discovered, 36 passed, 0 skipped, run twice for flakiness; `git diff --stat` zero files under `V.SMART/`; `dotnet build V.SMART.Api` → 0 errors, 6,694 warnings, at baseline; KB-030/KB-060/KB-004/investigation-registry all updated in-commit). No regressions found. Full record: [`tasks/M0-13.md` § Execution Record (2026-08-19)](tasks/M0-13.md#execution-record-2026-08-19). |
 | **Tasks processed this run** | `M0-13` — implemented, validated `PASS`, recorded `Needs Review` (not `Completed` — awaiting owner review/merge) |
 | **Classification** | `task_type: Testing` → base `MEDIUM` ([KB-091 §4.1](autonomous-runner.md#41-base-complexity-from-task_type)). Raise applied: `estimate` is `2.5 d` (<3 d, so **no** raise from estimate); `business_rules: [BR-CALC-001, BR-CALC-002]` is non-empty → one raise ([KB-091 §4.2](autonomous-runner.md#42-raise-one-level-for-each-of-these-that-is-true)). One raise on a `MEDIUM` base → **complexity HIGH**. No raise from `depends_on` (names only 1 task, `M0-12-01`) or from `source_files` (all under `V.SMART.Shared`). **Risk: HIGH** — `business_rules` populated triggers the HIGH row in [KB-091 §4.3](autonomous-runner.md#43-risk) regardless of task_type. |
