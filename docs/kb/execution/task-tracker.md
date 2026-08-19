@@ -141,12 +141,12 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-C01 | M2 | Vite + React 19 + TS strict + lint + test + CI | Frontend | **Blocked**¹⁸ | P0 | G0 | 3 d | G2 |
-| M2-C11 | M2 | Archive the Angular pilot | DevOps | Blocked | P2 | M2-C01 | 0.5 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked | P0 | M2-C01 | 2 d | G2 |
+| M2-C01 | M2 | Vite + React 19 + TS strict + lint + test + CI | Frontend | **Completed**¹⁹ | P0 | G0 | 3 d | G2 |
+| M2-C11 | M2 | Archive the Angular pilot | DevOps | **Ready** | P2 | M2-C01 | 0.5 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready** | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
-| M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Blocked | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | Blocked | P0 | M2-C01 | 3 d | G2 |
+| M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Ready** | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
@@ -1029,7 +1029,13 @@ updated in the same commit as any change, or they will correctly go red.
 **G0 criterion 7 is met** by the answer being recorded in `open-questions.md`; it does not wait
 on `ADR-006`. See [KB-080 § Exit Gate — G0](README.md#exit-gate--g0).
 
-¹⁸ **M2-C01: `Ready` → `Blocked`, 2026-08-19 — blocked on the repository owner, not on
+¹⁹ **M2-C01: `Completed` and merged (`12f172f`, 2026-08-19) — 14 of 15 acceptance criteria met, the 15th WAIVED.**
+
+> **Read the waiver as a waiver.** Criterion 10's second half — *"the `frontend` job ... is green on the branch"* — was **never satisfied**. It needs a push, which an execution session may not make. Waived by the owner on the `M0-07` (`d79e1a4`) and `M0-12-02` (`a83f1e2`) precedent. Everything locally verifiable was independently re-run before merging: `typecheck`, `lint --max-warnings=0`, `test`, `build` all exit 0; entry chunk **289.69 kB / 90.90 kB gzipped**; `git status` clean after a build; `dotnet test` still **79 passed**. Scope confirmed: no `node_modules/`, `dist/`, `playwright-report/` or `test-results/` committed; `package-lock.json` committed; `frontend/vsmart-erp/` untouched; exactly one component library (`@mantine/core`); the pre-existing CI job intact.
+
+**Footnote renumbered from ¹⁸ to ¹⁹ on merge** — ¹⁸ had just been assigned to `M2-A01-01`, and this branch was cut before that landed. The same cross-branch allocation defect as the six-id KB/INV/Q collision; see [INDEX.md](../INDEX.md) § doc_id allocation.
+
+Pre-merge record follows.
 engineering.** Two implementation attempts on `migration/M2-C01-react-app-skeleton`
 (`4ac7241`, `8fb8e6d`, `d5182f6`) built `frontend/nexgen-web/` as a Vite 6 + React 19 +
 TypeScript-strict workspace and independently re-verified 14 of 15 acceptance criteria `MET`
