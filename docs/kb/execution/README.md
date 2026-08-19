@@ -170,9 +170,9 @@ absent or contradicted → record negative results too.
 
 | ID | Milestone | Est. | Gate | Status |
 |---|---|---|---|---|
-| **M0** | Stabilise | 2–3 wks | G0 | Not Started |
+| **M0** | Stabilise | 2–3 wks | G0 | ⚠️ **PASSED WITH EXCEPTIONS** 2026-08-19 — criteria 1, 2, 3 deferred by owner. Review: [KB-107](M0-milestone-review.md) |
 | **M1** | Repository Understanding | — | G1 | ✅ Complete (rolling) |
-| **M2** | Foundation | 6–8 wks | G2 | Blocked by G0 |
+| **M2** | Foundation | 6–8 wks | G2 | **OPEN** 2026-08-19 |
 | **M3** | Core Modules | 12–16 wks | G3 | Blocked by G2 |
 | **M4** | Advanced Modules | 16–22 wks | G4 | Blocked by G3 |
 | **M5** | Hardening | 6–8 wks (overlapped) | G5 | Runs from M2 |
@@ -391,8 +391,20 @@ otherwise **M0-12-01 → M0-13 → M0-11**.
 | 6,695 warnings make analyzer CI noisy | Baseline first, fail only on new warnings |
 
 ### Exit Gate — G0
-- [ ] A fresh, empty SQL Server can be brought to a working tenant database **from source
+- [~] A fresh, empty SQL Server can be brought to a working tenant database **from source
       control alone** (EF migrations + all 94 procedures) and the app runs against it.
+      *(**DEFERRED by the repository owner, 2026-08-19.** No disposable SQL Server instance is
+      available. Everything the drill needs already exists and is committed —
+      `db/RUNBOOK-rebuild-tenant-database.md`, `db/deploy-stored-procedures.ps1`, and
+      `db/REBUILD-DRILL-LOG.md` as an unfilled skeleton — so this is blocked on **hardware, not
+      work**. `M0-01-03` stays `Needs Review`. **This is the most consequential of the three
+      deferrals:** it is the only evidence that a working tenant database can be reconstructed
+      from source control alone. Until it is run, every environment is a snowflake and no one
+      knows whether the 94 procedures plus EF migrations actually reconstitute a working system.
+      It costs little now and a great deal at **M6**, when a production environment must be
+      built from scratch. The same instance would also settle the three behaviours `M0-13` could
+      not verify (FIFO tie-break on identical `AddDate`, `RcSubID` null equality, `[Precision]`
+      rounding).)*
 - [~] No connection string or JWT secret in the working tree **or** in `git grep … HEAD`.
       *(**DEFERRED to the end of the milestone by the repository owner, 2026-08-19.** Depends
       entirely on `M0-05`, which depends entirely on `M0-04`. Not met, and deliberately not
