@@ -21,23 +21,24 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-B07`, `Blocked` after attempt 1, resume rather than restart
+## Active task — `M2-B07`, `Blocked` on the repository owner after attempt 3 of 3
 
 **Task file:** [`tasks/M2-B07.md`](tasks/M2-B07.md) — Shared `AddVSmartDomain()` DI extension.
-**Branch:** `migration/M2-B07-add-vsmart-domain`, tip **`a071716`**. **Do not start from a
-clean tree or a fresh branch** — real, substantial progress already exists there.
+**Branch:** `migration/M2-B07-add-vsmart-domain`, tip **`5cb1901`**. **Do not start from a
+clean tree or a fresh branch, and do not re-dispatch an implementer** — the retry budget (3 of
+3) is spent and every mechanical acceptance criterion is already `MET`.
 
 ### Run State
 
 | Field | Value |
 |---|---|
-| Status | `Blocked` — attempt 1 of 3 stopped, retry budget not exhausted |
-| What happened | The implementer agent returned **no result** (no diff, no text, no tool output). The validator returned `{"verdict": "none", "note": "validation did not complete"}`. A later close-out session found the implementer's *process* had nonetheless produced real work, left uncommitted — it preserved that work as-is in commit `a071716` (a 655-line `V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` plus edits to all three hosts' composition roots), **not** reviewed or reconciled against the task's acceptance criteria |
-| Spot-check evidence (not this task's real validation) | `V.SMART.Api` and `V.SMART.Web` build 0 errors at their exact recorded warning baselines (6,694 / 6,697). The MAUI head's `net9.0` and `net9.0-windows10.0.19041.0` targets build clean; its `net9.0-android` target's one build error is attributable to the close-out session's own 180s timeout (`MSB6006`, `java.exe` exit 143 = SIGTERM), not a code defect |
-| Not yet done | `dotnet test`, `ValidateOnBuild = true`, and every acceptance criterion in `tasks/M2-B07.md` — none of these have been run against this diff |
-| Next step | Re-dispatch the implementer on this branch at this tip. It should **review and validate the existing diff**, not regenerate it — check it against `tasks/M2-B07.md`'s acceptance criteria and [INV-039](../investigation-registry.md)'s findings, then run the tests and the `ValidateOnBuild` check |
-| Escalation condition | This is blocked-on-a-task, not blocked-on-a-human — do not wait for an owner decision to retry. If a **second consecutive** no-result attempt occurs, that repetition is the signal worth escalating to **Vivek** (repository owner), per the `M0-12-01` precedent (`task-tracker.md` footnote ¹²) |
-| Full record | `tasks/M2-B07.md` § Execution Record (2026-08-19); `failure-log.md` § M2-B07 · attempt 1 · 2026-08-19; `runner-state.md`; `task-tracker.md` footnote ²⁰ |
+| Status | `Blocked` — attempt 3 of 3 exhausted; blocked on a **human decision**, not on engineering |
+| What happened | Attempts 1–3 landed a 655-line `AddVSmartDomain()` extension in `V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`, called once from each of the three hosts, preserving the exact 249-registration union (mechanically set-diffed, not eyeballed). Every acceptance criterion in `tasks/M2-B07.md` is `MET` except one: *"the Blazor app starts and three screens from three different modules render without a DI resolution error."* |
+| The one open criterion — and this close-out's correction | Attempt 3 concluded no database was provisioned on this workstation and both hosts 500'd for that reason. **That conclusion was wrong.** This close-out session found a SQL Server Express instance with `NexGenErpDb_Master` and a 197-table tenant database already on this workstation; pointing `ConnectionStrings__MasterDb` at it makes `V.SMART.Web` render `/` at `200` with **zero** DI resolution errors (`grep -c "Unable to resolve service"` → 0). The three named module screens `302` to `/access-denied` instead — server-side screen-right authorization (ADR-004/M2-A01-01) correctly refusing an unauthenticated request, identical on `master`. The real gap is a **signed-in interactive Blazor circuit**: the one provisioned ERP user's password is hashed and owner-held, and no session may acquire or reuse a credential |
+| Not yet done | Nothing code-related — build, test, `ValidateOnBuild`, and registration-union parity are all `MET` and re-verified. What remains is purely: sign in as the ERP user and open three screens, or waive that check |
+| Next step | **Do not re-dispatch.** Wait for Vivek. Either (A) he signs in as the one provisioned user with `ConnectionStrings__MasterDb` → `DESKTOP-FIIBE97\SQLEXPRESS` / `NexGenErpDb_Master` and opens three screens from three different modules (five minutes), or (B) he waives the render half on the recorded evidence (whole-graph `ValidateOnBuild` passing at startup, zero `Unable to resolve service`, branch/`master` parity on every route tried) |
+| Escalation condition | Already escalated — this **is** the escalation. Retry budget exhausted (3 of 3); do not spend a fourth attempt without an explicit new instruction |
+| Full record | `tasks/M2-B07.md` § Execution Record (2026-08-19) — close-out, attempt 3 of 3; `failure-log.md` § M2-B07 · attempt 3 · 2026-08-19; `runner-state.md`; `task-tracker.md` footnote ²⁰ |
 
 ---
 

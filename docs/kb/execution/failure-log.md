@@ -1687,3 +1687,274 @@ turns `ValidateOnBuild`/`ValidateScopes` **on by itself in `Development`**. *Not
 line does not leave the check off. Any task that changes a composition root must verify by
 **starting the affected host in `Development`**; a green build and a green `BuildServiceProvider`
 unit test both passed here, and neither caught it.
+
+---
+
+### M2-B07 · attempt 3 · validation · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus |
+| Validator verdict | FAIL |
+| Failure category | environment |
+
+**Read this first.** No code defect was found. Every build, test, DI-validation, scope and
+regression check passed on independent re-run at branch tip `5cb1901`. The `FAIL` is recorded
+because **one acceptance criterion cannot be observed on this workstation**, and a check that
+could not be run is never a pass. Re-dispatching an implementer will not change the outcome —
+this needs a provisioned database or an owner decision, not another code attempt.
+
+**What could not be checked** — the acceptance criterion *"The Blazor app starts and three
+screens from three different modules render without a DI resolution error."* The **start** half
+is met and observed. The **render** half is not checkable: there is no SQL Server instance on
+this machine, so every route 500s during component render. Observed on branch, `V.SMART.Web`,
+`ASPNETCORE_ENVIRONMENT=Development`, `--no-launch-profile`, `ASPNETCORE_URLS=http://localhost:5322`:
+
+```
+info: Microsoft.Hosting.Lifetime[0] Application started.
+info: Microsoft.Hosting.Lifetime[0] Hosting environment: Development
+fail: Microsoft.EntityFrameworkCore.Database.Connection[20004]
+      An error occurred using the connection to database 'VSmartMaster' on server '(local)'.
+      SqlException ... error: 40 - Could not open a connection to SQL Server
+GET /                          -> 500
+GET /contractReviewMasterList  -> 500
+GET /itemList                  -> 500
+GET /currencyList              -> 404   (no such route)
+grep -c "Unable to resolve service" <host log>  -> 0
+```
+
+Because the host boots in `Development`, the framework's own `ValidateOnBuild` ran over the
+**whole** Web graph and passed — so the union registration this task introduces does resolve
+completely in `V.SMART.Web`. That is strong evidence for the criterion's *intent* (no `#region`
+dropped), but it is not the criterion as written.
+
+**What would verify it** — a provisioned master database plus at least one tenant database, and
+valid login credentials, then three screens from three different modules opened in a browser.
+
+**Everything else, independently re-run by the validator at `5cb1901`**
+
+```
+dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental
+  -> 6694 Warning(s) / 0 Error(s) / 00:01:10.78     (baseline 6,695; one fewer, no new warnings)
+dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj --no-incremental
+  -> 6697 Warning(s) / 0 Error(s) / 00:01:54.67     (baseline 6,698/6,697)
+dotnet build V.SMART/V.SMART/V.SMART.csproj
+  -> 6671 Warning(s) / 0 Error(s) / 00:01:38.30     (MAUI head; MauiProgram.cs compiles)
+dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+  -> Passed!  - Failed: 0, Passed: 84, Skipped: 0, Total: 84
+dotnet test ... --filter FullyQualifiedName~AddVSmartDomainTests
+  -> Passed!  - Failed: 0, Passed: 5, Skipped: 0, Total: 5
+grep -c "AddScoped\|AddSingleton\|AddTransient" V.SMART/V.SMART.Web/Program.cs   -> 7
+grep -c "AddScoped\|AddSingleton\|AddTransient" V.SMART/V.SMART/MauiProgram.cs   -> 8
+```
+
+**`GET /api/currencies` parity — verified against `master`, not asserted.** The validator built
+`master` (`d982d23`) in a throwaway worktree and drove both hosts with byte-identical env vars
+and the same minted HS256 token:
+
+| Request | branch (`:5321`) | `master` (`:5323`) |
+|---|---|---|
+| no token | `401` | `401` |
+| valid token | `500 System.NullReferenceException` at `TenantDbContextFactory.cs:18` via `UnitOfWork..ctor(...)` | **identical stack**, only the content-root path differs |
+
+So the endpoint's status and error shape are unchanged. The **200** path is still unreachable
+without a database and stays not checkable on either side. The worktree was removed and pruned.
+
+**Registration-set equality — the validator's own check, independent of the implementer's
+tables.** Normalising every `Add{Scoped,Singleton,Transient}` call in `master`'s three
+composition roots and in the branch's extension + three hosts and set-differencing them:
+
+```
+in master, not in branch:  4 entries — all formatting artifacts, all present in the branch
+    AddScoped<IAccountReportService, AccountReportService>();//Confirmation of accounts
+    builder .Services.AddScoped<ICreditNoteService, CreditNoteService>();   (space after "builder")
+    builder .Services.AddScoped<ILabourInvoiceService, LabourInvoiceService>();
+    builder .Services.AddScoped<ILabourSCNService, LabourSCNService>();
+in branch, not in master:  0 entries
+```
+
+Nothing dropped, nothing invented, and — because whole registration expressions were compared —
+no lifetime changed. No service type in the extension has two *different* implementations; the
+only duplicated service types (`ICorrespondanceRepository`, `IEnquiryPurchaseService`) are
+byte-identical duplicates that `master` also carried, so last-wins is unaffected.
+
+**Scope** — `git diff --name-only d982d23..HEAD` outside `docs/` is exactly
+`V.SMART/V.SMART.Api/Program.cs`, `V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`,
+`V.SMART/V.SMART.Web/Program.cs`, `V.SMART/V.SMART/MauiProgram.cs` and
+`tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs`. None of the
+*Files That Must Not Change* paths were touched: no `BusinessLayer/`, `Repository/`, `Data/`,
+`Mappings/`, `ViewModels/`, `Pages/`, `Migrations/`, `Api/Controllers/`, `Api/Auth/`,
+`Web/Services/` or MAUI `Services/`. No schema change. No TypeScript. Blazor Server intact and
+booting.
+
+**Noted, not failed — `ValidateOnBuild = false` in `V.SMART/V.SMART.Api/Program.cs:97-101`.**
+The validator reviewed this deliberately. It is a real loss of a startup diagnostic for the API
+host, but it is the least-bad option consistent with this task's own constraints (the task
+requires the seven seam-coupled registrations to be *present but unresolvable* in the API until
+M2-B06/M2-B08, and `WebApplicationBuilder` would otherwise abort the host in `Development`). It
+is documented at the site with a `REMOVE THIS BLOCK` trigger and recorded as **R-40** in
+KB-060 — disclosed, not hidden. Not scored as a regression or an architecture failure.
+
+**Documentation criteria verified present** — R-26 marked `RESOLVED by M2-B07` with evidence
+(`docs/kb/risks/technical-debt-register.md:969-990`); R-40 added (`:992-1012`); composition-root
+section in `docs/kb/architecture/backend-architecture.md:219`; KB-041 updated (`:36,49,57-69`);
+INV-039 `Complete` in `docs/kb/investigation-registry.md:38`; the `V.SMART.Web` build baseline
+recorded in KB-083's verified-commands table.
+
+**Minor, cosmetic** — `docs/kb/execution/tasks/M2-B07.md` frontmatter says `status: Review`
+(correct) while the body table at `:41` still says `Status | Not Started`. Worth fixing whenever
+the file is next touched; it is not an acceptance criterion.
+
+**Disposition** — attempt 3 of 3 returns `FAIL / environment`, so KB-091 §6.4 moves M2-B07 to
+`BLOCKED`. The block is **not** on code: it is on the absence of a SQL Server master + tenant
+database and login credentials on this workstation. The owner's options are to provision one and
+re-run the three-screen smoke test, or to accept the boundary explicitly and waive that half of
+the criterion on the record. No KB-091 §6.3 escalation trigger applies.
+
+---
+
+### M2-B07 · attempt 3 · diagnosis · 2026-08-19
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **No fix applied;
+no code, test or task file touched.** The only file written by this pass is this log.)*
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | environment (confirmed) — **but the stated reason for it is wrong; see below** |
+
+**The validator's premise is factually incorrect, and correcting it is the point of this
+entry.** Attempt 3's entry says *"there is no SQL Server instance on this machine"* and asks the
+owner to provision one. **A provisioned SQL Server, a provisioned master database and a
+provisioned tenant database all already exist on this workstation.** The validator drove the host
+at `Server=(local);Database=VSmartMaster`, which is neither the instance nor the database this
+deployment uses, and read the resulting `error: 40 - Could not open a connection` as an absent
+server.
+
+Measured this pass, on `DESKTOP-FIIBE97`:
+
+```
+Get-Service MSSQL*        -> MSSQL$SQLEXPRESS            Running
+                             SQLBrowser                  Running
+select name from sys.databases        (Server=.\SQLEXPRESS, Integrated Security)
+  -> master, MES_Trikala_DB, model, msdb, NexGenErpDb, NexGenErpDb_Master, tempdb
+NexGenErpDb_Master tables -> __EFMigrationsHistory, Tenants
+select * from Tenants     -> Id=1 | Name=localhost | Hostname=localhost |
+                             ConnectionString=Server=DESKTOP-FIIBE97\SQLEXPRESS;
+                             Database=NexGenErpDb;User Id=sa;Password=<redacted here>;...
+NexGenErpDb               -> 197 tables; Users = 1 row, UserRights = 150 rows
+```
+
+The names are `NexGenErpDb_Master` / `NexGenErpDb`, not `VSmartMaster`, and the instance is
+`.\SQLEXPRESS`, not the default instance. Both `appsettings.json` files ship `"MasterDb": ""`
+(`V.SMART/V.SMART.Web/appsettings.json:10`, `V.SMART/V.SMART.Api/appsettings.json:9`) and both
+user-secrets stores hold `Database=DoesNotExist_M0-03-01-LocalTest`, left over from M0-03-01's
+fail-fast test, so nothing in the repository points a session at the real database. **That is why
+three sessions in a row have concluded "no database exists".**
+
+**Reproduced — and then the criterion was re-run with the correct connection string.** Branch
+`migration/M2-B07-add-vsmart-domain`, tip `5cb1901`, `V.SMART.Web`,
+`ASPNETCORE_ENVIRONMENT=Development`, `--no-launch-profile`, `--no-build`,
+`ConnectionStrings__MasterDb=Server=DESKTOP-FIIBE97\SQLEXPRESS;Database=NexGenErpDb_Master;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true;`:
+
+```
+Now listening on: http://localhost:5333 / Application started. / Hosting environment: Development
+Executed DbCommand ... SELECT TOP(1) [t].[Id], [t].[ConnectionString], [t].[Hostname], [t].[Name]
+                       FROM [Tenants] AS [t] WHERE [t].[Hostname] = @__host_0
+[TenantProvider] Resolved tenant from host: localhost
+GET /                          -> 200      (was 500 for the validator)
+GET /contractReviewMasterList  -> 302  Location: /access-denied
+GET /routeCardList             -> 302  Location: /access-denied
+GET /itemList                  -> 500
+GET /access-denied             -> 200
+grep -c "Unable to resolve service" (host log)  -> 0
+```
+
+So the database wall the validator hit is gone: the tenant resolves, EF executes against the
+master database, and the home page renders.
+
+**What is left, and it is not the database.** The three module screens sit behind the ERP's own
+screen-right authorization, and this session has no authenticated ERP session:
+
+- `/contractReviewMasterList` and `/routeCardList` redirect to `/access-denied` from
+  `AuthorizationMiddleware` — no user, no rights.
+- `/itemList` reaches component initialization and dies inside its own `catch`:
+  `ItemList.OnInitializedAsync()`
+  (`V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Items_Pages/ItemList.razor:521-556`)
+  catches the rights-lookup failure and then calls `_js.ToastrError(...)` at `:555`, which throws
+  `InvalidOperationException: JavaScript interop calls cannot be issued at this time … the
+  component is being statically rendered`
+  (`V.SMART/V.SMART.Shared/Services/Extensions/IJSRuntimeExtensions.cs:15`). A pre-existing
+  prerender anti-pattern on the error path, not DI.
+
+Note what that 500 *does* prove: the `ItemList` component was constructed and every injected
+service resolved out of the branch's `AddVSmartDomain()` graph before any of this happened.
+
+**Not a regression — verified against `master`, not asserted.** `master` (`d982d23`) was built in
+a throwaway worktree (`6698 Warning(s) / 0 Error(s)`) and driven with byte-identical env vars on
+`:5334`:
+
+| Route | branch `:5333` | master `:5334` |
+|---|---|---|
+| `/` | 200 | 200 |
+| `/contractReviewMasterList` | 302 → `/access-denied` | 302 → `/access-denied` |
+| `/routeCardList` | 302 → `/access-denied` | 302 → `/access-denied` |
+| `/itemList` | 500 (JS-interop-in-prerender) | 500 (**same** exception, same line) |
+| `/access-denied` | 200 | 200 |
+| `grep -c "Unable to resolve service"` | 0 | 0 |
+
+Behaviour is identical on both sides for every route tried. The worktree was removed and pruned;
+`git status --porcelain` is back to the two orchestrator-owned doc files.
+
+**Root cause** — the criterion *"three screens from three different modules render without a DI
+resolution error"* cannot be observed by an execution session because it needs a **signed-in ERP
+user** (one `Users` row exists; its password is hashed and held by the owner) driving an
+**interactive Blazor Server circuit** in a browser — not because a database is missing. Class:
+`environment`. No code defect: zero DI resolution failures in either host log, and every
+observable difference from `master` is zero.
+
+**Why no fix was applied** — there is nothing to fix. The three moves available are all forbidden
+or dishonest: obtaining the ERP password by any means other than the owner handing it over;
+relaxing the screen-right check so the pages render unauthenticated (that is a business rule, and
+altering it to pass a check is exactly what the workflow forbids); or restating "the component
+was constructed, therefore it rendered" as if it satisfied the criterion as written.
+
+**Tried before** — no fix in this log is being repeated: attempt 1 was `ENOTFOUND`, attempt 2's
+diagnosis applied the `ValidateOnBuild` fix (which holds — the API still starts), and attempt 3
+applied no fix. What *is* repeated, three times now, is the **conclusion** "no database on this
+workstation", recorded in attempt 2's diagnosis residual risk 1 and in attempt 3's validation.
+That conclusion is withdrawn here, with the measurements above.
+
+**Disposition** — `blocked`, agreeing with the category but not with the reason. Attempts used:
+3 of 3 ([KB-091 §6.4](autonomous-runner.md#6-retry-and-escalation)). KB-091 §8 trigger 5 applies
+(credential unavailable), **not** the "provision a database" action the validator recommended.
+
+**Decision the orchestrator needs from the repository owner** (one of):
+
+- **A** — the owner opens `V.SMART.Web` in a browser with the connection string above, signs in
+  as the single provisioned user, opens three screens from three different modules, and records
+  the result. This is now a five-minute manual check, not a provisioning exercise.
+- **B** — waive the render half explicitly on the record, on the evidence that the framework's own
+  `ValidateOnBuild` passed over the whole Web graph at startup in `Development`, that zero
+  `Unable to resolve service` entries appear in either host log, and that branch and `master`
+  behave identically on all five routes tried.
+
+**Worth recording outside this log** (orchestrator's call, not the debugger's): the real local
+database coordinates — instance `.\SQLEXPRESS`, master database `NexGenErpDb_Master`, tenant
+resolved by `Hostname='localhost'` from its `Tenants` table — belong in KB-083's
+verified-commands table or an environment note, **without** the `sa` password, which stays in the
+database row. Three sessions have now spent effort rediscovering or mis-concluding this.
+
+**Residual risk** — (i) the authorized render path is still genuinely unobserved: a screen whose
+injected services resolve at construction could still fail later inside an authenticated render,
+though nothing observed suggests it will; (ii) the `/itemList` 500 is pre-existing on `master` and
+is not this task's to fix, but it does mean one of the three routes named in the criterion may
+still not render cleanly even for a signed-in user; (iii) R-40 (the API's `ValidateOnBuild =
+false`) remains open and dated to M2-B06 / M2-B08.
+
+**Next attempt routed to** — no model. A stronger model cannot obtain the ERP user's password or
+drive a browser session; this needs the owner.

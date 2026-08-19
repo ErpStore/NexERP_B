@@ -330,6 +330,17 @@ succeeds through SDK roll-forward. A root `global.json` now pins the SDK to `10.
 `rollForward: latestFeature` (KB-086 §6) — a prompt may assume this pin exists, but should
 still not assume `dotnet --version` reports 9.x.
 
+**Local dev database exists on this workstation (Confirmed, M2-B07 close-out, 2026-08-19) —
+three prior sessions wrongly concluded otherwise.** SQL Server Express instance
+`DESKTOP-FIIBE97\SQLEXPRESS` carries a `NexGenErpDb_Master` master database and at least one
+197-table tenant database, resolvable via the master DB's `Tenants` table by
+`Hostname='localhost'`. Pointing `ConnectionStrings__MasterDb` at it and starting
+`V.SMART.Web` renders `/` at `200` with zero DI resolution errors. Do **not** put the `sa` or
+any other credential in this file, in a prompt, or anywhere in the repository — the password
+stays in the database/OS credential store only. A session needing this database should ask a
+human to confirm the connection string is still valid before relying on it; this note records
+the *coordinates* found working on one date, not a guarantee they still are.
+
 **Warning baseline (Confirmed, KB-086 §5).** 6,695 warnings on the Api build. The dominant
 codes are the `CS86xx` nullable-reference-analysis family (`CS8602` alone is 23.6% of the
 total) — **not** `MUD0002` as previously described; `MUD0002` is 130 occurrences, 1.94% of the
