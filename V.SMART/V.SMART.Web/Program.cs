@@ -106,6 +106,7 @@ using V.SMART.Shared.BusinessLayer.BusinessService.SalesService;
 using V.SMART.Shared.BusinessLayer.BusinessService.SalesService.EnqiryFeasibility;
 using V.SMART.Shared.BusinessLayer.BusinessService.SettingsService;
 using V.SMART.Shared.Data;
+using V.SMART.Shared.DependencyInjection;
 using V.SMART.Shared.Data.Master.Admin;
 using V.SMART.Shared.Mappings;
 using V.SMART.Shared.Repository;
@@ -198,20 +199,17 @@ builder.Services.AddServerSideBlazor(options =>
     options.DetailedErrors = builder.Environment.IsDevelopment();
 });
 
-// Core Tenant + Context
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ITenantProvider, TenantProvider>();
-builder.Services.AddScoped<ITenantDbContextFactory,TenantDbContextFactory>();
-builder.Services.AddScoped<ExcelExportService>();
 
-builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-
-// Tenant-aware ApplicationDbContext
-builder.Services.AddScoped<ApplicationDbContext>(sp =>
-{
-    var factory = sp.GetRequiredService<ITenantDbContextFactory>();
-    return factory.CreateDbContext();
-});
+// ===============================
+// Domain graph — M2-B07
+// ===============================
+// Every repository, UnitOfWork, business service, MasterDbContext, the tenant-resolved
+// ApplicationDbContext and AutoMapper now come from the single shared composition root in
+// V.SMART.Shared (V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs), which
+// all three hosts call. This replaced ~230 registrations that used to be duplicated here and
+// in V.SMART/MauiProgram.cs, and had already drifted (KB-060 R-26).
+builder.Services.AddVSmartDomain(builder.Configuration);
 
 // ===============================
 // Forwarded Headers (CRITICAL for Multi-Tenant)
@@ -227,401 +225,31 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-
-// Master Database (Cloud / Local)
-builder.Services.AddDbContext<MasterDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("MasterDb")));
-
-// Register AutoMapper: scan the assembly that contains MappingProfileMarker
-builder.Services.AddAutoMapper(cfg =>
-{
-    cfg.AddMaps(typeof(MappingProfileMarker).Assembly);
-});
-
-// Shared Services
+// ===============================
+// Host UI libraries
+// ===============================
 builder.Services.AddMudServices();
 builder.Services.AddHttpClient();
 builder.Services.AddAuthorizationCore();
-
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddApexCharts();
 
-//Report service
-
-builder.Services.AddScoped<ReportService>();
+// ===============================
+// Host platform seam — a different implementation in every host, so deliberately NOT in
+// AddVSmartDomain(). See M2-B06 / M2-B08 for the V.SMART.Api implementations.
+// ===============================
 builder.Services.AddScoped<IPathProvider, WebPathProvider>();
-//builder.Services.AddScoped<ReportService>(sp =>
-//{
-//    var tenantProvider = sp.GetRequiredService<ITenantProvider>();
-//    var common = sp.GetRequiredService<ICommonService>();
-//    return new ReportService(tenantProvider, common);
-//});
-
-builder.Services.AddScoped<ThemeStateService>();
-builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
-builder.Services.AddScoped<CurrentUserService>();
-builder.Services.AddScoped<IColumnPreferenceService, ColumnPreferenceService>();
-builder.Services.AddScoped<ILoggingService, FileLoggingService>();
-builder.Services.AddScoped<ICorrespondanceRepository, CorrespondanceRepository>();
 builder.Services.AddScoped<IFileUploadService, WebFileUploadService>();
 builder.Services.AddScoped<IFileOpener, WebFileOpener>();
+
+// ===============================
+// Host UI state
+// ===============================
+builder.Services.AddScoped<ThemeStateService>();
+builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
+builder.Services.AddScoped<IColumnPreferenceService, ColumnPreferenceService>();
 builder.Services.AddScoped<IExcelTemplateService, ExcelTemplateService>();
-
-builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-
-// Core
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-
-// ===============================
-// Repositories
-// ===============================
-
-// Screen & User
-builder.Services.AddScoped<IScreenRepository, ScreenRepository>();
-builder.Services.AddScoped<IScreenManagementRepository, ScreenManagementRepository>();
-
-
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IUserRightsRepository, UserRightsRepository>();
-builder.Services.AddScoped<IUserAuthorityRepository, UserAuthorityRepository>();
-
-
-
-// Master Data
-builder.Services.AddScoped<IUserRightService, UserRightService>();
-builder.Services.AddScoped<IUserThemePreferenceService, UserThemePreferenceService>();
-
-builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
-builder.Services.AddScoped<IUOMRepository, UOMRepository>();
-builder.Services.AddScoped<IStoreRepository, StoreRepository>();
-builder.Services.AddScoped<IRawMaterialRepository, RawMaterialRepository>();
-builder.Services.AddScoped<IFactorRepository, FactorRepository>();
-builder.Services.AddScoped<IProcessRepository, ProcessRepository>();
-builder.Services.AddScoped<IMachineRepository, MachineRepository>();
-builder.Services.AddScoped<IGroupingRepository, GroupingRepository>();
-builder.Services.AddScoped<IGroupingSubRepository, GroupingSubRepository>();
-builder.Services.AddScoped<IItemRepository, ItemRepository>();
-builder.Services.AddScoped<IHSNMasterRepository, HSNMasterRepository>();
-builder.Services.AddScoped<IItemProductAssignRepository, ItemProductAssignRepository>();
-builder.Services.AddScoped<IAssemblyRepository, AssemblyRepository>();
-builder.Services.AddScoped<ICompMasterRepository, CompMasterRepository>();
-builder.Services.AddScoped<IItemSubRepository, ItemSubRepository>();
-builder.Services.AddScoped<IProcessFlowChartRepository, ProcessFlowChartRepository>();
-builder.Services.AddScoped<IStateRepository, StateRepository>();
-builder.Services.AddScoped<IAssemblyDefLabourRepository, AssemblyDefLabourRepository>();
-
-// Customer & Vendor
-builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
-builder.Services.AddScoped<ICustomerIndirectRepository, CustomerIndirectRepository>();
-builder.Services.AddScoped<IContactPersonRepository, ContactPersonRepository>();
-builder.Services.AddScoped<IVendorRepository, VendorRepository>();
-builder.Services.AddScoped<IVendorContactRepository, VendorContactRepository>();
-builder.Services.AddScoped<IVendorInDirectRepository, VendorInDirectRepository>();
-
-// Finance
-builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
-builder.Services.AddScoped<IIncomeRepository, IncomeRepository>();
-builder.Services.AddScoped<ICurrencyRepository, CurrencyRepository>();
-builder.Services.AddScoped<ICurrencyTodayRepository, CurrencyTodayRepository>();
-builder.Services.AddScoped<IBanksRepository, BanksRepository>();
-builder.Services.AddScoped<ICostCenterRepository, CostCenterRepository>();
-
-// HR
-builder.Services.AddScoped<IStaffRepository, StaffRepository>();
-builder.Services.AddScoped<IStaffFamilyDetailRepository, StaffFamilyDetailRepository>();
-builder.Services.AddScoped<IStaffEducationRepository, StaffEducationRepository>();
-builder.Services.AddScoped<IStaffEmergencyRepository, StaffEmergencyRepository>();
-builder.Services.AddScoped<ILeaveTypeRepository, LeaveTypeRepository>();
-builder.Services.AddScoped<IEmployeeLeaveBalanceRepository, EmployeeLeaveBalanceRepository>();
-builder.Services.AddScoped<ILeaveApplicationRepository, LeaveApplicationRepository>();
-builder.Services.AddScoped<IDailyLeaveRecordRepository, DailyLeaveRecordRepository>();
-builder.Services.AddScoped<IShiftAllocationRepository, ShiftAllocationRepository>();
-builder.Services.AddScoped<IHolidayListRepository, HolidayListRepository>();
-
-// Company
-builder.Services.AddScoped<ICompanyRepository, CompanyRepository>();
-builder.Services.AddScoped<IProjectTypeMasterRepository, ProjectTypeMasterRepository>();
-
-// Sales
-builder.Services.AddScoped<ILeadsRepository, LeadsRepository>();
-builder.Services.AddScoped<IEnquirySalesRepository, EnquirySalesRepository>();
-builder.Services.AddScoped<IEnquirySalesSubRepository, EnquirySalesSubRepository>();
-builder.Services.AddScoped<IMfgQuoteRepository, MfgQuoteRepository>();
-builder.Services.AddScoped<IMfgQuoteSubRepository, MfgQuoteSubRepository>();
-
-builder.Services.AddScoped<IMfgPoRepository, MfgPoRepository>();
-builder.Services.AddScoped<IMfgPoSubRepository, MfgPoSubRepository>();
-
-builder.Services.AddScoped<IPerformaInvRepository, PerformaInvRepository>();
-builder.Services.AddScoped<IPerformaInvSubRepository, PerformaInvSubRepository>();
-
-builder.Services.AddScoped<IMfgDcRepository, MfgDcRepository>();
-builder.Services.AddScoped<IMfgDcSubRepository, MfgDcSubRepository>();
-
-builder.Services.AddScoped<IMfgInvRepository, MfgInvRepository>();
-builder.Services.AddScoped<IMfgInvSubRepository, MfgInvSubRepository>();
-
-// Approval
-builder.Services.AddScoped<IApprovalHistoryRepository, ApprovalHistoryRepository>();
-
-//Inventory - Stock
-builder.Services.AddScoped<ISCNGenRepository, SCNGenRepository>();
-builder.Services.AddScoped<ISCNGenSubRepository, SCNGenSubRepository>();
-builder.Services.AddScoped<IStockAddRepository, StockAddRepository>();
-builder.Services.AddScoped<IStockIssueRepository, StockIssueRepository>();
-
-builder.Services.AddScoped<IStoreInterTransService, StoreInterTransService>();
-
-//Planning
-builder.Services.AddScoped<IProductionIssueAssyRepository, ProductionIssueAssyRepository>();
-builder.Services.AddScoped<IProductionIssueAssySubRepository, ProductionIssueAssySubRepository>();
-builder.Services.AddScoped<IJobOrderRepository, JobOrderRepository>();
-builder.Services.AddScoped<IJobOrderSubRepository, JobOrderSubRepository>();
-
-// Terms & Correspondence
-builder.Services.AddScoped<ITermsAndConditionsRepository, TermsAndConditionsRepository>();
-builder.Services.AddScoped<ICorrespondanceRepository, CorrespondanceRepository>();
-builder.Services.AddScoped<IStoreMapRepository, StoreMapRepository>();
-
-// ===============================
-// Services
-// ===============================
-
-//BarCode And QR Code
-builder.Services.AddScoped<BarcodeService>();
-
-
-//Screen & User Services
-builder.Services.AddScoped<IPrintSettingService, PrintSettingService>();
-builder.Services.AddScoped<IProdLogSettingsService, ProdLogSettingService>();
-builder.Services.AddScoped<IHRMasterService, HRMasterService>();
-builder.Services.AddScoped<IBiometricExcelSettingService, BiometricExcelSettingService>();
-builder.Services.AddScoped<ISalaryHeadPrintSettingService, SalaryHeadPrintSettingService>();
-
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IUserAuthorityService, UserAuthorityservice>();
-
-
-//Incentory Services
-builder.Services.AddScoped<ICategoryService, CategoryService>();
-builder.Services.AddScoped<IProcessService, ProcessService>();
-builder.Services.AddScoped<IFactorservice, FactorService>();
-builder.Services.AddScoped<IGroupingService, GroupingService>();
-builder.Services.AddScoped<IStoreService, StoreService>();
-builder.Services.AddScoped<IHSNService, HSNService>();
-builder.Services.AddScoped<IRawMaterialService, RawMaterialService>();
-builder.Services.AddScoped<IStoreMappingService, StoreMapService>();
-builder.Services.AddScoped<IAssemblyDefLabourService, AssemblyDefLabourService>();
-
-// Accounts Service
-builder.Services.AddScoped<IExpenseService, ExpenseService>();
-builder.Services.AddScoped<IIncomeService, IncomeService>();
-builder.Services.AddScoped<ICurrencyService, CurrencyService>();
-
-//General Services for Master Data
-builder.Services.AddScoped<ICustomerService, CustomerService>();
-builder.Services.AddScoped<IVendorService, VendorService>();
-builder.Services.AddScoped<IMachineService, MachineService>();
-
-//HumanResource Services
-builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
-builder.Services.AddScoped<IEmployeeLeavebalanceService, EmployeeLeavebalanceService>();
-builder.Services.AddScoped<IShiftAllocationService, ShiftAllocationService>();
-builder.Services.AddScoped<ICandidateService, CandidateService>();
-builder.Services.AddScoped<IOfferLetterService, OfferLetterService>();
-builder.Services.AddScoped<IAppointmentLetterService, AppointmentLetterService>();
-
-
-builder.Services.AddScoped<ILeaveApplicationService, LeaveApplicationService>();
-builder.Services.AddScoped<IBankService, BankService>();
-builder.Services.AddScoped<ICompanyService, CompanyService>();
-
-
-builder.Services.AddScoped<ITermsAndConditionsService, TermsAndConditionsService>();
-
-
-builder.Services.AddScoped<IItemService, ItemService>();
-builder.Services.AddScoped<ICostCenterService, CostCenterService>();
-
-
-// Common services for Master Data
-
-builder.Services.AddScoped<IDashboardService, DashboardService>();
-
-builder.Services.AddScoped<ForeignKeyUsageChecker>();
-
-
-builder.Services.AddScoped<ICommonService, CommonService>();
-builder.Services.AddScoped<ICalculationService, CalculationService>();
-
-builder.Services.AddScoped<IEmployeeService, EmployeeService>();
-
-builder.Services.AddScoped<IAssemblyDefService, AssemblyDefService>();
-
-builder.Services.AddScoped<ILeadService, LeadService>();
-builder.Services.AddScoped<IEnquirySalesService, EnquirySalesService>();
-builder.Services.AddScoped<IEnqiryFeasibilityService, EnqiryFeasibilityService>();
-
-builder.Services.AddScoped<IMfgQuotationService, MfgQuotationService>();
-builder.Services.AddScoped<IMfgPoService, MfgPoService>();
-builder.Services.AddScoped<IContractReviewService, ContractReviewService>();
-
-builder.Services.AddScoped<IPerformaInvService, PerformaInvService>();
-builder.Services.AddScoped<IMfgDcService, MfgDcService>();
-
-builder.Services.AddScoped<IMfgInvService, MfgInvService>();
-builder.Services.AddScoped<IExpInvService, ExpInvService>();
-
-
-builder.Services.AddScoped<ILabourDcOutgoingService, LabourDcOutgoingService>();
-builder.Services.AddScoped<ILabourGRNService, LabourGRNService>();
-builder .Services.AddScoped<ILabourSCNService, LabourSCNService>();
-builder .Services.AddScoped<ILabourInvoiceService, LabourInvoiceService>();
-
-builder .Services.AddScoped<ICreditNoteService, CreditNoteService>();
-
-//OutSourcing Service
-builder.Services.AddScoped<IMaterialReqService, MaterialReqService>();
-
-builder.Services.AddScoped<IEnquiryPurchaseService, EnquiryPurchaseService>();
-builder.Services.AddScoped<IEnquiryPurchaseService, EnquiryPurchaseService>();
-builder.Services.AddScoped<IPurchaseQuoteService, PurchaseQuoteService>();
-builder.Services.AddScoped<IPurchPoService, PuchPoService>();
-builder.Services.AddScoped<PoSelectionService>();
-
-builder.Services.AddScoped<IPurchaseGRNService, PurchaseGRNService>();
-builder.Services.AddScoped<IPurchaseSCNService, PurchaseSCNService>();
-builder.Services.AddScoped<IPurchaseInvoiceService, PurchaseInvoiceService>();
-
-builder.Services.AddScoped<ISubConDcOutService, SubConDcOutService>();
-builder.Services.AddScoped<ISubConGRNService, SubConGRNService>();
-builder.Services.AddScoped<ISubConSCNService, SubConSCNService>();
-builder.Services.AddScoped<ISubConInvService, SubConInvService>();
-
-builder.Services.AddScoped<IDebitNoteService, DebitNoteService>();
-
-//Inventory -Stock Service
-builder.Services.AddScoped<IStockAddIssPosition, StockAddIssPosition>();
-builder.Services.AddScoped<ISCNGenService, SCNGenService>();
-builder.Services.AddScoped<IStockManagerService, StockManagerService>();
-builder.Services.AddScoped<IMINService, MINService>();
-
-builder.Services.AddScoped<IToolCribIssueService, ToolCribIssueService>();
-builder.Services.AddScoped<IToolCribReturnService, ToolCribReturnService>();
-
-//Planning Service
-builder.Services.AddScoped<IMaterialReqAnalysisService, MaterialReqAnalysisService>();
-builder.Services.AddScoped<IJobOrderService, JobOrderService>();
-builder.Services.AddScoped<IProductionIssueAssyService, ProductionIssueAssyService>();
-
-builder.Services.AddScoped<IRcReleaseService, RcReleaseService>();
-builder.Services.AddScoped<IRouteCardService, RouteCardService>();
-builder.Services.AddScoped<IProcessLogService, ProcessLogService>();
-
-builder.Services.AddScoped<IEstimateService, EstimateService>(); //Estimation
-
-builder.Services.AddScoped<IProductionReturnAssyService, ProductionReturnAssyService>();
-builder.Services.AddScoped<IProductionSCNAssyservice, ProductionSCNAssyService>();
-
-builder.Services.AddScoped<IProductionLogService, ProductionLogService>();
-
-builder.Services.AddScoped<IProductionIssueCompService, ProductionIssueCompService>();
-builder.Services.AddScoped<IProductionReturnCompService, ProductionReturnCompService>();
-builder.Services.AddScoped<IProductionSCNCompService, ProductionSCNCompService>();
-
-//Maintainance Services
-builder.Services.AddScoped<IMaintenanceScheduleService, MaintenanceScheduleService>();
-builder.Services.AddScoped<IMaintenanceProcessService, MaintenanceProcessService>();
-builder.Services.AddScoped<IBreakdownMaintenanceService, BreakdownMaintenanceService>();
-builder.Services.AddScoped<ICalibrationHistoryAndMaintenanceService, CalibrationHistoryAndMaintenanceService>();
-
-//Inspection Services
-builder.Services.AddScoped<IMasterInspectionService, MasterInspectionService>();
-builder.Services.AddScoped<IFinalInspectionService, FinalInspectionService>();
-builder.Services.AddScoped<IIncomingInspectionService, IncomingInspectionService>();
-builder.Services.AddScoped<IDefectInfoService, DefectInfoService>();
-
-builder.Services.AddScoped<IInspectionSettingsService, InspectionSettingsService>();
-builder.Services.AddScoped<IAssemblyRequirementService, AssemblyRequirementService>();
-
-builder.Services.AddScoped<IApprovalService, ApprovalService>();
-
-//Eway
-builder.Services.AddScoped<IEWayDatabaseService, EWayDatabaseService>();
-//EInvoice
-builder.Services.AddScoped<IEinvoiceDatabaseService, EinvoiceDatabaseService>();
-//SNS
-builder.Services.AddScoped<ICostingService, CostingService>();
-
-
-builder.Services.AddScoped<UserSession>();
-
-
-// Report Service
-builder.Services.AddScoped<IReportExecutor, ReportExecutor>();
-builder.Services.AddScoped<ILabourTrackRepository, LabourTrackRepository>();
-//Purchase Sales Track Report
-builder.Services.AddScoped<IPurchaseSalesTrackReportServices, PurchaseSalesTrackReportServices>();
-
-// Track Reports Service
-builder.Services.AddScoped<ILabourTrackReportService, LabourTrackReportService>();
-builder.Services.AddScoped<ISalesTrackReportService, SalesTrackReportService>();
-builder.Services.AddScoped<IViewTallyDCInOutTrackService, ViewTallyDCInOutTrackService>();
-builder.Services.AddScoped<IPOTrackService, POTrackService>();
-builder.Services.AddScoped<IJobOrdeAnalysisService, JobOrderAnalysisService>();
-builder.Services.AddScoped<IPoPendingServices, PoPendingServices>();
-builder.Services.AddScoped<ILabourPendingService, LabourPendingService>();
-builder.Services.AddScoped<IProductionPendingService, ProductionPendingService>();
-
-builder.Services.AddScoped<IItemWiseReportService, ItemWiseReportService>();
-builder.Services.AddScoped<IDaybookService, DaybookService>();
-builder.Services.AddScoped<IToolCribServices, ToolCribServices>();
-builder.Services.AddScoped<ITaxDetailsService, TaxDetailsService>();
-
-//Stock Analysis
-builder.Services.AddScoped<IStockLedgerReportService, StockLedgerReportService>();
-builder.Services.AddScoped<IStockAnalysisService, StockAnalysisService>();
-builder.Services.AddScoped<IRouteCardAnalysisService, RouteCardAnalysisService>();
-builder.Services.AddScoped<IItemModificationReportServices, ItemModificationReportServices>();
-builder.Services.AddScoped<IRejectionService, RejectionService>();
-builder.Services.AddScoped<IRatingService, GetRatingsService>();
-builder.Services.AddScoped<IPrPoRatingService, PrPoRatingService>();
-
-
-//Human Resource
-builder.Services.AddScoped<IAttendanceService, AttendanceService>();
-builder.Services.AddScoped<ISalaryService, SalaryService>();
-builder.Services.AddScoped<IStaffLoanService, StaffLoanService>();
-
-//Accounts Service
-builder.Services.AddScoped<IGSTITCService, GSTITCService>();
-builder.Services.AddScoped<IPaymentsService, PaymentsService>();
-builder.Services.AddScoped<IAdvaceAdjustmentService, AdvaceAdjustmentService>();
-builder.Services.AddScoped<IFundTransRepository, FundTransRepository>();
-builder.Services.AddScoped<IReceiptsService, ReceiptsService>();
-builder.Services.AddScoped<ITDSSummaryService, TDSSummaryService>();
-builder.Services.AddScoped<IHSNSummaryService, HSNSummaryService>();
-builder.Services.AddScoped<ICreditDebitSummaryService, CreditDebitSummaryService>();
-
-//CashFlow Services
-builder.Services.AddScoped<IServiceBillsService, ServiceBillsService>();
-
-builder.Services.AddScoped<IPendingBillsService, PendingBillsService>();
-builder.Services.AddScoped<IPaidBillsService, PaidBillsService>();
-builder.Services.AddScoped<IPendingStatementsService, PendingStatementsService>();
-builder.Services.AddScoped<IProfit_LossAccountService, Profit_LossAccountsService>();
-builder.Services.AddScoped<ISummaryAndGraphsService, SummaryAndGraphsService>();
-
-//Confirmation of accounts
-builder.Services.AddScoped<IAccountReportService, AccountReportService>();
-builder.Services.AddScoped<IRejectionMasterService, RejectionMasterService>();
 builder.Services.AddSingleton<SessionTimeoutService>();
-builder.Services.AddScoped<IStockIssueRequestService, StockIssueRequestService>();
-
-
-
-//11072026-------------------------------------------------------------------
-builder.Services.AddScoped<IAppVersionService, AppVersionService>();
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
     ["AppEnvironment"] = "Web"
