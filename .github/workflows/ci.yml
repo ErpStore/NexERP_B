@@ -4,7 +4,7 @@
 # docs/kb/execution/ci-pipeline.md (KB-087). Read that before changing anything here.
 #
 # Stages, in this order and deliberately as separate steps:
-#     hygiene guard -> restore -> build -> analyzer warning gate
+#     hygiene guard -> restore -> build -> analyzer warning gate -> test
 #
 # It compiles. It ships nothing: there is no publish, deploy or release step
 # (deployment topology is open question Q-16), and it needs no secret -- if the
@@ -12,10 +12,12 @@
 # something to paste into Actions secrets. This repository is public.
 #
 # WHAT IS DELIBERATELY NOT HERE
-#   * `dotnet test` -- there is NO test project in the solution (INV-023,
-#     Confirmed). M0-12-01 creates the first one and adds the step at the marked
-#     placeholder below. A test step added before then is either red or vacuously
-#     green, and both teach the team to ignore CI.
+#   * Any test project other than tests/V.SMART.Shared.Tests. M0-12-01 created
+#     the repository's first one and wired the step below; it holds smoke and
+#     harness tests only. Real business-behaviour assertions arrive with M0-12-02
+#     (CalculationService) and M0-13 (StockManagerService).
+#   * A coverage gate -- there is nothing meaningful to measure yet, and a
+#     threshold set against near-zero coverage teaches the team to ignore it.
 #   * `-warnaserror` / `TreatWarningsAsErrors` -- the baseline is ~6,693 warnings
 #     (ci/warning-baseline.json). Warnings-as-errors would make CI permanently red.
 #     The gate is a ratchet against a committed baseline instead.
@@ -161,20 +163,42 @@ jobs:
           -BaselinePath ci/warning-baseline.json
           -Target V.SMART.Web
 
-      # ============================================================= M0-12-01 ===
-      # PLACEHOLDER - the `dotnet test` step goes HERE, and nowhere else.
+      # =============================================================== tests ===
+      # Added by M0-12-01, at the placeholder that task reserved. Runs AFTER the
+      # warning gates on purpose: a build that regressed its analyzer baseline is
+      # a failure regardless of what the tests say, and failing fast there keeps
+      # the red-CI reason unambiguous.
       #
-      # Owner: task M0-12-01 ("Create the test project and wire it into CI").
-      # Until that task lands there is no test project in the solution
-      # (INV-023, Confirmed) and `dotnet test` finds nothing -- so it must NOT be
-      # added here early. When M0-12-01 lands, insert below:
+      # `dotnet test` restores and builds the test project ITSELF -- no
+      # --no-restore, no --no-build. The Restore step above deliberately restores
+      # only V.SMART.Api and V.SMART.Web, so nothing has restored this project;
+      # --no-restore or --no-build here fails with a missing assets file. The
+      # incremental cost is small: V.SMART.Shared is already built by the two
+      # builds above, so this compiles the test assembly only.
       #
-      #   - name: Test
-      #     run: dotnet test <test project or solution> --no-build ...
+      # No `--no-incremental` here: unlike the build steps, nothing counts
+      # warnings from this log, so an incremental compile is fine.
       #
-      # and update docs/kb/execution/prompt-template.md (KB-083) section
-      # "Test commands - do not use yet" in the same commit.
-      # =========================================================================
+      # A failing test fails the job through dotnet test's own non-zero exit code
+      # (checked explicitly, because a PowerShell pipeline swallows it).
+      - name: Test - V.SMART.Shared.Tests
+        run: |
+          dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj `
+            -v minimal -nologo `
+            --logger "trx;LogFileName=V.SMART.Shared.Tests.trx" `
+            --results-directory artifacts/test-results
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Same artefact convention as the build logs below: one upload, name keyed
+      # by run id, 14-day retention. No new convention is introduced.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}
+          path: artifacts/test-results/*.trx
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Upload build logs and binary logs
         if: always()

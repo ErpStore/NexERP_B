@@ -21,7 +21,7 @@ source_files:
   - db/RUNBOOK-rebuild-tenant-database.md
 status: complete
 confidence: mixed
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
@@ -428,7 +428,24 @@ other work** — it is cheap and it is currently a single-point-of-failure for t
 > correct on inspection.
 
 ### R-05 — No automated tests, no CI
-**Confirmed.** No test project; `.github/` contains no workflows.
+**Confirmed, and still open.** A test project and a CI pipeline now exist; *coverage* does not.
+
+> **Status 2026-08-19 (M0-12-01) — the harness exists. The safety net does not.**
+>
+> - `tests/V.SMART.Shared.Tests/` is the repository's first test project, registered in the
+>   `.sln`, running **11 tests, 11 passing** via
+>   `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj`, and wired into
+>   `.github/workflows/ci.yml` after the analyzer gates.
+> - **Those 11 tests assert almost nothing about business behaviour.** They are smoke and
+>   harness tests: discovery, assembly loadability, one `CalculationService.UpdateTotalsAsync`
+>   call asserting only that `GrandTotal` moved off its default, two test-double construction
+>   tests, and six EF-fixture tests pinning the INV-031 findings. Read "11 passing" as "the
+>   loop works", never as "the logic is covered".
+> - **The CI step has still never run on a hosted runner** — an execution session cannot push
+>   — so the M0-07 caveats below are unchanged: no green run, no required status check.
+>
+> This risk closes when M0-12-02/M0-13 land real characterisation tests **and** CI is green on
+> `master` as a required check. M0-12-01 moved the blocker, it did not close the risk.
 
 > **Status 2026-08-17 (M0-07) — the CI half is addressed, the tests half is untouched, and
 > neither is fully closed.**
@@ -462,11 +479,17 @@ for `ICalculationService` and `IStockManagerService` **before** touching them (M
 > - `StockManagerService` and `MfgPoService` apply **EF Core async operators** to
 >   `IRepository<T>.GetQueryable()` results, so a collection-backed repository stub throws at
 >   runtime. They need a real EF provider.
-> - `ApplicationDbContext.OnModelCreating` calls the **relational-only `ToView(null)` 65
+> - ~~`ApplicationDbContext.OnModelCreating` calls the **relational-only `ToView(null)` 65
 >   times**, so the EF Core **InMemory** provider probably cannot build the model at all;
->   **SQLite in-memory** probably can. *(Inferred — neither has been executed.)* Task
->   **M0-12-01** must spike both and record the exact exception text before M0-13, M0-09 and
->   M0-06 can proceed; each carries an explicit Blocked condition if no fixture materialises.
+>   **SQLite in-memory** probably can.~~ **Both halves of that inference were falsified by
+>   M0-12-01 on 2026-08-19 (Confirmed, executed).** InMemory builds the model and applies the
+>   `HasData` seeds; **SQLite fails** with
+>   `Microsoft.Data.Sqlite.SqliteException: SQLite Error 1: 'near "MAX": syntax error'`,
+>   caused by nine `[Column(TypeName = "nvarchar(max)")]` attributes on `Attendance` and five
+>   Inspection entities — see INV-031 in [KB-003](../investigation-registry.md). The fixture
+>   ships on InMemory; **M0-13, M0-09 and M0-06 are not blocked.** New debt this creates:
+>   InMemory cannot catch a LINQ-translation regression and does not enforce foreign keys, so
+>   nothing in this repository yet tests SQL semantics.
 
 ---
 

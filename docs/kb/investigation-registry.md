@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 ---
 
 # Investigation Registry
@@ -31,7 +31,8 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-010 | External integrations (e-Invoice, e-Way, IFSC, SMTP, biometric) | Complete | `E_Invoice/**`, `EinvoiceDatabaseService.cs`, `EWayDatabaseService.cs`, `BankService.cs`, URL scan | [KB-011](architecture/backend-architecture.md#integrations-with-external-systems) | 2026-08-12 |
 | INV-021 | Angular pilot: scope and value | Complete | `frontend/vsmart-erp/src/**`, `package.json` | [KB-015](architecture/frontend-architecture-existing.md#the-angular-19-pilot-frontendvsmart-erp) | 2026-08-12 |
 | INV-022 | Background jobs / scheduled tasks | Complete | grep for `IHostedService`, `BackgroundService`, `PeriodicTimer`, Hangfire, Quartz — **none exist** | [KB-010](architecture/system-overview.md#background-processing) | 2026-08-12 |
-| INV-023 | Testing and CI | Complete | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
+| INV-023 | Testing and CI | Complete *(historical — **superseded 2026-08-19**: the first test project landed with M0-12-01. Read this row as a statement about 2026-08-12, not about now)* | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
+| INV-031 | Test-harness feasibility: hosting `ApplicationDbContext` in a test process | Complete | `V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs`, `.../Data/HumanResource/Attendance/Attendance.cs`, `.../Data/Inspection/**`, `.../Data/Master/Inventory_module/Item.cs`, `.../Data/Inventory(Stock)/StockAdd.cs`, `.../Services/MultiCompanyService/{I,}TenantDbContextFactory.cs`, `.../Services/CurrentUserService.cs`, plus **executed** spikes under EF Core 9.0.5 InMemory and Sqlite | **InMemory works, Sqlite does not** — full findings below | 2026-08-19 |
 | INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility. **Solution-build gap closed 2026-08-17 by M0-15** — see below.)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`, `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj`, `dotnet build NexGen-ERP---2025-master.sln`, `dotnet workload list` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands), [KB-086](execution/M0-15-build-baseline.md) | 2026-08-18 |
 
 **M0-07 amendment to INV-023 (2026-08-17) — CI now exists in the repository, but has never
@@ -49,6 +50,98 @@ session cannot push, so the workflow has never executed on a GitHub-hosted runne
 baseline is marked `provisional` until the runner regenerates it; and no required status check
 is configured on `master`. Confidence: **Confirmed** for what the files contain and for the
 local gate behaviour; **Unknown** for runner behaviour.
+
+### INV-031 — Test-harness feasibility: hosting `ApplicationDbContext` in a test process
+
+Produced by **M0-12-01**, 2026-08-19. Every finding below was **executed**, not reasoned
+about; each spike is retained as a permanent test in
+`tests/V.SMART.Shared.Tests/DbFixtureTests.cs`, so if one of these facts changes, CI says so.
+
+> **The pre-spike inference was wrong, and in the opposite direction.** The task specification
+> inferred (high confidence) that `Microsoft.EntityFrameworkCore.InMemory` could **not** build
+> this model because `OnModelCreating` calls the relational-only `ToView(null)` 65 times, and
+> that `Microsoft.EntityFrameworkCore.Sqlite` **could**, being relational. Both halves are
+> false. Do not re-derive this from the `ToView` count — it does not predict the outcome under
+> EF Core 9.0.5.
+
+**Finding 1 — the InMemory provider hosts the model. Sqlite does not.**
+*Evidence:* executed 2026-08-19, EF Core 9.0.5, SDK 10.0.400, `net9.0`.
+`new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(...).Options).Database.EnsureCreated()`
+returns `true`. The same call over
+`new SqliteConnection("DataSource=:memory:")` throws, verbatim:
+
+```
+Microsoft.Data.Sqlite.SqliteException: SQLite Error 1: 'near "MAX": syntax error'.
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+```
+
+*Business rule:* n/a. *Confidence:* **Confirmed**. *Last verified:* 2026-08-19.
+
+**Finding 2 — the Sqlite failure has a specific, locatable cause, and it is production code
+this task could not touch.** `Database.GenerateCreateScript()` under Sqlite emits an 8,523-line
+script containing five columns typed `NVARCHAR(MAX)` / `nvarchar(max)` — a SQL-Server-only
+type name that SQLite's parser rejects. They come from nine `[Column(TypeName = ...)]`
+attributes, **not** from `ApplicationDbContext.OnModelCreating` (which is why grepping the
+context for `HasColumnType` found nothing):
+`V.SMART/V.SMART.Shared/Data/HumanResource/Attendance/Attendance.cs:27,30,42,45`;
+`.../Data/Inspection/FinalInspection/FinalInspection.cs:87`;
+`.../Data/Inspection/FinalInspection/FinalInspectionRef.cs:21`;
+`.../Data/Inspection/IncomingInspection/IncomingInspectionRef.cs:23`;
+`.../Data/Inspection/MasterInspection/InspectionRef.cs:24`;
+`.../Data/Inspection/MasterInspection/MasterInspection.cs:47`.
+*Consequence:* Sqlite becomes viable only if those attributes are removed or made
+provider-conditional — a production-code change, out of scope here, and recorded as technical
+debt rather than made. *Confidence:* **Confirmed**. *Last verified:* 2026-08-19.
+
+**Finding 3 — `EnsureCreated()` DOES apply the `HasData` seeds under the InMemory provider.**
+This is the answer M0-06 and M0-13 were waiting on. Observed counts immediately after
+`EnsureCreated()`, with no manual seeding: `Screens` **152**, `Users` **1** (`UserName` =
+`"Administrator"`), `Stores` **9**, `UOM` **49**, `Category` **16**. Note there are **ten**
+`HasData` calls in `OnModelCreating`, not the two the task file named — `User` (:1136),
+`Screens` (:1151), `InspectionSettings` (:1331), `ScreenManagement` (:1340), `Category`
+(:1694), `Store` (:1715), `UOM` (:1729), `State` (:1783), `Currency` (:1828) and `StoreMap`
+(:1835). *Confidence:* **Confirmed**. *Last verified:* 2026-08-19.
+
+**Finding 4 — the foreign-key requirement for seeding `StockAdd`.** `StockAdd` declares three
+foreign keys — `ItemId`→`Item`, `StoreId`→`Store`, `ScreenCode`→`Screens`
+(`V.SMART/V.SMART.Shared/Data/Inventory(Stock)/StockAdd.cs:22-54`). Because of Finding 3,
+`Store` and `Screens` **already exist** after `EnsureCreated()`, so only an `Item` must be
+created. `Item` in turn needs a `MeasureUnit` (FK to `UOM`, `Item.cs:50-54`) and a
+`CategoryCode` (`Item.cs:41-45`) — both satisfiable from seeded rows — **and** non-nullable
+`HSNCode` / `SACCode` (`Item.cs:141-147`), which the InMemory provider *does* enforce:
+omitting them throws
+`Microsoft.EntityFrameworkCore.DbUpdateException : Required properties '{'HSNCode', 'SACCode'}' are missing for the instance of entity type 'Item'.`
+`TestDbContextFactory.SeedMasterData(context)` does exactly this and returns the new `ItemId`.
+*Confidence:* **Confirmed** (each fact observed as a test failure and then as a pass).
+*Last verified:* 2026-08-19.
+
+**Finding 5 — InMemory enforces required properties but NOT foreign keys.** A `StockAdd` with
+a dangling `ItemId` saves without error. Seed the parents anyway, for parity with SQL Server
+and so the test reads truthfully; do **not** rely on this harness to catch an FK violation.
+*Confidence:* **Confirmed** (nullability error observed in Finding 4; no FK error ever raised).
+*Last verified:* 2026-08-19.
+
+**Finding 6 — the harness satisfies the `IAsyncQueryProvider` constraint.** `IRepository<T>.GetQueryable()`
+results have EF async operators applied to them by callers — e.g.
+`StockManagerService.cs:114-116` (`FirstOrDefaultAsync`) and `:205-207` (`ToListAsync`) — which
+a `list.AsQueryable()` double cannot serve. The InMemory provider is a real EF Core provider,
+so `await context.Screens.Where(...).ToListAsync()` works. **M0-13 is therefore NOT blocked.**
+*Confidence:* **Confirmed** (executed). *Last verified:* 2026-08-19.
+
+**Finding 7 — what this harness cannot do, stated so nobody assumes otherwise.** The InMemory
+provider does not translate LINQ to SQL, so it **cannot** catch a "could not be translated"
+regression, and it does not enforce relational constraints such as the
+`OnDelete(DeleteBehavior.Restrict)` configured for `StockIssueTrack`→`StockAdd`
+(`ApplicationDbContext.cs:509-512`). Anything depending on SQL semantics needs a real SQL
+Server, which no test in this repository has. *Confidence:* **Confirmed** by the provider's
+documented contract plus Finding 5. *Last verified:* 2026-08-19.
+
+**Finding 8 — a plain `net9.0` test project references the multi-targeted, Razor-SDK
+`V.SMART.Shared` cleanly.** No `SetTargetFramework` and no switch to `net9.0-windows` was
+needed; the reference resolves to the `net9.0` leg automatically and the build succeeds
+(2 warnings, both the pre-existing `NU1608`, 0 errors). Negative result worth recording — this
+was an anticipated obstacle that did not materialise. *Confidence:* **Confirmed.**
+*Last verified:* 2026-08-19.
 
 **M0-07 amendment to INV-029 (2026-08-17) — runner-vs-local warning count: NOT YET COMPARED.**
 This is an explicit negative result, recorded so no future session assumes it was done. The
@@ -231,7 +324,7 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 | ID | Reserved for | Task | Status |
 |---|---|---|---|
 | INV-030 | Stored-procedure drift across tenant databases (Q-14) | M0-02 | **Allocated and in use — `Partial`, see the Partial table above; Q-14 deferred 2026-08-18 (owner Vivek), row stays `Partial`** |
-| INV-031 | Test-harness feasibility — can `ApplicationDbContext` be hosted in a test process, and under which EF provider? (`ToView(null)` × 65 makes InMemory doubtful) | M0-12-01 | Reserved |
+| INV-031 | Test-harness feasibility — can `ApplicationDbContext` be hosted in a test process, and under which EF provider? (`ToView(null)` × 65 makes InMemory doubtful) | M0-12-01 | **Allocated and used — `Complete`, see the Completed table above (M0-12-01, 2026-08-19). The parenthesised doubt was wrong: InMemory works, Sqlite fails.** |
 | INV-032 | Decimal representation across the HTTP wire — format, precision source, rounding mode | M2-C10 | Reserved |
 | INV-033 | Screen-name → route mapping for permission-filtered navigation | M2-C03 | Reserved |
 | INV-034 | Repository visibility correction (moved to Completed table above) | M0-00 | Completed |
