@@ -940,9 +940,20 @@ middleware; no `ProblemDetails`.
 ### R-26 — Duplicated DI composition roots
 **Confirmed.** `V.SMART.Web/Program.cs` (34.8 KB, 242 registrations) and
 `V.SMART/MauiProgram.cs` (38.6 KB) register the same graph independently.
-**Impact.** They will drift; a service added to one host is missing in the other.
+**Impact.** They will drift; a service added to one host is missing in the other. **Already
+manifested (2026-08-19, INV-039):** 8 services registered in `MauiProgram.cs` were missing
+from `V.SMART.Web/Program.cs` — `IContractReviewService`, `IRouteCardService`,
+`IRouteCardRepository`, `IRouteCardSubRepository`, `IProductionReturnAssyRepository`,
+`IProductionReturnAssySubRepository`, `IProductionSCNAssyRepository`,
+`IProductionSCNAssySubRepository` — which threw a DI resolution error in the Blazor host for
+`/contractReviewMasterList`, `/routeCardList` and sibling routes.
 **Action.** Extract a shared `AddVSmartDomain(this IServiceCollection)` extension in
-`V.SMART.Shared` and call it from all three hosts.
+`V.SMART.Shared` and call it from all three hosts. **Status (2026-08-19): in progress, not
+closed.** `M2-B07` attempt 1 produced this extension and wired all three hosts to it —
+uncommitted work preserved on `migration/M2-B07-add-vsmart-domain` (`a071716`) — but it is
+**unvalidated** (no test run, no `ValidateOnBuild` check) and the task is `Blocked`, not
+`Completed`. Do not treat this risk as closed until `M2-B07` closes. Full record:
+`docs/kb/execution/tasks/M2-B07.md` § Execution Record (2026-08-19).
 
 ### R-27 — Hardcoded developer-machine values in the MAUI project
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in

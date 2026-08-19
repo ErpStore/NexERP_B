@@ -21,30 +21,35 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No active task — `M2-C01` closed, next task not yet selected
+## Active task — `M2-B07`, `Blocked` after attempt 1, resume rather than restart
 
-**`M2-C01` is `Completed` and merged (`12f172f`, 2026-08-19).** `frontend/nexgen-web/` is on
-`master`: Vite 6 + React 19 + TypeScript `strict`, Mantine 7, TanStack Query, Vitest + RTL +
-MSW, a Playwright scaffold, and the KB-050 feature-sliced skeleton. The canonical frontend
-commands (`npm ci`, `typecheck`, `lint`, `format:check`, `test`, `coverage`, `build`, `e2e`)
-are established and recorded in
-[KB-083 § Verified repository commands](prompt-template.md#verified-repository-commands).
+**Task file:** [`tasks/M2-B07.md`](tasks/M2-B07.md) — Shared `AddVSmartDomain()` DI extension.
+**Branch:** `migration/M2-B07-add-vsmart-domain`, tip **`a071716`**. **Do not start from a
+clean tree or a fresh branch** — real, substantial progress already exists there.
 
-**Read the close as a waiver, not a pass.** 14 of 15 acceptance criteria were met. The 15th —
-criterion 10's second half, *"the `frontend` job … is green on the branch"* — was **never
-satisfied**; it needs a push, which an execution session may not make. The owner waived it on
-the `M0-07` (`d79e1a4`) and `M0-12-02` (`a83f1e2`) precedent. Full record:
-[`task-tracker.md`](task-tracker.md) footnote ¹⁹.
+### Run State
+
+| Field | Value |
+|---|---|
+| Status | `Blocked` — attempt 1 of 4 stopped, retry budget not exhausted |
+| What happened | The implementer agent returned **no result** (no diff, no text, no tool output). The validator returned `{"verdict": "none", "note": "validation did not complete"}`. A later close-out session found the implementer's *process* had nonetheless produced real work, left uncommitted — it preserved that work as-is in commit `a071716` (a 655-line `V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` plus edits to all three hosts' composition roots), **not** reviewed or reconciled against the task's acceptance criteria |
+| Spot-check evidence (not this task's real validation) | `V.SMART.Api` and `V.SMART.Web` build 0 errors at their exact recorded warning baselines (6,694 / 6,697). The MAUI head's `net9.0` and `net9.0-windows10.0.19041.0` targets build clean; its `net9.0-android` target's one build error is attributable to the close-out session's own 180s timeout (`MSB6006`, `java.exe` exit 143 = SIGTERM), not a code defect |
+| Not yet done | `dotnet test`, `ValidateOnBuild = true`, and every acceptance criterion in `tasks/M2-B07.md` — none of these have been run against this diff |
+| Next step | Re-dispatch the implementer on this branch at this tip. It should **review and validate the existing diff**, not regenerate it — check it against `tasks/M2-B07.md`'s acceptance criteria and [INV-039](../investigation-registry.md)'s findings, then run the tests and the `ValidateOnBuild` check |
+| Escalation condition | This is blocked-on-a-task, not blocked-on-a-human — do not wait for an owner decision to retry. If a **second consecutive** no-result attempt occurs, that repetition is the signal worth escalating to **Vivek** (repository owner), per the `M0-12-01` precedent (`task-tracker.md` footnote ¹²) |
+| Full record | `tasks/M2-B07.md` § Execution Record (2026-08-19); `failure-log.md` § M2-B07 · attempt 1 · 2026-08-19; `runner-state.md`; `task-tracker.md` footnote ²⁰ |
 
 ---
 
-## Ready and unclaimed — six tasks
+## Ready and unclaimed, once `M2-B07` closes — five tasks
 
 Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+These are **not** the task to pick up next — `M2-B07` above is, since it already has an
+open attempt and unvalidated work on its branch. Listed here for whoever plans the *following*
+task.
 
 | Task | What | Est. | Why you might take it first |
 |---|---|---|---|
-| **`M2-B07`** | Shared `AddVSmartDomain()` DI extension | 3 d | **Unblocks the most** — `B01`, `B04`, `B05`, `B08`, `B09` all wait on it. The DI seam everything in M2-B hangs off |
 | **`M2-A06`** | Exception middleware → `ProblemDetails` | 3–5 d | Unblocks `B02`, `B06`, `B11`. Establishes the error contract every controller then relies on |
 | **`M2-C04-01`** | Design tokens, theme, light/dark | 3 d | The first task where "make the UI genuinely better" becomes concrete decisions. Blocks `C04-02`, `C04-03`, `C03` |
 | **`M2-C10`** | Decimal handling — no float money arithmetic | 2 d | P0 correctness. Blocks `C07`. Cheap, self-contained, and wrong-by-default if deferred |
@@ -98,8 +103,12 @@ Still-open M0 work carried in: `M0-06` (`Blocked` on Q-25/Q-26), `M0-10` (`Ready
 - **Check `git branch --no-merged master` before allocating any id.** `M2-A01-01` and `M0-06`
   collided on **six** ids, because `grep`-before-claim only sees merged work and cannot see a
   sibling branch. M2 runs more branches in parallel than M0 did, so this will recur. `M0-06`
-  still owes `KB-104 → KB-106` and `INV-035 → INV-038`, and its `KB-104` is cited in an
-  `ApplicationDbContext.cs` source comment that must change with it.
+  still owes `KB-104 → KB-106` and, per its own branch, `INV-035` and `INV-036` — but `INV-036`
+  is **already taken on `master`** (M0-13's testing recipe), so that branch's ids will need
+  renumbering at merge regardless. `M2-B07` claimed `INV-039` on 2026-08-19 (`investigation-registry.md`),
+  deliberately skipping `INV-035`/`INV-038` to leave `M0-06`'s reserved range alone — the next
+  free id after that is `INV-040`. `M0-06`'s `KB-104` is cited in an `ApplicationDbContext.cs`
+  source comment that must change with it.
 - **`master` requires pull requests.** The 2026-08-19 push reported
   `Bypassed rule violations … Changes must be made through a pull request`, and succeeded only
   because the owner holds bypass rights. Prefer a PR. No required status check gates merges yet

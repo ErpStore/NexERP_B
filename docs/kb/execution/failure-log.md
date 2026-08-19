@@ -1369,3 +1369,62 @@ the blocking `Format check` step.
 
 **Next attempt routed to** — no model. A stronger model cannot obtain push authority, a hosted
 runner or a Node 22 toolchain; this needs the owner's decision, not a retry.
+
+---
+
+### M2-B07 · attempt 1 · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | STOPPED |
+| Model in use | opus (implementation, dispatched per runner-state.md classification: complexity HIGH, risk HIGH) |
+| Validator verdict | none |
+| Failure category | environment |
+
+**What failed** — the implementer agent returned **no result**: no diff, no text, no tool
+output. The validator correspondingly returned `{"verdict": "none", "note": "validation did
+not complete"}`. This is the same symptom class as `M0-12-01` attempts 1–2 (see above): a
+dispatched agent producing zero final output.
+
+**What differed from `M0-12-01`'s empty-return pattern** — this was **not** an empty return in
+the working-tree sense. `git status` at close-out showed real, substantial uncommitted changes
+on branch `migration/M2-B07-add-vsmart-domain`: a new 655-line
+`V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` and edits to all three
+hosts' `Program.cs`/`MauiProgram.cs`. So the implementer's *process* did real work before
+whatever caused it to stop short of returning a report — the failure is in the report/handoff
+step, not (apparently) in the code-generation step. This distinction could not be confirmed
+further: no agent-completion log was visible to the close-out session, exactly as `M0-12-01`'s
+attempt-2 entry above found for its own case.
+
+**Close-out session's handling** — per KB-088's "the repository is the persistent memory"
+principle and the `M0-12-01`/`a5e253b` precedent (preserve uncommitted state unmodified rather
+than lose it to a future checkout), the working tree was committed as-is on the same branch,
+commit `a071716`, with an explicit WIP/unvalidated disclosure in the commit message. It was
+**not** reviewed against the acceptance criteria and **not** further edited. Three spot-check
+builds were run for honesty of record only (not as this task's validation): `V.SMART.Api` and
+`V.SMART.Web` both build at their exact recorded warning baselines (6,694 / 6,697), 0 errors.
+`V.SMART/V.SMART.csproj`'s `net9.0` and `net9.0-windows10.0.19041.0` targets build clean; its
+`net9.0-android` target hit one error, `MSB6006: "java.exe" exited with code 143`, under this
+session's own 180-second build timeout — code 143 is SIGTERM, consistent with the timeout
+killing the D8 dexing step, not a code defect. None of `dotnet test`,
+`ValidateOnBuild = true`, or any acceptance criterion in `tasks/M2-B07.md` was run.
+
+**Root cause** — not independently confirmed, same as `M0-12-01`'s standing caveat. Whether
+this is the same transient upstream fault class that hit `M0-12-01` (`529 Overloaded`) or
+something else that additionally interrupted the report step after code generation completed
+is unknown from this session's vantage point.
+
+**Evidence** — `git log --oneline -5` at `d982d23` before this close-out session's commits;
+`git status --porcelain` showed the four modified/untracked source files plus
+`docs/kb/execution/runner-state.md` before this close-out; `git branch -a` confirms
+`migration/M2-B07-add-vsmart-domain` exists and was the checked-out branch; the three build
+commands and their exact output are quoted in `tasks/M2-B07.md` § Execution Record
+(2026-08-19).
+
+**Next attempt routed to** — re-dispatch on `migration/M2-B07-add-vsmart-domain` (tip
+`a071716`), not a fresh branch. The next implementer should review the existing
+`ServiceCollectionExtensions.cs` against `tasks/M2-B07.md`'s acceptance criteria and INV-039's
+findings, run `dotnet test` and a `ValidateOnBuild` check, and correct or confirm rather than
+regenerate. If this repeats a third time with the same no-result symptom, that repetition — not
+this single instance — is what would be worth escalating to a human, per the precedent set by
+`M0-12-01`'s own attempt-1 note.

@@ -121,7 +121,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Ready** | P0 | G0 | 3 d | G2 |
+| M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | Blocked²⁰ | P0 | G0 | 3 d | G2 |
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | Blocked | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | Blocked | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | Blocked | P0 | M2-A06 | 1 wk | G2 |
@@ -1053,3 +1053,23 @@ owner) — the only person who can authorise publishing the branch (option A) or
 (option B).** Full record: [`tasks/M2-C01.md` § Execution Record
 (2026-08-19)](tasks/M2-C01.md#execution-record-2026-08-19),
 [`failure-log.md`](failure-log.md#m2-c01--attempt-2--2026-08-19).
+
+²⁰ **M2-B07: `Blocked` — attempt 1 stopped, implementer returned no result, 2026-08-19.
+Blocked on a human decision, not on engineering.** The implementer agent produced no final
+report (no diff, no text), so the validator returned `{"verdict": "none", "note": "validation
+did not complete"}`. But it did leave substantial, plausible-looking work uncommitted in the
+working tree on branch `migration/M2-B07-add-vsmart-domain` — a 655-line
+`AddVSmartDomain()` extension in `V.SMART.Shared/DependencyInjection/` and matching edits to
+all three hosts' composition roots. The close-out session preserved that WIP unmodified in
+commit `a071716` (**do not re-derive it from scratch**) and ran spot-check builds only:
+`V.SMART.Api` and `V.SMART.Web` build at their exact recorded warning baselines (6,694 /
+6,697), 0 errors; the MAUI head's `net9.0` and `net9.0-windows10.0.19041.0` targets build
+clean, and its `net9.0-android` target's single error (`MSB6006`, `java.exe` exit 143) is
+consistent with the close-out session's own 180-second build timeout, not a code defect. **Not
+run: `dotnet test`, `ValidateOnBuild`, or any acceptance criterion from `tasks/M2-B07.md`** —
+none of those are claimed to pass. **Owner: whoever next dispatches this task** (runner or
+human) — re-open on `migration/M2-B07-add-vsmart-domain` at tip `a071716` and validate the
+existing diff rather than regenerating it. Attempts used: 1 of 4. Full record:
+[`tasks/M2-B07.md` § Execution Record
+(2026-08-19)](tasks/M2-B07.md#execution-record-2026-08-19),
+[`failure-log.md`](failure-log.md#m2-b07--attempt-1--2026-08-19).
