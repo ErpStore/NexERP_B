@@ -31,7 +31,7 @@ clean tree or a fresh branch** — real, substantial progress already exists the
 
 | Field | Value |
 |---|---|
-| Status | `Blocked` — attempt 1 of 4 stopped, retry budget not exhausted |
+| Status | `Blocked` — attempt 1 of 3 stopped, retry budget not exhausted |
 | What happened | The implementer agent returned **no result** (no diff, no text, no tool output). The validator returned `{"verdict": "none", "note": "validation did not complete"}`. A later close-out session found the implementer's *process* had nonetheless produced real work, left uncommitted — it preserved that work as-is in commit `a071716` (a 655-line `V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` plus edits to all three hosts' composition roots), **not** reviewed or reconciled against the task's acceptance criteria |
 | Spot-check evidence (not this task's real validation) | `V.SMART.Api` and `V.SMART.Web` build 0 errors at their exact recorded warning baselines (6,694 / 6,697). The MAUI head's `net9.0` and `net9.0-windows10.0.19041.0` targets build clean; its `net9.0-android` target's one build error is attributable to the close-out session's own 180s timeout (`MSB6006`, `java.exe` exit 143 = SIGTERM), not a code defect |
 | Not yet done | `dotnet test`, `ValidateOnBuild = true`, and every acceptance criterion in `tasks/M2-B07.md` — none of these have been run against this diff |

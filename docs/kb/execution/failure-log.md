@@ -1383,8 +1383,10 @@ runner or a Node 22 toolchain; this needs the owner's decision, not a retry.
 
 **What failed** — the implementer agent returned **no result**: no diff, no text, no tool
 output. The validator correspondingly returned `{"verdict": "none", "note": "validation did
-not complete"}`. This is the same symptom class as `M0-12-01` attempts 1–2 (see above): a
-dispatched agent producing zero final output.
+not complete"}`. The close-out session read this as the same symptom class as `M0-12-01`
+attempts 1–2 (see above) — a dispatched agent producing zero final output. **That reading was
+reasonable from inside the run but is wrong; see Root cause below.** The symptom matched; the
+cause did not.
 
 **What differed from `M0-12-01`'s empty-return pattern** — this was **not** an empty return in
 the working-tree sense. `git status` at close-out showed real, substantial uncommitted changes
@@ -1409,10 +1411,32 @@ session's own 180-second build timeout — code 143 is SIGTERM, consistent with 
 killing the D8 dexing step, not a code defect. None of `dotnet test`,
 `ValidateOnBuild = true`, or any acceptance criterion in `tasks/M2-B07.md` was run.
 
-**Root cause** — not independently confirmed, same as `M0-12-01`'s standing caveat. Whether
-this is the same transient upstream fault class that hit `M0-12-01` (`529 Overloaded`) or
-something else that additionally interrupted the report step after code generation completed
-is unknown from this session's vantage point.
+**Root cause — CONFIRMED, and it is not a code fault.** The orchestrating session read the
+workflow's own completion record, which the close-out agent could not see from inside the run:
+
+```
+[implement:M2-B07] failed: API Error: Can't reach the API server
+                           — check your internet or DNS (ENOTFOUND)
+```
+
+`ENOTFOUND` is DNS resolution failing. The implementer agent did not error, refuse, loop or run
+out of budget — **its transport died mid-flight**, after it had already written the code to disk
+and before it could return a report. The workflow's own usage counters agree: `agents_error: 1`,
+`agents_empty_result: 0`. This was *not* an empty return; it was a dropped connection.
+
+**This is a different fault class from `M0-12-01`'s**, which was `529 Overloaded` — the server
+reachable and refusing. Here the server was never reached. Both are transient infrastructure,
+neither is an implementation failure, and **neither is evidence of anything wrong with the task,
+the code, or the dispatch layer.**
+
+**Correcting a standing KB claim, again:** this entry originally recorded that "no
+agent-completion log was visible to the close-out session." Per-agent transcripts **are**
+readable, at
+`~/.claude/projects/<project>/<sessionId>/subagents/workflows/<runId>/agent-<id>.jsonl`, beside a
+`journal.jsonl` carrying one `{"type":"result"}` line per completed agent. The implementer's
+transcript here is 368,771 bytes. The belief that these logs are invisible has now caused three
+separate entries to record "root cause unknown" when the cause was recoverable in a single read.
+**That belief, not the transient failure, is the recurring defect.**
 
 **Evidence** — `git log --oneline -5` at `d982d23` before this close-out session's commits;
 `git status --porcelain` showed the four modified/untracked source files plus

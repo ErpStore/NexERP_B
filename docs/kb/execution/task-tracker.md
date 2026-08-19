@@ -640,7 +640,7 @@ rule; it was moved to `kb/M0-03-02-closeout` and merged through review instead.
 `migration/M0-03-03-startup-config-validation` (`34be11a`), merged to `master` 2026-08-18.  That commit's parent is
 `d4ba526` — `master`'s tip at the time this task opened, not `0a20d62` as the branch's own
 close-out records first stated; `0a20d62` is only a transitive ancestor, corrected here.
-Independently validated **PASS** on attempt 1 of 4, 0 escalations, `scopeOk: true`,
+Independently validated **PASS** on attempt 1 of 3, 0 escalations, `scopeOk: true`,
 `failureCategory: none` — twelve of thirteen acceptance criteria `MET`, the thirteenth (MAUI
 head build) correctly declared not checkable in this environment. No regressions found across
 the full branch diff (12 files, additive-or-delegating only).
@@ -1069,7 +1069,7 @@ consistent with the close-out session's own 180-second build timeout, not a code
 run: `dotnet test`, `ValidateOnBuild`, or any acceptance criterion from `tasks/M2-B07.md`** —
 none of those are claimed to pass. **Owner: whoever next dispatches this task** (runner or
 human) — re-open on `migration/M2-B07-add-vsmart-domain` at tip `a071716` and validate the
-existing diff rather than regenerating it. Attempts used: 1 of 4. Full record:
+existing diff rather than regenerating it. Attempts used: 1 of 3. Full record:
 [`tasks/M2-B07.md` § Execution Record
 (2026-08-19)](tasks/M2-B07.md#execution-record-2026-08-19),
 [`failure-log.md`](failure-log.md#m2-b07--attempt-1--2026-08-19).
