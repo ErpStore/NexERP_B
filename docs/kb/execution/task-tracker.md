@@ -83,7 +83,7 @@ its children are `Completed` — it is never worked directly.
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Ready** | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
-| M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | Blocked | P0 | M0-13 | decision | G0 |
+| M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Ready**¹⁷ | P0 | M0-13 | decision | G0 |
 
 ## M1 — Repository Understanding · Gate G1 ✅
 
@@ -958,3 +958,29 @@ surface, and does not fail this task. It is recorded as a scope note on `INV-025
 
 Full record: [`tasks/M0-09.md` § Execution Record
 (2026-08-19)](tasks/M0-09.md#execution-record-2026-08-19).
+
+¹⁷ **M0-11: `Blocked` → `Ready`, 2026-08-19 — the human step it was waiting for has happened.**
+This task was never blocked on engineering. It was blocked on a product decision only the
+repository owner could take, and he took it: **Q-01 is answered — *preserve but surface*.** The
+API will reproduce today's allocation behaviour exactly (a short issue still succeeds, still
+allocates what is available) but the shortfall is returned to the caller and shown, instead of
+being silent.
+
+**What changes about this task:** its deliverable is unchanged — `ADR-006-fifo-under-issue.md`
+— but it is now written to **record an accepted decision**, not to propose two options for
+someone to choose between. The acceptance criteria still apply in full, including arguing both
+options in good faith and mapping every behavioural statement to an `M0-13` test by exact name;
+a decision brief that omits the rejected option is not a brief, it is an announcement. Note the
+task file's own criterion — *"Option B addresses **visibility**, not merely 'leave it as it
+is'"* — anticipated exactly this answer.
+
+**What this task does NOT cover, and must not silently absorb:** the owner deferred the
+*implementation* of surfacing until after Milestone 2. That work has **no task id yet** and is
+not part of `M0-11`, `M0-13`, or any current M2 task. When it is scheduled it must address two
+things beyond the obvious: (a) `StockManagerService.cs:154-155` commits an orphan `StockIssue`
+row for the full quantity **before** allocation is attempted, so even a *refused* issue leaves
+a row that does not match reality; (b) tests `S13`–`S16` pin the current behaviour and must be
+updated in the same commit as any change, or they will correctly go red.
+
+**G0 criterion 7 is met** by the answer being recorded in `open-questions.md`; it does not wait
+on `ADR-006`. See [KB-080 § Exit Gate — G0](README.md#exit-gate--g0).

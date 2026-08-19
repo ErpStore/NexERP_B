@@ -427,10 +427,16 @@ otherwise **M0-12-01 → M0-13 → M0-11**.
       explicit instruction (`44e3614..20be92f`, 37 commits) and the **CI run on `master` is
       green**, owner-confirmed — so all **79** tests are covered by a hosted run, not only a
       workstation. Supersedes the earlier note that no hosted run covered them.)*
-- [ ] Q-01 answered and recorded in [open-questions.md](../open-questions.md).
-      *(Released — `M0-13` is `Completed` and has **pinned** the current FIFO behaviour,
-      including R-07's silent under-allocation, so the decision is now made against a fixed
-      baseline. Blocked on the repository owner, not on any task: `M0-11`.)*
+- [x] Q-01 answered and recorded in [open-questions.md](../open-questions.md).
+      *(**MET 2026-08-19.** The repository owner decided: **preserve but surface** — the API
+      reproduces today's allocation exactly, but the shortfall is returned to the caller and
+      shown, rather than being silent. Decided against a **pinned** baseline: `M0-13` had
+      already fixed the behaviour in green characterisation tests (`S13`–`S16`), so this was a
+      choice about measured code, not unpinned code. The criterion asks that Q-01 be *answered
+      and recorded* — it is. **Two things it does not close:** `M0-11` still owes `ADR-006`,
+      the written brief, which now records an accepted decision rather than proposing options;
+      and the **implementation** of surfacing is deferred by the owner until after Milestone 2
+      and has no task id yet. Neither is a G0 exit condition.)*
 
 ### G0 deferral — criteria 2 and 3, decided by the repository owner 2026-08-19
 
@@ -454,9 +460,11 @@ those two still leaves G0 short — *"G0 closes with 2 and 3 deferred"*.
   written down is a schedule choice; one whose risk is not is an accident waiting to be
   rediscovered.
 
-**Still genuinely open, and not covered by this deferral:** criterion **1** (rebuild drill,
-`M0-01-03` — needs a disposable SQL Server) and criterion **7** (Q-01, `M0-11` — needs the
-owner's product decision). Those two are what actually remain before G0 closes.
+**Still genuinely open, and not covered by this deferral:** criterion **1** only — the rebuild
+drill (`M0-01-03`), which needs a disposable SQL Server. Criterion **7** closed on 2026-08-19
+when the owner answered Q-01 (*preserve but surface*). **One criterion now stands between the
+project and G0, and it is the only one that cannot be settled by a decision — it needs
+hardware.**
 
 ### Definition of Done
 All G0 boxes ticked **and** the milestone review recorded per
