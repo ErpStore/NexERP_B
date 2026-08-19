@@ -6,12 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readGlobalCss } from '@/test/tokens-source';
 
+import { type Density, isDensity } from './density';
 import { DENSITY_STORAGE_KEY, ThemeProvider, useTheme } from './ThemeProvider';
 import { ThemeToggle } from './ThemeToggle';
 import {
   COLOR_SCHEME_PREFERENCES,
   DARK_MEDIA_QUERY,
   THEME_STORAGE_KEY,
+  useColorScheme,
 } from './useColorScheme';
 
 /**
@@ -71,6 +73,59 @@ function renderApp() {
       <ThemeToggle />
     </ThemeProvider>,
   );
+}
+
+/**
+ * Exposes the density half of the context. Kept OUT of MountProbe deliberately:
+ * MountProbe renders before ThemeToggle, so an extra focusable element there
+ * would sit ahead of the radio group and break the single-Tab-stop assertion.
+ */
+function DensityProbe() {
+  const { density, setDensity } = useTheme();
+  return (
+    <div>
+      <span data-testid="density">{density}</span>
+      <button
+        type="button"
+        onClick={() => {
+          setDensity('compact');
+        }}
+      >
+        Compact
+      </button>
+    </div>
+  );
+}
+
+function renderDensityApp() {
+  return render(
+    <ThemeProvider>
+      <DensityProbe />
+    </ThemeProvider>,
+  );
+}
+
+/**
+ * Makes the Storage API hostile, which is not exotic: Safari private mode throws
+ * on read and a full quota throws on write. The theme layer must degrade to its
+ * defaults rather than stop the app rendering.
+ */
+function breakStorage(method: 'getItem' | 'setItem') {
+  vi.spyOn(Storage.prototype, method).mockImplementation(() => {
+    throw new Error('storage unavailable');
+  });
+}
+
+/** Uses the hook directly, so the no-matchMedia case is not confounded by Mantine. */
+function SchemeProbe() {
+  const { preference, resolved } = useColorScheme();
+  return <span data-testid="scheme">{`${preference}:${resolved}`}</span>;
+}
+
+/** Reads the context with no provider above it -- the misuse guard's only caller. */
+function OrphanProbe() {
+  useTheme();
+  return null;
 }
 
 const themeAttribute = () => document.documentElement.dataset.theme;
@@ -179,6 +234,26 @@ describe('ThemeToggle keyboard model', () => {
     expect(screen.getByTestId('preference').textContent).toBe('dark');
   });
 
+  it('walks the arrow-key ring in COLOR_SCHEME_PREFERENCES order', async () => {
+    // ThemeToggle's RING is written out per preference rather than computed by
+    // indexing the tuple. That removes two unreachable guards, but it also lets
+    // the two drift -- so the agreement is asserted, not assumed.
+    const user = userEvent.setup();
+    renderApp();
+    expect(screen.getAllByRole('radio')).toHaveLength(COLOR_SCHEME_PREFERENCES.length);
+
+    await user.tab();
+    const walked: string[] = [];
+    for (let lap = 0; lap < COLOR_SCHEME_PREFERENCES.length; lap += 1) {
+      await user.keyboard('{ArrowRight}');
+      walked.push(screen.getByTestId('preference').textContent ?? '');
+    }
+
+    // Starting from the default 'system', one full lap must reproduce the
+    // render order exactly.
+    expect(walked).toEqual([...COLOR_SCHEME_PREFERENCES]);
+  });
+
   it.each(['light', 'dark'] as const)(
     'reports no critical axe violation in the %s theme',
     async (scheme) => {
@@ -194,6 +269,96 @@ describe('ThemeToggle keyboard model', () => {
       expect(critical.map((violation) => violation.id)).toEqual([]);
     },
   );
+});
+
+describe('density', () => {
+  it('defaults to default density and writes it onto <html>', () => {
+    renderDensityApp();
+    expect(screen.getByTestId('density').textContent).toBe('default');
+    expect(document.documentElement.dataset.density).toBe('default');
+  });
+
+  it('restores a stored density', () => {
+    window.localStorage.setItem(DENSITY_STORAGE_KEY, 'compact' satisfies Density);
+    renderDensityApp();
+    expect(screen.getByTestId('density').textContent).toBe('compact');
+    expect(document.documentElement.dataset.density).toBe('compact');
+  });
+
+  it('ignores a corrupt stored density without throwing', () => {
+    window.localStorage.setItem(DENSITY_STORAGE_KEY, 'roomy');
+    expect(() => renderDensityApp()).not.toThrow();
+    expect(screen.getByTestId('density').textContent).toBe('default');
+  });
+
+  it('persists a density change', async () => {
+    const user = userEvent.setup();
+    renderDensityApp();
+
+    await user.click(screen.getByRole('button', { name: 'Compact' }));
+
+    expect(screen.getByTestId('density').textContent).toBe('compact');
+    expect(document.documentElement.dataset.density).toBe('compact');
+    expect(window.localStorage.getItem(DENSITY_STORAGE_KEY)).toBe('compact');
+  });
+
+  it('rejects a non-string candidate', () => {
+    expect(isDensity(null)).toBe(false);
+    expect(isDensity(30)).toBe(false);
+    expect(isDensity('compact')).toBe(true);
+  });
+});
+
+describe('hostile localStorage', () => {
+  it('falls back to system and default density when reads throw', () => {
+    breakStorage('getItem');
+    setSystemDark(true);
+
+    expect(() => renderDensityApp()).not.toThrow();
+    expect(screen.getByTestId('density').textContent).toBe('default');
+
+    cleanup();
+    expect(() => renderApp()).not.toThrow();
+    expect(screen.getByTestId('preference').textContent).toBe('system');
+    expect(screen.getByTestId('resolved').textContent).toBe('dark');
+  });
+
+  it('still applies a density change for the session when writes throw', async () => {
+    const user = userEvent.setup();
+    renderDensityApp();
+    breakStorage('setItem');
+
+    await user.click(screen.getByRole('button', { name: 'Compact' }));
+
+    expect(screen.getByTestId('density').textContent).toBe('compact');
+    expect(document.documentElement.dataset.density).toBe('compact');
+  });
+
+  it('still applies a scheme change for the session when writes throw', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    breakStorage('setItem');
+
+    await user.click(screen.getByRole('radio', { name: 'Dark' }));
+
+    expect(screen.getByTestId('preference').textContent).toBe('dark');
+    expect(themeAttribute()).toBe('dark');
+  });
+});
+
+describe('degraded environments', () => {
+  it('resolves to light where matchMedia does not exist', () => {
+    // Old WebViews and non-browser renderers have no matchMedia. Losing the OS
+    // signal must cost the live subscription, not the render.
+    Reflect.deleteProperty(window, 'matchMedia');
+
+    expect(() => render(<SchemeProbe />)).not.toThrow();
+    expect(screen.getByTestId('scheme').textContent).toBe('system:light');
+  });
+
+  it('refuses to hand out the theme context outside the provider', () => {
+    expect(() => render(<OrphanProbe />)).toThrow(/useTheme must be used inside/);
+  });
 });
 
 describe('global stylesheet commitments', () => {
