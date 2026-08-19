@@ -76,12 +76,12 @@ its children are `Completed` — it is never worked directly.
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Needs Review**¹² | P0 | M0-07 | 0.5 d | G0 |
-| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
-| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | Blocked | P0 | M0-12-01 | 3 d | G0 |
-| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
+| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
+| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Ready** | P0 | M0-12-01 | 2.5 d | G0 |
+| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Ready** | P0 | M0-12-01 | 3 d | G0 |
+| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Ready** | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
-| M0-06 | M0 | Remove the seeded default Administrator credential | Security | Blocked | P1 | M0-12-01 | 1 d | G0 |
+| M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | Blocked | P0 | M0-13 | decision | G0 |
 
@@ -266,31 +266,33 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
 
-**Currently `Blocked`: `M0-12-01`, on the repository owner, since attempt 3 · 2026-08-19.**
-Attempt 3 (dispatched after Vivek cleared the Q-21 gate) **implemented real work** — commit
-`9557de2` on `migration/M0-12-01-test-project`: the test project, its `.sln` rows, the CI test
-step, INV-031, and the KB-083/KB-060 updates. 10 of 11 acceptance criteria are independently
-re-verified `MET`. The 11th, criterion 6 (push the branch, observe CI turn red on a
-deliberately-broken assertion, revert, record the run id), was never performed: pushing is
-forbidden to an execution session without an explicit in-conversation instruction
-(`CLAUDE.md` "Never merge or push"), and no local substitute (`gh`/`act`/docker) exists on this
-workstation. This is the same gap already open on `M0-07`'s own CI gate (Q-20), and `M0-07` was
-signed off `Completed` with it open (`d79e1a4`) — see footnote 12 for the full record. Retry
-budget is exhausted (3 of 3); a fourth dispatch would reproduce the identical commit and hit
-the identical wall, so this is not re-dispatched. **Decision needed from Vivek** — recorded as
-**Q-22** in [`open-questions.md`](../open-questions.md) — either authorise the push explicitly,
-or waive criterion 6 for this task as was done for `M0-07`.
+**Currently `Ready`: `M0-12-02`, `M0-13`, `M0-09`, `M0-06` — four tasks, none needing a human,
+as of the `M0-12-01` merge (`bdee81f`, 2026-08-19).** This is the first time since 2026-08-18
+that the runner has had anything to select.
+
+`M0-12-01` is `Completed`: the owner cleared the Q-21 gate, authorised the push, and instructed
+the merge, all in-conversation on 2026-08-19. All 11 acceptance criteria are met — criterion 6
+was verified on a hosted runner by the green → red → green loop (`dec5790` green, `821e923`
+**red at the `Test - V.SMART.Shared.Tests` step**, `e642797` green), with the runner's own log
+showing `Failed: 1, Passed: 11, Total: 12` at the red step. `dotnet test` was re-run on `master`
+after the merge: **11 passed, 0 failed.** Full record in footnote 12; **Q-22 resolved** as
+option (A).
+
+Of the four newly-`Ready` tasks, **`M0-12-02` and `M0-13` are the ones G0 actually asks for** —
+they are the characterisation tests the gate names. `M0-09` (0.5 d) and `M0-06` (1 d) are
+smaller and independent of each other.
+
 Every other M0 task remains `Completed`, `Blocked` on a named human, or
 `Needs Review` and therefore not re-selectable:
 M0-02 is `Needs Review`⁶ (Q-14 explicitly deferred by Vivek, its named owner); M0-03 is a
 `Completed` parent container, never worked directly; M0-03-01/02/03 and M0-14 are `Completed`;
 M0-01-03 is `Needs Review`¹, awaiting a human-executed rebuild drill; M0-04 is `Blocked`⁴ on an
 unidentified credential owner; M0-07 is `Blocked`⁷ on `origin` push plus GitHub org admin
-rights; M0-05 stays `Blocked` because M0-04 has not run; everything downstream of
-M0-07/M0-12-01 stays `Blocked` transitively. **No task in the dependency graph is currently
-`Ready`.** **The G0 exit gate separately still needs a human** for M0-04, M0-07 and M0-01-03's
-drill — even were `M0-12-01` unblocked today, G0 would still not clear, and M2 stays barred.
-**Active task:** `M0-12-01` — see [`current-task.md`](current-task.md). Selection rule for what
+rights; M0-05 stays `Blocked` because M0-04 has not run; `M0-10` stays `Blocked` behind `M0-09`
+and `M0-11` behind `M0-13`. **The G0 exit gate still needs a human** for M0-04, M0-01-03's
+drill, and the branch-protection half of M0-07 (Q-20) — so completing all four newly-`Ready`
+tasks would **not** clear G0 on its own, and **M2 stays barred**.
+**Active task:** none — see [`current-task.md`](current-task.md). Selection rule for what
 becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-15: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and merged to

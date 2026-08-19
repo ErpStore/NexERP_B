@@ -21,7 +21,27 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — **`Needs Review`.** All 11 acceptance criteria met, 2026-08-19.
+## Active task: **none.** `M0-12-01` is `Completed` and merged (`bdee81f`, 2026-08-19).
+
+> **`dotnet test` now works.** `CLAUDE.md` still says *"`dotnet test` finds nothing — no test
+> project exists until M0-12-01 creates one."* That sentence is **stale as of `bdee81f`**:
+> `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` returns
+> **11 passed, 0 failed**, re-verified on `master` after the merge. `CLAUDE.md` is outside any
+> task's scope, so it is flagged here rather than edited; the authoritative command list in
+> [`prompt-template.md` § Verified repository commands](prompt-template.md#verified-repository-commands)
+> **was** updated by the task and is correct.
+
+### Four tasks are newly selectable
+
+Merging `M0-12-01` released its dependents. Per the
+[Ready-task selection rule](dependency-graph.md#ready-task-selection-rule), these are now
+`Ready` and none needs a human first: **`M0-12-02`** (characterisation tests for
+`CalculationService`, 2.5 d), **`M0-13`** (characterisation tests for `StockManagerService`,
+3 d), **`M0-09`** (fix the two unreachable delete guards, R-08, 0.5 d), **`M0-06`** (remove the
+seeded default Administrator credential, 1 d). `M0-10` and `M0-11` follow transitively.
+
+`M0-12-02` and `M0-13` are the two that matter for G0 — they are the characterisation tests the
+gate actually asks for.
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
