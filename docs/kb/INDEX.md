@@ -58,7 +58,7 @@ last_verified: 2026-08-18
 | ADR-005 | [Reporting & printing](decisions/ADR-005-reporting-and-printing.md) | decision | accepted | — | 2026-08-12 |
 | KB-102 | [Stored-Procedure Inventory Reconciliation](architecture/stored-procedure-inventory.md) | as-is | complete | confirmed | 2026-08-13 |
 | KB-103 | [Stored-Procedure Drift Across Tenant Databases (Q-14)](architecture/stored-procedure-drift.md) | as-is | partial | mixed | 2026-08-17 |
-| KB-104 | [Server-Side Screen-Right Authorization — Implementation Spec](architecture/server-side-authorization-spec.md) | **proposal** | complete | — | 2026-08-18 |
+| KB-105 | [Server-Side Screen-Right Authorization — Implementation Spec](architecture/server-side-authorization-spec.md) | **proposal** | complete | — | 2026-08-18 |
 
 ## doc_id allocation
 
@@ -74,13 +74,13 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-087 | **Claimed 2026-08-17 by M0-07** — [ci-pipeline.md](execution/ci-pipeline.md) | allocated |
 | KB-088 – KB-090 | **Claimed 2026-08-16** — [workflow.md](execution/workflow.md), [current-task.md](execution/current-task.md), [task-template.md](execution/task-template.md) | allocated |
 | KB-091 – KB-093 | **Claimed 2026-08-16** — [autonomous-runner.md](execution/autonomous-runner.md), [failure-log.md](execution/failure-log.md), [runner-state.md](execution/runner-state.md) | allocated |
-| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11), KB-104 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **Next free: KB-105**, or KB-114+ |
+| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11), KB-105 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **Next free: KB-105**, or KB-114+ |
 | ADR-nnn | Architecture decisions | through ADR-005 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
-| INV-nnn | Investigation registry rows | through INV-035 (030–033 reserved; INV-035 claimed 2026-08-18 by M2-A01-01; **next free INV-036** — see investigation-registry.md) |
+| INV-nnn | Investigation registry rows | through INV-037 (030–033 reserved; INV-037 claimed 2026-08-18 by M2-A01-01; **next free INV-036** — see investigation-registry.md) |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
 | R-nn | Risks | through R-37 |
-| Q-nn | Open questions | through Q-24 (Q-20 claimed 2026-08-17 by M0-07; Q-21 by the 2026-08-18 M0-12-01 close-out; **Q-22, Q-23, Q-24 claimed 2026-08-18 by M2-A01-01**. **Next free: Q-25.** Note `M3-1-01` still says it expects to start at Q-20 — that text is stale) |
+| Q-nn | Open questions | through Q-29 (Q-20 claimed 2026-08-17 by M0-07; Q-21 by the 2026-08-18 M0-12-01 close-out; **Q-27, Q-28, Q-29 claimed 2026-08-18 by M2-A01-01**. **Next free: Q-25.** Note `M3-1-01` still says it expects to start at Q-20 — that text is stale) |
 
 A task that produces a durable document allocates the next free **KB-1xx** id, adds its row
 to the registry above, and records the id in the task's *Documentation Updates* section.
@@ -130,9 +130,9 @@ Use this table before searching the repository.
 | What is still unknown | KB-004 |
 | Which stored procedures exist and which are missing | KB-102 |
 | Do stored procedures differ between tenants? (Q-14 drift check, method + tooling) | KB-103 |
-| **How is `[RequireScreen]`/`[RequireRight]` meant to behave** — the deny truth table, screen-name matching, duplicate rows, the `403`/`401` bodies, the rights cache key and TTL | **KB-104** |
-| Which exact screen-name strings may a controller declare? (the 152 seeded names) | KB-104 § Appendix A |
-| Does an `Administrator` bypass screen rights? | KB-104 § D-5 — **no**, and why |
+| **How is `[RequireScreen]`/`[RequireRight]` meant to behave** — the deny truth table, screen-name matching, duplicate rows, the `403`/`401` bodies, the rights cache key and TTL | **KB-105** |
+| Which exact screen-name strings may a controller declare? (the 152 seeded names) | KB-105 § Appendix A |
+| Does an `Administrator` bypass screen rights? | KB-105 § D-5 — **no**, and why |
 
 ## RAG strategy
 

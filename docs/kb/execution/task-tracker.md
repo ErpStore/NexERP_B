@@ -286,20 +286,20 @@ behaviour. Every input this task needed already existed in the working tree.
 
 **The exception is confined to `M2-A01-01`.** It does **not** transfer to `M2-A01-02` or any
 other M2 task. The moment code is written against the specification, G0's rationale applies
-in full: [KB-104](../architecture/server-side-authorization-spec.md) §9 lists verification
+in full: [KB-105](../architecture/server-side-authorization-spec.md) §9 lists verification
 that cannot even run until `M0-12-01` creates a test project, and `M0-12-01` is `Blocked`¹².
 **Every other M2 task stays `Blocked` on G0.** M2's completed count stays at 0 in the rollup
 below — `Needs Review` is not `Completed` ([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)).
 
 **Delivered on `migration/M2-A01-01-authorization-spec`**, documentation only, no `V.SMART/`
-file touched: [KB-104](../architecture/server-side-authorization-spec.md) (new,
-`status: proposal`), plus INV-035 and an INV-004 amendment in
+file touched: [KB-105](../architecture/server-side-authorization-spec.md) (new,
+`status: proposal`), plus INV-037 and an INV-004 amendment in
 [`investigation-registry.md`](../investigation-registry.md), three new questions
-(**Q-22, Q-23, Q-24**) in [`open-questions.md`](../open-questions.md), and routing entries in
+(**Q-27, Q-28, Q-29**) in [`open-questions.md`](../open-questions.md), and routing entries in
 [`INDEX.md`](../INDEX.md). Full record:
 [`tasks/M2-A01-01.md` § Execution Record (2026-08-18)](tasks/M2-A01-01.md#execution-record-2026-08-18).
 
-**`Q-23` blocks `M2-A02`.** The task found that `AuthController.Login` never calls
+**`Q-28` blocks `M2-A02`.** The task found that `AuthController.Login` never calls
 `SyncRightsForUserAsync` while the Blazor login path does, and only for `UserId == 1` — so a
 user who has only ever authenticated through the API can hold zero `UserRight` rows and, once
 the filter is live, would be 403'd from every annotated endpoint. That must be settled before

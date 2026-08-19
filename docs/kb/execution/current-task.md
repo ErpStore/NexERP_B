@@ -31,7 +31,7 @@ satisfies the [Ready-task selection rule](dependency-graph.md#ready-task-selecti
 or transitively — and G0 has **zero of seven exit criteria ticked**
 ([KB-080 §7](README.md#7-m0--stabilise)). `M2-A01-01` was exempted only because it produces
 documentation and changes no behaviour. `M2-A01-02` writes the authorization filter, and
-[KB-104 §9](../architecture/server-side-authorization-spec.md) lists verification for it that
+[KB-105 §9](../architecture/server-side-authorization-spec.md) lists verification for it that
 **cannot run until `M0-12-01` creates a test project** — which is itself `Blocked`.
 
 ## What a human must clear, before anything else can move
@@ -74,10 +74,10 @@ Full detail and candidate owners: [`runner-state.md`](runner-state.md) (KB-093);
 → **0 errors, 6,695 warnings**, matching the [KB-086](M0-15-build-baseline.md) baseline exactly,
 which is how "nothing under `V.SMART/` changed" was proven. Executed under the gate exception
 described in [KB-081 footnote 13](task-tracker.md) and
-[KB-104 §12](../architecture/server-side-authorization-spec.md).
+[KB-105 §12](../architecture/server-side-authorization-spec.md).
 
 **Deliverable:** [`architecture/server-side-authorization-spec.md`](../architecture/server-side-authorization-spec.md),
-`doc_id` **KB-104** (not `KB-016` as the task file suggested — the INDEX allocation rule
+`doc_id` **KB-105** (not `KB-016` as the task file suggested — the INDEX allocation rule
 reserves `KB-1xx` for task-produced contract specs; the task file's own instruction to verify
 against the INDEX is what produced this). Full record:
 [`tasks/M2-A01-01.md` § Execution Record (2026-08-18)](tasks/M2-A01-01.md#execution-record-2026-08-18).
@@ -93,13 +93,13 @@ against the INDEX is what produced this). Full record:
   `UserRightsRepository.cs:27` calls `ToListAsync()` before `RightsHelper.cs:8` runs, so the
   comparison is ordinal and case-sensitive. Pushing it into SQL would make it
   collation-dependent and silently *widen* access. This single fact decides the filter's
-  design ([KB-104 §D-1](../architecture/server-side-authorization-spec.md)).
+  design ([KB-105 §D-1](../architecture/server-side-authorization-spec.md)).
 - **`Screens.ScreenName` is `nvarchar(max)`** — SQL Server cannot index it as a key column, so
   no uniqueness is enforceable on it as declared.
 - **`CurrentUserService.GetUserIdAsync()` returns `0`** for a missing or unparseable claim
   (`:59-65`). Anything on the API side that needs a user id must read the claim directly.
 - **No code path writes a `Screens` row** — the 152 seeded rows are the entire runtime
-  catalogue (Confirmed negative result; the full list is KB-104 Appendix A).
+  catalogue (Confirmed negative result; the full list is KB-105 Appendix A).
 - **`M2-B05` must not "correct" the seed's typos.** `Id = 82` is `"Sub-Contrect GRN"`; `Id =
   107` is `"Advaceadjustment"`. They are the canonical matching strings.
 
@@ -107,11 +107,11 @@ against the INDEX is what produced this). Full record:
 
 | ID | In one line | Blocks |
 |---|---|---|
-| **Q-22** | Do duplicate `(UserId, ScreenId)` rows exist in live tenant DBs? Nothing in the model prevents them, and the rights query has no `OrderBy`, so Blazor's `FirstOrDefault` is **already non-deterministic today** | Nothing immediately — decides whether the filter faithfully reproduces correct behaviour or a latent bug |
-| **Q-23** | An API-only user acquires **no** `UserRight` rows: `AuthController.Login` never calls `SyncRightsForUserAsync`, and the Blazor path does so only for `UserId == 1` | **`M2-A02`** — the filter would 403 an administrator out of the vertical slice on its first request |
-| **Q-24** | All five `UserRight` write sites are in the **Blazor** host, none in the API, so cross-process cache invalidation does not exist and the ≈60 s TTL is the only staleness bound | Scope of `M2-A01-03` |
+| **Q-27** | Do duplicate `(UserId, ScreenId)` rows exist in live tenant DBs? Nothing in the model prevents them, and the rights query has no `OrderBy`, so Blazor's `FirstOrDefault` is **already non-deterministic today** | Nothing immediately — decides whether the filter faithfully reproduces correct behaviour or a latent bug |
+| **Q-28** | An API-only user acquires **no** `UserRight` rows: `AuthController.Login` never calls `SyncRightsForUserAsync`, and the Blazor path does so only for `UserId == 1` | **`M2-A02`** — the filter would 403 an administrator out of the vertical slice on its first request |
+| **Q-29** | All five `UserRight` write sites are in the **Blazor** host, none in the API, so cross-process cache invalidation does not exist and the ≈60 s TTL is the only staleness bound | Scope of `M2-A01-03` |
 
-`Q-23` does **not** block `M2-A01-02`; it blocks `M2-A02`. All three are in
+`Q-28` does **not** block `M2-A01-02`; it blocks `M2-A02`. All three are in
 [`open-questions.md`](../open-questions.md).
 
 ## Other open blockers, unchanged by this session

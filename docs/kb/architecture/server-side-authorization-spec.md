@@ -1,5 +1,5 @@
 ---
-doc_id: KB-104
+doc_id: KB-105
 title: Server-Side Screen-Right Authorization — Implementation Specification
 module: architecture
 source_files:
@@ -72,7 +72,7 @@ reserves `KB-100 +` for *"artefacts produced by tasks — investigation outputs,
 reports, **contract specs**, decision briefs"*. Sibling M2 tasks already follow this:
 `KB-110`–`KB-113` are claimed by `M2-B08`…`M2-B11`, and `KB-100`/`KB-101` by `M2-B12-01/02`.
 `KB-016` is genuinely unclaimed, but claiming it would put a task artefact inside the
-analysis range against the allocation rule. **This document therefore takes `KB-104`, the
+analysis range against the allocation rule. **This document therefore takes `KB-105`, the
 next free `KB-1xx`.** The `M2-A01-01` task file predates the `KB-1xx` convention
 (`last_verified: 2026-08-12`); its instruction to verify against the INDEX is what produced
 this outcome, so this is compliance with that instruction, not a deviation from it.
@@ -404,7 +404,7 @@ ambiguity.
 | The deployed indexes are EF's automatic FK indexes, non-unique. | `InitialCreate.cs:9796-9803` — `IX_UserRights_ScreenCode`, `IX_UserRights_UserId` (the column was later renamed to `ScreenId`; current model at snapshot `:4676-4680`) | **Confirmed** |
 | `SyncRightsForUserAsync` **cannot** create a duplicate — it excludes existing `ScreenId`s. | `UserRightService.cs:47-54` | **Confirmed** |
 | `UserRights.razor:462` and `UserService.cs:464` create rows with no equivalent visible guard. | Both call `CreateAsync` inside a loop over screens; `UserRights.razor:446` updates when a row is found, `:462` creates otherwise | **Confirmed** |
-| Whether duplicates actually exist in live tenant databases. | Not determinable from the repository — no database access in this session | **Unknown** — see **Q-22** |
+| Whether duplicates actually exist in live tenant databases. | Not determinable from the repository — no database access in this session | **Unknown** — see **Q-27** |
 | Duplicates cannot arise from the catalogue itself: all 152 seeded names are unique, and no code writes `Screens`. | §1.3 | **Confirmed** |
 
 **Non-determinism is inherited deliberately.** Per **B-7**, `GetUserRightsWithScreensAsync`
@@ -414,7 +414,7 @@ duplicates is therefore already non-deterministic, and the filter reproduces tha
 rather than papering over it with an invented ordering. **Adding an `OrderBy` would be a
 behaviour change, and adding a unique index would be a schema change — both are out of scope
 for M2-A01** (`CLAUDE.md`: do not change the database schema unless the task authorises it).
-Raised as **Q-22**.
+Raised as **Q-27**.
 
 ### D-3 — Missing or unusable identity claims return **401**, never 403, and never fall back to `0`
 
@@ -519,7 +519,7 @@ from every annotated endpoint (**T-6**). Three further facts sharpen this:
 **This is not M2-A01-01's to fix.** It is a pre-existing inconsistency in the legacy seeding
 logic that server-side enforcement makes *visible* rather than creates. It must be settled
 before `M2-A02` applies the filter to `CurrencyController`, or the first thing the vertical
-slice will demonstrate is an administrator locked out of Currency. Raised as **Q-23** and
+slice will demonstrate is an administrator locked out of Currency. Raised as **Q-28** and
 flagged to `M2-A07` (`GET /api/v1/me`), which is where an empty right set will first be
 observable to the client.
 
@@ -582,8 +582,8 @@ Explicitly **out of scope** for this specification and for `M2-A01-*`:
 | Not doing | Why | Owner |
 |---|---|---|
 | Any change to the `Screens` or `UserRight` tables, entities or seed data | ADR-004 *Consequences*: the permission model is unchanged so existing tenant configuration keeps working with no data migration | — |
-| Adding a unique index on `(UserId, ScreenId)` | Schema change; `CLAUDE.md` forbids it without explicit task authorisation | **Q-22** |
-| Adding an `OrderBy` to `GetUserRightsWithScreensAsync` | Behaviour change to a method the Blazor host also calls (`BaseUserRightsComponent.cs:34`) | **Q-22** |
+| Adding a unique index on `(UserId, ScreenId)` | Schema change; `CLAUDE.md` forbids it without explicit task authorisation | **Q-27** |
+| Adding an `OrderBy` to `GetUserRightsWithScreensAsync` | Behaviour change to a method the Blazor host also calls (`BaseUserRightsComponent.cs:34`) | **Q-27** |
 | Embedding rights in the JWT | **ADR-004 §2 forbids it.** A JWT lives up to 8 hours (`JwtTokenService.cs:37` defaults `Jwt:ExpiresMinutes` to 480, **Confirmed**); a permission change must take effect sooner | — |
 | `UserAuthority` approval-authority checks (12 document-type × level pairs) | ADR-004 §4 — a separate mechanism | `M2-B08`, `M3-4` |
 | Row-level scoping (`StateCodesCsv`), account gates, `QrExpiryDate`, `TrialDays`, device binding | Q-05…Q-08 | `M2-A08` |
@@ -809,7 +809,7 @@ Consequences, which `M2-A01-03` must implement and not soften:
    right through the Blazor UI must be told it takes effect within a minute, not instantly.
 4. **A distributed cache is the fix, and it is not M2-A01-03's.** Redis with pub/sub
    invalidation, or a `UserRights` change token both hosts poll, would close the gap. Neither
-   is in M2's scope. Raised as **Q-24**.
+   is in M2's scope. Raised as **Q-29**.
 
 ### 8.5 What is not cached
 
@@ -848,12 +848,12 @@ lives only in a chat message is lost ([KB-088 §4](../execution/workflow.md)).
 | # | Finding | Confidence | Consequence |
 |---|---|---|---|
 | F-1 | `Screens.ScreenName` is `nvarchar(max)` — unindexable as a SQL Server key column, and no unique constraint is possible on it as declared. | **Confirmed** — snapshot `:9141-9143`, `InitialCreate.cs:569` | Reinforces **D-1**; removes any performance argument for a SQL-side name match |
-| F-2 | `UserRight` has **no** unique constraint on `(UserId, ScreenId)`; only non-unique FK indexes exist. | **Confirmed** — snapshot `:4676-4680` | **D-2**; **Q-22** |
-| F-3 | `GetUserRightsWithScreensAsync` has no `OrderBy`, so `FirstOrDefault` under duplicates is non-deterministic **today**, in Blazor. | **Confirmed** — `UserRightsRepository.cs:24-27` | **D-2**; **Q-22** |
+| F-2 | `UserRight` has **no** unique constraint on `(UserId, ScreenId)`; only non-unique FK indexes exist. | **Confirmed** — snapshot `:4676-4680` | **D-2**; **Q-27** |
+| F-3 | `GetUserRightsWithScreensAsync` has no `OrderBy`, so `FirstOrDefault` under duplicates is non-deterministic **today**, in Blazor. | **Confirmed** — `UserRightsRepository.cs:24-27` | **D-2**; **Q-27** |
 | F-4 | `CurrentUserService.GetUserIdAsync()` silently returns `0` for a missing or unparseable claim. | **Confirmed** — `CurrentUserService.cs:59-65` | **D-3**; `M2-A01-02` must not use this service |
-| F-5 | `AuthController.Login` does **not** call `SyncRightsForUserAsync`; the Blazor login path does, and only for `UserId == 1`. | **Confirmed** — `AuthController.cs:39-59`; `Login.razor:345-349` | **D-5**; **Q-23** — an API-only administrator can hold zero rights |
-| F-6 | The two rights-seeding paths use opposite defaults: `SyncRightsForUserAsync` grants all four operations; `UserService` grants view-only, and only when `IsViewOnly`. | **Confirmed** — `UserRightService.cs:67-71`; `UserService.cs:442-464` | **Q-23** |
-| F-7 | All five `UserRight` write sites are in the Blazor host; none in the API. An in-process API cache cannot be invalidated by any of them. | **Confirmed** (inventory); **Inferred** (no future API writer in M2-A01) | §8.4; **Q-24** |
+| F-5 | `AuthController.Login` does **not** call `SyncRightsForUserAsync`; the Blazor login path does, and only for `UserId == 1`. | **Confirmed** — `AuthController.cs:39-59`; `Login.razor:345-349` | **D-5**; **Q-28** — an API-only administrator can hold zero rights |
+| F-6 | The two rights-seeding paths use opposite defaults: `SyncRightsForUserAsync` grants all four operations; `UserService` grants view-only, and only when `IsViewOnly`. | **Confirmed** — `UserRightService.cs:67-71`; `UserService.cs:442-464` | **Q-28** |
+| F-7 | All five `UserRight` write sites are in the Blazor host; none in the API. An in-process API cache cannot be invalidated by any of them. | **Confirmed** (inventory); **Inferred** (no future API writer in M2-A01) | §8.4; **Q-29** |
 | F-8 | The seed contains at least one misspelling that is nonetheless the canonical matching string: `Id = 82`, `"Sub-Contrect GRN"`. | **Confirmed** — `ApplicationDbContext.cs`, Appendix A | **D-6**'s startup check; `M2-B05`'s generator must not "correct" it |
 | F-9 | `Program.cs` line numbers in `tasks/M2-A01-01.md` are stale: `UseAuthentication()`/`UseAuthorization()` are at `:121`/`:122`, not `:114`/`:115`. | **Confirmed** — re-read 2026-08-18 | §6; consistent with the `CLAUDE.md` warning about this file |
 | F-10 | No code path writes a `Screens` row; the 152 seeded rows are the entire runtime catalogue. | **Confirmed (negative result)** | Makes **D-6**'s throw-on-unseeded-name safe |
@@ -867,12 +867,12 @@ Added to [`open-questions.md`](../open-questions.md) (KB-004).
 
 | ID | Question | Blocks |
 |---|---|---|
-| **Q-22** | Do duplicate `(UserId, ScreenId)` rows exist in live tenant databases, and should a unique index plus a deterministic `OrderBy` be added? | Whether **D-2**'s first-match-wins is a faithful reproduction or a reproduction of a latent bug |
-| **Q-23** | How does a user who authenticates only through the API acquire `UserRight` rows, given that seeding runs on the Blazor login path and only for `UserId == 1`? | **`M2-A02`** — applying the filter to `CurrencyController` without answering this locks out the vertical slice |
-| **Q-24** | Is a 60-second staleness window on revoked rights acceptable, given that no cross-process invalidation exists between the Blazor and API hosts? | §8.4; the scope of `M2-A01-03` |
+| **Q-27** | Do duplicate `(UserId, ScreenId)` rows exist in live tenant databases, and should a unique index plus a deterministic `OrderBy` be added? | Whether **D-2**'s first-match-wins is a faithful reproduction or a reproduction of a latent bug |
+| **Q-28** | How does a user who authenticates only through the API acquire `UserRight` rows, given that seeding runs on the Blazor login path and only for `UserId == 1`? | **`M2-A02`** — applying the filter to `CurrencyController` without answering this locks out the vertical slice |
+| **Q-29** | Is a 60-second staleness window on revoked rights acceptable, given that no cross-process invalidation exists between the Blazor and API hosts? | §8.4; the scope of `M2-A01-03` |
 
 None of the three blocks `M2-A01-02`: the filter can be built and unit-tested against all of
-§3 without them. **Q-23 does block `M2-A02`.**
+§3 without them. **Q-28 does block `M2-A02`.**
 
 ---
 
@@ -1007,7 +1007,7 @@ Names to read carefully when annotating a controller — each is a live trap for
 ## Appendix B — investigation record
 
 The narrow investigation `tasks/M2-A01-01.md` § *Investigation Requirements* asked for,
-registered as **INV-035**. Negative results are recorded as findings, per
+registered as **INV-037**. Negative results are recorded as findings, per
 [KB-003](../investigation-registry.md).
 
 **Reused, not re-derived:** INV-004 (Complete, 2026-08-12 → [KB-013](auth-and-permissions.md))
@@ -1023,7 +1023,7 @@ contradicts either.
 | Are the 152 seeded `ScreenName` values unique? | **Yes** — zero collisions, and still zero under case-insensitive comparison | **Confirmed** |
 | Can `Screens` gain rows at runtime, creating a name collision? | **No writer exists** (§1.3) | **Confirmed (negative result)** |
 | Can duplicate `(UserId, ScreenId)` rows exist? | **Yes, nothing prevents it** — F-2 | **Confirmed** |
-| Do they exist in live tenant databases? | Not determinable without database access | **Unknown** — **Q-22** |
+| Do they exist in live tenant databases? | Not determinable without database access | **Unknown** — **Q-27** |
 | Would duplicates make the current behaviour order-dependent? | **Yes, and non-deterministically** — F-3 | **Confirmed** |
 
 ### B.2 Is there any uniqueness constraint or index on `UserRight` or `Screens`?
