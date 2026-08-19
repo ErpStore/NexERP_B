@@ -24,7 +24,32 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 ## Active task — `M2-C04-01`, `Blocked` after attempt 1, resume rather than restart
 
 **Task file:** [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) — Design tokens, theme, light/dark.
-**Branch:** `migration/M2-C04-01-design-tokens`, tip **`cdb147a`**. **Do not start from a clean
+> **Updated 2026-08-20, after the close-out below was written.** The uncommitted working-tree
+> diff it describes has been **committed** as **`5313c46`**, unmodified, with an explicit
+> WIP disclosure — so the branch tip is now `5313c46`, not `cdb147a`, and `git status` is clean.
+> Nothing was reviewed, reconciled or fixed in the process; the rows below still describe the
+> content accurately, only its location changed.
+>
+> **It does not typecheck as committed:** `theme.test.tsx(9,10)` and `(12,3)` — `TS6133`,
+> `DENSITY_STORAGE_KEY` and `COLOR_SCHEME_PREFERENCES` declared but never read, dangling from
+> the edit the debugger never finished. Fixing those two lines is the first thing the resuming
+> agent should do, before anything else compiles.
+>
+> **Independently reproduced on the committed tip:** `npm run coverage` → 139 tests pass,
+> branches **83.67 %** against the `branches: 100` floor, **exit 1**. The regression stands.
+> (Attempt 1's own report said 80.39 %; the difference is precisely the debugger's partial fix.)
+>
+> **The remaining uncovered branches, measured, not guessed:** `ThemeProvider.tsx` 66.66 %
+> (lines 43-44, 71-76), `density.ts` 50 % (line 19), `useColorScheme.ts` 80 % (lines 53-54, 102).
+> `ThemeToggle.tsx` is already at 100 % — the debugger's change worked.
+>
+> **Two legitimate routes, and the choice must be argued rather than assumed.** Either cover the
+> remaining branches, or change `vitest.config.ts:38` — but a threshold change is only honest if
+> the KB-083 row at `prompt-template.md:366` is updated in the same commit, since it is that row
+> the regression is measured against. **Deleting an unreachable branch beats testing it**, which
+> is what the debugger was doing and why its approach is worth continuing.
+
+**Branch:** `migration/M2-C04-01-design-tokens`, tip ~~`cdb147a`~~ **`5313c46`**. **Do not start from a clean
 tree or a fresh branch** — attempt 1's full implementation, which passed all sixteen
 acceptance criteria on independent validator re-check, already exists there.
 
