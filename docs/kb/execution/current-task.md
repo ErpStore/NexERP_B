@@ -21,44 +21,74 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-B07`, `Blocked` on the repository owner after attempt 3 of 3
+## No active task — `M2-B07` closed, next task not yet selected
 
-**Task file:** [`tasks/M2-B07.md`](tasks/M2-B07.md) — Shared `AddVSmartDomain()` DI extension.
-**Branch:** `migration/M2-B07-add-vsmart-domain`, tip **`5cb1901`**. **Do not start from a
-clean tree or a fresh branch, and do not re-dispatch an implementer** — the retry budget (3 of
-3) is spent and every mechanical acceptance criterion is already `MET`.
+**`M2-B07` is `Completed` and merged (`ffbb1dd`, 2026-08-19).** `AddVSmartDomain()` in
+`V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` is now the single
+composition root for the domain graph, called once by each of the three hosts. It closes
+**R-26**: `V.SMART.Web` and `MauiProgram` had drifted apart, each registering services the
+other lacked.
 
-### Run State
+**Read the close as a waiver, not a pass.** Every mechanical criterion was met. *"Three screens
+from three different modules render without a DI resolution error"* was **never satisfied** — it
+needs a signed-in interactive Blazor circuit, and no session may acquire or reuse a credential
+(Q-14 / R-01). The screens `302` to `/access-denied` under screen-right authorization,
+**identically on `master`**, so that is not a regression this task introduced. Full record:
+[`task-tracker.md`](task-tracker.md) footnote ²⁰.
 
-| Field | Value |
-|---|---|
-| Status | `Blocked` — attempt 3 of 3 exhausted; blocked on a **human decision**, not on engineering |
-| What happened | Attempts 1–3 landed a 655-line `AddVSmartDomain()` extension in `V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`, called once from each of the three hosts, preserving the exact 249-registration union (mechanically set-diffed, not eyeballed). Every acceptance criterion in `tasks/M2-B07.md` is `MET` except one: *"the Blazor app starts and three screens from three different modules render without a DI resolution error."* |
-| The one open criterion — and this close-out's correction | Attempt 3 concluded no database was provisioned on this workstation and both hosts 500'd for that reason. **That conclusion was wrong.** This close-out session found a SQL Server Express instance with `NexGenErpDb_Master` and a 197-table tenant database already on this workstation; pointing `ConnectionStrings__MasterDb` at it makes `V.SMART.Web` render `/` at `200` with **zero** DI resolution errors (`grep -c "Unable to resolve service"` → 0). The three named module screens `302` to `/access-denied` instead — server-side screen-right authorization (ADR-004/M2-A01-01) correctly refusing an unauthenticated request, identical on `master`. The real gap is a **signed-in interactive Blazor circuit**: the one provisioned ERP user's password is hashed and owner-held, and no session may acquire or reuse a credential |
-| Not yet done | Nothing code-related — build, test, `ValidateOnBuild`, and registration-union parity are all `MET` and re-verified. What remains is purely: sign in as the ERP user and open three screens, or waive that check |
-| Next step | **Do not re-dispatch.** Wait for Vivek. Either (A) he signs in as the one provisioned user with `ConnectionStrings__MasterDb` → `DESKTOP-FIIBE97\SQLEXPRESS` / `NexGenErpDb_Master` and opens three screens from three different modules (five minutes), or (B) he waives the render half on the recorded evidence (whole-graph `ValidateOnBuild` passing at startup, zero `Unable to resolve service`, branch/`master` parity on every route tried) |
-| Escalation condition | Already escalated — this **is** the escalation. Retry budget exhausted (3 of 3); do not spend a fourth attempt without an explicit new instruction |
-| Full record | `tasks/M2-B07.md` § Execution Record (2026-08-19) — close-out, attempt 3 of 3; `failure-log.md` § M2-B07 · attempt 3 · 2026-08-19; `runner-state.md`; `task-tracker.md` footnote ²⁰ |
+**It left a debt that is due back, not optional.** `V.SMART.Api` opts out of `ValidateOnBuild`
+(`31a10ba`) because seven seam-coupled registrations abort its startup in Development. The block
+carries a `REMOVE THIS BLOCK` marker tied to **`M2-B06`** and **`M2-B08`** — whichever of those
+lands last must delete it and confirm the graph validates. `ValidateScopes` stays on.
 
 ---
 
-## Ready and unclaimed, once `M2-B07` closes — five tasks
+## Ready and unclaimed — nine M2 tasks, plus two M0 carry-overs
 
 Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
-These are **not** the task to pick up next — `M2-B07` above is, since it already has an
-open attempt and unvalidated work on its branch. Listed here for whoever plans the *following*
-task.
 
 | Task | What | Est. | Why you might take it first |
 |---|---|---|---|
-| **`M2-A06`** | Exception middleware → `ProblemDetails` | 3–5 d | Unblocks `B02`, `B06`, `B11`. Establishes the error contract every controller then relies on |
-| **`M2-C04-01`** | Design tokens, theme, light/dark | 3 d | The first task where "make the UI genuinely better" becomes concrete decisions. Blocks `C04-02`, `C04-03`, `C03` |
-| **`M2-C10`** | Decimal handling — no float money arithmetic | 2 d | P0 correctness. Blocks `C07`. Cheap, self-contained, and wrong-by-default if deferred |
-| **`M2-C11`** | Archive the Angular pilot | 0.5 d | P2 housekeeping. The smallest unit of real progress available |
-| **`M2-A01-02`** | Implement `[RequireScreen]` / `[RequireRight]` | 3 d | Spec merged ([KB-105](../architecture/server-side-authorization-spec.md)) — but **read the warning below before opening it** |
+| **`M2-B01`** | API versioning → `/api/v1` | 1 d | **Newly released.** Cheapest real progress on the backend; every later controller depends on the route shape |
+| **`M2-B05`** | Typed `ScreenCodes` constants (R-10) | 2 d | **Newly released.** Feeds `M2-A01-02`'s filter and kills a class of string-typo bug |
+| **`M2-B04`** | Decouple `IApprovalService` + 13 `Pages` refs | 1 wk | **Newly released.** The largest single piece of Blazor→service extraction in M2-B |
+| **`M2-B12-01`** | INV-012 numbering investigation | 2 d | **Newly released.** Investigation-only; unblocks the document-numbering chain |
+| **`M2-A06`** | Exception middleware → `ProblemDetails` | 3–5 d | Unblocks `B02`, `B06`, `B11`. Establishes the error contract every controller relies on |
+| **`M2-C04-01`** | Design tokens, theme, light/dark | 3 d | Where "make the UI genuinely better" becomes concrete decisions. Blocks `C04-02/03`, `C03` |
+| **`M2-C10`** | Decimal handling — no float money arithmetic | 2 d | P0 correctness. Blocks `C07`. Wrong-by-default if deferred |
+| **`M2-C11`** | Archive the Angular pilot | 0.5 d | P2 housekeeping. Smallest unit of real progress available |
+| **`M2-A01-02`** | Implement `[RequireScreen]` / `[RequireRight]` | 3 d | **Read the warning below before opening it** |
+| **`M0-01-03`** | Deployment script + rebuild runbook | 1 d | **Newly unblocked — see below.** Closes a G0 exception that was deferred on a false premise |
+| **`M0-10`** | R-08 compute-one/test-another guards | — | M0 debt carried into M2 |
 
-**`M2-C04` is a parent container** and is never worked directly — its implementable scope lives
-entirely in `M2-C04-01/02/03`. Same for `M2-C05` and `M2-A01`.
+**`M2-B12`, `M2-C04`, `M2-C05` and `M2-A01` are parent containers** and are never worked
+directly — their implementable scope lives entirely in their `-0n` children.
+
+---
+
+## The rebuild drill was never blocked on hardware
+
+**A SQL Server Express instance has been on this workstation the whole time** — `MSSQL$SQLEXPRESS`
+running, carrying `NexGenErpDb_Master` and a 197-table `NexGenErpDb`, reachable with
+`Server=.\SQLEXPRESS;Trusted_Connection=True`. Found during `M2-B07`, 2026-08-19.
+
+Three consecutive sessions recorded that no database existed, and
+[KB-107](M0-milestone-review.md) made "obtain a disposable SQL Server" its single headline
+recommendation on the strength of that. Nothing in the repository points at the instance — both
+hosts ship `"MasterDb": ""` and both user-secrets stores still hold
+`Database=DoesNotExist_M0-03-01-LocalTest` from `M0-03-01`'s fail-fast test — so each session
+**inferred absence from a config default and recorded the inference as fact.**
+
+**The lesson is not about SQL Server.** A negative result needs the same `file:line`-grade
+evidence as a positive one; *"I could not find X"* is a claim about the search, not about X.
+
+`M0-01-03` is therefore `Ready` (footnote ²¹). Use a **throwaway database** on this instance —
+**not `NexGenErpDb`**, which holds the only provisioned user and its 150 `UserRights` rows.
+
+**And a new blocker for `M0-04`:** the `Tenants` row stores its connection string in plaintext
+**with `sa` credentials** — **Q-32**. Rotating that password without answering Q-32 first would
+break every tenant row that embeds it. `M0-04` must not be executed before it is answered.
+
 
 ---
 
@@ -90,14 +120,14 @@ G0 passed **with three exceptions**, all owner-deferred, **none with a date set*
 ([KB-107 §1](M0-milestone-review.md)):
 
 1. **Criterion 1 — no rebuild drill.** No evidence a tenant database can be reconstructed from
-   source control alone. Blocked on a disposable SQL Server, not on work. Surfaces at **M6**,
+   source control alone. ~~Blocked on a disposable SQL Server, not on work.~~ **Corrected 2026-08-19: a SQL Server was here all along — this is blocked on running the drill, which is work. `M0-01-03` is now `Ready`.** Surfaces at **M6**,
    the point of maximum cost to discover it does not work.
 2. **Criterion 2 — secrets still in history.**
 3. **Criterion 3 — production credentials still unrotated, in a public repository** (R-01). The
    only remedy is rotation (`M0-04`); purging history cannot retract what is already cloned.
 
 Still-open M0 work carried in: `M0-06` (`Blocked` on Q-25/Q-26), `M0-10` (`Ready`), `M0-11`
-(`Ready` — writes `ADR-006` recording the answered Q-01), `M0-01-03` (`Needs Review`).
+(`Ready` — writes `ADR-006` recording the answered Q-01), `M0-01-03` (**`Ready`** as of 2026-08-19).
 
 ## Two process notes for M2
 
@@ -119,7 +149,7 @@ Still-open M0 work carried in: `M0-06` (`Blocked` on Q-25/Q-26), `M0-10` (`Ready
 
 | | |
 |---|---|
-| `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **79 passed, 0 failed** |
+| `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **84 passed, 0 failed** (79 + 5 from `M2-B07`) |
 | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental` | **0 errors, 6,694 warnings** (baseline 6,695) |
 | CI on `master` | **green** |
 

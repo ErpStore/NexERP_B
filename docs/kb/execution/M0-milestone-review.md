@@ -27,7 +27,7 @@ review is recorded**.
 
 | Criterion (verbatim from [KB-080 § Exit Gate — G0](README.md#exit-gate--g0)) | Met | Evidence |
 |---|---|---|
-| A fresh, empty SQL Server can be brought to a working tenant database **from source control alone** and the app runs against it | **DEFERRED** | Runbook, deploy script and log skeleton all committed; `db/REBUILD-DRILL-LOG.md` every field `TBD`. Blocked on hardware, not work |
+| A fresh, empty SQL Server can be brought to a working tenant database **from source control alone** and the app runs against it | **DEFERRED** | Runbook, deploy script and log skeleton all committed; `db/REBUILD-DRILL-LOG.md` every field `TBD`. ~~Blocked on hardware, not work~~ — **struck 2026-08-19: a SQL Server Express instance was already present on the workstation and had been all along. Blocked on running the drill, which is work. See § 7 Correction** |
 | No connection string or JWT secret in the working tree **or** in `git grep … HEAD` | **DEFERRED** | Depends entirely on `M0-05` → `M0-04` |
 | Exposed credentials rotated, confirmed by the person with production access | **DEFERRED** | `M0-04` `Blocked`; no owner with production SQL / GST gateway access identified |
 | Repository visibility deliberately decided and recorded | ✅ | Public by deliberate owner decision 2026-08-12; [KB-085](M0-00-baseline-decisions.md) via INV-034 |
@@ -157,7 +157,50 @@ gate says "passed":
    into an empty UI.
 4. **`M0-10` and `M0-11` still open**, both `Ready`.
 
-**The single highest-value action available to the owner is still the one that has been true
-all week: obtain a disposable SQL Server.** It closes criterion 1, unblocks `M0-01-03`, and
-settles the three behaviours `M0-13` could not verify. Nothing else on this list is blocked on
-so little.
+> ## ⚠ Correction, 2026-08-19 (same day, post-review) — this section's conclusion was wrong
+>
+> This review closed by recommending the owner **obtain a disposable SQL Server**, calling it
+> "the single highest-value action available." **A SQL Server was already installed on the
+> development workstation, and had been throughout M0.** Confirmed independently during
+> `M2-B07`:
+>
+> ```
+> Get-Service MSSQL*                 -> MSSQL$SQLEXPRESS   Running
+> select name from sys.databases     -> NexGenErpDb, NexGenErpDb_Master, MES_Trikala_DB, …
+> NexGenErpDb                        -> 197 tables; Users = 1 row, UserRights = 150 rows
+> ```
+>
+> Reached with `Server=.\SQLEXPRESS;Trusted_Connection=True` — Windows integrated auth, no
+> credential acquired or reused.
+>
+> **Why three consecutive sessions concluded "no database exists."** Nothing in the repository
+> points at it. Both hosts ship `"MasterDb": ""` (`V.SMART.Web/appsettings.json:10`,
+> `V.SMART.Api/appsettings.json:9`), and both user-secrets stores still hold
+> `Database=DoesNotExist_M0-03-01-LocalTest`, left behind by `M0-03-01`'s fail-fast test. Each
+> session read an empty default, found nothing configured, and **inferred absence from a config
+> default** — then recorded that inference as fact, where the next session read it as
+> established. The `Unknown` was never entered in `open-questions.md`; it became a `Confirmed`
+> by repetition.
+>
+> **This is the exact failure mode `CLAUDE.md` warns about** — *"Never write an inference so
+> that it reads as fact"* — and it cost the milestone its most-cited blocker. The lesson is not
+> about SQL Server: **a negative result needs the same `file:line`-grade evidence as a positive
+> one.** "I could not find X" is a statement about the search, not about X.
+>
+> **What actually changes:**
+> - **Criterion 1 was never blocked on hardware.** It is blocked on *running the drill*, which
+>   is work — and work that can start now. Its deferral rests on a false premise.
+> - **`M0-01-03` moves `Needs Review` → `Ready`.** It needs a disposable target, and
+>   `MES_Trikala_DB` / a fresh throwaway database on this instance can serve as one.
+> - The three behaviours `M0-13` could not verify are now verifiable.
+>
+> **A new finding this surfaced, unrelated to the drill:** the tenant row in
+> `NexGenErpDb_Master.Tenants` stores its connection string **in plaintext, with `sa`
+> credentials**. That is a live secret in the database itself, which `M0-04`/`M0-05` do not
+> cover — they address the *repository*. Recorded as **Q-32**.
+
+**The single highest-value action available to the owner** is to **run the rebuild drill**
+(`M0-01-03`) against a throwaway database on the SQL Server already present. It closes
+criterion 1 and settles the three behaviours `M0-13` could not verify. Nothing else on this
+list is blocked on so little — and, as the correction above establishes, it is no longer
+blocked on hardware at all.

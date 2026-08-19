@@ -73,7 +73,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
 | M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
-| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
+| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Ready**¹ ²¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
@@ -121,19 +121,19 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | Blocked²⁰ (needs Vivek) | P0 | G0 | 3 d | G2 |
-| M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | Blocked | P0 | M2-B07 | 1 wk | G2 |
-| M2-B01 | M2 | API versioning → `/api/v1` | Backend | Blocked | P1 | M2-B07 | 1 d | G2 |
+| M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
+| M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Ready** | P0 | M2-B07 | 1 wk | G2 |
+| M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Ready** | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | Blocked | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
-| M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | Blocked | P1 | M2-B07 | 2 d | G2 |
+| M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Ready** | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | Blocked | P1 | M2-A06 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | Blocked | P1 | **M2-B07**, M2-B02 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | Blocked | P2 | M2-A06 | 3 d | G2 |
-| M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Blocked | P0 | M2-B07 | 1 wk | G2 |
-| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | Blocked | P0 | M2-B07 | 2 d | G2 |
+| M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
+| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Ready** | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
@@ -1054,9 +1054,17 @@ owner) — the only person who can authorise publishing the branch (option A) or
 (2026-08-19)](tasks/M2-C01.md#execution-record-2026-08-19),
 [`failure-log.md`](failure-log.md#m2-c01--attempt-2--2026-08-19).
 
-²⁰ **M2-B07: `Blocked` — attempt 3 of 3 exhausted, session ends `Blocked` on a human decision,
-2026-08-19. Blocked on Vivek (repository owner), not on engineering — retry budget is spent
-and no further attempt is authorised.**
+²⁰ **M2-B07: `Completed` and merged (`ffbb1dd`, 2026-08-19) — every mechanical criterion met, the render criterion WAIVED.**
+
+> **Read the waiver as a waiver.** *"The Blazor app starts and three screens from three different modules render without a DI resolution error"* was **never satisfied**. It needs a signed-in interactive Blazor Server circuit; the one provisioned ERP user's password is hashed and owner-held, and no session may acquire or reuse a credential (Q-14 / R-01). The three screens `302` to `/access-denied` under server-side screen-right authorization — **identically on `master`**, so this is not a regression the task introduced. Waived by the owner on the `M2-C01` (`12f172f`), `M0-12-02` (`a83f1e2`) and `M0-07` (`d79e1a4`) precedent.
+>
+> **What verified the DI graph instead** — independently re-run before merging, not taken from the run's report: `dotnet test` **84 passed, 0 failed** (79 + 5 new); `dotnet build V.SMART.Api` **0 errors**; and `V.SMART.Web` started, resolved its tenant, queried EF and served `GET /` → **200 with zero DI resolution errors**. The 5 new tests in `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs` call `BuildServiceProvider(validateScopes: true, validateOnBuild: true)` over the whole graph with host seams supplied — **a stricter check than rendering three screens.**
+>
+> **It carries a debt, accepted deliberately.** `V.SMART.Api` now opts out of `ValidateOnBuild` (`31a10ba`). `WebApplicationBuilder` enables it automatically in Development, and seven seam-coupled registrations aborted API startup — a **runtime** failure that no compile check catches, and which the first attempt shipped undetected. The opt-out keeps `ValidateScopes` on, names the seven registrations as *measured* rather than assumed, and carries a `REMOVE THIS BLOCK` marker tied to `M2-B06`/`M2-B08`. **This task introduced that loosening.** Tracked in [technical-debt-register.md](../risks/technical-debt-register.md).
+>
+> **Attempt accounting, corrected.** Two real implement/validate cycles, plus one dispatch lost to an `ENOTFOUND` transport failure that — per the `M0-12-01` precedent — does not consume budget. The pre-merge record below says "3 of 3 exhausted"; **the task closed on an owner waiver, not on budget exhaustion**, and one attempt remained.
+
+Pre-merge record follows.
 
 Every mechanical acceptance criterion in `tasks/M2-B07.md` is `MET`: `AddVSmartDomain()` exists
 in `V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` and is called exactly
@@ -1088,3 +1096,41 @@ render half on the recorded evidence (whole-graph `ValidateOnBuild` passing at s
 used: 3 of 3. Full record: [`tasks/M2-B07.md` § Execution Record (2026-08-19) — close-out,
 attempt 3 of 3](tasks/M2-B07.md#execution-record-2026-08-19--close-out-attempt-3-of-3-session-ends-blocked),
 [`failure-log.md`](failure-log.md#m2-b07--attempt-3--2026-08-19).
+
+²¹ **M0-01-03: `Needs Review` → `Ready` 2026-08-19 — the premise that blocked it was false.**
+
+This task has sat unfinished all milestone because the rebuild drill needs a SQL Server to
+rebuild *onto*, and three consecutive sessions recorded that no such server was available.
+[KB-107](M0-milestone-review.md) built its closing recommendation on that: *"obtain a
+disposable SQL Server … nothing else on this list is blocked on so little."*
+
+**A SQL Server Express instance has been installed on the development workstation the whole
+time.** Confirmed independently during `M2-B07`, 2026-08-19: `MSSQL$SQLEXPRESS` running,
+carrying `NexGenErpDb_Master` and a 197-table `NexGenErpDb`, reachable with
+`Server=.\SQLEXPRESS;Trusted_Connection=True` — Windows integrated auth, **no credential
+acquired or reused**.
+
+**Why nobody saw it.** Both hosts ship `"MasterDb": ""`
+(`V.SMART/V.SMART.Web/appsettings.json:10`, `V.SMART/V.SMART.Api/appsettings.json:9`) and both
+user-secrets stores still hold `Database=DoesNotExist_M0-03-01-LocalTest`, left over from
+`M0-03-01`'s fail-fast test. Every session read an empty default, found nothing configured, and
+**inferred absence from a config default** — then wrote that inference down as fact, where the
+next session read it as settled. It was never entered as `Unknown` in
+[`open-questions.md`](../open-questions.md); it became `Confirmed` purely by repetition.
+
+**The process lesson, which outlives this task:** a negative result needs the same
+`file:line`-grade evidence as a positive one. *"I could not find X"* is a claim about the
+search, not about X. `CLAUDE.md` already says never to write an inference so that it reads as
+fact — this is what it costs when that slips.
+
+**What this does and does not mean.** The drill is now *runnable*; it has **not been run**.
+`db/REBUILD-DRILL-LOG.md` is still a skeleton with every field `TBD`, and G0 criterion 1 is
+still **DEFERRED** — but deferred on work, not on hardware, and its owner-agreed deferral now
+rests on a stated reason that no longer holds. Use a throwaway database on this instance;
+**do not run the drill against `NexGenErpDb`**, which holds the only provisioned user and 150
+`UserRights` rows.
+
+**Related, and a genuine blocker for something else:** the `Tenants` row on this instance stores
+its connection string in plaintext with `sa` credentials — **Q-32**, which must be answered
+before `M0-04`'s rotation is executed, or rotation will break every tenant row that embeds the
+password.
