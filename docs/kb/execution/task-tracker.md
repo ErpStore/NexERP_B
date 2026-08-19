@@ -77,7 +77,7 @@ its children are `Completed` — it is never worked directly.
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
-| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Blocked**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
+| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Completed**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Ready** | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
@@ -266,11 +266,22 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
 
-**Currently `Ready`: `M0-12-02`, `M0-09`, `M0-06` — three tasks, none needing a human, as of
-the `M0-13` merge (`3f6dfa8`, 2026-08-19).** `M0-13`, the fourth task released by the
-`M0-12-01` merge, was implemented, validated `PASS`, and merged the same day on the owner's
-instruction; it is `Completed`¹³. `dotnet test` re-run on `master` after that merge:
-**36 passed, 0 failed.**
+**Currently `Ready`: `M0-09` (P1, 0.5 d) and `M0-06` (P1, 1 d) — two tasks, neither needing a
+human, as of the `M0-12-02` merge (`a83f1e2`, 2026-08-19).** All four tasks released by the
+`M0-12-01` merge are now closed or in hand: `M0-13` `Completed`¹³ (`3f6dfa8`), `M0-12-02`
+`Completed`¹⁴ (`a83f1e2`), and these two remain. `dotnet test` re-run on `master` after the
+`M0-12-02` merge: **73 passed, 0 failed** — the suite has gone 0 → 11 → 36 → 73 in a single
+day.
+
+> **`M0-12-02` closed at 11 of 12 criteria, with the twelfth *waived*, not met.** Criterion 8's
+> second half — *"the suite passes in CI on the branch"* — requires pushing the branch so a
+> hosted Actions run exists, which an execution session may not do. The owner waived it
+> in-conversation on 2026-08-19, on the **`M0-07` precedent** (signed off `Completed` with the
+> identical gap open, `d79e1a4`). The reasoning, recorded so it is not mistaken for an
+> oversight: `M0-12-01` had already proven this pipeline runs this suite end to end — green,
+> **red at the `Test - V.SMART.Shared.Tests` step**, green again — so criterion 8 would have
+> re-tested the *pipeline* rather than this task. **Both G0 characterisation tasks are now
+> done.**
 
 > **`M0-11` is released, and it is now blocked on *you*, not on a task.** Its sole Hard
 > prerequisite `M0-13` is `Completed`, so the dependency is genuinely clear. But `M0-11` is a
@@ -823,8 +834,23 @@ task in this milestone. **Unblocks nothing yet**: `M0-11` (Product Decision, Q-0
 prerequisite to be genuinely `COMPLETED`, not `REVIEW` — `M0-11` stays `Blocked` until the
 owner reviews and merges this branch.
 
-¹⁴ **M0-12-02: `Blocked` on the repository owner, 2026-08-19 — 11 of 12 acceptance criteria
-`MET`, blocked on the twelfth.** Implemented on
+¹⁴ **M0-12-02: `Completed` and merged (`a83f1e2`, 2026-08-19) — 11 of 12 acceptance criteria
+`MET`, the twelfth WAIVED by the repository owner.**
+
+> **Read the waiver as a waiver, not as a pass.** Criterion 8's second half — *"the suite
+> passes in CI on the branch"* — was **never satisfied**. It requires pushing the branch so a
+> hosted Actions run exists, which `CLAUDE.md` forbids an execution session to do. The owner
+> waived it in-conversation on the **`M0-07` precedent** (`d79e1a4`, signed off `Completed`
+> with the identical gap open). Justification recorded so a later reader does not mistake this
+> for sloppiness: `M0-12-01` had already proven this pipeline runs this suite end to end —
+> green, **red at the `Test - V.SMART.Shared.Tests` step**, green again — so criterion 8 would
+> have re-tested the *pipeline*, not this task. **If a future task needs per-branch CI
+> evidence, this waiver is not a precedent for skipping it** — it rests specifically on
+> `M0-12-01` having already demonstrated the gate works.
+
+The paragraph below is the pre-merge close-out, retained verbatim for the record.
+
+**Pre-merge state (2026-08-19):** implemented on
 `migration/M0-12-02-calculationservice-characterisation` (`050f06b`), attempt 1 of 3, 0
 escalations. Validator verdict `FAIL`, `failureCategory: environment`, `scopeOk: true`. 37
 new tests (suite 36 → 73, all green, run twice: `Failed: 0, Passed: 73`) pin every row of

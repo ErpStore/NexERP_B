@@ -21,7 +21,24 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: **M0-12-02** — Characterisation tests for `CalculationService`
+## Active task: **none.** `M0-12-02` is `Completed` and merged (`a83f1e2`, 2026-08-19).
+
+**Both G0 characterisation tasks are now done.** `dotnet test` on `master`: **73 passed, 0
+failed** — the suite went 0 → 11 → 36 → 73 in a single day.
+
+**Still `Ready`, neither needing a human:** `M0-09` (fix the two unreachable delete guards,
+R-08, P1, 0.5 d) and `M0-06` (remove the seeded default Administrator credential, P1, 1 d).
+`M0-10` stays `Blocked` behind `M0-09`; `M0-11` stays `Blocked` on the **owner** (Q-01
+product decision), not on a task.
+
+> **`M0-12-02` closed at 11 of 12 — the twelfth was *waived*, not met.** Criterion 8's second
+> half ("the suite passes in CI on the branch") needs a push an execution session may not make.
+> The owner waived it on the `M0-07` precedent, because `M0-12-01` had already proven the
+> pipeline runs this suite end to end (green → red at the test step → green). **This is not a
+> general precedent for skipping CI evidence** — it rests on that specific prior proof. See
+> [`task-tracker.md`](task-tracker.md) footnote 14.
+
+### Superseded — the pre-merge run state, retained for the record
 
 Full spec: [`tasks/M0-12-02.md`](tasks/M0-12-02.md). Type Testing, P0, estimate 2.5 d, Gate
 G0. Its sole Hard prerequisite, `M0-12-01`, is `Completed` and merged (`bdee81f`,
