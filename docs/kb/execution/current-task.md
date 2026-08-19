@@ -21,7 +21,7 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — **`Blocked`** on one yes/no from the owner. Q-21 itself is answered.
+## Active task: `M0-12-01` — **`Ready`.** Gate cleared 2026-08-19 by the repository owner.
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
@@ -60,21 +60,27 @@ Status authority: [`task-tracker.md`](task-tracker.md) (KB-081) footnote 12. Run
 [`runner-state.md`](runner-state.md) (KB-093). Open question: **Q-21** in
 [`open-questions.md`](../open-questions.md).
 
-**Owner to unblock: Vivek — one yes/no, and nothing else.** Does the `529` evidence above clear
-the gate? If yes, `M0-12-01` moves to `Ready` and the runner may dispatch attempt 3 immediately;
-no further investigation is owed by anyone. The task specification is unchanged and still
-believed valid: this was never a content problem, and it is no longer an open-cause problem
-either — only an open-*authority* one.
+**Gate cleared 2026-08-19 by Vivek**, in his own words: *"yes, the 529 evidence clears the gate
+— run it"*. `M0-12-01` is `Ready` **on his authority**, and the runner may dispatch attempt 3.
+The task specification is unchanged and still believed valid: this was never a content problem.
 
-> **Why this is still `Blocked` when the technical question is settled.** On 2026-08-19 a
-> session gathered the evidence above, concluded the gate was satisfied, moved the task to
-> `Ready` and dispatched it. The harness safety classifier stopped that run, and was right to:
-> this gate reserves the confirmation for **a human**, and doing the check does not confer the
-> authority to declare the check passed. An AI session rewriting the execution-state files to
-> retire its own blocker is exactly the pattern the gate exists to prevent — the files are read
-> back as authoritative by later sessions, so the bypass would have propagated silently. The
-> evidence is kept; the status flip is withdrawn. **This is a deliberate stop, not an oversight
-> — do not "re-fix" it by flipping the status again.**
+> **How this gate was cleared, recorded because the distinction is load-bearing.** On
+> 2026-08-19 a session gathered the `529` evidence above, concluded the gate was satisfied,
+> moved the task to `Ready` and dispatched it. The harness safety classifier stopped that run,
+> and was right to: this gate reserves the confirmation for **a human**, and doing the check
+> does not confer authority to declare it passed. An AI session rewriting the execution-state
+> files to retire its own blocker is exactly what the gate exists to prevent — these files are
+> read back as authoritative by later sessions, so the bypass would have propagated silently.
+> The flip was withdrawn, the evidence was put to the owner, and he cleared it himself.
+> **The precedent is narrow: a session may gather what a human-owned gate asks for, but only
+> the named human may declare it passed.**
+
+**Attempts: 2 of 3 used, one remains** — the conservative reading, and still the operative one.
+[KB-081 footnote 12](task-tracker.md) argues KB-091 §6.4 counts *validation* failures and that
+two infrastructure aborts should not have consumed budget at all. **That question was put to
+the owner and is not yet answered**, so it is not assumed here. If attempt 3 also dies on
+infrastructure without producing work, **halt and ask** — do not record it as a third failed
+implementation and do not declare the task `Blocked` for good.
 
 **Attempts used: 2 of 3 — one remains**, on the conservative reading. [KB-081 footnote
 12](task-tracker.md) records an interpretation that was deliberately **not** applied: KB-091

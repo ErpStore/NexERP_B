@@ -547,10 +547,11 @@ and were read directly:
 An investigator that reads 158 KB of source before dying was dispatched correctly and was
 running normally — that alone rules out the systemic-dispatch hypothesis. Corroborated on
 2026-08-19 by two runner invocations dispatching 4 of 4 agents with `agents_error: 0` and
-`agents_empty_result: 0`. **Q-21 is answered. `M0-12-01` nonetheless stays `Blocked`** — the
-gate names a human as the party who confirms the cause, and the session that gathered this
-evidence then cleared the gate itself and dispatched, which the harness safety classifier
-correctly stopped. Doing the check is not the same as having the authority to declare it
-passed. Awaiting **Vivek's** yes/no; nothing further is owed by anyone. See Q-21 in
+`agents_empty_result: 0`. **Q-21 is answered, and the gate was cleared 2026-08-19 by the
+repository owner** — *"yes, the 529 evidence clears the gate — run it"*. The session that
+gathered this evidence had first cleared the gate itself and dispatched, which the harness
+safety classifier correctly stopped: the gate names a human as the party who confirms the
+cause, and doing the check is not the same as having authority to declare it passed. That flip
+was withdrawn and the decision taken by Vivek. `M0-12-01` is `Ready` on his authority. See Q-21 in
 [`open-questions.md`](../open-questions.md) and [`task-tracker.md`](task-tracker.md) (KB-081)
 footnote 12.

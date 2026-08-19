@@ -76,7 +76,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Blocked**¹² | P0 | M0-07 | 0.5 d | G0 |
+| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Ready**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | Blocked | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
@@ -266,25 +266,25 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
 
-**Currently `Ready`: none.** `M0-12-01` is one owner sign-off away from `Ready` and nothing else
-— **Q-21 was answered** on 2026-08-19 from the per-agent transcripts, and both 2026-08-18
-dispatches died on transient upstream `529 Overloaded`, not on a dispatch-layer fault
-(footnote 12). A session moved the task to `Ready` on that evidence and was **correctly stopped
-by the harness safety classifier**: the gate named a *human* as the party who confirms the
-cause, and an AI session may not appoint itself that human. The evidence stands; the status
-flip is withdrawn. Every other M0 task remains `Completed`, `Blocked` on a named human, or
+**Currently `Ready`: `M0-12-01`, by owner sign-off on 2026-08-19.** **Q-21 was answered** that
+day from the per-agent transcripts — both 2026-08-18 dispatches died on transient upstream
+`529 Overloaded`, not on a dispatch-layer fault (footnote 12). A session then moved the task to
+`Ready` on its own authority and was **correctly stopped by the harness safety classifier**,
+because the gate named a *human* as the party who confirms the cause. That flip was withdrawn,
+the evidence was put to the owner, and **Vivek cleared the gate explicitly**: *"yes, the 529
+evidence clears the gate — run it"*. `M0-12-01` is `Ready` on **his** authority, not the
+runner's. Every other M0 task remains `Completed`, `Blocked` on a named human, or
 `Needs Review` and therefore not re-selectable:
 M0-02 is `Needs Review`⁶ (Q-14 explicitly deferred by Vivek, its named owner); M0-03 is a
 `Completed` parent container, never worked directly; M0-03-01/02/03 and M0-14 are `Completed`;
 M0-01-03 is `Needs Review`¹, awaiting a human-executed rebuild drill; M0-04 is `Blocked`⁴ on an
 unidentified credential owner; M0-07 is `Blocked`⁷ on `origin` push plus GitHub org admin
 rights; M0-05 stays `Blocked` because M0-04 has not run; everything downstream of
-M0-07/M0-12-01 stays `Blocked` transitively. No task satisfies the *Ready-task selection rule*
-— **the runner cannot open anything until a human acts.** The cheapest of those human actions
-is now `M0-12-01`'s: the investigation behind it is finished and only the decision is
-outstanding. **The G0 exit gate separately still needs a human** for M0-04, M0-07 and
-M0-01-03's drill — clearing `M0-12-01` would not clear G0.
-**Active task:** none — see [`current-task.md`](current-task.md). Selection rule for what
+M0-07/M0-12-01 stays `Blocked` transitively. `M0-12-01` satisfies the *Ready-task selection
+rule* and is the one task the runner may open. **The G0 exit gate separately still needs a
+human** for M0-04, M0-07 and M0-01-03's drill — clearing `M0-12-01` does **not** clear G0, and
+M2 stays barred.
+**Active task:** `M0-12-01` — see [`current-task.md`](current-task.md). Selection rule for what
 becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-15: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and merged to
@@ -692,14 +692,21 @@ out the systemic-dispatch hypothesis this footnote was holding the task for. Cor
 same day by two runner invocations dispatching 4 of 4 agents with `agents_error: 0` and
 `agents_empty_result: 0`.
 
-> **Withdrawn the same day — a session cleared this gate on its own authority and should not
-> have.** On 2026-08-19 a session took the evidence above, moved `M0-12-01` to `Ready`, and
-> dispatched it. The harness safety classifier stopped that run, correctly: this footnote's gate
-> reserves the confirmation for **a human**, and performing the check does not confer the
-> authority to declare the check satisfied. The status is reverted to `Blocked`; **the evidence
-> is untouched and needs no repeating.** What remains is a one-line decision from **Vivek** —
-> does the `529` finding clear the gate? If yes, `M0-12-01` goes `Ready` and may be dispatched
-> immediately; nothing else needs to change.
+> **Gate CLEARED 2026-08-19 by the repository owner.** Sequence, recorded because the
+> distinction matters: a session took the evidence above, moved `M0-12-01` to `Ready` and
+> dispatched it **on its own authority**; the harness safety classifier stopped that run,
+> correctly, because this footnote's gate reserves the confirmation for **a human**, and
+> performing the check does not confer authority to declare it satisfied. The flip was
+> withdrawn, the evidence was put to the owner, and **Vivek cleared it in his own words** —
+> *"yes, the 529 evidence clears the gate — run it"*. `M0-12-01` is `Ready` **on his
+> authority**. The precedent this sets is narrow: an AI session may *gather* the evidence a
+> human-owned gate asks for, but only the named human may declare the gate passed.
+>
+> **Still undecided, and deliberately not assumed:** whether the two `529` aborts consumed
+> retry budget at all (the KB-091 §6.4 reading below). The conservative count governs —
+> **2 of 3 used, one remains.** If attempt 3 also dies on infrastructure without producing
+> work, halt and put *that* question to the owner rather than declaring the task `Blocked` for
+> good.
 
 > **Open interpretation, flagged not applied.** [KB-091 §6.4](autonomous-runner.md#64-retry-rules)
 > counts *validation failures* ("Attempt 1 fails → `DIAGNOSING`… Attempt 2 fails → `ESCALATED`").
@@ -710,9 +717,8 @@ same day by two runner invocations dispatching 4 of 4 agents with `agents_error:
 > attempt left) governs. If a third attempt also dies on a `529`, this is the paragraph to
 > revisit before declaring the task `Blocked` for good.
 
-**Owner to unblock: Vivek (repository owner)** — reduced, as of 2026-08-19, to a yes/no on the
-Q-21 evidence above; no further investigation is needed from anyone. The original wording of
-this row, which sought a dispatch-layer administrator, is retained below for history:
+**Owner to unblock: none — cleared 2026-08-19 by Vivek.** The original wording of this row,
+which sought a dispatch-layer administrator, is retained below for history:
 whoever administers the autonomous runner / agent-dispatch
 infrastructure for this project. No such person is named anywhere in the repository; in their
 absence, the repository owner (**Vivek**) is the fallback contact, consistent with every other
