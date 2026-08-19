@@ -12,7 +12,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-19
 dependencies: [KB-011, KB-013, KB-014, KB-040]
 ---
 
@@ -33,12 +33,42 @@ dependencies: [KB-011, KB-013, KB-014, KB-040]
 |---|---|---|
 | Services take/return **ViewModels**, not entities — **mostly**; see the caveat below | `IMfgPoService`, `ICurrencyService`; `ViewModels/` (274 files) | JSON-serialisable contracts already exist for most modules |
 | ViewModels carry `DataAnnotations` | `CurrencyVM.cs` | `ModelState` validation works free; also translatable to Zod |
-| Services are **scoped DI**, host-agnostic | 242 registrations in `V.SMART.Web/Program.cs` | drop into `V.SMART.Api` unchanged |
+| Services are **scoped DI**, host-agnostic — **now realised, with six named exceptions; see below** | `AddVSmartDomain()` in `V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`, called by all three hosts (M2-B07) | drop into `V.SMART.Api` unchanged |
 | Only ~3% of business files touch UI types | 14 reference `Pages`, 19 reference Blazor/MudBlazor | small, enumerable decoupling backlog |
 | Explicit transactions already used | 302 `BeginTransaction*` sites | write endpoints are atomic without new work |
 | Consistent method-name conventions | `SearchWithDynamicFilterAsync`, `Get…ByIdAsync`, `Upsert…Async`, `CanDelete…Async` | controllers can be templated |
 | Reports already return `byte[]` | `ReportService.Generate_Report` | PDF endpoints are trivial |
 | **A working proof exists** | `CurrencyController` wraps `ICurrencyService` with zero service changes | the pattern is validated, not theoretical |
+
+### Update: the "drop in unchanged" claim is now realised — with six exceptions
+
+**Added 2026-08-19 (Confirmed, M2-B07; branch `migration/M2-B07-add-vsmart-domain`, not yet
+merged).** The premise this document rested on has been tested rather than asserted.
+`V.SMART.Api` previously registered exactly **one** business service (`ICurrencyService`) and
+no `IRepository<>` open generic, so no second controller could have activated. It now calls
+the single shared `AddVSmartDomain()` (`V.SMART/V.SMART.Api/Program.cs:87`) and can resolve
+the whole domain graph by constructor injection.
+
+**Six registrations remain unresolvable in the API**, because the host seams they need have no
+API implementation. This is expected and is closed by M2-B06 / M2-B08, not by M2-B07:
+
+| Unresolvable in `V.SMART.Api` | Missing seam | Closed by |
+|---|---|---|
+| `ReportService` | `IPathProvider` | M2-B08 |
+| `IUserService` | `IPathProvider`, `IJSRuntime` | M2-B08 |
+| `IGSTITCService` | `IPathProvider` | M2-B08 |
+| `IUserThemePreferenceService` | `IJSRuntime` | — |
+| `ICompanyService` | `IFileUploadService`, bare `HttpClient` | M2-B06 |
+| `IItemService` | `IFileUploadService` | M2-B06 |
+
+**`V.SMART.Api` still has no `IPathProvider` implementation** — inventing one was explicitly
+out of M2-B07's scope. `IJSRuntime` is a Blazor concept and has no meaningful web-API
+implementation at all; `IUserThemePreferenceService` will need a different approach.
+
+The guarantee is enforced by
+`tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs`, which validates the
+full graph with `BuildServiceProvider(validateScopes: true, validateOnBuild: true)`.
+
 
 ### Caveat: the ViewModel boundary is not universal
 

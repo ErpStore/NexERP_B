@@ -1369,3 +1369,592 @@ the blocking `Format check` step.
 
 **Next attempt routed to** — no model. A stronger model cannot obtain push authority, a hosted
 runner or a Node 22 toolchain; this needs the owner's decision, not a retry.
+
+---
+
+### M2-B07 · attempt 1 · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | STOPPED |
+| Model in use | opus (implementation, dispatched per runner-state.md classification: complexity HIGH, risk HIGH) |
+| Validator verdict | none |
+| Failure category | environment |
+
+**What failed** — the implementer agent returned **no result**: no diff, no text, no tool
+output. The validator correspondingly returned `{"verdict": "none", "note": "validation did
+not complete"}`. The close-out session read this as the same symptom class as `M0-12-01`
+attempts 1–2 (see above) — a dispatched agent producing zero final output. **That reading was
+reasonable from inside the run but is wrong; see Root cause below.** The symptom matched; the
+cause did not.
+
+**What differed from `M0-12-01`'s empty-return pattern** — this was **not** an empty return in
+the working-tree sense. `git status` at close-out showed real, substantial uncommitted changes
+on branch `migration/M2-B07-add-vsmart-domain`: a new 655-line
+`V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` and edits to all three
+hosts' `Program.cs`/`MauiProgram.cs`. So the implementer's *process* did real work before
+whatever caused it to stop short of returning a report — the failure is in the report/handoff
+step, not (apparently) in the code-generation step. This distinction could not be confirmed
+further: no agent-completion log was visible to the close-out session, exactly as `M0-12-01`'s
+attempt-2 entry above found for its own case.
+
+**Close-out session's handling** — per KB-088's "the repository is the persistent memory"
+principle and the `M0-12-01`/`a5e253b` precedent (preserve uncommitted state unmodified rather
+than lose it to a future checkout), the working tree was committed as-is on the same branch,
+commit `a071716`, with an explicit WIP/unvalidated disclosure in the commit message. It was
+**not** reviewed against the acceptance criteria and **not** further edited. Three spot-check
+builds were run for honesty of record only (not as this task's validation): `V.SMART.Api` and
+`V.SMART.Web` both build at their exact recorded warning baselines (6,694 / 6,697), 0 errors.
+`V.SMART/V.SMART.csproj`'s `net9.0` and `net9.0-windows10.0.19041.0` targets build clean; its
+`net9.0-android` target hit one error, `MSB6006: "java.exe" exited with code 143`, under this
+session's own 180-second build timeout — code 143 is SIGTERM, consistent with the timeout
+killing the D8 dexing step, not a code defect. None of `dotnet test`,
+`ValidateOnBuild = true`, or any acceptance criterion in `tasks/M2-B07.md` was run.
+
+**Root cause — CONFIRMED, and it is not a code fault.** The orchestrating session read the
+workflow's own completion record, which the close-out agent could not see from inside the run:
+
+```
+[implement:M2-B07] failed: API Error: Can't reach the API server
+                           — check your internet or DNS (ENOTFOUND)
+```
+
+`ENOTFOUND` is DNS resolution failing. The implementer agent did not error, refuse, loop or run
+out of budget — **its transport died mid-flight**, after it had already written the code to disk
+and before it could return a report. The workflow's own usage counters agree: `agents_error: 1`,
+`agents_empty_result: 0`. This was *not* an empty return; it was a dropped connection.
+
+**This is a different fault class from `M0-12-01`'s**, which was `529 Overloaded` — the server
+reachable and refusing. Here the server was never reached. Both are transient infrastructure,
+neither is an implementation failure, and **neither is evidence of anything wrong with the task,
+the code, or the dispatch layer.**
+
+**Correcting a standing KB claim, again:** this entry originally recorded that "no
+agent-completion log was visible to the close-out session." Per-agent transcripts **are**
+readable, at
+`~/.claude/projects/<project>/<sessionId>/subagents/workflows/<runId>/agent-<id>.jsonl`, beside a
+`journal.jsonl` carrying one `{"type":"result"}` line per completed agent. The implementer's
+transcript here is 368,771 bytes. The belief that these logs are invisible has now caused three
+separate entries to record "root cause unknown" when the cause was recoverable in a single read.
+**That belief, not the transient failure, is the recurring defect.**
+
+**Evidence** — `git log --oneline -5` at `d982d23` before this close-out session's commits;
+`git status --porcelain` showed the four modified/untracked source files plus
+`docs/kb/execution/runner-state.md` before this close-out; `git branch -a` confirms
+`migration/M2-B07-add-vsmart-domain` exists and was the checked-out branch; the three build
+commands and their exact output are quoted in `tasks/M2-B07.md` § Execution Record
+(2026-08-19).
+
+**Next attempt routed to** — re-dispatch on `migration/M2-B07-add-vsmart-domain` (tip
+`a071716`), not a fresh branch. The next implementer should review the existing
+`ServiceCollectionExtensions.cs` against `tasks/M2-B07.md`'s acceptance criteria and INV-039's
+findings, run `dotnet test` and a `ValidateOnBuild` check, and correct or confirm rather than
+regenerate. If this repeats a third time with the same no-result symptom, that repetition — not
+this single instance — is what would be worth escalating to a human, per the precedent set by
+`M0-12-01`'s own attempt-1 note.
+
+---
+
+### M2-B07 · attempt 2 · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus |
+| Validator verdict | FAIL |
+| Failure category | regression |
+
+**What failed** — the acceptance criterion *"`GET /api/currencies` returns the same shape and
+status as before the change."* It cannot: after this branch's change **`V.SMART.Api` no longer
+starts at all in the `Development` environment**, which is what its own default launch profile
+sets (`V.SMART/V.SMART.Api/Properties/launchSettings.json:9,18` — `"ASPNETCORE_ENVIRONMENT":
+"Development"` in both profiles). Observed by the validator running
+`dotnet run --project V.SMART/V.SMART.Api/V.SMART.Api.csproj` on branch
+`migration/M2-B07-add-vsmart-domain` at `6f452cf`, with `ConnectionStrings__MasterDb`,
+`Jwt__Secret`, `Jwt__Issuer` and `Jwt__Audience` supplied so that
+`StartupConfigurationValidator` passed:
+
+```
+Unhandled exception. System.AggregateException: Some services are not able to be constructed
+ (Error while validating the service descriptor 'ServiceType:
+  V.SMART.Shared.Services.ReportViewer.ReportService ...':
+  Unable to resolve service for type 'V.SMART.Shared.Services.IPathProvider' ...)
+ ... IUserThemePreferenceService -> IJSRuntime
+ ... IUserService                -> IPathProvider
+ ... ICompanyService             -> IFileUploadService
+ ... IItemService                -> IFileUploadService
+ ... IEnquirySalesService        -> IPathProvider (transitively, via ReportService)
+ ... IGSTITCService              -> IPathProvider
+[process exit code 255]
+```
+
+**Root cause** — `WebApplicationBuilder` sets `ValidateOnBuild = true` and
+`ValidateScopes = true` **automatically** whenever the hosting environment is `Development`
+(`HostApplicationBuilder` → `HostingHostBuilderExtensions.CreateDefaultServiceProviderOptions`),
+so moving the six/seven host-coupled domain registrations into `AddVSmartDomain()` and calling
+it from the API turns a documented, tolerated *gap* into a **hard startup failure** for the one
+host this task exists to unblock. The Execution Record reasons about this exact hazard —
+*"Setting `ValidateOnBuild = true` in `V.SMART.Api/Program.cs` would therefore make the API
+**fail to start**"* — and concludes it can be avoided by not writing the line; the framework
+writes it for you in Development, so the outcome the record says it avoided is the outcome it
+shipped.
+
+**Evidence** —
+- Branch tip `6f452cf`, `dotnet run` output quoted above (validator-observed, not reported).
+- Contrast, same command, same env vars, on `master` (`d982d23`) in a clean `git worktree`:
+  `Now listening on: http://localhost:5144` / `Application started.` /
+  `Hosting environment: Development`, process still alive after 7 minutes. So the API *did*
+  start before this change: this is a **regression**, not a pre-existing condition.
+- The unresolvable set is at `V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs:319`
+  (`ReportService`) and the six business services listed in that file's `<remarks>` at `:234-239`.
+  The runtime error names **seven**, not six — `IEnquirySalesService` also fails, transitively
+  through `ReportService`.
+- `V.SMART.Web` is **not** affected — started cleanly in `Development` on this branch
+  (`Now listening on: http://localhost:5197`), because it supplies every seam.
+
+**Everything else on this branch verified clean** (validator-observed, so a fix should preserve
+it): `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → 0 errors, **6,695** warnings
+(exactly the baseline); `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` → 0 errors;
+`dotnet build V.SMART/V.SMART/V.SMART.csproj` → 0 errors, 6,671 warnings;
+`dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` → **84 passed, 0 failed**,
+including all 5 `AddVSmartDomainTests`. An independent normalise-and-set-difference of every
+`AddScoped`/`AddSingleton`/`AddTransient` call reproduces the reported reconciliation exactly —
+Web 239 distinct, MAUI 239, union **249** before; **nothing dropped**, and the only additions
+after are the API's own two host registrations. The corrections to INV-039/Q-31/R-26 are also
+independently confirmed: `IContractReviewService` and `IRouteCardService` *are* registered on
+`master` at `V.SMART/V.SMART.Web/Program.cs:467` and `:518`, the MAUI-only set is 6 and the
+Web-only set is 7.
+
+**Disposition** — `retry`. The defect is narrow and the rest of the branch is sound; a fix
+should not regenerate the extension. Options for the next attempt, in the order a reviewer
+would prefer them: (a) keep the graph whole and have `V.SMART.Api` opt out explicitly —
+`builder.Host.UseDefaultServiceProvider(o => { o.ValidateOnBuild = false; o.ValidateScopes = true; })`
+with the six/seven-service gap named in the comment — which restores startup and is honest
+about why; (b) split the host-coupled registrations behind a flag/overload so the API's graph
+omits them until M2-B06/M2-B08; (c) close the seams in the API now, which the task explicitly
+**forbids** ("Do NOT invent an `IPathProvider` implementation for `V.SMART.Api`"). Whichever is
+chosen, the fix is only proven by *starting the API in `Development`* — a green build and a
+green unit test both pass today and neither caught this.
+
+**Next attempt routed to** — same model (`opus`) on the same branch. No KB-091 §6.3 escalation
+trigger applies: the category is `regression`, the root cause is known and single-line-sized,
+and no business rule or architecture decision is in question.
+
+**Standing lesson for KB-083 / KB-091** — "the project builds" and "a `BuildServiceProvider`
+unit test is green" do **not** imply "the host starts". A unit test can supply seams the real
+host does not have; that is precisely what
+`AddVSmartDomainTests.AddVSmartDomain_WithHostSeams_BuildsAndValidatesTheWholeGraph` does. Any
+task that changes a composition root should add *starting the affected host* to its
+verification, and note that ASP.NET Core turns `ValidateOnBuild` on by itself in `Development`.
+
+---
+
+### M2-B07 · attempt 2 · diagnosis · 2026-08-19
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **A fix was
+applied**; see below. Files touched: `V.SMART/V.SMART.Api/Program.cs`,
+`V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` (XML comment only),
+`tasks/M2-B07.md` (a correction subsection) and this log.)*
+
+| Field | Value |
+|---|---|
+| Runner state | FIXED — re-validation observed |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | regression → **implementation-error** (a false premise about a framework default; deliberately not re-classified as architecture — see below) |
+
+**Reproduced** — yes, independently, on `migration/M2-B07-add-vsmart-domain` at `6f452cf`,
+before touching anything:
+
+```
+$ ASPNETCORE_ENVIRONMENT=Development ConnectionStrings__MasterDb=... Jwt__Secret=... \
+  Jwt__Issuer=... Jwt__Audience=... dotnet run \
+  --project V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-build --no-launch-profile \
+  --urls http://localhost:5311
+Unhandled exception. System.AggregateException: Some services are not able to be constructed
+ (... ReportService -> IPathProvider) (... IUserThemePreferenceService -> IJSRuntime)
+ (... IUserService -> IPathProvider) (... ICompanyService -> IFileUploadService)
+ (... IItemService -> IFileUploadService) (... IEnquirySalesService -> IPathProvider)
+ (... IGSTITCService -> IPathProvider)
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Program.<Main>$(String[] args) in ...\V.SMART\V.SMART.Api\Program.cs:line 109
+```
+
+Seven descriptors, exactly the set the validator reported.
+
+**Root cause** — a **single false premise**, not a design fault. `tasks/M2-B07.md` §
+*Decisions taken* reasons that the API avoids build-time DI validation by *not writing*
+`builder.Host.UseDefaultServiceProvider(o => { o.ValidateOnBuild = true; ... })`.
+`WebApplicationBuilder` writes it for you: `HostApplicationBuilder` →
+`HostingHostBuilderExtensions.CreateDefaultServiceProviderOptions` turns **both**
+`ValidateOnBuild` and `ValidateScopes` on whenever the environment is `Development`, which is
+what `V.SMART/V.SMART.Api/Properties/launchSettings.json:9,18` sets in both profiles. The
+extension's contents are correct; the host was simply never told what the design already assumed
+about it.
+
+**Why this is `implementation-error` and not `architecture`** — the design decision (the API
+keeps the full shared graph; the seam-coupled services stay unresolvable until M2-B06 / M2-B08;
+the build-time guarantee is carried by the unit test) was already taken, documented and
+validated, and nothing about it changes. What changed is one host-configuration line that makes
+the host behave the way that decision already claimed it behaved. Option (b) from the validator's
+entry — splitting the host-coupled registrations behind a flag so the API gets a *reduced* graph
+— *would* have been a new design decision, and was therefore **not** taken.
+
+**Fix applied** — `V.SMART/V.SMART.Api/Program.cs`, immediately before the `AddVSmartDomain`
+call:
+
+```csharp
+builder.Host.UseDefaultServiceProvider((context, options) =>
+{
+    options.ValidateOnBuild = false;
+    options.ValidateScopes = context.HostingEnvironment.IsDevelopment();
+});
+```
+
+with a comment naming the framework behaviour, the seven-service gap, and an explicit
+`REMOVE THIS BLOCK` instruction tied to M2-B06 / M2-B08. `ValidateScopes` is deliberately left at
+the framework's own default — captive-dependency detection is not what had to be relaxed, and
+turning it on unconditionally would have changed `Production` behaviour too. No registration was
+added, removed, moved or re-lifetimed; `AddVSmartDomain()`'s graph is untouched.
+
+**Also corrected: the gap is seven, not six.** `ServiceCollectionExtensions.cs`'s `<remarks>`,
+the `Program.cs` comment and `tasks/M2-B07.md` all said six. `IEnquirySalesService` fails as
+well, transitively through `ReportService`. The number is now *measured* — by the run quoted
+above — rather than enumerated by hand.
+
+**Re-validated — commands run in this pass, with their actual output:**
+
+```
+dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj
+  -> 6695 Warning(s) / 0 Error(s) / 00:02:04.45    (exactly the 6,695 baseline; no new warnings)
+dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj
+  -> 4 Warning(s) / 0 Error(s)                     (incremental)
+dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+  -> Passed!  - Failed: 0, Passed: 84, Skipped: 0, Total: 84, Duration: 10 s
+dotnet run --project V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-build   (default launch profile)
+  -> Now listening on: http://localhost:5144
+     Application started. / Hosting environment: Development      <- the regression is gone
+GET http://localhost:5144/api/currencies                      -> 401  (no token, [Authorize])
+GET http://localhost:5144/swagger/v1/swagger.json             -> 200
+GET http://localhost:5144/api/currencies  with a valid HS256 token
+  -> 500 System.NullReferenceException at TenantDbContextFactory.cs:18
+     (ITenantProvider.GetCurrentTenant() returned null), stack reaching
+     UnitOfWork..ctor(ITenantDbContextFactory, ...);
+     grep "Unable to resolve service" over that response -> 0 matches
+V.SMART.Web, ASPNETCORE_ENVIRONMENT=Development, --no-launch-profile
+  -> Now listening on: http://localhost:5398 / Application started.
+     (so its graph still passes the framework's own ValidateOnBuild — unaffected by this fix)
+```
+
+The 500 is the environment, not the branch: `CurrencyController` → `ICurrencyService` →
+`IUnitOfWork` all resolved, and neither `TenantDbContextFactory.cs` nor `UnitOfWork.cs` appears
+in `git diff --stat master...HEAD`. There is no provisioned master/tenant database and no login
+on this workstation, so the *shape* half of "`GET /api/currencies` returns the same shape and
+status as before" remains unverifiable here — as it was for the validator, and as
+`tasks/M2-B07.md` § *Not verified* already stated.
+
+**Tried before** — nothing in this log records this fix, or any fix, for M2-B07. Attempt 1 was a
+transport failure (`ENOTFOUND`) that produced code but no report; attempt 2 was the first
+validated attempt. This is not a loop.
+
+**Disposition** — `fixed`, and committed on `migration/M2-B07-add-vsmart-domain` together with
+this entry. Re-running the validator against the new tip is the orchestrator's next step.
+
+**Residual risk**
+
+1. **`GET /api/currencies` end-to-end and the Blazor three-screen smoke test still need a
+   database.** Both remain unverified and neither should be recorded as met.
+2. **The API no longer build-validates its own graph.** That is a real loss of a diagnostic, and
+   it is *scheduled* rather than permanent — the `REMOVE THIS BLOCK` comment ties it to M2-B06 /
+   M2-B08. Until then a genuinely new DI mistake in `V.SMART.Api` surfaces at first request
+   rather than at startup. `AddVSmartDomainTests` covers the *shared* graph, not host-specific
+   wiring; that distinction is what made this failure invisible to a green test in the first
+   place.
+3. **The seven-service list is hand-maintained.** If another service acquires an `IPathProvider`
+   or `IFileUploadService` dependency later, the comment goes stale silently, because validation
+   is off in this host. `AddVSmartDomain_WithoutHostSeams_FailsValidation` pins that the gap is
+   non-empty, not its size.
+4. **MAUI was not started or rebuilt in this pass.** Nothing in this fix touches it; the
+   validator recorded it building at 0 errors / 6,671 warnings.
+
+**Next attempt routed to** — no model change needed; re-validate the same branch once the fix is
+committed. No KB-091 §6.3 escalation trigger applies: no business rule, no schema change and no
+architecture decision is in question.
+
+**Standing lesson, restated because attempt 2 shipped on the opposite belief** — ASP.NET Core
+turns `ValidateOnBuild`/`ValidateScopes` **on by itself in `Development`**. *Not* writing the
+line does not leave the check off. Any task that changes a composition root must verify by
+**starting the affected host in `Development`**; a green build and a green `BuildServiceProvider`
+unit test both passed here, and neither caught it.
+
+---
+
+### M2-B07 · attempt 3 · validation · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus |
+| Validator verdict | FAIL |
+| Failure category | environment |
+
+**Read this first.** No code defect was found. Every build, test, DI-validation, scope and
+regression check passed on independent re-run at branch tip `5cb1901`. The `FAIL` is recorded
+because **one acceptance criterion cannot be observed on this workstation**, and a check that
+could not be run is never a pass. Re-dispatching an implementer will not change the outcome —
+this needs a provisioned database or an owner decision, not another code attempt.
+
+**What could not be checked** — the acceptance criterion *"The Blazor app starts and three
+screens from three different modules render without a DI resolution error."* The **start** half
+is met and observed. The **render** half is not checkable: there is no SQL Server instance on
+this machine, so every route 500s during component render. Observed on branch, `V.SMART.Web`,
+`ASPNETCORE_ENVIRONMENT=Development`, `--no-launch-profile`, `ASPNETCORE_URLS=http://localhost:5322`:
+
+```
+info: Microsoft.Hosting.Lifetime[0] Application started.
+info: Microsoft.Hosting.Lifetime[0] Hosting environment: Development
+fail: Microsoft.EntityFrameworkCore.Database.Connection[20004]
+      An error occurred using the connection to database 'VSmartMaster' on server '(local)'.
+      SqlException ... error: 40 - Could not open a connection to SQL Server
+GET /                          -> 500
+GET /contractReviewMasterList  -> 500
+GET /itemList                  -> 500
+GET /currencyList              -> 404   (no such route)
+grep -c "Unable to resolve service" <host log>  -> 0
+```
+
+Because the host boots in `Development`, the framework's own `ValidateOnBuild` ran over the
+**whole** Web graph and passed — so the union registration this task introduces does resolve
+completely in `V.SMART.Web`. That is strong evidence for the criterion's *intent* (no `#region`
+dropped), but it is not the criterion as written.
+
+**What would verify it** — a provisioned master database plus at least one tenant database, and
+valid login credentials, then three screens from three different modules opened in a browser.
+
+**Everything else, independently re-run by the validator at `5cb1901`**
+
+```
+dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental
+  -> 6694 Warning(s) / 0 Error(s) / 00:01:10.78     (baseline 6,695; one fewer, no new warnings)
+dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj --no-incremental
+  -> 6697 Warning(s) / 0 Error(s) / 00:01:54.67     (baseline 6,698/6,697)
+dotnet build V.SMART/V.SMART/V.SMART.csproj
+  -> 6671 Warning(s) / 0 Error(s) / 00:01:38.30     (MAUI head; MauiProgram.cs compiles)
+dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+  -> Passed!  - Failed: 0, Passed: 84, Skipped: 0, Total: 84
+dotnet test ... --filter FullyQualifiedName~AddVSmartDomainTests
+  -> Passed!  - Failed: 0, Passed: 5, Skipped: 0, Total: 5
+grep -c "AddScoped\|AddSingleton\|AddTransient" V.SMART/V.SMART.Web/Program.cs   -> 7
+grep -c "AddScoped\|AddSingleton\|AddTransient" V.SMART/V.SMART/MauiProgram.cs   -> 8
+```
+
+**`GET /api/currencies` parity — verified against `master`, not asserted.** The validator built
+`master` (`d982d23`) in a throwaway worktree and drove both hosts with byte-identical env vars
+and the same minted HS256 token:
+
+| Request | branch (`:5321`) | `master` (`:5323`) |
+|---|---|---|
+| no token | `401` | `401` |
+| valid token | `500 System.NullReferenceException` at `TenantDbContextFactory.cs:18` via `UnitOfWork..ctor(...)` | **identical stack**, only the content-root path differs |
+
+So the endpoint's status and error shape are unchanged. The **200** path is still unreachable
+without a database and stays not checkable on either side. The worktree was removed and pruned.
+
+**Registration-set equality — the validator's own check, independent of the implementer's
+tables.** Normalising every `Add{Scoped,Singleton,Transient}` call in `master`'s three
+composition roots and in the branch's extension + three hosts and set-differencing them:
+
+```
+in master, not in branch:  4 entries — all formatting artifacts, all present in the branch
+    AddScoped<IAccountReportService, AccountReportService>();//Confirmation of accounts
+    builder .Services.AddScoped<ICreditNoteService, CreditNoteService>();   (space after "builder")
+    builder .Services.AddScoped<ILabourInvoiceService, LabourInvoiceService>();
+    builder .Services.AddScoped<ILabourSCNService, LabourSCNService>();
+in branch, not in master:  0 entries
+```
+
+Nothing dropped, nothing invented, and — because whole registration expressions were compared —
+no lifetime changed. No service type in the extension has two *different* implementations; the
+only duplicated service types (`ICorrespondanceRepository`, `IEnquiryPurchaseService`) are
+byte-identical duplicates that `master` also carried, so last-wins is unaffected.
+
+**Scope** — `git diff --name-only d982d23..HEAD` outside `docs/` is exactly
+`V.SMART/V.SMART.Api/Program.cs`, `V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`,
+`V.SMART/V.SMART.Web/Program.cs`, `V.SMART/V.SMART/MauiProgram.cs` and
+`tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs`. None of the
+*Files That Must Not Change* paths were touched: no `BusinessLayer/`, `Repository/`, `Data/`,
+`Mappings/`, `ViewModels/`, `Pages/`, `Migrations/`, `Api/Controllers/`, `Api/Auth/`,
+`Web/Services/` or MAUI `Services/`. No schema change. No TypeScript. Blazor Server intact and
+booting.
+
+**Noted, not failed — `ValidateOnBuild = false` in `V.SMART/V.SMART.Api/Program.cs:97-101`.**
+The validator reviewed this deliberately. It is a real loss of a startup diagnostic for the API
+host, but it is the least-bad option consistent with this task's own constraints (the task
+requires the seven seam-coupled registrations to be *present but unresolvable* in the API until
+M2-B06/M2-B08, and `WebApplicationBuilder` would otherwise abort the host in `Development`). It
+is documented at the site with a `REMOVE THIS BLOCK` trigger and recorded as **R-40** in
+KB-060 — disclosed, not hidden. Not scored as a regression or an architecture failure.
+
+**Documentation criteria verified present** — R-26 marked `RESOLVED by M2-B07` with evidence
+(`docs/kb/risks/technical-debt-register.md:969-990`); R-40 added (`:992-1012`); composition-root
+section in `docs/kb/architecture/backend-architecture.md:219`; KB-041 updated (`:36,49,57-69`);
+INV-039 `Complete` in `docs/kb/investigation-registry.md:38`; the `V.SMART.Web` build baseline
+recorded in KB-083's verified-commands table.
+
+**Minor, cosmetic** — `docs/kb/execution/tasks/M2-B07.md` frontmatter says `status: Review`
+(correct) while the body table at `:41` still says `Status | Not Started`. Worth fixing whenever
+the file is next touched; it is not an acceptance criterion.
+
+**Disposition** — attempt 3 of 3 returns `FAIL / environment`, so KB-091 §6.4 moves M2-B07 to
+`BLOCKED`. The block is **not** on code: it is on the absence of a SQL Server master + tenant
+database and login credentials on this workstation. The owner's options are to provision one and
+re-run the three-screen smoke test, or to accept the boundary explicitly and waive that half of
+the criterion on the record. No KB-091 §6.3 escalation trigger applies.
+
+---
+
+### M2-B07 · attempt 3 · diagnosis · 2026-08-19
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **No fix applied;
+no code, test or task file touched.** The only file written by this pass is this log.)*
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | environment (confirmed) — **but the stated reason for it is wrong; see below** |
+
+**The validator's premise is factually incorrect, and correcting it is the point of this
+entry.** Attempt 3's entry says *"there is no SQL Server instance on this machine"* and asks the
+owner to provision one. **A provisioned SQL Server, a provisioned master database and a
+provisioned tenant database all already exist on this workstation.** The validator drove the host
+at `Server=(local);Database=VSmartMaster`, which is neither the instance nor the database this
+deployment uses, and read the resulting `error: 40 - Could not open a connection` as an absent
+server.
+
+Measured this pass, on `DESKTOP-FIIBE97`:
+
+```
+Get-Service MSSQL*        -> MSSQL$SQLEXPRESS            Running
+                             SQLBrowser                  Running
+select name from sys.databases        (Server=.\SQLEXPRESS, Integrated Security)
+  -> master, MES_Trikala_DB, model, msdb, NexGenErpDb, NexGenErpDb_Master, tempdb
+NexGenErpDb_Master tables -> __EFMigrationsHistory, Tenants
+select * from Tenants     -> Id=1 | Name=localhost | Hostname=localhost |
+                             ConnectionString=Server=DESKTOP-FIIBE97\SQLEXPRESS;
+                             Database=NexGenErpDb;User Id=sa;Password=<redacted here>;...
+NexGenErpDb               -> 197 tables; Users = 1 row, UserRights = 150 rows
+```
+
+The names are `NexGenErpDb_Master` / `NexGenErpDb`, not `VSmartMaster`, and the instance is
+`.\SQLEXPRESS`, not the default instance. Both `appsettings.json` files ship `"MasterDb": ""`
+(`V.SMART/V.SMART.Web/appsettings.json:10`, `V.SMART/V.SMART.Api/appsettings.json:9`) and both
+user-secrets stores hold `Database=DoesNotExist_M0-03-01-LocalTest`, left over from M0-03-01's
+fail-fast test, so nothing in the repository points a session at the real database. **That is why
+three sessions in a row have concluded "no database exists".**
+
+**Reproduced — and then the criterion was re-run with the correct connection string.** Branch
+`migration/M2-B07-add-vsmart-domain`, tip `5cb1901`, `V.SMART.Web`,
+`ASPNETCORE_ENVIRONMENT=Development`, `--no-launch-profile`, `--no-build`,
+`ConnectionStrings__MasterDb=Server=DESKTOP-FIIBE97\SQLEXPRESS;Database=NexGenErpDb_Master;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true;`:
+
+```
+Now listening on: http://localhost:5333 / Application started. / Hosting environment: Development
+Executed DbCommand ... SELECT TOP(1) [t].[Id], [t].[ConnectionString], [t].[Hostname], [t].[Name]
+                       FROM [Tenants] AS [t] WHERE [t].[Hostname] = @__host_0
+[TenantProvider] Resolved tenant from host: localhost
+GET /                          -> 200      (was 500 for the validator)
+GET /contractReviewMasterList  -> 302  Location: /access-denied
+GET /routeCardList             -> 302  Location: /access-denied
+GET /itemList                  -> 500
+GET /access-denied             -> 200
+grep -c "Unable to resolve service" (host log)  -> 0
+```
+
+So the database wall the validator hit is gone: the tenant resolves, EF executes against the
+master database, and the home page renders.
+
+**What is left, and it is not the database.** The three module screens sit behind the ERP's own
+screen-right authorization, and this session has no authenticated ERP session:
+
+- `/contractReviewMasterList` and `/routeCardList` redirect to `/access-denied` from
+  `AuthorizationMiddleware` — no user, no rights.
+- `/itemList` reaches component initialization and dies inside its own `catch`:
+  `ItemList.OnInitializedAsync()`
+  (`V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Items_Pages/ItemList.razor:521-556`)
+  catches the rights-lookup failure and then calls `_js.ToastrError(...)` at `:555`, which throws
+  `InvalidOperationException: JavaScript interop calls cannot be issued at this time … the
+  component is being statically rendered`
+  (`V.SMART/V.SMART.Shared/Services/Extensions/IJSRuntimeExtensions.cs:15`). A pre-existing
+  prerender anti-pattern on the error path, not DI.
+
+Note what that 500 *does* prove: the `ItemList` component was constructed and every injected
+service resolved out of the branch's `AddVSmartDomain()` graph before any of this happened.
+
+**Not a regression — verified against `master`, not asserted.** `master` (`d982d23`) was built in
+a throwaway worktree (`6698 Warning(s) / 0 Error(s)`) and driven with byte-identical env vars on
+`:5334`:
+
+| Route | branch `:5333` | master `:5334` |
+|---|---|---|
+| `/` | 200 | 200 |
+| `/contractReviewMasterList` | 302 → `/access-denied` | 302 → `/access-denied` |
+| `/routeCardList` | 302 → `/access-denied` | 302 → `/access-denied` |
+| `/itemList` | 500 (JS-interop-in-prerender) | 500 (**same** exception, same line) |
+| `/access-denied` | 200 | 200 |
+| `grep -c "Unable to resolve service"` | 0 | 0 |
+
+Behaviour is identical on both sides for every route tried. The worktree was removed and pruned;
+`git status --porcelain` is back to the two orchestrator-owned doc files.
+
+**Root cause** — the criterion *"three screens from three different modules render without a DI
+resolution error"* cannot be observed by an execution session because it needs a **signed-in ERP
+user** (one `Users` row exists; its password is hashed and held by the owner) driving an
+**interactive Blazor Server circuit** in a browser — not because a database is missing. Class:
+`environment`. No code defect: zero DI resolution failures in either host log, and every
+observable difference from `master` is zero.
+
+**Why no fix was applied** — there is nothing to fix. The three moves available are all forbidden
+or dishonest: obtaining the ERP password by any means other than the owner handing it over;
+relaxing the screen-right check so the pages render unauthenticated (that is a business rule, and
+altering it to pass a check is exactly what the workflow forbids); or restating "the component
+was constructed, therefore it rendered" as if it satisfied the criterion as written.
+
+**Tried before** — no fix in this log is being repeated: attempt 1 was `ENOTFOUND`, attempt 2's
+diagnosis applied the `ValidateOnBuild` fix (which holds — the API still starts), and attempt 3
+applied no fix. What *is* repeated, three times now, is the **conclusion** "no database on this
+workstation", recorded in attempt 2's diagnosis residual risk 1 and in attempt 3's validation.
+That conclusion is withdrawn here, with the measurements above.
+
+**Disposition** — `blocked`, agreeing with the category but not with the reason. Attempts used:
+3 of 3 ([KB-091 §6.4](autonomous-runner.md#6-retry-and-escalation)). KB-091 §8 trigger 5 applies
+(credential unavailable), **not** the "provision a database" action the validator recommended.
+
+**Decision the orchestrator needs from the repository owner** (one of):
+
+- **A** — the owner opens `V.SMART.Web` in a browser with the connection string above, signs in
+  as the single provisioned user, opens three screens from three different modules, and records
+  the result. This is now a five-minute manual check, not a provisioning exercise.
+- **B** — waive the render half explicitly on the record, on the evidence that the framework's own
+  `ValidateOnBuild` passed over the whole Web graph at startup in `Development`, that zero
+  `Unable to resolve service` entries appear in either host log, and that branch and `master`
+  behave identically on all five routes tried.
+
+**Worth recording outside this log** (orchestrator's call, not the debugger's): the real local
+database coordinates — instance `.\SQLEXPRESS`, master database `NexGenErpDb_Master`, tenant
+resolved by `Hostname='localhost'` from its `Tenants` table — belong in KB-083's
+verified-commands table or an environment note, **without** the `sa` password, which stays in the
+database row. Three sessions have now spent effort rediscovering or mis-concluding this.
+
+**Residual risk** — (i) the authorized render path is still genuinely unobserved: a screen whose
+injected services resolve at construction could still fail later inside an authenticated render,
+though nothing observed suggests it will; (ii) the `/itemList` 500 is pre-existing on `master` and
+is not this task's to fix, but it does mean one of the three routes named in the criterion may
+still not render cleanly even for a signed-in user; (iii) R-40 (the API's `ValidateOnBuild =
+false`) remains open and dated to M2-B06 / M2-B08.
+
+**Next attempt routed to** — no model. A stronger model cannot obtain the ERP user's password or
+drive a browser session; this needs the owner.

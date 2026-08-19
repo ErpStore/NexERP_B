@@ -1,21 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using V.SMART.Api.Auth;
-using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAccountsService;
-using V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsService;
-using V.SMART.Shared.Data;
-using V.SMART.Shared.Data.Master.Admin;
-using V.SMART.Shared.Mappings;
-using V.SMART.Shared.Repository;
-using V.SMART.Shared.Repository.IRepository;
+using V.SMART.Shared.DependencyInjection;
 using V.SMART.Shared.Services;
-using V.SMART.Shared.Services.MultiCompanyService;
-using V.SMART.Shared.ViewModels;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -82,31 +72,60 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<UserSession>();
-builder.Services.AddScoped<ITenantProvider, TenantProvider>();
-builder.Services.AddScoped<ITenantDbContextFactory, TenantDbContextFactory>();
 
-builder.Services.AddDbContext<MasterDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("MasterDb")));
+// M2-B07 — host-platform registration, kept out of AddVSmartDomain() on purpose. Four
+// business services take IHttpClientFactory (BankService, PaymentsService, ReceiptsService,
+// AdvaceAdjustmentService), which only AddHttpClient() supplies. V.SMART.Web has had this
+// since before this task (Program.cs:232); the API did not, so those four would have stayed
+// unresolvable here.
+builder.Services.AddHttpClient();
 
-builder.Services.AddScoped<ApplicationDbContext>(sp =>
+// M2-B07 — this host must not build-validate its service graph, and that has to be said
+// explicitly rather than assumed. WebApplicationBuilder switches ValidateOnBuild AND
+// ValidateScopes on by itself whenever the hosting environment is Development
+// (HostApplicationBuilder -> HostingHostBuilderExtensions.CreateDefaultServiceProviderOptions),
+// and Development is exactly what both launch profiles set
+// (Properties/launchSettings.json:9,18). ValidateOnBuild eagerly builds a call site for every
+// descriptor that has an implementation type, so the seven registrations listed below — which
+// depend on host seams V.SMART.Api deliberately does not have until M2-B06 / M2-B08 — abort
+// startup with AggregateException("Some services are not able to be constructed") before the
+// host ever reaches a request. ValidateScopes is left at the framework's own default (on in
+// Development, off elsewhere): captive-dependency detection is not what has to be relaxed.
+//
+// REMOVE THIS BLOCK once M2-B06 and M2-B08 supply IPathProvider / IFileUploadService /
+// IFileOpener for this host. At that point the graph validates and the check must go back on.
+builder.Host.UseDefaultServiceProvider((context, options) =>
 {
-    var factory = sp.GetRequiredService<ITenantDbContextFactory>();
-    return factory.CreateDbContext();
+    options.ValidateOnBuild = false;
+    options.ValidateScopes = context.HostingEnvironment.IsDevelopment();
 });
 
-builder.Services.AddAutoMapper(cfg =>
-{
-    cfg.AddMaps(typeof(MappingProfileMarker).Assembly);
-});
+// M2-B07 — the whole domain graph (repositories, the IRepository<> open generic, UnitOfWork,
+// ~285 business services, MasterDbContext, the tenant-resolved ApplicationDbContext and
+// AutoMapper) now comes from the single shared composition root in V.SMART.Shared.
+// Before this, the API registered exactly one business service (ICurrencyService) and no
+// IRepository<> open generic, so any second controller compiled fine and then failed at
+// activation time with a DI resolution error.
+//
+// Deliberately still absent, and therefore not resolvable in this host: IPathProvider,
+// IFileUploadService, IFileOpener and IJSRuntime have no V.SMART.Api implementation yet
+// (M2-B08 and M2-B06). Exactly seven registrations therefore stay unresolvable here —
+// measured by running this host with ValidateOnBuild = true, not assumed (M2-B07):
+//     ReportService                 needs IPathProvider
+//     IUserService                  needs IPathProvider + IJSRuntime
+//     IGSTITCService                needs IPathProvider
+//     IUserThemePreferenceService   needs IJSRuntime
+//     ICompanyService               needs IFileUploadService
+//     IItemService                  needs IFileUploadService
+//     IEnquirySalesService          needs IPathProvider, transitively via ReportService
+// That gap is expected and is not closed by this task. Injecting any of the seven into a
+// controller still fails at activation time, exactly as it did before this task. The
+// equivalent build-time guarantee for the shared graph is enforced instead by
+// tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs, which validates the
+// identical graph with the host seams supplied.
+builder.Services.AddVSmartDomain(builder.Configuration);
 
 builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>();
-builder.Services.AddScoped<CurrentUserService>();
-builder.Services.AddScoped<ILoggingService, FileLoggingService>();
-builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped<ForeignKeyUsageChecker>();
-builder.Services.AddScoped<ICurrencyService, CurrencyService>();
 builder.Services.AddSingleton(new JwtTokenService(builder.Configuration));
 
 var app = builder.Build();

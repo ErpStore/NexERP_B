@@ -121,7 +121,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Ready** | P0 | G0 | 3 d | G2 |
+| M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | Blocked²⁰ (needs Vivek) | P0 | G0 | 3 d | G2 |
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | Blocked | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | Blocked | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | Blocked | P0 | M2-A06 | 1 wk | G2 |
@@ -640,7 +640,7 @@ rule; it was moved to `kb/M0-03-02-closeout` and merged through review instead.
 `migration/M0-03-03-startup-config-validation` (`34be11a`), merged to `master` 2026-08-18.  That commit's parent is
 `d4ba526` — `master`'s tip at the time this task opened, not `0a20d62` as the branch's own
 close-out records first stated; `0a20d62` is only a transitive ancestor, corrected here.
-Independently validated **PASS** on attempt 1 of 4, 0 escalations, `scopeOk: true`,
+Independently validated **PASS** on attempt 1 of 3, 0 escalations, `scopeOk: true`,
 `failureCategory: none` — twelve of thirteen acceptance criteria `MET`, the thirteenth (MAUI
 head build) correctly declared not checkable in this environment. No regressions found across
 the full branch diff (12 files, additive-or-delegating only).
@@ -1053,3 +1053,38 @@ owner) — the only person who can authorise publishing the branch (option A) or
 (option B).** Full record: [`tasks/M2-C01.md` § Execution Record
 (2026-08-19)](tasks/M2-C01.md#execution-record-2026-08-19),
 [`failure-log.md`](failure-log.md#m2-c01--attempt-2--2026-08-19).
+
+²⁰ **M2-B07: `Blocked` — attempt 3 of 3 exhausted, session ends `Blocked` on a human decision,
+2026-08-19. Blocked on Vivek (repository owner), not on engineering — retry budget is spent
+and no further attempt is authorised.**
+
+Every mechanical acceptance criterion in `tasks/M2-B07.md` is `MET`: `AddVSmartDomain()` exists
+in `V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` and is called exactly
+once from each of `V.SMART.Api/Program.cs`, `V.SMART.Web/Program.cs` and
+`V.SMART/MauiProgram.cs`; per-host domain registrations dropped from 242/243 to 7/8;
+`ApplicationDbContext` is still registered through `ITenantDbContextFactory`, never
+`AddDbContext`; the union of 249 distinct registrations is preserved exactly, verified by a
+mechanical set-diff, not eyeballing; `AddVSmartDomainTests.cs` passes
+`BuildServiceProvider(validateScopes: true, validateOnBuild: true)` over the whole graph (5/5
+green, 84/84 in the suite); `V.SMART.Api` and `V.SMART.Web` build at 0 errors, at or under their
+recorded warning baselines; runtime parity against a `master` worktree is byte-identical on
+every route and status code tried. R-26 is `RESOLVED` in
+`docs/kb/risks/technical-debt-register.md` with this evidence; R-40 records the API's
+`ValidateOnBuild = false` opt-out, deliberately scoped and due for removal at M2-B06/M2-B08.
+
+**One criterion stays unmet, and the reason for that changed between attempt 3 and this
+close-out.** Attempt 3 concluded no database was provisioned on the workstation and both hosts
+500'd for that reason. This close-out session found that conclusion **wrong**: a SQL Server
+Express instance with `NexGenErpDb_Master` and a 197-table tenant database already exists here,
+and pointing the connection string at it makes `V.SMART.Web` render `/` at `200` with zero DI
+resolution errors. The three named module screens instead `302` to `/access-denied` —
+server-side screen-right authorization (ADR-004/M2-A01-01) correctly refusing an
+unauthenticated request, identical on `master`. The real gap is a **signed-in interactive
+Blazor circuit**: the one provisioned ERP user's password is hashed and owner-held, and no
+session may acquire or reuse a credential. **Owner: Vivek** — either (A) sign in as that user in
+a browser and open three screens from three different modules, five minutes, or (B) waive the
+render half on the recorded evidence (whole-graph `ValidateOnBuild` passing at startup, zero
+`Unable to resolve service` in the host log, branch/`master` parity on every route). Attempts
+used: 3 of 3. Full record: [`tasks/M2-B07.md` § Execution Record (2026-08-19) — close-out,
+attempt 3 of 3](tasks/M2-B07.md#execution-record-2026-08-19--close-out-attempt-3-of-3-session-ends-blocked),
+[`failure-log.md`](failure-log.md#m2-b07--attempt-3--2026-08-19).

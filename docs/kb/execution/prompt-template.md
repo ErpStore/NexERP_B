@@ -308,9 +308,10 @@ methodology and reproducibility evidence). Do not put an unverified command in a
 
 | Purpose | Command | Verified result |
 |---|---|---|
-| Build the API and its dependencies | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | 0 errors, 6,695 warnings, ~1m23s–2m27s (reproducible x2, KB-086 §3) |
-| Build the Blazor host | `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` | 0 errors, 6,698 warnings, ~1m19s–1m20s (reproducible x2, KB-086 §3). Re-measured 2026-08-18 (M0-03-03, on that task's branch, `--no-incremental`): **0 errors, 6,697 warnings, 1m18s** (second run 1m01.86s, same counts). A warm incremental run of the same command took ~6s and reported only the 5 warnings belonging to `V.SMART.Web` itself, the rest coming from `V.SMART.Shared`, which was already built. Read a low warning count as "incremental", not "improved". |
+| Build the API and its dependencies | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` | 0 errors, 6,695 warnings, ~1m23s–2m27s (reproducible x2, KB-086 §3). Re-measured 2026-08-19 (M2-B07 attempt 2, on that task's branch, `--no-incremental`): **0 errors, 6,694 warnings, 1m04s** |
+| Build the Blazor host | `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` | 0 errors, 6,698 warnings, ~1m19s–1m20s (reproducible x2, KB-086 §3). Re-measured 2026-08-18 (M0-03-03, on that task's branch, `--no-incremental`): **0 errors, 6,697 warnings, 1m18s** (second run 1m01.86s, same counts). A warm incremental run of the same command took ~6s and reported only the 5 warnings belonging to `V.SMART.Web` itself, the rest coming from `V.SMART.Shared`, which was already built. Read a low warning count as "incremental", not "improved". Re-measured 2026-08-19 (M2-B07 attempt 2, `--no-incremental`): **0 errors, 6,697 warnings, 1m04s** — same count as 2026-08-18, so this is a reproduced baseline, not "not yet measured" |
 | Build the whole solution | `dotnet build NexGen-ERP---2025-master.sln` | 0 errors, 13,367 warnings, ~4m7s–4m16s **on this machine, from a clean `obj`** (reproducible x2). A dirty `obj` produced 2 file-lock/permission errors unrelated to code. Whether it succeeds on a workload-free CI runner is **Unknown** — untested (KB-086 §4). **Not recommended for CI** — see KB-086 §7. |
+| Build the MAUI head | `dotnet build V.SMART/V.SMART/V.SMART.csproj` | **0 errors, 6,671 warnings, 1m57s** (measured 2026-08-19, M2-B07 attempt 2, on that task's branch, warm/incremental — **not** `--no-incremental`). Four target frameworks: `net9.0-android`, `net9.0-ios`, `net9.0-maccatalyst`, `net9.0-windows10.0.19041.0`. This is a **single** observation, on a machine with the MAUI workloads installed; it does not establish that a workload-free CI runner can build it. An earlier attempt on 2026-08-19 failed with `MSB6006: "java.exe" exited with code 143` on the Android target — code 143 is SIGTERM, i.e. that session's own 180s timeout killing the D8 dexing step, not a code defect. Give it 5+ minutes cold |
 | **The CI build command** (M0-07) | `dotnet restore <csproj>` then `dotnet build <csproj> --no-restore --no-incremental -v normal -nologo -bl:<path>.binlog`, run for `V.SMART.Api` and `V.SMART.Web` | Api: 0 errors, **6,693** warnings; Web: 0 errors, **6,695** warnings (measured 2026-08-17, M0-07, locally — 2 and 3 lower than the plain-`dotnet build` figures above because separating restore moves the `NU1608` restore warnings out of the build log; see [KB-087](ci-pipeline.md) §4). `--no-incremental` and `-v normal` are **required** by the warning gate, not stylistic |
 | Analyzer warning gate (M0-07) | `pwsh tools/compare-warnings.ps1 -LogPath <log> -BaselinePath ci/warning-baseline.json -Target <V.SMART.Api\|V.SMART.Web>` (POSIX sibling: `tools/compare-warnings.sh <log> <baseline> <target>`) | exit 0 = at/below baseline, 1 = gate failure, 2 = the measurement could not be trusted. Verified locally 2026-08-17 on four logs, both variants agreeing. See [KB-087](ci-pipeline.md) |
 | **Run the tests** (M0-12-01) | `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **11 tests discovered, 11 passed, 0 failed, 0 skipped**; test execution 9s, whole command ~15s warm (measured 2026-08-19, M0-12-01, locally, SDK 10.0.400). Do **not** add `--no-build` or `--no-restore`: this is the only project that restores it. It is currently the repository's *only* test project — a `dotnet test` that reports fewer than 11 tests has targeted the wrong path |
@@ -328,6 +329,17 @@ SDKs are `10.0.300` and `10.0.400` (drifted from `10.0.300`/`10.0.302` recorded 
 succeeds through SDK roll-forward. A root `global.json` now pins the SDK to `10.0.400` with
 `rollForward: latestFeature` (KB-086 §6) — a prompt may assume this pin exists, but should
 still not assume `dotnet --version` reports 9.x.
+
+**Local dev database exists on this workstation (Confirmed, M2-B07 close-out, 2026-08-19) —
+three prior sessions wrongly concluded otherwise.** SQL Server Express instance
+`DESKTOP-FIIBE97\SQLEXPRESS` carries a `NexGenErpDb_Master` master database and at least one
+197-table tenant database, resolvable via the master DB's `Tenants` table by
+`Hostname='localhost'`. Pointing `ConnectionStrings__MasterDb` at it and starting
+`V.SMART.Web` renders `/` at `200` with zero DI resolution errors. Do **not** put the `sa` or
+any other credential in this file, in a prompt, or anywhere in the repository — the password
+stays in the database/OS credential store only. A session needing this database should ask a
+human to confirm the connection string is still valid before relying on it; this note records
+the *coordinates* found working on one date, not a guarantee they still are.
 
 **Warning baseline (Confirmed, KB-086 §5).** 6,695 warnings on the Api build. The dominant
 codes are the `CS86xx` nullable-reference-analysis family (`CS8602` alone is 23.6% of the

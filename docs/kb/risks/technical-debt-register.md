@@ -941,8 +941,75 @@ middleware; no `ProblemDetails`.
 **Confirmed.** `V.SMART.Web/Program.cs` (34.8 KB, 242 registrations) and
 `V.SMART/MauiProgram.cs` (38.6 KB) register the same graph independently.
 **Impact.** They will drift; a service added to one host is missing in the other.
-**Action.** Extract a shared `AddVSmartDomain(this IServiceCollection)` extension in
-`V.SMART.Shared` and call it from all three hosts.
+
+**Already manifested — the exact, measured divergence (Confirmed, M2-B07 attempt 2,
+2026-08-19).** Normalising every registration call on `master` and de-duplicating gives
+239 distinct real registrations in `V.SMART.Web/Program.cs` (242 matched lines; 240 distinct,
+one of which — `:253` — is commented out) against 239 in `V.SMART/MauiProgram.cs` (243
+matched lines). Their union is 249. Thirteen registrations diverged:
+
+| Divergence | Evidence (paths on `master`) |
+|---|---|
+| **6 registered only in MAUI** — `IRouteCardRepository`, `IRouteCardSubRepository`, `IProductionReturnAssyRepository`, `IProductionReturnAssySubRepository`, `IProductionSCNAssyRepository`, `IProductionSCNAssySubRepository` | `V.SMART/V.SMART/MauiProgram.cs:389,395` and siblings |
+| **7 registered only in Web** — `IAssemblyDefLabourService`, `IEstimateService`, `IJobOrderRepository`, `IJobOrderSubRepository`, `ILabourTrackRepository`, `IPrPoRatingService`, `IToolCribServices` | `V.SMART/V.SMART.Web/Program.cs` |
+| `IFileOpener` lifetime — `Scoped` in Web, `Singleton` in MAUI | `V.SMART/V.SMART.Web/Program.cs:267`, `V.SMART/V.SMART/MauiProgram.cs:274` |
+| `ReportService` registered twice in MAUI | `V.SMART/V.SMART/MauiProgram.cs:200,219` |
+| `AddHttpClient()` in Web only; MAUI registers a bare scoped `HttpClient` instead; the API had neither | `V.SMART/V.SMART.Web/Program.cs:243`, `V.SMART/V.SMART/MauiProgram.cs:256` |
+
+**Correction to the 2026-08-19 first pass (INV-039), which this supersedes.** That pass listed
+**8** MAUI-only services, including `IContractReviewService` and `IRouteCardService`. Both are
+in fact registered in the Blazor host too — `V.SMART/V.SMART.Web/Program.cs:467` and `:518` on
+`master` — so the MAUI-only set is 6, not 8, and the claim that `/contractReviewMasterList`
+and `/routeCardList` threw a DI resolution error in Blazor does not follow from those two
+registrations. See Q-31 in [`open-questions.md`](../open-questions.md).
+
+**Action.** Extract a shared `AddVSmartDomain(this IServiceCollection, IConfiguration)`
+extension in `V.SMART.Shared` and call it from all three hosts.
+
+**Status (2026-08-19): RESOLVED by `M2-B07`** — pending review of branch
+`migration/M2-B07-add-vsmart-domain`; not yet merged to `master`.
+**Evidence.** `V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`
+holds the single composition root; `V.SMART/V.SMART.Api/Program.cs`,
+`V.SMART/V.SMART.Web/Program.cs` and `V.SMART/V.SMART/MauiProgram.cs` each call it exactly
+once and retain 2 / 7 / 8 host-only registrations respectively, down from 1 / 242 / 243. The
+union is preserved exactly — 249 distinct before, 249 distinct after, nothing dropped and
+nothing invented. `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs`
+validates the whole graph with `BuildServiceProvider(validateScopes: true, validateOnBuild: true)`
+(5 tests, green; 84/84 in the suite). Builds observed: API 0 errors / 6,694 warnings; Web 0
+errors / 6,697 warnings; MAUI head 0 errors / 6,671 warnings.
+**Re-measured 2026-08-19 (M2-B07 attempt 3, on `31a10ba`).** `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`
+→ `6695 Warning(s) / 0 Error(s)` from cold, exactly the KB-083 baseline — the `6,694` above is
+one low. `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` → `5 Warning(s) / 0 Error(s)`
+incremental; the same project built from cold in a `master` worktree gives `6698 Warning(s) / 0
+Error(s)`. `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` → `Failed: 0,
+Passed: 84`. Both hosts start in `Development` and answer requests identically to `master` —
+see the *Verification (2026-08-19) — attempt 3* section of
+[`docs/kb/execution/tasks/M2-B07.md`](../execution/tasks/M2-B07.md).
+**What this does *not* close.** The `IFileOpener` lifetime divergence is a **host**
+registration and survives unchanged, by instruction — Web `Scoped`, MAUI `Singleton`. It is
+recorded here rather than silently normalised, and needs its own decision.
+
+### R-40 — `V.SMART.Api` opts out of build-time DI validation to be able to start
+**Confirmed (M2-B07, 2026-08-19).** `V.SMART/V.SMART.Api/Program.cs` calls
+`builder.Host.UseDefaultServiceProvider(… options.ValidateOnBuild = false …)` immediately
+before `AddVSmartDomain(…)`. It has to: `WebApplicationBuilder` turns `ValidateOnBuild` on by
+itself in the `Development` environment, which both launch profiles set
+(`V.SMART/V.SMART.Api/Properties/launchSettings.json:9,18`), and seven registrations in the
+shared composition root depend on host seams this API host does not yet have — `ReportService`,
+`IUserService`, `IGSTITCService`, `IUserThemePreferenceService`, `ICompanyService`,
+`IItemService` and, transitively via `ReportService`, `IEnquirySalesService`. Without the
+opt-out the host aborts with `AggregateException("Some services are not able to be
+constructed")`, exit code 255 — observed by the M2-B07 validator on `6f452cf`.
+**Impact.** For as long as this line stands, a *genuinely* broken registration in the API's
+graph is not caught at startup; it surfaces at controller activation instead. The equivalent
+guarantee is carried only by
+`tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs`, which validates the
+same graph with test doubles for the seams — so it cannot catch a seam that the API host, and
+only the API host, is missing.
+**Action.** Delete the `UseDefaultServiceProvider` block once M2-B06 / M2-B08 supply
+`IPathProvider`, `IFileUploadService`, `IFileOpener` and an `IJSRuntime` substitute for this
+host; the comment in `Program.cs` says so at the site. `ValidateScopes` was deliberately left
+at the framework default, so captive-dependency detection is unaffected.
 
 ### R-27 — Hardcoded developer-machine values in the MAUI project
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in

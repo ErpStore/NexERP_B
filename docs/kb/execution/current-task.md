@@ -21,30 +21,36 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No active task — `M2-C01` closed, next task not yet selected
+## Active task — `M2-B07`, `Blocked` on the repository owner after attempt 3 of 3
 
-**`M2-C01` is `Completed` and merged (`12f172f`, 2026-08-19).** `frontend/nexgen-web/` is on
-`master`: Vite 6 + React 19 + TypeScript `strict`, Mantine 7, TanStack Query, Vitest + RTL +
-MSW, a Playwright scaffold, and the KB-050 feature-sliced skeleton. The canonical frontend
-commands (`npm ci`, `typecheck`, `lint`, `format:check`, `test`, `coverage`, `build`, `e2e`)
-are established and recorded in
-[KB-083 § Verified repository commands](prompt-template.md#verified-repository-commands).
+**Task file:** [`tasks/M2-B07.md`](tasks/M2-B07.md) — Shared `AddVSmartDomain()` DI extension.
+**Branch:** `migration/M2-B07-add-vsmart-domain`, tip **`5cb1901`**. **Do not start from a
+clean tree or a fresh branch, and do not re-dispatch an implementer** — the retry budget (3 of
+3) is spent and every mechanical acceptance criterion is already `MET`.
 
-**Read the close as a waiver, not a pass.** 14 of 15 acceptance criteria were met. The 15th —
-criterion 10's second half, *"the `frontend` job … is green on the branch"* — was **never
-satisfied**; it needs a push, which an execution session may not make. The owner waived it on
-the `M0-07` (`d79e1a4`) and `M0-12-02` (`a83f1e2`) precedent. Full record:
-[`task-tracker.md`](task-tracker.md) footnote ¹⁹.
+### Run State
+
+| Field | Value |
+|---|---|
+| Status | `Blocked` — attempt 3 of 3 exhausted; blocked on a **human decision**, not on engineering |
+| What happened | Attempts 1–3 landed a 655-line `AddVSmartDomain()` extension in `V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`, called once from each of the three hosts, preserving the exact 249-registration union (mechanically set-diffed, not eyeballed). Every acceptance criterion in `tasks/M2-B07.md` is `MET` except one: *"the Blazor app starts and three screens from three different modules render without a DI resolution error."* |
+| The one open criterion — and this close-out's correction | Attempt 3 concluded no database was provisioned on this workstation and both hosts 500'd for that reason. **That conclusion was wrong.** This close-out session found a SQL Server Express instance with `NexGenErpDb_Master` and a 197-table tenant database already on this workstation; pointing `ConnectionStrings__MasterDb` at it makes `V.SMART.Web` render `/` at `200` with **zero** DI resolution errors (`grep -c "Unable to resolve service"` → 0). The three named module screens `302` to `/access-denied` instead — server-side screen-right authorization (ADR-004/M2-A01-01) correctly refusing an unauthenticated request, identical on `master`. The real gap is a **signed-in interactive Blazor circuit**: the one provisioned ERP user's password is hashed and owner-held, and no session may acquire or reuse a credential |
+| Not yet done | Nothing code-related — build, test, `ValidateOnBuild`, and registration-union parity are all `MET` and re-verified. What remains is purely: sign in as the ERP user and open three screens, or waive that check |
+| Next step | **Do not re-dispatch.** Wait for Vivek. Either (A) he signs in as the one provisioned user with `ConnectionStrings__MasterDb` → `DESKTOP-FIIBE97\SQLEXPRESS` / `NexGenErpDb_Master` and opens three screens from three different modules (five minutes), or (B) he waives the render half on the recorded evidence (whole-graph `ValidateOnBuild` passing at startup, zero `Unable to resolve service`, branch/`master` parity on every route tried) |
+| Escalation condition | Already escalated — this **is** the escalation. Retry budget exhausted (3 of 3); do not spend a fourth attempt without an explicit new instruction |
+| Full record | `tasks/M2-B07.md` § Execution Record (2026-08-19) — close-out, attempt 3 of 3; `failure-log.md` § M2-B07 · attempt 3 · 2026-08-19; `runner-state.md`; `task-tracker.md` footnote ²⁰ |
 
 ---
 
-## Ready and unclaimed — six tasks
+## Ready and unclaimed, once `M2-B07` closes — five tasks
 
 Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+These are **not** the task to pick up next — `M2-B07` above is, since it already has an
+open attempt and unvalidated work on its branch. Listed here for whoever plans the *following*
+task.
 
 | Task | What | Est. | Why you might take it first |
 |---|---|---|---|
-| **`M2-B07`** | Shared `AddVSmartDomain()` DI extension | 3 d | **Unblocks the most** — `B01`, `B04`, `B05`, `B08`, `B09` all wait on it. The DI seam everything in M2-B hangs off |
 | **`M2-A06`** | Exception middleware → `ProblemDetails` | 3–5 d | Unblocks `B02`, `B06`, `B11`. Establishes the error contract every controller then relies on |
 | **`M2-C04-01`** | Design tokens, theme, light/dark | 3 d | The first task where "make the UI genuinely better" becomes concrete decisions. Blocks `C04-02`, `C04-03`, `C03` |
 | **`M2-C10`** | Decimal handling — no float money arithmetic | 2 d | P0 correctness. Blocks `C07`. Cheap, self-contained, and wrong-by-default if deferred |
@@ -98,8 +104,12 @@ Still-open M0 work carried in: `M0-06` (`Blocked` on Q-25/Q-26), `M0-10` (`Ready
 - **Check `git branch --no-merged master` before allocating any id.** `M2-A01-01` and `M0-06`
   collided on **six** ids, because `grep`-before-claim only sees merged work and cannot see a
   sibling branch. M2 runs more branches in parallel than M0 did, so this will recur. `M0-06`
-  still owes `KB-104 → KB-106` and `INV-035 → INV-038`, and its `KB-104` is cited in an
-  `ApplicationDbContext.cs` source comment that must change with it.
+  still owes `KB-104 → KB-106` and, per its own branch, `INV-035` and `INV-036` — but `INV-036`
+  is **already taken on `master`** (M0-13's testing recipe), so that branch's ids will need
+  renumbering at merge regardless. `M2-B07` claimed `INV-039` on 2026-08-19 (`investigation-registry.md`),
+  deliberately skipping `INV-035`/`INV-038` to leave `M0-06`'s reserved range alone — the next
+  free id after that is `INV-040`. `M0-06`'s `KB-104` is cited in an `ApplicationDbContext.cs`
+  source comment that must change with it.
 - **`master` requires pull requests.** The 2026-08-19 push reported
   `Bypassed rule violations … Changes must be made through a pull request`, and succeeded only
   because the owner holds bypass rights. Prefer a PR. No required status check gates merges yet

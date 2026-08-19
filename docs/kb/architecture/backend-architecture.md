@@ -16,7 +16,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-12
+last_verified: 2026-08-19
 dependencies: [KB-010, KB-013]
 ---
 
@@ -215,3 +215,63 @@ when the API layer is built. See [`migration/migration-strategy.md`](../migratio
 - Blazor Server: `UseExceptionHandler("/Error")` for non-dev; `DetailedErrors = true` is
   set unconditionally in `AddServerSideBlazor` — a production information-disclosure issue.
 - API: no exception-handling middleware, no `ProblemDetails` standardisation. **Gap.**
+
+## Composition root
+
+**Confirmed (M2-B07, 2026-08-19.** On branch `migration/M2-B07-add-vsmart-domain`; not yet
+merged to `master`.)
+
+There is **one** composition root for the domain graph:
+
+```
+V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs
+
+    public static IServiceCollection AddVSmartDomain(
+        this IServiceCollection services, IConfiguration configuration)
+```
+
+It registers `MasterDbContext`, `ITenantProvider`/`ITenantDbContextFactory`, the
+tenant-resolved `ApplicationDbContext` **as a factory delegate** (never `AddDbContext` — that
+would break database-per-tenant isolation), AutoMapper via the `MappingProfileMarker` assembly
+scan, `AddScoped(typeof(IRepository<>), typeof(Repository<>))`, `IUnitOfWork`, the
+cross-cutting services (`CurrentUserService`, `ILoggingService`, `ForeignKeyUsageChecker`,
+`UserSession`, `ExcelExportService`, `IExcelTemplateService`) and the ~240 business services
+and repositories.
+
+All three hosts call it exactly once: `V.SMART/V.SMART.Api/Program.cs:87`,
+`V.SMART/V.SMART.Web/Program.cs:212`, `V.SMART/V.SMART/MauiProgram.cs:216`. Before this, the
+Blazor and MAUI hosts registered the same graph independently — 242 and 243 registrations —
+and had drifted (KB-060 R-26); the API registered exactly one business service.
+
+### The host seams — deliberately *not* in `AddVSmartDomain()`
+
+Each host supplies a different implementation, so registering them centrally would erase the
+seam:
+
+| Seam | Web | MAUI | API |
+|---|---|---|---|
+| `IPathProvider` | `WebPathProvider` (Scoped) | `DesktopPathProvider` (Scoped) | **none** — M2-B08 |
+| `IFileUploadService` | `WebFileUploadService` (Scoped) | `MauiFileUploadService` (Scoped) | **none** — M2-B06 |
+| `IFileOpener` | `WebFileOpener` (**Scoped**) | `DesktopFileOpener` (**Singleton**) | **none** — M2-B06 |
+| `AuthenticationStateProvider` | `CustomAuthStateProvider` | `CustomAuthStateProvider` | `ApiAuthStateProvider` |
+| `IJSRuntime` | framework | framework | **none** (not a web-API concept) |
+| `HttpClient` / `IHttpClientFactory` | `AddHttpClient()` | bare scoped `HttpClient` | `AddHttpClient()` only |
+
+The `IFileOpener` Scoped-vs-Singleton divergence is pre-existing and was preserved, not
+normalised — see KB-060 R-26.
+
+### The consequence for `V.SMART.Api`
+
+Six registrations in `AddVSmartDomain()` remain **unresolvable in the API** until M2-B06 and
+M2-B08 supply the missing seams — expected, not a defect: `ReportService`, `IUserService`,
+`IGSTITCService`, `IUserThemePreferenceService`, `ICompanyService`, `IItemService`. Every
+other registration resolves.
+
+That is enforced, not asserted: `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs`
+builds the graph with test doubles for the seams and calls
+`BuildServiceProvider(validateScopes: true, validateOnBuild: true)`. Because of the six gaps
+above, the API host cannot itself run with `ValidateOnBuild = true` yet.
+
+**Rule for adding a service.** One line, in `ServiceCollectionExtensions.cs`, in the `#region`
+matching its folder under `BusinessLayer/BusinessService/`. Never in a host's `Program.cs`
+unless it is a host seam.
