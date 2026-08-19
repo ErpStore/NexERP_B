@@ -24,78 +24,97 @@ dependencies: [KB-081, KB-082, KB-088]
 ## Active task: **M0-06** — Remove the seeded default Administrator credential
 
 Full spec: [`tasks/M0-06.md`](tasks/M0-06.md). Type Security, P1, estimate 1 d, Gate G0.
-Depends on `M0-12-01` (Hard, `Completed`) and is ordered after `M0-13` (Hard ordering
-constraint — both risk touching `ApplicationDbContext.cs` seed data; `M0-13` is now
-`Completed` and merged, `3f6dfa8`, so this ordering constraint is satisfied).
 
-**Do NOT implement it yet.** This entry only selects it as the next dependency-ready task; a
-future session executes it.
+**Run State: `Blocked` on the repository owner — NOT a runner candidate again until Q-26 is
+answered.** Attempt 2 of 3, 1 escalation. Validator verdict **`FAIL`**, `scopeOk: true`,
+`failureCategory: architecture`. Implemented on `migration/M0-06-remove-default-admin`
+(`5b12573`, `4fb8781`) — branch not merged, not pushed.
 
-### Why this task, not another
+### What happened
 
-Selection rule: [`dependency-graph.md` § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+Everything engineering-scoped was completed and independently re-verified: the hard-coded
+seed is removed from `ApplicationDbContext.cs` (single hunk), six new tests plus an amended
+`DbFixtureTests` assertion are in the suite (`dotnet test` → 85/85 passed), `dotnet build
+V.SMART.Api --no-incremental` → 6,694 warnings / 0 errors (under the 6,695 baseline), the
+published PBKDF2 hash is confined to 109 pre-existing migration files, `UserRepository.cs`
+and the `Screens`/`Restrict`-loop seed are untouched, and a runbook exists
+([KB-104](security/default-admin-removal-runbook.md)) with a named owner and a read-only
+per-tenant diagnostic. 14 of the task's 16 acceptance criteria are `MET`.
 
-`M0-09` (fix the two unreachable delete guards, R-08) closed this session at
-`Needs Review` (validated `PASS`, implemented on `migration/M0-09-delete-guard-fix`,
-`8e3b19d`) — it is **not** a candidate again until reviewed and merged. That leaves `M0-06`
-as the only task the `M0-12-01` merge released that is both dependency-ready and not
-blocked on a human step: `M0-12-02` and `M0-13` are `Completed`, `M0-09` is `Needs Review`,
-and `M0-06` alone remains genuinely `Ready`. No tie-break was needed.
+**Acceptance criterion 2 — "no default administrator credential is seeded into a newly
+created tenant database" — is `NOT MET`, and cannot be closed from inside a migration.**
+`InitialCreate.cs:7562` still inserts `UserId=1` / `"Administrator"` / the published hash,
+and it always will: migration history may never be edited (`tasks/M0-06.md`'s own "Files
+That Must Not Change" / criterion 11), and replaying migrations is the *only*
+tenant-provisioning path this repository supports — nothing in `V.SMART/` calls `Migrate()`,
+`MigrateAsync()` or `EnsureCreated()` (Q-02, still `Unknown`). A migration `Up()` cannot tell
+a freshly provisioned database from a live tenant, so any DELETE against `Users` either
+strikes an existing tenant whose only administrator may be this account (Q-25, `Unknown` —
+the task file forbids shipping that) or never fires on a fresh database, leaving the
+criterion unmet either way — and it would also **succeed and silently cascade**, since all
+three FKs to `Users` are `Cascade`, not `Restrict` as the task file assumed
+(`InitialCreate.cs:7196-7200`, `:7232-7236`), destroying `UserRight`/`UserAuthority`/
+`UserThemePreference` rows.
 
-`M0-10` (audit all `CanDelete…Async` guards, INV-025) is **not** ready — it names `M0-09` as
-a Hard prerequisite and the selection rule requires that prerequisite to be genuinely
-`Completed`, not `Needs Review`. It stays `Blocked` until `M0-09`'s branch is reviewed and
-merged.
+The task's own `Dependencies` table names *"a deployment owner"* as an unsatisfied **Hard**
+dependency it may not silently resolve on its own authority. This was escalated as **Q-26**
+(`open-questions.md`), with three options (A: define tenant provisioning and make the KB-104
+runbook step mandatory; B: authorise guarded DML accepting the lock-out risk; C: re-scope
+criterion 2 to the model-only property and re-home the replay gap) — none of which an AI
+session may choose. Q-25 (is `UserId=1` some tenant's only administrator?) is a separate,
+also-`Unknown` prerequisite to B.
 
-### What M0-06 does, in brief
+**Owner: Vivek** (repository/deployment owner). Full record:
+[`tasks/M0-06.md` § Execution Record (2026-08-19)](tasks/M0-06.md#execution-record-2026-08-19);
+[`failure-log.md` § M0-06 · attempt 1](failure-log.md#m0-06--attempt-1--2026-08-19) and its
+diagnosis entry; [`task-tracker.md`](task-tracker.md) footnote 16;
+[`runner-state.md`](runner-state.md) (KB-093).
 
-`ApplicationDbContext.OnModelCreating` seeds a hard-coded `Administrator` user with a fixed
-PBKDF2 hash into **every tenant database** (`ApplicationDbContext.cs:1136-1148`, per R-09 /
-KB-060). The task removes that seed from source and replaces it with a bootstrap path that
-does not leave a known password in source control — **without locking out any tenant that
-has no other administrator account**. Read the full task file before starting: it requires
-three deliverables (seed removed, a documented/executed bootstrap or migration path, and an
-explicit statement of tenant impact), not just a code deletion.
+### Discovered along the way, recorded not acted on
 
-**Ordering constraint, already satisfied but re-verify at start:** confirm
-`ApplicationDbContext.cs`'s current seed section still matches the cited line range before
-touching it — `M0-13`'s merge may have shifted nearby lines even though it targeted
-`StockManagerService.cs`, not this file.
+**R-40 (new, High): `UserId == 1` is an undeclared superuser.** `Login.razor:345-349`
+auto-grants it all 152 screen rights on every login; no `UserRight` rows are seeded at all;
+rights are deny-by-default (`RightsHelper.cs:7-20`). A replacement administrator created with
+any other `UserId` authenticates and then sees nothing — a lockout by a route entirely
+different from the one this task warned about. Recorded in
+[`technical-debt-register.md`](risks/technical-debt-register.md) (KB-060); feeds directly
+into Q-26 option B/C.
 
-### What M0-09 left for a future session, carried forward here in case it is relevant
+### What a future session resuming this needs to do
 
-Not part of `M0-06`'s scope, but recorded so nothing is lost: an **unreported instance of
-the same compute-one/test-another guard defect** exists at `MfgPoService.cs:613-615`
-(`CanSalesOrderItemCancelCheckAsync` — `hasCR` computed, `hasRc` tested), found by the
-`M0-09` validator, not fixed, and not `M0-06`'s concern. It is recorded under R-08 in
-[`technical-debt-register.md`](risks/technical-debt-register.md) (KB-060) and as a scope
-note on `INV-025` in [`investigation-registry.md`](investigation-registry.md) (KB-003), for
-`M0-10` to pick up once it runs.
+**Do not re-implement M0-06 with the same spec — it will reproduce the identical wall.**
+The next action is the owner answering Q-25 and Q-26 (`open-questions.md`), not more
+engineering. Once answered:
+- If option A or C: close criterion 2 by re-scoping it (C) or by making the KB-104 runbook
+  step mandatory and enforced (A), and merge the existing branch.
+- If option B: implement the guarded DML the owner accepts, on top of the existing branch.
+- Either way, the deferred Option-A runtime bootstrap component (no task id yet — proposed as
+  `M0-06-02` in R-09 open item 4) needs to be registered in `task-tracker.md` and given a task
+  file once Q-26 decides its shape.
+
+### Not part of M0-06, carried forward in case relevant
+
+An **unreported instance of the compute-one/test-another guard defect** exists at
+`MfgPoService.cs:613-615` (`CanSalesOrderItemCancelCheckAsync` — `hasCR` computed, `hasRc`
+tested), found by the `M0-09` validator, not fixed, and not `M0-06`'s concern. Recorded under
+R-08 in [`technical-debt-register.md`](risks/technical-debt-register.md) (KB-060) and as a
+scope note on `INV-025` in [`investigation-registry.md`](investigation-registry.md) (KB-003),
+for `M0-10` to pick up once it runs.
+
+## No other task is runner-selectable this run
+
+`M0-10` (audit all `CanDelete…Async` guards, INV-025) names `M0-09` as a Hard prerequisite
+and the selection rule requires that prerequisite to be genuinely `Completed`, not
+`Needs Review`. It stays `Blocked` until `M0-09`'s branch (`migration/M0-09-delete-guard-fix`,
+`8e3b19d`, validated `PASS`) is reviewed and merged. With `M0-06` now closed `Blocked` too,
+**no dependency-ready, human-unblocked task remains this run.**
 
 ## Most recently closed: `M0-09` — Fix the two unreachable delete guards (R-08)
 
 **`Completed` and merged (`47b2d2e`, 2026-08-19)** on the owner's in-conversation instruction.
 Re-verified on `master` after the merge: `dotnet test` **79 passed, 0 failed**;
 `dotnet build V.SMART.Api --no-incremental` **0 errors, 6,694 warnings** (baseline 6,695).
-
-> **This released `M0-10`, which is now `Ready` — and it is no longer a speculative sweep.**
-> `M0-09` fixed two compute-one/test-another guards; its validator found a **third, unreported
-> instance of the identical defect** at `MfgPoService.cs:613-615`
-> (`CanSalesOrderItemCancelCheckAsync` computes `hasCR`, tests `hasRc`), correctly left unfixed
-> as out of scope. The bug class is confirmed wider than anyone had catalogued, and `M0-10` is
-> the audit that finds the rest. Two tasks are now `Ready`: **`M0-06`** (P1, 1 d) and
-> **`M0-10`** (P1, 2 d).
-
-Pre-merge record follows. Implemented on `migration/M0-09-delete-guard-fix`
-(`8e3b19d`), attempt 1 of 3, 0 escalations. Validator verdict **`PASS`**, `scopeOk: true`,
-`failureCategory: none`, every acceptance criterion `MET` — independently re-derived,
-including the validator reproducing the pre-fix red state itself in a separate detached
-worktree. Two identifier changes only (`MfgPoService.cs:504,525`), no `Message` string or
-guard order touched. Suite 73 → 79, all green, run twice. `dotnet build V.SMART.Api`
-(CI form): 0 errors, 6,693 warnings (at the 6,695 baseline). KB-030, KB-060, KB-080,
-KB-003 all updated in the implementation commit; this close-out additionally recorded a
-validator-found lead (`MfgPoService.cs:613-615`) that the implementation commit did not
-surface. Full record:
+Full record:
 [`tasks/M0-09.md` § Execution Record (2026-08-19)](tasks/M0-09.md#execution-record-2026-08-19),
 [`task-tracker.md`](task-tracker.md) footnote 15.
 
@@ -111,7 +130,7 @@ yet**: `M0-10` stays `Blocked` until this branch is merged.
   authority ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)):
   `M0-01-03`, `M0-09`.
 - **`Blocked` on an unscheduled human**, not on any task: `M0-04` (unidentified owner —
-  tracker footnote 4).
+  tracker footnote 4), and now `M0-06` (repository owner, Q-25/Q-26 — tracker footnote 16).
 - **`Blocked`, transitively:** `M0-11` (Q-01 product decision, released by `M0-13`'s merge
   but not runner-selectable — needs the owner, not a task), `M0-10` (behind `M0-09`'s
   merge), `M0-05` (behind `M0-04`).
@@ -119,9 +138,9 @@ yet**: `M0-10` stays `Blocked` until this branch is merged.
 
 Full detail on why each is blocked and who the candidate owner is:
 [`runner-state.md`](runner-state.md) (KB-093) § *Blocked on* / *Owner to unblock ...* rows,
-and [`task-tracker.md`](task-tracker.md) (KB-081) footnotes 1, 4, 13, 15.
+and [`task-tracker.md`](task-tracker.md) (KB-081) footnotes 1, 4, 13, 15, 16.
 
 > **This does not open M2.** Gate G0 still has zero of seven exit criteria ticked.
-> `M0-01-03`'s rebuild drill, `M0-07`'s CI branch-protection criterion and `M0-04`'s
-> credential rotation remain human-owned and unchanged by this session. Even once `M0-06`
-> and `M0-09`/`M0-10` land, G0 still needs those three human steps.
+> `M0-01-03`'s rebuild drill, `M0-07`'s CI branch-protection criterion, `M0-04`'s credential
+> rotation, and now `M0-06`'s Q-25/Q-26 decision remain human-owned. G0 needs all of those
+> plus `M0-09`/`M0-10` before M2 can open.
