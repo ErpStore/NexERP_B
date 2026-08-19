@@ -400,7 +400,20 @@ no provenance) and are correctly **not** part of this branch's diff. `M0-03-02` 
 `Blocked` — its Hard prerequisite is this task at `Completed`, and `Needs Review` does not
 satisfy that per the *Ready-task selection rule*'s "not `REVIEW`" clause.
 
-⁴ **M0-04: `Blocked` on a human, not on a task.** The 2026-08-17 run opened it and stopped at
+⁴ **M0-04: `Blocked` — DEFERRED to the end of the milestone by the owner, 2026-08-19.**
+The owner confirmed production SQL / GST e-Invoice gateway access is not available now and
+will be scheduled at the end of the milestone. `M0-05` (purge secrets from history) is
+deferred with it, being blocked on nothing else. **G0 criteria 2 and 3 are correspondingly
+deferred** — see [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19).
+
+> **The exposure is live meanwhile, and this is not a bookkeeping detail.** R-01 records live
+> database credentials committed to source control, in a repository that is **public** by
+> deliberate decision (KB-085 / INV-034). The KB's own assessment is that *"the values are
+> compromised regardless"*. `M0-05` cannot fix that on its own: purging history from a public
+> repository does not retract what is already cloned, forked or cached. **Rotation — `M0-04`,
+> the deferred item — is the only actual remedy.** The owner was told this before deciding.
+
+Original record follows. The 2026-08-17 run opened it and stopped at
 classification without cutting a branch or attempting work — `tasksAttempted: 0`. Its blocking
 dependency is organisational, not technical: the actual rotation needs a named person with
 production SQL Server access and access to the GST e-Invoice / e-Way gateway account, and **no

@@ -64,6 +64,24 @@ last_verified: 2026-08-17
 Ranges are reserved so that concurrent sessions cannot collide. **Before claiming an id,
 `grep` this file for it.** Ids are never reused or renumbered.
 
+> ### ⚠ Live collision — KB-104 and INV-035 are each claimed by two unmerged branches
+>
+> Recorded 2026-08-19. Both branches read `master`, found the id free, and took it. Neither is
+> wrong in isolation; **whichever merges second must renumber before merging.**
+>
+> | Id | `migration/M2-A01-01-authorization-spec` (`af99a84`) | `migration/M0-06-remove-default-admin` (`5c9b34c`) |
+> |---|---|---|
+> | **KB-104** | `architecture/server-side-authorization-spec.md` | `security/default-admin-removal-runbook.md` |
+> | **INV-035** | authorization-filter investigation | default-admin seed mechanics |
+>
+> **This is a process defect, not a mistake by either session.** `grep`-before-claim only works
+> against what is *merged*; it cannot see a sibling branch. Two branches allocating from one
+> registry will collide again. Until the allocation rule accounts for in-flight branches —
+> reserving on branch creation, or partitioning ranges per workstream — **check
+> `git branch --no-merged master` for competing claims before allocating an id**, not just this
+> file. `M0-06`'s runbook already cites KB-104 in a source comment
+> (`ApplicationDbContext.cs`), so renumbering that side means editing that comment too.
+
 | Range | Purpose | Allocated |
 |---|---|---|
 | KB-000 – KB-079 | Analysis knowledge base (as-is + proposals) | through KB-070 |
