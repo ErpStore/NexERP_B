@@ -430,6 +430,24 @@ other work** — it is cheap and it is currently a single-point-of-failure for t
 ### R-05 — No automated tests, no CI
 **Confirmed, and still open.** A test project and a CI pipeline now exist; *coverage* does not.
 
+> **Coverage added 2026-08-19 (M0-12-02) — the second of the two services R-05 names.**
+>
+> `tests/V.SMART.Shared.Tests/Services/CalculationServiceCharacterisationTests.cs` (30 tests)
+> and `tests/V.SMART.Shared.Tests/Services/CommonConstantsGstRateTests.cs` (7 tests) add **37**
+> characterisation tests over `CalculationService.UpdateTotalsAsync` and the
+> `CommonConstants` GST rate lists, taking the suite from 36 to **73 tests, 73 passing**
+> (`dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj`, run twice, identical
+> both times). They pin all nine algorithm steps, both tax branches, the three silent early
+> returns, the divide-by-zero guard, the negative-basic-amount boundary, the tax-inclusive TCS
+> base, `MidpointRounding.AwayFromZero` on two distinct midpoints, the signed `RoundOff`, and
+> the absence of any intermediate rounding. `CalculationService` needs no fixture — it is a
+> pure unit (`CalculationService.cs:10-12`).
+>
+> **Both** services R-05 names — `ICalculationService` and `IStockManagerService` — are now
+> covered. That is G0 exit criterion 6 met **locally**. The remaining ~283 business services
+> are uncovered, and **CI has still never run green on a hosted runner**, so **R-05 stays
+> open.**
+
 > **Coverage added 2026-08-19 (M0-13) — the first real business-behaviour coverage.**
 >
 > `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs` adds **25**
@@ -763,6 +781,29 @@ now tracked (commits `2c224b6`, M0-00), the `.sln` disposition remains M0-00's r
 returning `0` for an unlisted rate rather than raising.
 **Action.** Return `decimal?` or throw; validate at the API boundary.
 
+> **Pinned by executable tests 2026-08-19 (M0-12-02). Not closed.**
+>
+> | Test (`tests/V.SMART.Shared.Tests/Services/…`) | What it pins |
+> |---|---|
+> | `CommonConstantsGstRateTests.GetIGST_WithUnlistedRate_SilentlyReturnsZero_R15` | `GetIGST(17m)`, `GetIGST(-5m)` and `GetIGST(28.0001m)` all return `0m` — `CommonConstants.cs:25` |
+> | `CommonConstantsGstRateTests.GetGST_WithUnlistedRate_SilentlyReturnsZero_R15` | the same for `GetGST` (`:26`), including that an *IGST* rate of 18 is unlisted for CGST/SGST and so returns `0m` |
+> | `CommonConstantsGstRateTests.GetIGST_CannotDistinguishNotFoundFromTheListedZeroRate_R15` | why the defect is undetectable at the call site: `GetIGST(17m) == GetIGST(0m)`, because `0.000m` is a legitimately listed rate (`:13`, `:20`) |
+> | `CalculationServiceCharacterisationTests.S21_R15_AnUnlistedGstRate_IsAppliedWithoutValidationOrCoercionToZero` | the other half of the hazard — `CalculationService` does **not** route rates through these helpers and charges the unlisted 17% in full (170 on a taxable 1000) |
+>
+> **Sharpened statement (Confirmed, M0-12-02).** R-15 is not a single defect but a
+> *disagreement*: `CalculationService.cs:12-114` contains no reference to `CommonConstants`
+> and applies any rate it is given, while any caller that sanitises a rate through
+> `GetIGST`/`GetGST` first turns an unlisted rate into zero tax. The same mistyped rate
+> therefore produces 170 on one path and 0 on the other. Fixing R-15 must decide which path
+> is authoritative, not merely change the helper's return type.
+>
+> Whether any tenant database actually stores an off-list rate is **Unknown** — it would need
+> a query against a real tenant database, which no test infrastructure here has. That is what
+> separates "latent" from "live".
+>
+> These tests assert the defective behaviour **deliberately**. Do not "fix" them; if R-15 is
+> repaired, update them in the same commit as the production change.
+
 ### R-16 — QR token expiry not enforced
 **Confirmed.** `GetUserByQrToken` checks `QrToken`, `IsQrEnabled`, `IsActive` but **not**
 `QrExpiryDate`, which the schema stores.
@@ -865,6 +906,43 @@ middleware; no `ProblemDetails`.
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in
 `V.SMART.csproj`.
 **Action.** Move to build parameters.
+
+### R-39 — Four fire-and-forget `UpdateTotalsAsync` calls are correct only while the engine is synchronous
+**Confirmed (M0-12-02, 2026-08-19).** `UpdateTotalsAsync` is declared `async Task` but does
+no asynchronous work — its last statement is `await Task.CompletedTask`
+(`V.SMART/V.SMART.Shared/Services/CalculationService.cs:113`), so the returned `Task` is
+already completed when it is handed back.
+
+Four call sites rely on that without knowing it. They invoke the method from **`void`**
+handlers and never await the result:
+
+| Call site | Handler |
+|---|---|
+| `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/DebitNote_pages/DebitNoteUpsert.razor:2629` | `private void OnDiscountPercentChanged()` |
+| `…/DebitNoteUpsert.razor:2635` | `private void OnPandFPercentChanged()` |
+| `…/DebitNoteUpsert.razor:2641` | `private void OnInsurancePercentChanged()` |
+| `…/DebitNoteUpsert.razor:2647` | `private void OnTCSPercentChanged()` |
+
+Each calls `_calculationService.UpdateTotalsAsync(DebitNoteVMs);` and then `StateHasChanged()`
+on the next line. Today the totals are already computed by the time `StateHasChanged` runs.
+
+**Impact.** BR-CALC-001's migration note requires the same engine to be reachable as
+`POST /api/documents/calculate`. The moment any implementation on this path becomes genuinely
+asynchronous — an HTTP call, an EF query, a cache lookup — these four handlers render **stale
+totals** and swallow any exception into an unobserved task. Nothing warns: there is no
+compiler diagnostic for a discarded `Task` returned by a method call statement in a `void`
+Blazor handler, and no test would fail except
+`S19_UpdateTotalsAsync_CompletesSynchronously_DespiteTheAsyncSignature`, which exists
+precisely as that tripwire (`tests/V.SMART.Shared.Tests/Services/CalculationServiceCharacterisationTests.cs`).
+
+**Not affected:** the many `@bind:after='() => _calculationService.UpdateTotalsAsync(…)'`
+bindings in the same file (e.g. `:640`, `:694`, `:960`) — those lambdas return the `Task` to
+Blazor, which awaits it.
+
+**Action.** Out of scope for M0-12-02 (a Blazor code change, and this task may not modify
+`V.SMART/`). Convert the four handlers to `async Task` **before** anything makes the
+calculation path asynchronous. Do not treat the synchronous completion as a licence to leave
+them.
 
 ---
 

@@ -59,9 +59,31 @@ Ordered algorithm:
 8. Grand total = taxable + taxes + TCS + `OtherCharges`; if `IsRoundOffEnabled`,
    `Math.Round(x, 0, MidpointRounding.AwayFromZero)` with the delta stored in `RoundOff`
 
+**Precision and rounding (Confirmed, M0-12-02, 2026-08-19).** **No intermediate rounding
+occurs anywhere in the method.** Every intermediate — discount, basic, packing, insurance,
+taxable, each per-line taxable base, each tax accumulation, TCS and the pre-round grand
+total — is full `decimal` precision. There is exactly **one** `Math.Round` call in the whole
+method, at `CalculationService.cs:103`, and it executes only when `IsRoundOffEnabled`
+(`:101`). It rounds to **0 decimal places** with `MidpointRounding.AwayFromZero`, not
+banker's rounding. `RoundOff` is **signed** — `rounded − preRound` at `:104` — so it is
+negative whenever the total rounds down. When round-off is disabled, `RoundOff` is set to
+`0` and `GrandTotal` is the unrounded value (`:109-110`).
+
+This is the contract the React client (M2-C10) and the future
+`POST /api/documents/calculate` endpoint must honour: an implementation that rounded to
+currency precision at any intermediate step would produce different money. Pinned by
+`S18_NoIntermediateRounding_FullDecimalPrecisionSurvivesToTheGrandTotal`, which shows five
+decimal places surviving to `GrandTotal`.
+
+*Not established:* whether the decimal **scale** of the returned values is part of that
+contract. Exact-value assertions cannot see scale (`18.000m` equals `18m` under
+`decimal.Equals`) — recorded as an open question in [KB-004](../open-questions.md).
+
 **Evidence.** `V.SMART.Shared/Services/CalculationService.cs:12-114` (`UpdateTotalsAsync`
-begins at `:12`; the file is 117 lines — a previously cited `:12-118` was out of range);
-`Utility_Constants/ICalculationDocument.cs`; `Utility_Constants/ICalculationDocumentSubItem.cs`.
+begins at `:12`; the file is 117 lines — a previously cited `:12-118` was out of range;
+re-verified again 2026-08-19 by M0-12-02, unchanged);
+`Utility_Constants/ICalculationDocument.cs:11-40`;
+`Utility_Constants/ICalculationDocumentSubItem.cs:12-25`.
 
 **Confidence.** Confirmed.
 **Disposition.** **Preserve verbatim — do not port to TypeScript.**
@@ -69,13 +91,37 @@ begins at `:12`; the file is 117 lines — a previously cited `:12-118` was out 
 React client may render an optimistic local estimate for responsiveness, but the server
 result is authoritative and must overwrite it before save.
 
+**Pinned by executable tests (M0-12-02, 2026-08-19).** Every step of the algorithm above is
+now asserted by
+`tests/V.SMART.Shared.Tests/Services/CalculationServiceCharacterisationTests.cs`
+(30 tests, all green; the file header carries the full statement-to-test map). Both tax
+branches are covered — the item-wise branch with three lines at three different rate shapes
+— as are the boundaries the method handles silently:
+
+| Test | What it pins |
+|---|---|
+| `S01_NullDocument_…` / `S01_NullSubItemCollection_…` / `S01_EmptySubItemCollection_SilentlyReturnsWithoutComputing_AndMutatesNothing` | the three silent returns at `:14-15`; twelve pre-set output fields are asserted **unchanged**, so a future "zero it out" early return fails |
+| `S05_WhenDiscountExceedsGross_TotalBasicAmountGoesNegative_WithNoFloorAtZero` | no floor at zero at `:35` — a discount above gross gives a negative basic amount, taxable and grand total |
+| `S10_ItemWiseBranch_WhenEveryLineGrossIsZero_ProportionGuardYieldsZeroTax` | the divide-by-zero guard at `:61`, and its consequence: freight is in `TotalTaxable` but attracts no tax |
+| `S11_ItemWiseBranch_WhenHeaderDiscountIsAFixedAmount_ItDoesNotReduceTheTaxableBase` | ⚠️ `:63-65` — a **fixed** header discount does not reduce the item-wise taxable base; 1000 gross less 100 fixed discount is taxed on **1000**, not 900 |
+| `S11_ItemWiseBranch_WhenHeaderDiscountIsAPercentage_ItIsSpreadAcrossLinesByProportion` | the contrast: the same 100 of discount, spread by proportion, taxes 900 |
+| `S15_TcsPercent_IsAppliedToATaxInclusiveBase_AndOtherChargesAreExcluded` | TCS base at `:87-95` is tax-inclusive and excludes `OtherCharges` |
+| `S17_WhenRoundOffEnabled_MidpointRoundsAwayFromZero_NotBankers` and `S17_…AndAnOddIntegerMidpoint_…` | `MidpointRounding.AwayFromZero` at `:103`, proved on both a `.5` that banker's would round down and one it would round up |
+| `S17_WhenRoundingDown_RoundOffIsNegative` | `RoundOff` is signed |
+| `S13_ItemWiseBranch_PerLineTaxAmountsAreNeverWritten_OnlyHeaderTotalsAccumulate` | the service never writes `LineCGSTAmount`/`LineSGSTAmount`/`LineIGSTAmount` |
+| `S19_UpdateTotalsAsync_CompletesSynchronously_DespiteTheAsyncSignature` | the returned `Task` is already completed — four `DebitNoteUpsert.razor` call sites depend on it (see R-39) |
+
+A red test there means **this rule changed**. If the change was intended, update the test in
+the same commit as the production change and amend this entry.
+
 ### BR-CALC-002 — GST rates are restricted to a fixed set
 
 **Statement.** IGST is one of `0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28` %.
 CGST/SGST use the half-rate list `0, 0.05, 0.125, 0.5, 0.75, 1.5, 2.5, 3, 3.75, 6, 9, 14` %.
 
-**Evidence.** `Utility_Constants/CommonConstants.cs` — `IGSTRates`, `GSTRates`,
-`GetIGST(decimal)`, `GetGST(decimal)`.
+**Evidence.** `Utility_Constants/CommonConstants.cs:11-16` (`IGSTRates`), `:18-23`
+(`GSTRates`), `:25-26` (`GetIGST(decimal)`, `GetGST(decimal)`) — re-verified 2026-08-19
+(M0-12-02).
 
 **Confidence.** Confirmed.
 **Disposition.** Preserve.
@@ -83,6 +129,27 @@ CGST/SGST use the half-rate list `0, 0.05, 0.125, 0.5, 0.75, 1.5, 2.5, 3, 3.75, 
 from the server list. Note `GetIGST`/`GetGST` return `0` (via `FirstOrDefault`) for an
 unlisted rate rather than raising — silently coercing an invalid rate to zero tax. Worth
 tightening; see risk R-15.
+
+**Pinned by executable tests (M0-12-02, 2026-08-19).**
+`tests/V.SMART.Shared.Tests/Services/CommonConstantsGstRateTests.cs` (7 tests, all green)
+pins both lists **by content and by order**, the round-trip of a listed rate, and the R-15
+defect itself: `GetIGST_WithUnlistedRate_SilentlyReturnsZero_R15` and
+`GetGST_WithUnlistedRate_SilentlyReturnsZero_R15` assert the zero coercion **green**, as a
+characterisation baseline. `GetIGST_CannotDistinguishNotFoundFromTheListedZeroRate_R15`
+records why a caller cannot detect the defect: `GetIGST(17m)` and `GetIGST(0m)` return the
+same value.
+
+**Additional current behaviour observed while pinning (Confirmed, M0-12-02).**
+`CalculationService` neither calls `GetIGST`/`GetGST` nor validates a rate — there is no
+reference to `CommonConstants` anywhere in `CalculationService.cs:12-114`. It multiplies by
+whatever rate the document carries, including one absent from these lists. Pinned by
+`S21_R15_AnUnlistedGstRate_IsAppliedWithoutValidationOrCoercionToZero`, which shows a 17%
+IGST rate producing 170 on a taxable value of 1000. So R-15 is **latent in the engine and
+live only at whatever call site routes a rate through `GetIGST`/`GetGST`** — the two paths
+disagree, one charging 170 and the other 0 for the same document.
+
+These tests **must not be "fixed"**. If R-15 is repaired, update them in the **same commit**
+as the production change.
 
 ---
 
