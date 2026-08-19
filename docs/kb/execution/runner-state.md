@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 ---
 
@@ -38,22 +38,21 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `STOPPED` |
-| **Stop reason** | Clean end. `M2-B07`'s one unmet criterion was waived by the owner and the branch merged to `master` as `ffbb1dd`. No run is live. |
+| **Status** | `STOPPED` — clean, expected end. `M2-C04-01` closed this session at `Needs Review` (validated `PASS`); the task lifecycle forbids starting the next task in the same session ([KB-088 §1](workflow.md#1-task-lifecycle)), so the run stops at this boundary rather than opening `M2-A06`. |
+| **Stop reason** | Task boundary, not a blocker. `M2-C04-01` validated `PASS` — verdict `PASS`, `failureCategory: none`, `scopeOk: true`, all sixteen acceptance criteria `MET`, no regressions. The coverage regression that stopped attempt 1 (`npm run coverage` against `vitest.config.ts:38`'s `branches: 100` floor) is closed honestly: branches now measure 100 % and the floor itself was not touched. Nothing further is owed from an autonomous session; the branch awaits the repository owner's review and merge (KB-088 "Who may set COMPLETED"). |
 | **Run started** | 2026-08-19 |
-| **Last transition** | 2026-08-19 — **`M2-B07` `BLOCKED` → `Completed`.** The owner waived the render criterion on the `M2-C01` / `M0-12-02` / `M0-07` precedent and instructed the merge in-conversation. Verified independently *before* merging: `dotnet test` **84 passed** (79 + 5 new), `dotnet build V.SMART.Api` **0 errors**, and `V.SMART.Web` serving `GET /` → **200 with zero DI resolution errors**. Post-merge on `master`: 84 passed, 0 errors. |
-| **Current task** | None. `M2-B07` closed. |
-| **Current phase** | Idle — awaiting the next selection. |
-| **Current agent** | n/a |
+| **Last transition** | 2026-08-20 — `M2-C04-01` attempt 2's coverage fix (`9f886a6`, on top of the preserved WIP `5313c46`) independently validated `PASS`. Full record: [`tasks/M2-C04-01.md` § Execution Record (2026-08-20)](tasks/M2-C04-01.md#execution-record-2026-08-20); `task-tracker.md` footnote ²². Session close-out moved the task `Blocked` → `Needs Review` and left the branch `migration/M2-C04-01-design-tokens` unmerged for owner review. |
+| **Current task** | None — `M2-C04-01` is closed for this session (`Needs Review`, not runner-selectable). See **Next ready task** below for what an owner or the next run should open. |
+| **Current phase** | n/a — no task is in flight. |
+| **Current agent** | n/a — no agent is live |
 | **Current model** | n/a |
-| **Attempt** | n/a. **Corrected:** the close-out recorded "3 of 3 exhausted"; the true count is **two** real implement/validate cycles plus **one dispatch lost to `ENOTFOUND`**, which per the `M0-12-01` precedent does not consume budget. The task closed on an owner waiver, **not on budget exhaustion**, with one attempt still in hand. |
+| **Attempt** | `M2-C04-01`: 1 of 3 used this session, 0 escalations, per the final validator's own accounting (the lost attempt-2 dispatch recorded in the prior state did not consume budget, consistent with the `M0-12-01` precedent — KB-081 footnote ¹²). Task is now closed; the counter does not carry forward to whatever opens next. |
 | **Escalations** | 0 |
-| **Last validation** | `M2-B07` — validator verdict `FAIL`, `failureCategory: environment`, every mechanical criterion `MET`. **The verdict was never overturned.** The task closed because the owner waived the one unmet criterion, which is a different thing from the validator passing it. Recorded as a waiver in `task-tracker.md` footnote ²⁰. |
-| **Tasks processed this run** | `M0-12-01`, `M0-13`, `M0-12-02`, `M0-09`, `M2-A01-01`, `M2-C01`, `M2-B07` — all `Completed` and merged |
-| **Classification** | n/a — no task selected |
-| **Models this run** | Implement: `opus`. Validate: `opus`. |
-| **Blocked on** | Nothing, for selection purposes — nine M2 tasks are `Ready`, plus `M0-01-03` and `M0-10`. Standing owner-owned items: `M0-04` `Blocked` (no identified owner, **and now gated on Q-32** — rotating `sa` would break every `Tenants` row that embeds it); `M0-06` `Blocked` on Q-25/Q-26; `M0-11` `Ready` but a `Product Decision`, owner-only and never runner-selectable ([KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)); `M2-A01-02` nominally `Ready` but its spec contradicts reality — see `current-task.md`. |
-| **Next ready task** | Not pre-selected — the runner selects per [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule). Newly released by `M2-B07`: **`M2-B04`**, **`M2-B01`**, **`M2-B05`**, **`M2-B12-01`**. Already `Ready`: `M2-A06`, `M2-C04-01`, `M2-C10`, `M2-C11`, `M2-A01-02` (blocked in practice). Carried M0 debt: **`M0-01-03`** (`Ready` as of 2026-08-19 — the rebuild drill is no longer hardware-blocked, see footnote ²¹) and `M0-10`. `M2-B12` and `M2-C04` are **parent containers** and are never worked directly. |
+| **Last validation** | `M2-C04-01`, tip `9f886a6` — validator verdict **`PASS`**, `failureCategory: none`, `scopeOk: true`. All sixteen acceptance criteria independently re-checked and `MET`, including a from-scratch WCAG recomputation (110 pairs, 0 failing, both themes) and re-runs of `typecheck`/`lint`/`test`/`build`/`coverage` all green (`branches 100 %`). No regressions found; `V.SMART/` untouched. Full evidence: `tasks/M2-C04-01.md` § Execution Record (2026-08-20). |
+| **Tasks processed this run** | `M0-12-01`, `M0-13`, `M0-12-02`, `M0-09`, `M2-A01-01`, `M2-C01`, `M2-B07` — all `Completed` and merged. `M2-C04-01` — implemented, validated `PASS`, closed `Needs Review`. |
+| **Classification** | `M2-C04-01` — complexity **HIGH**, risk **MEDIUM** (as previously recorded; unchanged by this close-out — see the task file for the full classification). |
+| **Models this run** | Implement: `opus`. Validate: `opus`. (HIGH-complexity routing, [KB-091 §5.1](autonomous-runner.md#51-the-routing-table)) |
+| **Next ready task** | **`M2-A06`** (Exception middleware → `ProblemDetails` + correlation ids), selected per [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule): P0, `Ready` (Hard prerequisite is `G0`, already passed), and the highest downstream-unblocking count among the `Ready` P0 candidates — it is a Hard prerequisite for `M2-B02` (→ `M2-B03` → `M2-B10`), `M2-B06` and `M2-B11`. It was recorded as a tied candidate with `M2-C04-01` in the prior state; with `M2-C04-01` now closed, it stands alone at the top of the ranking. Other `Ready` P0 candidates considered and ranked below it on downstream unblocking: `M2-B04`, `M2-B12-01`, `M2-C10`, `M0-01-03`; `M2-A01-02` is nominally `Ready` but its spec contradicts current reality (see `current-task.md`) and was not selected. `current-task.md` has been rewritten to point at `M2-A06`. Not started — the next session opens it. |
 | **Process note — id allocation** | **Four cross-branch id collisions have now occurred, all on 2026-08-19** — six KB/INV/Q ids, `M2-C01`'s footnote ¹⁸, and a `Q-31` double-claim caught during `M2-B07`'s merge bookkeeping (`Q-31` was already held by `M2-B07` itself; the new question became **Q-32**). Every one was caught by hand at merge, which is not a control. `grep`-before-claim cannot see a sibling branch, and it cannot see an id claimed earlier in the same session. `git branch --no-merged master` must be checked before claiming any id. This recurs until the allocation rule itself changes. |
 
 ### Status values

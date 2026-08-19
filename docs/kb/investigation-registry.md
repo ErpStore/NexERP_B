@@ -24,7 +24,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-003 | Data model, DbContexts, entities, migrations, seed data | Complete | `Data/ApplicationDbContext.cs` (196 DbSets), `Data/MasterDbContext.cs`, `Data/**`, `Migrations/` | [KB-012](architecture/database-architecture.md) | 2026-08-12 |
 | INV-004 | Authentication, screen rights, approval authority | Complete | `Authentication/Custom AuthenticationStateProvider.cs`, `Repository/MasterRepository/Admins/UserRepository.cs`, `Shared/BaseUserRightsComponent.cs`, `Shared/RightsHelper.cs`, `Data/Master/Admin_Module/*`, `V.SMART.Api/Auth/*` | [KB-013](architecture/auth-and-permissions.md); server-side reproduction spec'd in [KB-105](architecture/server-side-authorization-spec.md) *(M2-A01-01, 2026-08-18 — re-verified against current code, **no contradiction with KB-013 found**; status and Verified date deliberately unchanged)* | 2026-08-12 |
 | INV-005 | Multi-tenancy resolution and isolation | Complete | `Services/MultiCompanyService/*`, `Data/TenantInfo.cs`, `wwwroot/config/tenant.json` | [KB-014](architecture/multi-tenancy.md) | 2026-08-12 |
-| INV-006 | Existing UI: routing, layout, components, `@code` density | Complete | `Routes.razor`, `Layout/NavMenu.razor` (888 LOC), `Components/` (22), `Pages/` (333 files, 440 routes), measured `@code` share | [KB-015](architecture/frontend-architecture-existing.md) | 2026-08-12 |
+| INV-006 | Existing UI: routing, layout, components, `@code` density | Complete *(amended 2026-08-19 by M2-C04-01 — theme persistence, see below)* | `Routes.razor`, `Layout/NavMenu.razor` (888 LOC), `Components/` (22), `Pages/` (333 files, 440 routes), measured `@code` share | [KB-015](architecture/frontend-architecture-existing.md) | 2026-08-12 |
 | INV-007 | Module inventory and inter-module dependency graph | Complete | `NavMenu.razor`, `Data/` folders, `BusinessLayer/` folders, `Ref*SubId` FK scan | [KB-020](modules/module-inventory.md) | 2026-08-12 |
 | INV-008 | Existing API surface | Complete | `V.SMART.Api/**` (2 controllers, 6 endpoints) | [KB-040](api/api-overview.md) | 2026-08-12 |
 | INV-009 | Reporting: FastReport + stored procedures | Complete *(amended 2026-08-12)* | `Services/ReportViewer/ReportService.cs`, `ReportExecutor.cs`, `wwwroot/templates/` (104 `.frx`), `Existing Store Procedures/` (13 `.sql`, of which only **12** are called → gap is **82**, not 81). **Scoped** name-extraction command, since the unscoped one now returns 111 by matching this KB's own prose: `grep -rhoE "Sp_[A-Za-z0-9_]+" --include=*.cs --include=*.razor --exclude-dir=obj --exclude-dir=bin V.SMART \| sort -u` | [KB-011](architecture/backend-architecture.md#reporting-subsystem), [ADR-005](decisions/ADR-005-reporting-and-printing.md), R-04 | 2026-08-12 |
@@ -52,6 +52,55 @@ session cannot push, so the workflow has never executed on a GitHub-hosted runne
 baseline is marked `provisional` until the runner regenerates it; and no required status check
 is configured on `master`. Confidence: **Confirmed** for what the files contain and for the
 local gate behaviour; **Unknown** for runner behaviour.
+
+### INV-006 amendment (2026-08-19, M2-C04-01) — the theme-persistence surface
+
+Added by **M2-C04-01** while implementing the React token layer. It does not change any
+earlier INV-006 finding; it fills the gap those findings left about how the existing UI
+stores a theme. Every claim below was re-verified against current code on 2026-08-19, not
+copied from the task file.
+
+```yaml
+Finding:        UserThemePreference stores a single bool IsDarkMode (default false) and
+                cannot represent the 'system' preference KB-051 specifies. The whole entity
+                is { Id, User, UserId, IsDarkMode } in a 22-line file — no enum, no nullable,
+                no tri-state.
+                NEGATIVE RESULT: IUserThemePreferenceService has NO HTTP surface anywhere.
+                Grepping V.SMART.Api for "theme" (case-insensitive) returns exactly one hit,
+                and it is a COMMENT. V.SMART.Api/Controllers/ holds two controllers,
+                AuthController and CurrencyController. No theme endpoint, DTO or route exists.
+                React therefore persists the preference locally (localStorage, key
+                "nexgen.theme") until a settings endpoint exists — M3-3.
+                ThemeStateService is 26 lines: one bool IsDarkMode with a private setter, one
+                SetTheme(bool), one event Action OnChange. No persistence, no storage, no
+                notion of "system". It is registered Scoped, i.e. per Blazor circuit, so it is
+                per-tab rather than per-user; durability comes from localStorage plus the
+                UserThemePreference row, read and written from MainLayout.razor.
+                CONSEQUENCE, raised not decided: either a settings endpoint extends the entity
+                to a tri-state, or 'system' is a client-only concept resolved to a boolean
+                before persistence. Q-33 (KB-004). The schema was NOT changed.
+                Second-order constraint for whoever builds that endpoint: the service cannot
+                be lifted into the API as-is — it injects IJSRuntime for localStorage and is
+                one of the seam-coupled registrations the API host cannot resolve (INV-039).
+                Tenancy note: UserThemePreference is a DbSet on ApplicationDbContext, i.e. the
+                PER-TENANT database, so one user across two tenants already has two rows.
+Evidence:       V.SMART/V.SMART.Shared/Data/Master/MasterScreeenManagement_Module/UserThemePreference.cs:12-21 (bool at :20) ;
+                V.SMART/V.SMART.Shared/Shared/ThemeStateService.cs:9-25 ;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SettingsService/UserThemePreferenceService.cs ;
+                V.SMART/V.SMART.Shared/Layout/MainLayout.razor:8 ;
+                V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs:238,348 ;
+                V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs:128 ;
+                V.SMART/V.SMART.Api/Program.cs:117 (the single "theme" hit — a comment) ;
+                git grep -ni "theme" -- V.SMART/V.SMART.Api  → 1 line, no code
+Business rule:  n/a — this is presentation state, not ERP behaviour
+Confidence:     Confirmed
+Last verified:  2026-08-19
+```
+
+**Consequence recorded for the strangler period:** the React and Blazor theme preferences are
+independent. A user switching theme in React sees no change in Blazor, and vice versa. That is
+documented in `frontend/nexgen-web/README.md` and in `src/shared/theme/README.md` so it is read
+as expected behaviour rather than discovered as a bug.
 
 ### INV-031 — Test-harness feasibility: hosting `ApplicationDbContext` in a test process
 

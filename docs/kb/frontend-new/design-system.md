@@ -5,7 +5,7 @@ module: frontend-new
 source_files: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-19
 dependencies: [KB-015, KB-050]
 ---
 
@@ -32,9 +32,32 @@ dependencies: [KB-015, KB-050]
 
 ## Tokens
 
+> **Implementation status (M2-C04-01, 2026-08-19).** The token layer is implemented in
+> `frontend/nexgen-web/src/shared/theme/` — `tokens.css` (the values, two independent
+> palettes), `tokens.ts` (the names, as types), `theme.ts` (the Mantine 7 theme, expressed
+> entirely over `var(--…)`), plus `ThemeProvider`, `useColorScheme`, `ThemeToggle`,
+> `density.ts` and `breakpoints.ts`. Typography sizes and line-heights, the spacing scale,
+> the radii, the motion durations and easing, the breakpoints and the two densities shipped
+> **verbatim** as specified below. Two shapes differ without changing a value: font weight is
+> a four-step scale (`--weight-regular|medium|semibold|bold`) rather than a weight per size
+> token, and elevation `2`/`3` needed concrete values because this document names them only
+> by role — `0 4px 12px rgba(0,0,0,.1)` and `0 12px 32px rgba(0,0,0,.16)`; `1` is verbatim,
+> and all four are `none` in dark, per "dark mode uses lighter surfaces rather than shadows".
+> Eight colour values were
+> corrected to meet this document's own contrast commitment — see
+> [Contrast corrections](#contrast-corrections-m2-c04-01-measured-2026-08-19). Enforcement is
+> mechanical: an ESLint rule and `no-raw-colour.test.ts` reject a colour literal anywhere in
+> `src/**` except `tokens.css`, and `tokens.test.ts` fails if `tokens.css` and `tokens.ts`
+> drift apart. Not implemented here: every component that *consumes* the tokens (M2-C03,
+> M2-C04-02, M2-C04-03, M2-C05-01).
+
 ### Colour
 
 Semantic tokens only — components never reference a raw hue.
+
+**Implemented by M2-C04-01** in `frontend/nexgen-web/src/shared/theme/tokens.css`. The
+*Light* and *Dark* columns are what shipped; the eight values that differ from this
+document's original proposal are marked **corrected** and explained immediately below.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
@@ -42,22 +65,78 @@ Semantic tokens only — components never reference a raw hue.
 | `--bg-surface` | `#FFFFFF` | `#161B22` | cards, panels, grid |
 | `--bg-surface-raised` | `#FFFFFF` | `#1C2128` | modals, popovers |
 | `--bg-subtle` | `#EEF1F5` | `#21262D` | table header, zebra, disabled |
-| `--border` | `#D8DEE6` | `#2D333B` | dividers, inputs |
-| `--border-strong` | `#B4BDC8` | `#404752` | focused/active borders |
+| `--border` | `#7C8794` **corrected** | `#6B7684` **corrected** | dividers, inputs |
+| `--border-strong` | `#5E6874` **corrected** | `#8B95A1` **corrected** | focused/active borders |
 | `--text-primary` | `#12181F` | `#E6EDF3` | body |
 | `--text-secondary` | `#5A6572` | `#9BA6B2` | labels, hints |
-| `--text-disabled` | `#98A2AE` | `#6B7684` | |
+| `--text-disabled` | `#616D7C` **corrected** | `#838E9B` **corrected** | |
 | `--accent` | `#2563EB` | `#4C8DFF` | primary actions, links, focus |
 | `--accent-subtle` | `#E8F0FE` | `#16243D` | selected row, active nav |
-| `--success` | `#15803D` | `#3FB950` | posted, approved, in stock |
-| `--warning` | `#B45309` | `#D29922` | pending, partial, low stock |
+| `--success` | `#147C3B` **corrected** | `#3FB950` | posted, approved, in stock |
+| `--warning` | `#B05109` **corrected** | `#D29922` | pending, partial, low stock |
 | `--danger` | `#B91C1C` | `#F85149` | cancelled, rejected, over-issue |
 | `--info` | `#0E7490` | `#39C5CF` | draft, informational |
-| `--focus-ring` | `#2563EB` @ 40% | `#4C8DFF` @ 45% | 2 px ring, 2 px offset |
+| `--focus-ring` | `#2563EB` solid **corrected** | `#4C8DFF` solid **corrected** | 2 px ring, 2 px offset |
 
 Both themes are authored as first-class palettes, not a filter over one another.
-Theme is user-persisted (`UserThemePreference` already exists in the schema) with a
-`system` default.
+
+#### Contrast corrections (M2-C04-01, measured 2026-08-19)
+
+This document commits, under *Accessibility commitments*, to **≥ 4.5:1 for text and ≥ 3:1 for
+UI boundaries in both themes**. Its originally proposed palette did not meet that commitment.
+`frontend/nexgen-web/src/shared/theme/contrast.test.ts` computes the WCAG 2.x ratio for every
+ink × background token pair in both themes; the ratios below are its output, not an estimate.
+
+**The threshold was never lowered.** The failing values were corrected, keeping each token's
+hue and role. The matrix is the full cross-product of the five tokens usable as a background
+(`--bg-canvas`, `--bg-surface`, `--bg-surface-raised`, `--bg-subtle`, `--accent-subtle`)
+against every ink token, because nothing in a token layer restricts which pairing a future
+component picks — the worst pair in that matrix is the one the user eventually sees.
+
+| Token | Theme | Proposed | Worst ratio as proposed | Shipped | Worst ratio shipped |
+|---|---|---|---|---|---|
+| `--border` | light | `#D8DEE6` | **1.18:1** (on `--accent-subtle`) | `#7C8794` | 3.19:1 |
+| `--border` | dark | `#2D333B` | **1.19:1** (on `--bg-subtle`) | `#6B7684` | 3.30:1 |
+| `--border-strong` | light | `#B4BDC8` | **1.66:1** | `#5E6874` | 4.94:1 |
+| `--border-strong` | dark | `#404752` | **1.62:1** | `#8B95A1` | 5.01:1 |
+| `--text-disabled` | light | `#98A2AE` | **2.26:1** | `#616D7C` | 4.60:1 |
+| `--text-disabled` | dark | `#6B7684` | **3.30:1** | `#838E9B` | 4.57:1 |
+| `--success` | light | `#15803D` | **4.38:1** | `#147C3B` | 4.61:1 |
+| `--warning` | light | `#B45309` | **4.38:1** | `#B05109` | 4.55:1 |
+| `--focus-ring` | light | `#2563EB` @ 40 % | **1.74:1** composited | `#2563EB` solid | 4.51:1 |
+| `--focus-ring` | dark | `#4C8DFF` @ 45 % | **2.02:1** composited | `#4C8DFF` solid | 4.76:1 |
+
+Everything not listed shipped **verbatim**: all four background tokens, `--accent-subtle`,
+`--text-primary` (15.58:1 light / 12.88:1 dark at worst), `--text-secondary` (5.18 / 6.15),
+`--accent` (4.51 / 4.76), `--danger` (5.65 / 4.54), `--info` (4.68 / 7.29), and dark
+`--success` (5.99) and `--warning` (6.03).
+
+Two of the corrections are worth understanding rather than just accepting:
+
+- **`--border` is now visibly darker than proposed.** A 1.2:1 hairline is decoration, not a
+  boundary. WCAG 1.4.11 exempts a purely decorative divider, so a narrower reading of the
+  matrix could have kept `#D8DEE6` — but this token is also the border of inputs and grid
+  cells, where it *is* the control's boundary. Scoping the matrix was not a call for an
+  implementer to make alone, so the conservative reading was taken. **If the design owner
+  wants the lighter hairline back for non-interactive dividers, that needs a separate
+  decorative token and an explicit decision here — not a threshold change.**
+- **`--focus-ring` became a solid colour.** An alpha wash cannot reach 3:1 against a light
+  background at any tint (measured 1.74:1 at 40 %), and WCAG 2.2 §2.4.11/§1.4.11 require the
+  focus indicator to.
+
+#### Theme persistence — correcting this document
+
+The sentence previously here read *"Theme is user-persisted (`UserThemePreference` already
+exists in the schema) with a `system` default"*. **The parenthesis is false as written**
+(Confirmed, M2-C04-01): `UserThemePreference` is a single `bool IsDarkMode`
+(`V.SMART/V.SMART.Shared/Data/Master/MasterScreeenManagement_Module/UserThemePreference.cs:20`)
+and **cannot represent `system`**; the service behind it has no HTTP surface at all. The
+`system` default stands and is implemented — but the preference is persisted **client-side**
+(`localStorage`, key `nexgen.theme`), and React's preference is independent of Blazor's during
+the strangler period. Server persistence needs a settings endpoint **and** a decision on the
+entity: **Q-33** in [`open-questions.md`](../open-questions.md), owned by product + backend,
+needed by **M3-3**. See the INV-006 amendment in
+[`investigation-registry.md`](../investigation-registry.md).
 
 ### Typography
 

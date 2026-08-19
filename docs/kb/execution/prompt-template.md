@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-080, KB-002, KB-003, KB-005, KB-088, KB-090]
 ---
 
@@ -365,7 +365,7 @@ followed by `npm ci`. Exit codes were observed, not assumed.
 | Lint | `npm run lint` | exit 0, no output. `eslint . --max-warnings=0`, type-aware `typescript-eslint`, `react-hooks`, `jsx-a11y`, `simple-import-sort`, plus the two ADR-003 `no-restricted-imports` rules |
 | Format check | `npm run format:check` | exit 0 — "All matched files use Prettier code style!" Re-observed 2026-08-19 after the correction noted below; the row as first written was not observed |
 | Unit tests | `npm run test -- --run` | exit 0 — **1 test file, 1 test passed**, ~30s cold (jsdom environment setup dominates: 20.4s), ~3.7s warm |
-| Coverage | `npm run coverage` | exit 0 — statements **82.89 %**, branches **100 %**, functions **80 %**, lines **82.89 %**. `vitest.config.ts` thresholds are set to the floor of those numbers, so they can only be raised |
+| Coverage | `npm run coverage` | exit 0 — statements **82.89 %**, branches **100 %**, functions **80 %**, lines **82.89 %**. `vitest.config.ts` thresholds are set to the floor of those numbers, so they can only be raised. **Re-observed 2026-08-20** on `migration/M2-C04-01-design-tokens` after the theme layer landed: exit 0 — statements **95.90 %**, branches **100 %**, functions **86.95 %**, lines **95.90 %**, 150 tests. Thresholds unchanged; the gate held and the measured numbers rose |
 | Production build | `npm run build` | exit 0 — typecheck then `vite build`, 830 modules, **3.56s**. Entry chunk `assets/index-*.js` 289.69 kB raw / **90.90 kB gzip**; vendor `react` chunk 102.50 kB / 34.48 kB gzip; Mantine CSS 201.38 kB / 29.30 kB gzip. Initial JS gzip **125.38 kB** against KB-050's `< 250 KB gzip` budget |
 | E2E smoke | `npm run e2e` | exit 0 — **1 passed (6.2s)**, chromium. Playwright starts the Vite dev server itself. Requires `npx playwright install chromium` once per machine; that download succeeded here |
 

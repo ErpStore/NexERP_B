@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NexGen ERP</title>
+    <script>
+      // Runs BEFORE FIRST PAINT, which is exactly why it cannot live in React:
+      // React mounts after the first paint, so a dark-mode user would see a white
+      // flash for one frame. Keys must match shared/theme/useColorScheme.ts and
+      // ThemeProvider.tsx. A corrupt value falls through to 'system'.
+      (function () {
+        try {
+          var pref = localStorage.getItem('nexgen.theme');
+          if (pref !== 'light' && pref !== 'dark') {
+            pref = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.dataset.theme = pref;
+          var density = localStorage.getItem('nexgen.density');
+          document.documentElement.dataset.density = density === 'compact' ? 'compact' : 'default';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

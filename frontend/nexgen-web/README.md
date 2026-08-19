@@ -89,9 +89,56 @@ a baseline, not a pass mark.
 Coverage baseline: statements 82.89 %, branches 100 %, functions 80 %, lines 82.89 %.
 `vitest.config.ts` sets thresholds to the floor of those figures so the number can only rise.
 
+## Theming and tokens (M2-C04-01)
+
+Everything visual comes from `src/shared/theme/`. Its own
+[README](src/shared/theme/README.md) is the catalogue and the how-to; the short version:
+
+- `src/shared/theme/tokens.css` holds the two palettes — `:root` light,
+  `[data-theme='dark']` dark, authored independently, never derived from one another. It is
+  the **only** file in `src/**` allowed to contain a colour literal.
+- Everything else uses `var(--token)`, or `token('--accent')` from `src/shared/theme/tokens`.
+  `npm run lint` fails on a hex, `rgb()` or `hsl()` literal in TS/TSX, and
+  `no-raw-colour.test.ts` fails on one in CSS. This is what stops a second visual language
+  appearing (risk **R-22**).
+- Adding a token means adding it to `tokens.css` **and** `tokens.ts`; `tokens.test.ts` fails
+  if you do one without the other.
+- `contrast.test.ts` computes WCAG 2.2 ratios for every ink × background pair in both themes.
+  Eight KB-051 values failed its own ≥ 4.5:1 / ≥ 3:1 commitment and were corrected; the
+  thresholds were not moved. See KB-051 §Colour for the measured table.
+- The preference is `light | dark | system`, defaults to `system`, follows the OS live, and
+  is written to `<html data-theme>` **before first paint** by a short inline script in
+  `index.html` so a dark-mode user never sees a white frame.
+
+**React and Blazor theme preferences are independent during the strangler period.** This app
+persists the preference in `localStorage` (`nexgen.theme`); Blazor keeps using
+`ThemeStateService` + the `UserThemePreference` row. Switching theme in one does not change
+the other. Server persistence waits on a settings endpoint and on a decision about the
+`UserThemePreference.IsDarkMode` boolean, which cannot represent `system` — **Q-33**, needed
+by **M3-3**.
+
+### Byte cost of the theme layer
+
+Measured with `npm run build` on 2026-08-19, same toolchain as the baseline above:
+
+| Asset                                    | Raw       | Gzip                              | Delta vs M2-C01 baseline                  |
+| ---------------------------------------- | --------- | --------------------------------- | ----------------------------------------- |
+| `assets/index-*.js` (entry chunk)        | 292.59 kB | **91.59 kB**                      | +0.69 kB gzip                             |
+| `assets/react-*.js` (vendor)             | 102.50 kB | 34.48 kB                          | unchanged                                 |
+| `assets/index-*.css`                     | 205.11 kB | 30.49 kB                          | +1.19 kB gzip                             |
+| `index.html`                             | 1.39 kB   | 0.69 kB                           | +0.40 kB gzip                             |
+| `fonts/*.woff2` (6 files, latin subsets) | 139.74 kB | n/a (woff2 is already compressed) | +139.74 kB, **not** in the initial bundle |
+
+Initial JavaScript, gzipped: **126.07 kB** against KB-050's `< 250 KB gzip` target (was
+125.38 kB). The fonts are fetched by `@font-face` with `font-display: swap`, so they are off
+the critical path and outside that figure; they are 4 Inter weights (400/500/600/700) and
+2 JetBrains Mono weights (400/500), latin subsets only, self-hosted from `public/fonts/`.
+**No external font request is made** — no Google Fonts host appears anywhere in the source
+or in `dist/`, which is what the two `git grep` checks in the task verification list assert.
+
 ## What is deliberately NOT here
 
-Design tokens and theme (M2-C04-01) · authentication, Axios interceptors, route guards and
+Authentication, Axios interceptors, route guards and
 the permission store (M2-C02) · the app shell, sidebar and breadcrumbs (M2-C03) · the
 generated API client (M2-B10) · money/stock guard rails (M2-C10) · any ERP business logic,
 ever — the server is authoritative for validation, calculation, permissions and document

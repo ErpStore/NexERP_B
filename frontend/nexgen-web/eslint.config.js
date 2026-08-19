@@ -71,6 +71,29 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.flatConfigs.recommended.rules,
+      // M2-C04-01: raw colour literals are banned outside the token layer.
+      // A component that hardcodes a colour is how a second visual language gets
+      // in (risk R-22); tokens.css is the only file allowed to name a colour, and
+      // ESLint does not lint CSS, so it needs no exception here -- the CSS half is
+      // covered by src/shared/theme/no-raw-colour.test.ts.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/#[0-9a-fA-F]{3,8}/]',
+          message:
+            'Raw colour literal. Use a design token instead - var(--accent), or token() from src/shared/theme/tokens. Colours live only in src/shared/theme/tokens.css (M2-C04-01, risk R-22).',
+        },
+        {
+          selector: 'Literal[value=/\\b(rgba?|hsla?|oklch|lab|lch)\\(/]',
+          message:
+            'Raw colour function. Use a design token instead - var(--accent), or token() from src/shared/theme/tokens. Colours live only in src/shared/theme/tokens.css (M2-C04-01, risk R-22).',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}/]',
+          message:
+            'Raw colour literal in a template string. Use a design token (M2-C04-01, risk R-22).',
+        },
+      ],
       'simple-import-sort/imports': 'error',
       'simple-import-sort/exports': 'error',
       'no-restricted-imports': 'off',
