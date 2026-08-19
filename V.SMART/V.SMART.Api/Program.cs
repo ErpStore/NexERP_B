@@ -80,6 +80,26 @@ builder.Services.AddHttpContextAccessor();
 // unresolvable here.
 builder.Services.AddHttpClient();
 
+// M2-B07 — this host must not build-validate its service graph, and that has to be said
+// explicitly rather than assumed. WebApplicationBuilder switches ValidateOnBuild AND
+// ValidateScopes on by itself whenever the hosting environment is Development
+// (HostApplicationBuilder -> HostingHostBuilderExtensions.CreateDefaultServiceProviderOptions),
+// and Development is exactly what both launch profiles set
+// (Properties/launchSettings.json:9,18). ValidateOnBuild eagerly builds a call site for every
+// descriptor that has an implementation type, so the seven registrations listed below — which
+// depend on host seams V.SMART.Api deliberately does not have until M2-B06 / M2-B08 — abort
+// startup with AggregateException("Some services are not able to be constructed") before the
+// host ever reaches a request. ValidateScopes is left at the framework's own default (on in
+// Development, off elsewhere): captive-dependency detection is not what has to be relaxed.
+//
+// REMOVE THIS BLOCK once M2-B06 and M2-B08 supply IPathProvider / IFileUploadService /
+// IFileOpener for this host. At that point the graph validates and the check must go back on.
+builder.Host.UseDefaultServiceProvider((context, options) =>
+{
+    options.ValidateOnBuild = false;
+    options.ValidateScopes = context.HostingEnvironment.IsDevelopment();
+});
+
 // M2-B07 — the whole domain graph (repositories, the IRepository<> open generic, UnitOfWork,
 // ~285 business services, MasterDbContext, the tenant-resolved ApplicationDbContext and
 // AutoMapper) now comes from the single shared composition root in V.SMART.Shared.
@@ -88,19 +108,21 @@ builder.Services.AddHttpClient();
 // activation time with a DI resolution error.
 //
 // Deliberately still absent, and therefore not resolvable in this host: IPathProvider,
-// IFileUploadService, IFileOpener, a bare HttpClient and IJSRuntime have no V.SMART.Api
-// implementation yet (M2-B08 and M2-B06). Exactly six registrations therefore stay
-// unresolvable here — measured, not assumed (M2-B07):
+// IFileUploadService, IFileOpener and IJSRuntime have no V.SMART.Api implementation yet
+// (M2-B08 and M2-B06). Exactly seven registrations therefore stay unresolvable here —
+// measured by running this host with ValidateOnBuild = true, not assumed (M2-B07):
 //     ReportService                 needs IPathProvider
 //     IUserService                  needs IPathProvider + IJSRuntime
 //     IGSTITCService                needs IPathProvider
 //     IUserThemePreferenceService   needs IJSRuntime
-//     ICompanyService               needs IFileUploadService + a bare HttpClient
+//     ICompanyService               needs IFileUploadService
 //     IItemService                  needs IFileUploadService
-// That gap is expected and is not closed by this task. Because of it, this host cannot yet
-// run with ValidateOnBuild = true; the equivalent guarantee is enforced instead by
+//     IEnquirySalesService          needs IPathProvider, transitively via ReportService
+// That gap is expected and is not closed by this task. Injecting any of the seven into a
+// controller still fails at activation time, exactly as it did before this task. The
+// equivalent build-time guarantee for the shared graph is enforced instead by
 // tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs, which validates the
-// full graph with the host seams supplied.
+// identical graph with the host seams supplied.
 builder.Services.AddVSmartDomain(builder.Configuration);
 
 builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>();

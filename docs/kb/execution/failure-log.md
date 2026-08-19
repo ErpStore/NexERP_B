@@ -1452,3 +1452,238 @@ findings, run `dotnet test` and a `ValidateOnBuild` check, and correct or confir
 regenerate. If this repeats a third time with the same no-result symptom, that repetition — not
 this single instance — is what would be worth escalating to a human, per the precedent set by
 `M0-12-01`'s own attempt-1 note.
+
+---
+
+### M2-B07 · attempt 2 · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus |
+| Validator verdict | FAIL |
+| Failure category | regression |
+
+**What failed** — the acceptance criterion *"`GET /api/currencies` returns the same shape and
+status as before the change."* It cannot: after this branch's change **`V.SMART.Api` no longer
+starts at all in the `Development` environment**, which is what its own default launch profile
+sets (`V.SMART/V.SMART.Api/Properties/launchSettings.json:9,18` — `"ASPNETCORE_ENVIRONMENT":
+"Development"` in both profiles). Observed by the validator running
+`dotnet run --project V.SMART/V.SMART.Api/V.SMART.Api.csproj` on branch
+`migration/M2-B07-add-vsmart-domain` at `6f452cf`, with `ConnectionStrings__MasterDb`,
+`Jwt__Secret`, `Jwt__Issuer` and `Jwt__Audience` supplied so that
+`StartupConfigurationValidator` passed:
+
+```
+Unhandled exception. System.AggregateException: Some services are not able to be constructed
+ (Error while validating the service descriptor 'ServiceType:
+  V.SMART.Shared.Services.ReportViewer.ReportService ...':
+  Unable to resolve service for type 'V.SMART.Shared.Services.IPathProvider' ...)
+ ... IUserThemePreferenceService -> IJSRuntime
+ ... IUserService                -> IPathProvider
+ ... ICompanyService             -> IFileUploadService
+ ... IItemService                -> IFileUploadService
+ ... IEnquirySalesService        -> IPathProvider (transitively, via ReportService)
+ ... IGSTITCService              -> IPathProvider
+[process exit code 255]
+```
+
+**Root cause** — `WebApplicationBuilder` sets `ValidateOnBuild = true` and
+`ValidateScopes = true` **automatically** whenever the hosting environment is `Development`
+(`HostApplicationBuilder` → `HostingHostBuilderExtensions.CreateDefaultServiceProviderOptions`),
+so moving the six/seven host-coupled domain registrations into `AddVSmartDomain()` and calling
+it from the API turns a documented, tolerated *gap* into a **hard startup failure** for the one
+host this task exists to unblock. The Execution Record reasons about this exact hazard —
+*"Setting `ValidateOnBuild = true` in `V.SMART.Api/Program.cs` would therefore make the API
+**fail to start**"* — and concludes it can be avoided by not writing the line; the framework
+writes it for you in Development, so the outcome the record says it avoided is the outcome it
+shipped.
+
+**Evidence** —
+- Branch tip `6f452cf`, `dotnet run` output quoted above (validator-observed, not reported).
+- Contrast, same command, same env vars, on `master` (`d982d23`) in a clean `git worktree`:
+  `Now listening on: http://localhost:5144` / `Application started.` /
+  `Hosting environment: Development`, process still alive after 7 minutes. So the API *did*
+  start before this change: this is a **regression**, not a pre-existing condition.
+- The unresolvable set is at `V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs:319`
+  (`ReportService`) and the six business services listed in that file's `<remarks>` at `:234-239`.
+  The runtime error names **seven**, not six — `IEnquirySalesService` also fails, transitively
+  through `ReportService`.
+- `V.SMART.Web` is **not** affected — started cleanly in `Development` on this branch
+  (`Now listening on: http://localhost:5197`), because it supplies every seam.
+
+**Everything else on this branch verified clean** (validator-observed, so a fix should preserve
+it): `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → 0 errors, **6,695** warnings
+(exactly the baseline); `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` → 0 errors;
+`dotnet build V.SMART/V.SMART/V.SMART.csproj` → 0 errors, 6,671 warnings;
+`dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` → **84 passed, 0 failed**,
+including all 5 `AddVSmartDomainTests`. An independent normalise-and-set-difference of every
+`AddScoped`/`AddSingleton`/`AddTransient` call reproduces the reported reconciliation exactly —
+Web 239 distinct, MAUI 239, union **249** before; **nothing dropped**, and the only additions
+after are the API's own two host registrations. The corrections to INV-039/Q-31/R-26 are also
+independently confirmed: `IContractReviewService` and `IRouteCardService` *are* registered on
+`master` at `V.SMART/V.SMART.Web/Program.cs:467` and `:518`, the MAUI-only set is 6 and the
+Web-only set is 7.
+
+**Disposition** — `retry`. The defect is narrow and the rest of the branch is sound; a fix
+should not regenerate the extension. Options for the next attempt, in the order a reviewer
+would prefer them: (a) keep the graph whole and have `V.SMART.Api` opt out explicitly —
+`builder.Host.UseDefaultServiceProvider(o => { o.ValidateOnBuild = false; o.ValidateScopes = true; })`
+with the six/seven-service gap named in the comment — which restores startup and is honest
+about why; (b) split the host-coupled registrations behind a flag/overload so the API's graph
+omits them until M2-B06/M2-B08; (c) close the seams in the API now, which the task explicitly
+**forbids** ("Do NOT invent an `IPathProvider` implementation for `V.SMART.Api`"). Whichever is
+chosen, the fix is only proven by *starting the API in `Development`* — a green build and a
+green unit test both pass today and neither caught this.
+
+**Next attempt routed to** — same model (`opus`) on the same branch. No KB-091 §6.3 escalation
+trigger applies: the category is `regression`, the root cause is known and single-line-sized,
+and no business rule or architecture decision is in question.
+
+**Standing lesson for KB-083 / KB-091** — "the project builds" and "a `BuildServiceProvider`
+unit test is green" do **not** imply "the host starts". A unit test can supply seams the real
+host does not have; that is precisely what
+`AddVSmartDomainTests.AddVSmartDomain_WithHostSeams_BuildsAndValidatesTheWholeGraph` does. Any
+task that changes a composition root should add *starting the affected host* to its
+verification, and note that ASP.NET Core turns `ValidateOnBuild` on by itself in `Development`.
+
+---
+
+### M2-B07 · attempt 2 · diagnosis · 2026-08-19
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **A fix was
+applied**; see below. Files touched: `V.SMART/V.SMART.Api/Program.cs`,
+`V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` (XML comment only),
+`tasks/M2-B07.md` (a correction subsection) and this log.)*
+
+| Field | Value |
+|---|---|
+| Runner state | FIXED — re-validation observed |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | regression → **implementation-error** (a false premise about a framework default; deliberately not re-classified as architecture — see below) |
+
+**Reproduced** — yes, independently, on `migration/M2-B07-add-vsmart-domain` at `6f452cf`,
+before touching anything:
+
+```
+$ ASPNETCORE_ENVIRONMENT=Development ConnectionStrings__MasterDb=... Jwt__Secret=... \
+  Jwt__Issuer=... Jwt__Audience=... dotnet run \
+  --project V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-build --no-launch-profile \
+  --urls http://localhost:5311
+Unhandled exception. System.AggregateException: Some services are not able to be constructed
+ (... ReportService -> IPathProvider) (... IUserThemePreferenceService -> IJSRuntime)
+ (... IUserService -> IPathProvider) (... ICompanyService -> IFileUploadService)
+ (... IItemService -> IFileUploadService) (... IEnquirySalesService -> IPathProvider)
+ (... IGSTITCService -> IPathProvider)
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Program.<Main>$(String[] args) in ...\V.SMART\V.SMART.Api\Program.cs:line 109
+```
+
+Seven descriptors, exactly the set the validator reported.
+
+**Root cause** — a **single false premise**, not a design fault. `tasks/M2-B07.md` §
+*Decisions taken* reasons that the API avoids build-time DI validation by *not writing*
+`builder.Host.UseDefaultServiceProvider(o => { o.ValidateOnBuild = true; ... })`.
+`WebApplicationBuilder` writes it for you: `HostApplicationBuilder` →
+`HostingHostBuilderExtensions.CreateDefaultServiceProviderOptions` turns **both**
+`ValidateOnBuild` and `ValidateScopes` on whenever the environment is `Development`, which is
+what `V.SMART/V.SMART.Api/Properties/launchSettings.json:9,18` sets in both profiles. The
+extension's contents are correct; the host was simply never told what the design already assumed
+about it.
+
+**Why this is `implementation-error` and not `architecture`** — the design decision (the API
+keeps the full shared graph; the seam-coupled services stay unresolvable until M2-B06 / M2-B08;
+the build-time guarantee is carried by the unit test) was already taken, documented and
+validated, and nothing about it changes. What changed is one host-configuration line that makes
+the host behave the way that decision already claimed it behaved. Option (b) from the validator's
+entry — splitting the host-coupled registrations behind a flag so the API gets a *reduced* graph
+— *would* have been a new design decision, and was therefore **not** taken.
+
+**Fix applied** — `V.SMART/V.SMART.Api/Program.cs`, immediately before the `AddVSmartDomain`
+call:
+
+```csharp
+builder.Host.UseDefaultServiceProvider((context, options) =>
+{
+    options.ValidateOnBuild = false;
+    options.ValidateScopes = context.HostingEnvironment.IsDevelopment();
+});
+```
+
+with a comment naming the framework behaviour, the seven-service gap, and an explicit
+`REMOVE THIS BLOCK` instruction tied to M2-B06 / M2-B08. `ValidateScopes` is deliberately left at
+the framework's own default — captive-dependency detection is not what had to be relaxed, and
+turning it on unconditionally would have changed `Production` behaviour too. No registration was
+added, removed, moved or re-lifetimed; `AddVSmartDomain()`'s graph is untouched.
+
+**Also corrected: the gap is seven, not six.** `ServiceCollectionExtensions.cs`'s `<remarks>`,
+the `Program.cs` comment and `tasks/M2-B07.md` all said six. `IEnquirySalesService` fails as
+well, transitively through `ReportService`. The number is now *measured* — by the run quoted
+above — rather than enumerated by hand.
+
+**Re-validated — commands run in this pass, with their actual output:**
+
+```
+dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj
+  -> 6695 Warning(s) / 0 Error(s) / 00:02:04.45    (exactly the 6,695 baseline; no new warnings)
+dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj
+  -> 4 Warning(s) / 0 Error(s)                     (incremental)
+dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+  -> Passed!  - Failed: 0, Passed: 84, Skipped: 0, Total: 84, Duration: 10 s
+dotnet run --project V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-build   (default launch profile)
+  -> Now listening on: http://localhost:5144
+     Application started. / Hosting environment: Development      <- the regression is gone
+GET http://localhost:5144/api/currencies                      -> 401  (no token, [Authorize])
+GET http://localhost:5144/swagger/v1/swagger.json             -> 200
+GET http://localhost:5144/api/currencies  with a valid HS256 token
+  -> 500 System.NullReferenceException at TenantDbContextFactory.cs:18
+     (ITenantProvider.GetCurrentTenant() returned null), stack reaching
+     UnitOfWork..ctor(ITenantDbContextFactory, ...);
+     grep "Unable to resolve service" over that response -> 0 matches
+V.SMART.Web, ASPNETCORE_ENVIRONMENT=Development, --no-launch-profile
+  -> Now listening on: http://localhost:5398 / Application started.
+     (so its graph still passes the framework's own ValidateOnBuild — unaffected by this fix)
+```
+
+The 500 is the environment, not the branch: `CurrencyController` → `ICurrencyService` →
+`IUnitOfWork` all resolved, and neither `TenantDbContextFactory.cs` nor `UnitOfWork.cs` appears
+in `git diff --stat master...HEAD`. There is no provisioned master/tenant database and no login
+on this workstation, so the *shape* half of "`GET /api/currencies` returns the same shape and
+status as before" remains unverifiable here — as it was for the validator, and as
+`tasks/M2-B07.md` § *Not verified* already stated.
+
+**Tried before** — nothing in this log records this fix, or any fix, for M2-B07. Attempt 1 was a
+transport failure (`ENOTFOUND`) that produced code but no report; attempt 2 was the first
+validated attempt. This is not a loop.
+
+**Disposition** — `fixed`, and committed on `migration/M2-B07-add-vsmart-domain` together with
+this entry. Re-running the validator against the new tip is the orchestrator's next step.
+
+**Residual risk**
+
+1. **`GET /api/currencies` end-to-end and the Blazor three-screen smoke test still need a
+   database.** Both remain unverified and neither should be recorded as met.
+2. **The API no longer build-validates its own graph.** That is a real loss of a diagnostic, and
+   it is *scheduled* rather than permanent — the `REMOVE THIS BLOCK` comment ties it to M2-B06 /
+   M2-B08. Until then a genuinely new DI mistake in `V.SMART.Api` surfaces at first request
+   rather than at startup. `AddVSmartDomainTests` covers the *shared* graph, not host-specific
+   wiring; that distinction is what made this failure invisible to a green test in the first
+   place.
+3. **The seven-service list is hand-maintained.** If another service acquires an `IPathProvider`
+   or `IFileUploadService` dependency later, the comment goes stale silently, because validation
+   is off in this host. `AddVSmartDomain_WithoutHostSeams_FailsValidation` pins that the gap is
+   non-empty, not its size.
+4. **MAUI was not started or rebuilt in this pass.** Nothing in this fix touches it; the
+   validator recorded it building at 0 errors / 6,671 warnings.
+
+**Next attempt routed to** — no model change needed; re-validate the same branch once the fix is
+committed. No KB-091 §6.3 escalation trigger applies: no business rule, no schema change and no
+architecture decision is in question.
+
+**Standing lesson, restated because attempt 2 shipped on the opposite belief** — ASP.NET Core
+turns `ValidateOnBuild`/`ValidateScopes` **on by itself in `Development`**. *Not* writing the
+line does not leave the check off. Any task that changes a composition root must verify by
+**starting the affected host in `Development`**; a green build and a green `BuildServiceProvider`
+unit test both passed here, and neither caught it.

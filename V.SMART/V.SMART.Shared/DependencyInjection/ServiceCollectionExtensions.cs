@@ -231,12 +231,17 @@ namespace V.SMART.Shared.DependencyInjection
         /// <c>IJSRuntime</c>.
         /// <para>
         /// <c>V.SMART.Api</c> supplies <c>AuthenticationStateProvider</c> and
-        /// <c>AddHttpClient()</c> but none of the rest, so exactly six registrations here stay
-        /// unresolvable in that host until M2-B06 / M2-B08 — that gap is expected, not a
+        /// <c>AddHttpClient()</c> but none of the rest, so exactly seven registrations here
+        /// stay unresolvable in that host until M2-B06 / M2-B08 — that gap is expected, not a
         /// defect: <c>ReportService</c> (IPathProvider), <c>IUserService</c> (IPathProvider +
         /// IJSRuntime), <c>IGSTITCService</c> (IPathProvider),
         /// <c>IUserThemePreferenceService</c> (IJSRuntime), <c>ICompanyService</c>
-        /// (IFileUploadService + HttpClient) and <c>IItemService</c> (IFileUploadService).
+        /// (IFileUploadService), <c>IItemService</c> (IFileUploadService) and
+        /// <c>IEnquirySalesService</c> (IPathProvider, transitively via <c>ReportService</c>).
+        /// The count was measured by starting V.SMART.Api with ValidateOnBuild = true, which
+        /// is why that host now opts out of build-time validation explicitly
+        /// (V.SMART.Api/Program.cs) — ASP.NET Core turns ValidateOnBuild on by itself in the
+        /// Development environment, so leaving the line unwritten does not leave it off.
         /// </para>
         /// <para>
         /// Verified by <c>tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs</c>:
