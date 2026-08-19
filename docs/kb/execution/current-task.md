@@ -21,7 +21,7 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — `Blocked` on a human. Attempt 2 repeated attempt 1's empty return.
+## Active task: `M0-12-01` — **`Ready`.** Q-21 answered 2026-08-19; no human step remains.
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
@@ -32,17 +32,26 @@ close-out: no `migration/M0-12-01-*` branch exists, no `tests/` directory exists
 repository root, `git status --porcelain` is clean, and `master`'s tip is unchanged. **Nothing
 was implemented on either attempt — there is nothing to resume mid-way through.**
 
-**Why this is now `Blocked`, not a retry.** Attempt 1 was diagnosed — from inside that run's
-own workflow completion log, which is not visible afterward — as a transient upstream `529
-Overloaded` on both its agents, and the earlier version of this file correctly said "just
-re-run the runner," explicitly flagging: *"If attempt 2 fails the same way, that repetition is
-the signal worth investigating — a single 529 is not."* Attempt 2 has now failed the exact
-same way. **This close-out session cannot see the workflow's agent-completion log for attempt
-2** (that visibility only exists from inside the run that produced it), so it cannot confirm
-or rule out a second `529` versus a systemic dispatch problem. Per the standing rule never to
-silently guess, a third attempt is **not** recommended until a human checks the
-dispatch/agent-invocation layer — spending the two remaining attempts on the same unverified
-assumption that has already failed twice is not a reasonable use of the retry budget.
+**Why it is `Ready` again — Q-21 is answered, 2026-08-19.** The block rested on a claim that
+turns out to be false: that the workflow's agent-completion log "is only visible from inside
+the run that produced it". The per-agent transcripts persist on disk at
+`~/.claude/projects/<project>/<sessionId>/subagents/workflows/<runId>/agent-<agentId>.jsonl`,
+and reading them settles it — **every agent in both attempts ended on `"apiErrorStatus":529,
+"error":"server_error"`**:
+
+| Attempt | Run | Agent | Outcome |
+|---|---|---|---|
+| 1 | `wf_b5cfd63e-cd2` | `migration-investigator` (`opus`) | `529` @16:41:00Z, `req_011CeAYN4EMJrAe6z7CZ1qX8` — **after 158,887 bytes of successful tool work** |
+| 1 | `wf_b5cfd63e-cd2` | `migration-implementer` (`opus`) | `529` @16:44:18Z, `req_011CeAYdkQF6u4n5sSMXvwoi`, 4,199 bytes — died on its first call |
+| 2 | `wf_8f353233-789` | `migration-investigator` ×2 | both `529` |
+| 2 | `wf_8f353233-789` | `migration-implementer` | `529` |
+
+An investigator that reads 158 KB of source before dying was dispatched correctly and was
+running normally — which is exactly what a systemic dispatch fault could not produce.
+Corroborated the same day by two runner invocations dispatching 4 of 4 agents with
+`agents_error: 0` and `agents_empty_result: 0`. The condition attempt 1 named — *"if attempt 2
+fails the same way, that repetition is the signal"* — was met, investigated, and came back
+**transient**.
 
 Full record: [`tasks/M0-12-01.md` § Execution Record (2026-08-18) — Attempt 2](tasks/M0-12-01.md#execution-record-2026-08-18--attempt-2-repeated-empty-return).
 Attempts logged: [`failure-log.md` § M0-12-01 · attempt 1](failure-log.md#m0-12-01--attempt-1--2026-08-18)
@@ -51,19 +60,26 @@ Status authority: [`task-tracker.md`](task-tracker.md) (KB-081) footnote 12. Run
 [`runner-state.md`](runner-state.md) (KB-093). Open question: **Q-21** in
 [`open-questions.md`](../open-questions.md).
 
-**Owner to unblock: whoever administers the runner's agent-dispatch layer — not named in the
-repository; fall back to the repository owner (Vivek).** Attempts used: **2 of 3 — one remains**,
-held in reserve. The task specification itself is unchanged and still believed valid — this is
-not a content problem, it is an unconfirmed-cause repeated dispatch failure.
+**Owner to unblock: nobody — there is no human gate.** Re-run the runner; attempt 3 may
+dispatch immediately. The task specification is unchanged and still believed valid: this was
+never a content problem, and now it is not an open-cause problem either.
 
-**Do not re-dispatch `M0-12-01` a third time, and do not start a different task from this
-file, until a human has looked at the dispatch layer.** `M0-12-01` is the narrowest bottleneck
-in M0 (four tasks — `M0-12-02`, `M0-13`, `M0-09`, `M0-06` — declare it as their dependency);
-re-selecting past it would just reach the same stop again once those are opened, and blindly
-retrying it a third time risks exhausting the last of its budget on the same unexamined
-failure mode.
+**Attempts used: 2 of 3 — one remains**, on the conservative reading. [KB-081 footnote
+12](task-tracker.md) records an interpretation that was deliberately **not** applied: KB-091
+§6.4 counts *validation failures*, and neither attempt produced work or a verdict — both died
+on infrastructure before implementing anything — so arguably the budget was never touched.
+That is the owner's call. If attempt 3 also dies on a `529`, read that note before declaring
+the task `Blocked` for good; a third infrastructure abort is not the same event as a third
+failed implementation.
 
-## Other open blockers, unaffected by this stop
+`M0-12-01` is the narrowest bottleneck in M0 — four tasks (`M0-12-02`, `M0-13`, `M0-09`,
+`M0-06`) declare it as their dependency — so it is the right thing to spend an attempt on.
+
+> **Unblocking this does not open M2.** Gate G0 still has zero of seven exit criteria ticked.
+> `M0-01-03`'s rebuild drill, `M0-07`'s CI criterion and `M0-04`'s credential rotation remain
+> human-owned and unchanged by this session.
+
+## Other open blockers, unaffected by this change
 
 - **`Needs Review`** — implemented, validated `PASS`, committed on its own branch, awaiting a
   human review-and-merge/sign-off step that no autonomous session may perform on its own

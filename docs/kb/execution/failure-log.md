@@ -528,6 +528,25 @@ defect — nothing indicates `tasks/M0-12-01.md` itself needs to change. Attempt
 *(Denominator corrected 2026-08-19: the budget is 3, not 4 — KB-091 §6.4 "Attempt 3 fails →
 BLOCKED … Do not attempt a fourth", and `migration-runner.js:43` `maxRetries: 2`.)*
 
-**Next attempt routed to** — no model, pending human confirmation of the cause. See Q-21 in
+**Next attempt routed to** — `opus`, routing unchanged.
+
+**ROOT CAUSE CONFIRMED 2026-08-19 — the block is lifted.** Both attempts died on transient
+upstream `529 Overloaded`, not on a dispatch-layer fault. The two close-outs above each said the
+agent-completion log was "visible only from inside the run that produced it". **That is wrong.**
+The per-agent transcripts persist at
+`~/.claude/projects/<project>/<sessionId>/subagents/workflows/<runId>/agent-<agentId>.jsonl`
+and were read directly:
+
+| Attempt | Run | Agent | Outcome |
+|---|---|---|---|
+| 1 | `wf_b5cfd63e-cd2` | `migration-investigator` (`opus`) | `529` @16:41:00Z, `req_011CeAYN4EMJrAe6z7CZ1qX8` — **after 158,887 bytes of successful tool work** |
+| 1 | `wf_b5cfd63e-cd2` | `migration-implementer` (`opus`) | `529` @16:44:18Z, `req_011CeAYdkQF6u4n5sSMXvwoi`, 4,199 bytes — died on its first call |
+| 2 | `wf_8f353233-789` | `migration-investigator` ×2 | both `529` |
+| 2 | `wf_8f353233-789` | `migration-implementer` | `529` |
+
+An investigator that reads 158 KB of source before dying was dispatched correctly and was
+running normally — that alone rules out the systemic-dispatch hypothesis. Corroborated on
+2026-08-19 by two runner invocations dispatching 4 of 4 agents with `agents_error: 0` and
+`agents_empty_result: 0`. **Q-21 is answered and `M0-12-01` returns to `Ready`.** See Q-21 in
 [`open-questions.md`](../open-questions.md) and [`task-tracker.md`](task-tracker.md) (KB-081)
-footnote 12 for the owner and full context.
+footnote 12.
