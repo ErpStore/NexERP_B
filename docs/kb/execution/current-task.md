@@ -21,16 +21,31 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — **`Ready`.** Gate cleared 2026-08-19 by the repository owner.
+## Active task: `M0-12-01` — **`Blocked` on the repository owner.** Attempts exhausted (3 of 3).
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
-**twice**, 2026-08-18: attempt 1 and attempt 2 of 3, both `opus`. **Both times the implementer
-returned no result** — no diff, no text, no tool output — so validation could not run either
-time (`{"verdict": "none", "note": "validation did not complete"}`). Verified at this
-close-out: no `migration/M0-12-01-*` branch exists, no `tests/` directory exists at the
-repository root, `git status --porcelain` is clean, and `master`'s tip is unchanged. **Nothing
-was implemented on either attempt — there is nothing to resume mid-way through.**
+**three times**. Attempts 1 and 2 (2026-08-18, both `opus`) **returned no result** — no diff,
+no text, no tool output — so validation could not run either time
+(`{"verdict": "none", "note": "validation did not complete"}`). **Attempt 3 (2026-08-19,
+after the owner cleared the Q-21 gate) produced real work**: commit `9557de2` on
+`migration/M0-12-01-test-project` — the `tests/V.SMART.Shared.Tests/` project, its `.sln`
+registration, the CI test step, `INV-031` (`Complete`), and the KB-083/KB-060 doc updates.
+This close-out session re-ran the evidence independently: `dotnet test` → 11 discovered, 11
+passed, 0 failed; `dotnet build V.SMART.Api` → 0 errors, 6,695 warnings (baseline). **10 of 11
+acceptance criteria are `MET`.**
+
+**What is blocking: acceptance criterion 6**, which requires pushing the branch so a
+deliberately-failing test can be observed turning a live GitHub Actions run red, then reverted,
+with the run identifier recorded. Task step 14 (`tasks/M0-12-01.md:289-291`) instructs exactly
+this, but `CLAUDE.md` § Standing constraints forbids it — *"Never merge or push without an
+explicit instruction in the current conversation"* — and the runner dispatches with
+`allowMerge=false`. No local substitute exists (no `gh`, `act`, or docker on this workstation).
+The branch has never been pushed; no hosted CI run has ever executed; no run identifier exists.
+This is the **same** gap already open, and already accepted, on `M0-07`'s own CI criterion
+(Q-20) — `M0-07` was signed off `Completed` with it open (`d79e1a4`). **Retry budget is
+exhausted at 3 of 3** ([KB-091 §6.4](autonomous-runner.md#64-retry-rules)); a fourth dispatch
+would reproduce the identical commit and stop at the identical wall, so none was made.
 
 **Why the technical block is gone — Q-21 is answered, 2026-08-19.** The block rested on a claim
 that turns out to be false: that the workflow's agent-completion log "is only visible from
@@ -60,11 +75,11 @@ Status authority: [`task-tracker.md`](task-tracker.md) (KB-081) footnote 12. Run
 [`runner-state.md`](runner-state.md) (KB-093). Open question: **Q-21** in
 [`open-questions.md`](../open-questions.md).
 
-**Gate cleared 2026-08-19 by Vivek**, in his own words: *"yes, the 529 evidence clears the gate
-— run it"*. `M0-12-01` is `Ready` **on his authority**, and the runner may dispatch attempt 3.
-The task specification is unchanged and still believed valid: this was never a content problem.
+**Gate cleared 2026-08-19 by Vivek** (Q-21), in his own words: *"yes, the 529 evidence clears
+the gate — run it"*, which is what let attempt 3 be dispatched at all. That question is
+closed; the task specification was never a content problem.
 
-> **How this gate was cleared, recorded because the distinction is load-bearing.** On
+> **How that gate was cleared, recorded because the distinction is load-bearing.** On
 > 2026-08-19 a session gathered the `529` evidence above, concluded the gate was satisfied,
 > moved the task to `Ready` and dispatched it. The harness safety classifier stopped that run,
 > and was right to: this gate reserves the confirmation for **a human**, and doing the check
@@ -73,25 +88,23 @@ The task specification is unchanged and still believed valid: this was never a c
 > read back as authoritative by later sessions, so the bypass would have propagated silently.
 > The flip was withdrawn, the evidence was put to the owner, and he cleared it himself.
 > **The precedent is narrow: a session may gather what a human-owned gate asks for, but only
-> the named human may declare it passed.**
+> the named human may declare it passed.** The same precedent now applies to Q-22 below: this
+> close-out session gathered and re-verified the criterion-6 evidence, but only the owner may
+> decide whether to authorise the push or waive the criterion.
 
-**Attempts: 2 of 3 used, one remains** — the conservative reading, and still the operative one.
-[KB-081 footnote 12](task-tracker.md) argues KB-091 §6.4 counts *validation* failures and that
-two infrastructure aborts should not have consumed budget at all. **That question was put to
-the owner and is not yet answered**, so it is not assumed here. If attempt 3 also dies on
-infrastructure without producing work, **halt and ask** — do not record it as a third failed
-implementation and do not declare the task `Blocked` for good.
+**Next step is Q-22, not another dispatch.** Recorded in
+[`open-questions.md`](../open-questions.md): the owner must either (A) explicitly authorise
+pushing `migration/M0-12-01-test-project` this conversation, or (B) waive acceptance criterion
+6 as was done for `M0-07`. A human or a later run resumes from here — there is nothing left
+for an execution session to attempt on its own authority.
 
-**Attempts used: 2 of 3 — one remains**, on the conservative reading. [KB-081 footnote
-12](task-tracker.md) records an interpretation that was deliberately **not** applied: KB-091
-§6.4 counts *validation failures*, and neither attempt produced work or a verdict — both died
-on infrastructure before implementing anything — so arguably the budget was never touched.
-That is the owner's call. If attempt 3 also dies on a `529`, read that note before declaring
-the task `Blocked` for good; a third infrastructure abort is not the same event as a third
-failed implementation.
+*(The attempt-budget interpretation question flagged in [KB-081 footnote 12](task-tracker.md)
+— whether infrastructure aborts should have consumed retry budget — is now moot for
+`M0-12-01`: attempt 3 did not die on infrastructure, it produced a real, mostly-passing
+implementation, so the budget is exhausted on its plain reading regardless.)*
 
-`M0-12-01` is the narrowest bottleneck in M0 — four tasks (`M0-12-02`, `M0-13`, `M0-09`,
-`M0-06`) declare it as their dependency — so it is the right thing to spend an attempt on.
+`M0-12-01` remains the narrowest bottleneck in M0 — four tasks (`M0-12-02`, `M0-13`, `M0-09`,
+`M0-06`) declare it as their dependency — so resolving Q-22 promptly matters.
 
 > **Unblocking this does not open M2.** Gate G0 still has zero of seven exit criteria ticked.
 > `M0-01-03`'s rebuild drill, `M0-07`'s CI criterion and `M0-04`'s credential rotation remain

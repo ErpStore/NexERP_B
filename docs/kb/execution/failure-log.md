@@ -555,3 +555,197 @@ cause, and doing the check is not the same as having authority to declare it pas
 was withdrawn and the decision taken by Vivek. `M0-12-01` is `Ready` on his authority. See Q-21 in
 [`open-questions.md`](../open-questions.md) and [`task-tracker.md`](task-tracker.md) (KB-081)
 footnote 12.
+
+---
+
+### M0-12-01 · attempt 3 · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | validated |
+| Model in use | opus (implementation) · opus (validation) |
+| Validator verdict | FAIL — one acceptance criterion of eleven unmet |
+| Failure category | environment |
+
+**This attempt produced real work.** Unlike attempts 1 and 2 (both empty returns on transient
+upstream `529`s), the implementer committed `9557de2` on `migration/M0-12-01-test-project`:
+`tests/V.SMART.Shared.Tests/` (csproj + 6 source files), the `.sln` registration, the
+`.github/workflows/ci.yml` test step, and the KB-083 / KB-003 / KB-060 updates. **Ten of the
+eleven acceptance criteria are objectively met against independently re-run evidence** — see
+the criterion-by-criterion table in the validation report for this attempt.
+
+**What failed** — acceptance criterion 6, verbatim:
+
+> "The CI workflow runs the tests on push, and a deliberately failing test was observed to
+> turn CI red; the run identifier is recorded in the final report and the deliberate failure
+> is not present in the committed diff."
+
+Half of it holds: the deliberate failure is **not** in the committed diff (verified —
+`git show --stat 9557de2` lists 12 files, all 11 tests pass locally). The other half was never
+performed. `git branch -r` shows **no** `origin/migration/M0-12-01-test-project`, and
+`git rev-parse --abbrev-ref @{u}` returns `fatal: no upstream configured for branch
+'migration/M0-12-01-test-project'`. The branch has never been pushed, the workflow has never
+executed on a GitHub-hosted runner, and no run identifier exists.
+
+**Root cause — authority, not defect.** Task step 14 (`tasks/M0-12-01.md:289-291`) instructs
+"temporarily change one smoke assertion so it fails, **push the branch**, confirm CI goes red,
+then revert". That is unreachable from an execution session: `CLAUDE.md` § Standing constraints
+says "**Never merge or push** without an explicit instruction in the current conversation", and
+the runner dispatches with `allowMerge=false`. The task specification contains a step its own
+executor is forbidden to take. This is the **same** gap already recorded for M0-07's gate at
+[`ci-pipeline.md`](ci-pipeline.md) §8: *"The workflow has never run on a GitHub-hosted runner |
+Syntax parses … but no run URL exists | The branch is pushed"* — criterion 6 inherits it rather
+than introducing it.
+
+**What the implementer did observe instead, and what it does not prove.** The step is written
+as an explicit exit-code check (`ci.yml:184-190`, `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`)
+and `runs-on: windows-latest` (`ci.yml:66`) makes the default shell `pwsh`, so the PowerShell
+backtick continuations and `$LASTEXITCODE` are valid. That makes red-on-failure **Inferred**,
+not Confirmed. Nothing short of a hosted run confirms it.
+
+**Evidence — commands the validator re-ran itself, not reported ones:**
+
+```
+dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+  → Passed!  - Failed: 0, Passed: 11, Skipped: 0, Total: 11, Duration: 10 s
+dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj
+  → 6695 Warning(s) / 0 Error(s) / Time Elapsed 00:01:59.82   (baseline 6,695 — no new warnings)
+git diff --stat HEAD~1 HEAD -- V.SMART/    → empty (zero production files touched)
+git status --porcelain                     → " M docs/kb/execution/runner-state.md" only; no bin/, obj/, .vs/, *.user
+git branch -r | grep 12-01                 → no output
+```
+
+Spot-checks of the INV-031 findings against the source rather than against the report: all ten
+`HasData` calls exist at the cited lines of `ApplicationDbContext.cs` (:1136, :1151, :1331,
+:1340, :1694, :1715, :1729, :1783, :1828, :1835), and all nine `[Column(TypeName = …max…)]`
+attributes exist at the cited lines of `Attendance.cs`, `FinalInspection.cs`,
+`FinalInspectionRef.cs`, `IncomingInspectionRef.cs`, `InspectionRef.cs` and
+`MasterInspection.cs`. No missing business rule, no regression, no scope escape.
+
+**Disposition — do NOT re-dispatch the implementer.** Category is `environment` deliberately:
+a fourth implementer run would reproduce this commit and stop at the same wall, because the
+wall is push authority, not code. Two ways forward, both requiring the repository owner:
+
+1. **Push the branch** (owner, or an explicit in-conversation push instruction), let the
+   workflow run, break one assertion, observe red, revert, record the run id — satisfying
+   criterion 6 as written; **or**
+2. **Owner waives criterion 6** for this task, exactly as `ci-pipeline.md` §8 already carries
+   the identical unverified item for M0-07, and the criterion is re-homed onto whichever task
+   first pushes a branch. If waived, note that M0-07 was signed off `Completed` with this same
+   gap open (`KB-081`, commit `d79e1a4`), so waiving is consistent with precedent rather than
+   a new concession.
+
+Also outstanding, not a criterion but named in *Documentation Updates*: KB-080's M0 task table
+(`README.md:313`) has columns ID / name / type / priority / depends_on / estimate / link and
+**no status column**, so "Mark M0-12-01 Completed in the M0 task table" has nothing to mark.
+The implementer left KB-080 untouched and said so. That reading is correct — verified against
+the table. The task file's own frontmatter still reads `status: Blocked` and carries no
+Execution Record for this attempt; that is close-out bookkeeping, owned by the orchestrator.
+
+**Attempts used: 3 of 3 — budget exhausted.** Per [KB-091 §6.4](autonomous-runner.md#6-retry-and-escalation)
+this would normally mean `BLOCKED`, but the blocker here is a decision, not a diagnosis: the
+deliverable exists, builds, tests green and stays in scope.
+
+**Next attempt routed to** — none. Escalate to the repository owner for the criterion-6
+decision above.
+
+---
+
+### M0-12-01 · attempt 3 · diagnosis · 2026-08-19
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **No fix applied;
+no code file touched.** The only file written by this pass is this log.)*
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | environment (confirmed — not re-classified) |
+
+**Reproduced** — yes, independently, on `migration/M0-12-01-test-project`, HEAD `9557de2`.
+Criterion 6's failing half is a git/GitHub fact, so it reproduces without a build:
+
+```
+$ git rev-parse --abbrev-ref --symbolic-full-name @{u}
+fatal: no upstream configured for branch 'migration/M0-12-01-test-project'   (exit 128)
+
+$ git ls-remote --heads origin
+...refs/heads/master
+...refs/heads/migration/M0-00-vcs-baseline
+...refs/heads/migration/M0-07-ci-pipeline     <- migration/M0-12-01-test-project is NOT on
+                                                 origin, so no Actions run can exist
+
+$ gh --version        -> bash: gh: command not found
+$ act --version       -> bash: act: command not found
+$ command -v docker   -> (nothing)            <- no local workflow runner either
+```
+
+The deliverable itself is intact — verified by re-running the newly-verified command
+(`prompt-template.md:316`) rather than trusting the report:
+
+```
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+A total of 1 test files matched the specified pattern.
+Passed!  - Failed: 0, Passed: 11, Skipped: 0, Total: 11, Duration: 9 s
+```
+
+`git status --porcelain` shows only ` M docs/kb/execution/failure-log.md` and
+` M docs/kb/execution/runner-state.md` — no `bin/`, `obj/`, `.vs/` or `*.user` path after the
+test run.
+
+**Root cause** — confirmed, and identical to the validator's: **criterion 6's second half
+requires an action the executor is forbidden to take.** `tasks/M0-12-01.md:289-291` (step 14)
+says "temporarily change one smoke assertion so it fails, **push the branch**, confirm CI goes
+red, then revert", while `CLAUDE.md` § Standing constraints says "**Never merge or push**
+without an explicit instruction in the current conversation" and this dispatch carries
+`allowMerge=false`. Not a code defect: no assertion is wrong, no wiring is missing, and the
+step is correctly written at `.github/workflows/ci.yml:184-190` with an explicit
+`if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }` re-raise. Red-on-failure is therefore
+**Inferred**, and nothing available on this workstation can make it Confirmed.
+
+**Why no fix was applied** — every route to green is forbidden or dishonest:
+
+- Pushing the branch — the exact constraint that produced the failure. Cannot be self-granted.
+- Breaking an assertion locally and observing `dotnet test` exit non-zero — that would prove
+  the *command* fails, not that *CI turns red*, and recording it as criterion 6 would be the
+  "silently adjusted check" this workflow forbids. Not done.
+- Amending or deleting criterion 6 — a task-specification change, not a debugger's call.
+- Running the workflow locally — impossible here: no `act`, no `docker`, no `gh`.
+
+**This is a loop, not a fresh failure.** The same wall is already recorded twice in this log
+for **M0-07** (attempt 1 and its diagnosis, 2026-08-17: "a same-spec retry at any model cannot
+push a branch, trigger an Actions run, or edit branch protection"), is carried as an open item
+at [`ci-pipeline.md`](ci-pipeline.md) §8, and depends on **Q-20**
+([`open-questions.md`](../open-questions.md)) — whether `ErpStore` has hosted-runner minutes at
+all — which is still unanswered. M0-12-01 criterion 6 **inherits** that gap; it does not
+introduce a new one. A fourth implementer dispatch would rebuild the same commit and stop at
+the same wall.
+
+**Disposition** — `blocked`, agreeing with the validator. Attempts used: **3 of 3**
+([KB-091 §6.4](autonomous-runner.md#6-retry-and-escalation)). KB-091 §8 triggers 5
+(environment unavailable) and 7 (would require a push) both apply. Ten of eleven criteria are
+objectively met against independently re-run evidence.
+
+**Decision the orchestrator needs from the repository owner** (one of, not for the debugger to
+choose) — unchanged from the validator's entry:
+
+- **A** — an explicit in-conversation instruction to push `migration/M0-12-01-test-project`,
+  then break one assertion, observe red, revert, and record the run id. Note Q-20 should be
+  answered first, or the push buys nothing.
+- **B** — waive criterion 6 for this task and re-home it onto whichever task first pushes a
+  branch. Consistent with precedent: **M0-07 was signed off `Completed` with this identical gap
+  open** (`d79e1a4`, KB-081).
+
+**Residual risk** — three things stay genuinely unknown until an Actions run happens, and none
+should be asserted as verified meanwhile: (i) whether `ci.yml` is syntactically valid to
+GitHub's parser (never machine-checked here — no Python/YAML parser on this workstation);
+(ii) whether the runner's `dotnet test` discovers the same 11 tests; (iii) whether a failing
+test actually turns the job red. Separately, and already recorded honestly by the implementer
+in INV-031: the InMemory provider enforces no foreign keys (Finding 5) and does not translate
+LINQ to SQL (Finding 7), so this harness cannot catch those two regression classes — R-05 in
+KB-060 is correctly left open.
+
+**Next attempt routed to** — no model. A stronger model cannot obtain push authority or a
+hosted runner; this needs the owner's decision.

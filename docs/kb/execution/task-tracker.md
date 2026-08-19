@@ -76,7 +76,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Ready**¹² | P0 | M0-07 | 0.5 d | G0 |
+| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Blocked**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | Blocked | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
@@ -266,24 +266,30 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
 
-**Currently `Ready`: `M0-12-01`, by owner sign-off on 2026-08-19.** **Q-21 was answered** that
-day from the per-agent transcripts — both 2026-08-18 dispatches died on transient upstream
-`529 Overloaded`, not on a dispatch-layer fault (footnote 12). A session then moved the task to
-`Ready` on its own authority and was **correctly stopped by the harness safety classifier**,
-because the gate named a *human* as the party who confirms the cause. That flip was withdrawn,
-the evidence was put to the owner, and **Vivek cleared the gate explicitly**: *"yes, the 529
-evidence clears the gate — run it"*. `M0-12-01` is `Ready` on **his** authority, not the
-runner's. Every other M0 task remains `Completed`, `Blocked` on a named human, or
+**Currently `Blocked`: `M0-12-01`, on the repository owner, since attempt 3 · 2026-08-19.**
+Attempt 3 (dispatched after Vivek cleared the Q-21 gate) **implemented real work** — commit
+`9557de2` on `migration/M0-12-01-test-project`: the test project, its `.sln` rows, the CI test
+step, INV-031, and the KB-083/KB-060 updates. 10 of 11 acceptance criteria are independently
+re-verified `MET`. The 11th, criterion 6 (push the branch, observe CI turn red on a
+deliberately-broken assertion, revert, record the run id), was never performed: pushing is
+forbidden to an execution session without an explicit in-conversation instruction
+(`CLAUDE.md` "Never merge or push"), and no local substitute (`gh`/`act`/docker) exists on this
+workstation. This is the same gap already open on `M0-07`'s own CI gate (Q-20), and `M0-07` was
+signed off `Completed` with it open (`d79e1a4`) — see footnote 12 for the full record. Retry
+budget is exhausted (3 of 3); a fourth dispatch would reproduce the identical commit and hit
+the identical wall, so this is not re-dispatched. **Decision needed from Vivek** — recorded as
+**Q-22** in [`open-questions.md`](../open-questions.md) — either authorise the push explicitly,
+or waive criterion 6 for this task as was done for `M0-07`.
+Every other M0 task remains `Completed`, `Blocked` on a named human, or
 `Needs Review` and therefore not re-selectable:
 M0-02 is `Needs Review`⁶ (Q-14 explicitly deferred by Vivek, its named owner); M0-03 is a
 `Completed` parent container, never worked directly; M0-03-01/02/03 and M0-14 are `Completed`;
 M0-01-03 is `Needs Review`¹, awaiting a human-executed rebuild drill; M0-04 is `Blocked`⁴ on an
 unidentified credential owner; M0-07 is `Blocked`⁷ on `origin` push plus GitHub org admin
 rights; M0-05 stays `Blocked` because M0-04 has not run; everything downstream of
-M0-07/M0-12-01 stays `Blocked` transitively. `M0-12-01` satisfies the *Ready-task selection
-rule* and is the one task the runner may open. **The G0 exit gate separately still needs a
-human** for M0-04, M0-07 and M0-01-03's drill — clearing `M0-12-01` does **not** clear G0, and
-M2 stays barred.
+M0-07/M0-12-01 stays `Blocked` transitively. **No task in the dependency graph is currently
+`Ready`.** **The G0 exit gate separately still needs a human** for M0-04, M0-07 and M0-01-03's
+drill — even were `M0-12-01` unblocked today, G0 would still not clear, and M2 stays barred.
 **Active task:** `M0-12-01` — see [`current-task.md`](current-task.md). Selection rule for what
 becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
@@ -717,11 +723,61 @@ same day by two runner invocations dispatching 4 of 4 agents with `agents_error:
 > attempt left) governs. If a third attempt also dies on a `529`, this is the paragraph to
 > revisit before declaring the task `Blocked` for good.
 
-**Owner to unblock: none — cleared 2026-08-19 by Vivek.** The original wording of this row,
-which sought a dispatch-layer administrator, is retained below for history:
+**Owner to unblock (gate cleared): none — cleared 2026-08-19 by Vivek.** The original wording
+of this row, which sought a dispatch-layer administrator, is retained below for history:
 whoever administers the autonomous runner / agent-dispatch
 infrastructure for this project. No such person is named anywhere in the repository; in their
 absence, the repository owner (**Vivek**) is the fallback contact, consistent with every other
 `Blocked`-on-a-human row in this table that lacks a more specific named owner (compare `M0-04`
 footnote 4). This is a **runner-health** question, not a task-specification question — no
 change to `tasks/M0-12-01.md` is indicated by anything found this session.
+
+**Update, 2026-08-19 — attempt 3 of 3, dispatched after Vivek cleared the gate above, produced
+real work and moved the task back to `Blocked`, this time on a content decision, not a
+dispatch mystery.** The implementer committed `9557de2` on
+`migration/M0-12-01-test-project`: the test project (`tests/V.SMART.Shared.Tests/`, `.csproj` +
+6 source files), the `.sln` registration (19 lines, all 6 platform configs), the CI test step
+in `.github/workflows/ci.yml`, `INV-031` (`Complete`, 8 findings, each `Confirmed`/`Inferred`/
+`Unknown`-tagged), and the KB-083/KB-060 documentation updates. This close-out session
+independently re-ran the evidence rather than trusting the report: `dotnet test` → 11
+discovered, 11 passed, 0 failed; `dotnet build V.SMART.Api` → 0 errors, 6,695 warnings
+(baseline, no new warnings); `git status --porcelain` clean of build output; `git diff --stat
+HEAD~1 HEAD -- V.SMART/` empty. **10 of the 11 acceptance criteria are `MET`.**
+
+**What is not met — criterion 6, and why it cannot be met from inside an execution session.**
+The criterion requires observing a deliberately-failing test turn a live GitHub Actions run
+red, on a pushed branch, with the run identifier recorded. Task step 14
+(`tasks/M0-12-01.md:289-291`) instructs exactly this — "push the branch, confirm CI goes red" —
+but `CLAUDE.md` § Standing constraints is explicit: *"Never merge or push without an explicit
+instruction in the current conversation"*, and the runner dispatches with `allowMerge=false`.
+No local substitute exists (`gh`, `act`, docker — none installed on this workstation). The
+branch has never been pushed (`git branch -r` shows no
+`origin/migration/M0-12-01-test-project`; `git rev-parse --abbrev-ref @{u}` reports no
+upstream configured), so the workflow has never executed on a hosted runner and no run
+identifier exists. **This is the identical gap already carried, and accepted, for `M0-07`'s
+own CI criterion** — see [`ci-pipeline.md`](ci-pipeline.md) §8 and this footnote's earlier
+text above (`M0-07` `Blocked`⁷) — and `M0-07` was signed off `Completed` with that gap open
+(`d79e1a4`). Criterion 6 inherits an existing, already-precedented gap; it does not create a
+new category of problem.
+
+**Attempts used: 3 of 3 — budget exhausted** ([KB-091 §6.4](autonomous-runner.md#64-retry-rules)).
+A fourth dispatch would not help: the wall is push authority, not code, so it would reproduce
+`9557de2` and stop identically. Both the validator (`failureCategory: environment`) and an
+independent debugger pass (`disposition: blocked`) agree. **Status: `Blocked` on the
+repository owner** — a decision, not something further investigation or implementation can
+resolve. **Blocks, transitively, unchanged:** `M0-12-02`, `M0-13`, `M0-09`, `M0-06`, `M0-10`,
+`M0-11`.
+
+**Owner to unblock: Vivek**, choosing one of two options (recorded as **Q-22** in
+[`open-questions.md`](../open-questions.md)):
+
+- **A.** Explicitly authorise pushing `migration/M0-12-01-test-project` in-conversation; then
+  break one smoke assertion, observe red, revert, and record the run identifier. Best paired
+  with resolving Q-20 (hosted-runner availability) first, or the push may hit the same
+  unanswered organisational question `M0-07` already flagged.
+- **B.** Waive criterion 6 for `M0-12-01`, re-homing it onto whichever task first pushes a
+  branch — consistent with the `M0-07` precedent already accepted into `Completed`.
+
+Full record: [`tasks/M0-12-01.md` § Execution Record
+(2026-08-19)](tasks/M0-12-01.md#execution-record-2026-08-19);
+[`failure-log.md` § M0-12-01 · attempt 3](failure-log.md#m0-12-01--attempt-3--2026-08-19).
