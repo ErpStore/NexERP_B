@@ -17,7 +17,7 @@ database_tables: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, Users,
 business_rules: [BR-CALC-001, BR-CALC-002, BR-STK-001, BR-STK-002, BR-SO-001, BR-SO-002, BR-SO-003, BR-AUTH-001, BR-AUTH-002, BR-APPR-001, BR-RPT-001, BR-TEN-001]
 status: partial
 confidence: mixed
-last_verified: 2026-08-12
+last_verified: 2026-08-19
 dependencies: [KB-011, KB-012, KB-013]
 ---
 
@@ -111,6 +111,24 @@ system.
 `IStockManagerService`. Add integration tests around it **before** any module that writes
 stock is migrated (Phase 5 pulled forward — see migration strategy).
 
+**Pinned by executable tests (M0-13, 2026-08-19).** Every statement above is now asserted by
+`tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs`
+(25 tests, all green). The FIFO ordering itself is pinned by
+`S05_Issue_AcrossThreeBatches_ConsumesOldestAddDateFirst` (three batches at distinct
+`AddDate` values, inserted newest-first so insertion order cannot explain the result),
+`RcSubID` discrimination by `S06_Issue_WithNullRcSubId_DoesNotConsumeRouteCardBoundBatches`
+and `S06_Issue_WithRouteCardRcSubId_DoesNotConsumeFreeStockBatches`, and track reversal on
+re-issue by `S04_ReIssue_WithSmallerQuantity_ReversesPriorTracksBeforeReallocating`. The
+file header of that suite carries the full statement-to-test map. A red test there means
+this rule changed.
+
+**Not pinned — Unknown (M0-13).** `.OrderBy(sa => sa.AddDate)` at `:206` declares no
+secondary sort key, so FIFO order between two batches sharing an identical `AddDate` is
+undefined. The test harness (EF Core InMemory, INV-031) evaluates `OrderBy` as
+LINQ-to-objects, which is a *stable* sort; SQL Server's `ORDER BY` guarantees no such thing.
+The suite therefore uses distinct `AddDate` values throughout and asserts nothing about
+ties. Resolving this needs a run against a real SQL Server instance.
+
 ### BR-STK-002 — ⚠️ Over-issue is silently permitted when batch balance is insufficient
 
 **Statement (defect, not intended behaviour).** `TrackStockUsageAsync` throws
@@ -134,6 +152,29 @@ the defect. *(Previously cited as `:203-206` / `:208-231`.)*
 depend on negative/over-issue being permitted for back-dated entry. Raise as a product
 decision (Q-01). If confirmed a bug, fix once in `StockManagerService` so both the Blazor
 UI and the API get the fix. Risk R-07.
+
+**Pinned by executable tests (M0-13, 2026-08-19).** The defect is now asserted **green** —
+deliberately, as a characterisation baseline — in
+`tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs`:
+
+| Test | What it pins |
+|---|---|
+| `S13_R07_IssueOrUpdateStock_WhenNoBatchHasBalance_ThrowsNoAvailableStockToIssue` | 100 requested against **zero** balance → `InvalidOperationException("No available stock to issue.")` |
+| `S14_R07_IssueOrUpdateStock_WhenBatchesExistButTotalBalanceIsShort_SilentlyUnderAllocatesAndDoesNotThrow` | 100 requested against 30 available → **no exception**; `IssueQty` 100, `Σ UsedQty` 30, drift asserted as exactly `70m` |
+| `S15_R07_IssueOrUpdateStock_WhenReIssueIncreasesQuantityBeyondAvailableStock_SilentlyUnderAllocatesOnTheUpdatePathToo` | the same drift occurs on the **update** path (re-issue 3 → 100 against a batch of 5; drift `95m`) |
+| `S16_R07_IssuingOneHundred_ThrowsAgainstZeroStock_ButSilentlyDriftsByNinetyNineAgainstOneUnit` | the asymmetry of statement 16: one unit of stock is the whole difference between a hard refusal and a silent 99-unit hole |
+
+These tests **must not be "fixed"**. If the product decision (M0-11 / Q-01) is to add the
+missing `remainingQty > 0` check, update these tests in the **same commit** as the production
+change.
+
+**Additional current behaviour observed while pinning (Confirmed, M0-13).** When the throw at
+`:209-210` fires on the *create* path, the `StockIssue` row has **already been created and
+committed** by `_unitOfWork.SaveAsync()` at `:154-155`. A refused issue therefore leaves an
+orphan `StockIssue` row carrying the full requested quantity with **no** `StockIssueTrack`
+rows at all. Pinned by the last three assertions of
+`S13_R07_IssueOrUpdateStock_WhenNoBatchHasBalance_ThrowsNoAvailableStockToIssue`. This is part
+of what Q-01 has to decide about.
 
 ---
 

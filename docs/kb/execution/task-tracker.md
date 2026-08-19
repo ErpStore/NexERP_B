@@ -78,7 +78,7 @@ its children are `Completed` — it is never worked directly.
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Ready** | P0 | M0-12-01 | 2.5 d | G0 |
-| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Ready** | P0 | M0-12-01 | 3 d | G0 |
+| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Needs Review**¹³ | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Ready** | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
@@ -266,9 +266,10 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
 
-**Currently `Ready`: `M0-12-02`, `M0-13`, `M0-09`, `M0-06` — four tasks, none needing a human,
-as of the `M0-12-01` merge (`bdee81f`, 2026-08-19).** This is the first time since 2026-08-18
-that the runner has had anything to select.
+**Currently `Ready`: `M0-12-02`, `M0-09`, `M0-06` — three tasks, none needing a human, as of
+the `M0-12-01` merge (`bdee81f`, 2026-08-19).** `M0-13`, the fourth task released by that
+merge, was implemented the same day and is now `Needs Review`¹³ (validator `PASS`, awaiting
+the owner's review/merge) — see its footnote for the full record.
 
 `M0-12-01` is `Completed`: the owner cleared the Q-21 gate, authorised the push, and instructed
 the merge, all in-conversation on 2026-08-19. All 11 acceptance criteria are met — criterion 6
@@ -278,9 +279,10 @@ showing `Failed: 1, Passed: 11, Total: 12` at the red step. `dotnet test` was re
 after the merge: **11 passed, 0 failed.** Full record in footnote 12; **Q-22 resolved** as
 option (A).
 
-Of the four newly-`Ready` tasks, **`M0-12-02` and `M0-13` are the ones G0 actually asks for** —
-they are the characterisation tests the gate names. `M0-09` (0.5 d) and `M0-06` (1 d) are
-smaller and independent of each other.
+Of the four tasks the `M0-12-01` merge released, **`M0-12-02` and `M0-13` are the ones G0
+actually asks for** — they are the characterisation tests the gate names; `M0-13` is now
+implemented (`Needs Review`¹³). `M0-12-02` remains the sole `Ready` P0. `M0-09` (0.5 d) and
+`M0-06` (1 d) are smaller, P1, and independent of each other and of `M0-12-02`.
 
 Every other M0 task remains `Completed`, `Blocked` on a named human, or
 `Needs Review` and therefore not re-selectable:
@@ -288,10 +290,12 @@ M0-02 is `Needs Review`⁶ (Q-14 explicitly deferred by Vivek, its named owner);
 `Completed` parent container, never worked directly; M0-03-01/02/03 and M0-14 are `Completed`;
 M0-01-03 is `Needs Review`¹, awaiting a human-executed rebuild drill; M0-04 is `Blocked`⁴ on an
 unidentified credential owner; M0-07 is `Blocked`⁷ on `origin` push plus GitHub org admin
-rights; M0-05 stays `Blocked` because M0-04 has not run; `M0-10` stays `Blocked` behind `M0-09`
-and `M0-11` behind `M0-13`. **The G0 exit gate still needs a human** for M0-04, M0-01-03's
-drill, and the branch-protection half of M0-07 (Q-20) — so completing all four newly-`Ready`
-tasks would **not** clear G0 on its own, and **M2 stays barred**.
+rights; M0-05 stays `Blocked` because M0-04 has not run; M0-13 is `Needs Review`¹³, awaiting
+owner review/merge; `M0-10` stays `Blocked` behind `M0-09` and `M0-11` behind `M0-13`
+(genuinely `Completed`, not merely `Reviewed`, is what the selection rule requires). **The G0
+exit gate still needs a human** for M0-04, M0-01-03's drill, and the branch-protection half of
+M0-07 (Q-20) — so completing `M0-12-02`, `M0-09` and `M0-06` would **not** clear G0 on its
+own, and **M2 stays barred**.
 **Active task:** none — see [`current-task.md`](current-task.md). Selection rule for what
 becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
@@ -783,3 +787,26 @@ resolve. **Blocks, transitively, unchanged:** `M0-12-02`, `M0-13`, `M0-09`, `M0-
 Full record: [`tasks/M0-12-01.md` § Execution Record
 (2026-08-19)](tasks/M0-12-01.md#execution-record-2026-08-19);
 [`failure-log.md` § M0-12-01 · attempt 3](failure-log.md#m0-12-01--attempt-3--2026-08-19).
+
+**M0-13: `Needs Review` 2026-08-19.** Implemented on
+`migration/M0-13-stockmanagerservice-characterisation` (`9d8d7be`), attempt 1 of 3, 0
+escalations. Validator verdict **`PASS`**, `scopeOk: true`, `failureCategory: none` — all 12
+acceptance criteria `MET`, no regressions found. 25 new tests (suite 11 → 36, all green, run
+twice) pin all 16 statements of BR-STK-001 and BR-STK-002/R-07, including the R-07 drift
+asserted numerically on both the create and update paths and the statement-16 asymmetry (100
+against 0 throws; 100 against 1 succeeds and drifts by 99). `git diff --stat master...HEAD`
+shows zero files under `V.SMART/`; `dotnet build V.SMART.Api` still 0 errors / 6,694 warnings
+(at baseline). KB-030, KB-060, KB-004 (Q-01) and the investigation registry (INV-011
+annotated, new row INV-036) were all updated in the same commit. **R-07 stays open — it is
+pinned, not fixed**, exactly as the task required. Full record:
+[`tasks/M0-13.md` § Execution Record (2026-08-19)](tasks/M0-13.md#execution-record-2026-08-19).
+
+Not `Completed`: this task's own completion conditions include no human step, but this
+project's standing convention ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed))
+reserves that status for the repository owner once the branch is reviewed and merged — the
+same convention already applied to M0-03, M0-08, M0-12-01 and every other `PASS`-validated
+task in this milestone. **Unblocks nothing yet**: `M0-11` (Product Decision, Q-01) names
+`M0-13` as a Hard prerequisite and the
+[Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) requires that
+prerequisite to be genuinely `COMPLETED`, not `REVIEW` — `M0-11` stays `Blocked` until the
+owner reviews and merges this branch.
