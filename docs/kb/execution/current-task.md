@@ -74,7 +74,19 @@ note on `INV-025` in [`investigation-registry.md`](investigation-registry.md) (K
 
 ## Most recently closed: `M0-09` — Fix the two unreachable delete guards (R-08)
 
-**`Needs Review`, 2026-08-19.** Implemented on `migration/M0-09-delete-guard-fix`
+**`Completed` and merged (`47b2d2e`, 2026-08-19)** on the owner's in-conversation instruction.
+Re-verified on `master` after the merge: `dotnet test` **79 passed, 0 failed**;
+`dotnet build V.SMART.Api --no-incremental` **0 errors, 6,694 warnings** (baseline 6,695).
+
+> **This released `M0-10`, which is now `Ready` — and it is no longer a speculative sweep.**
+> `M0-09` fixed two compute-one/test-another guards; its validator found a **third, unreported
+> instance of the identical defect** at `MfgPoService.cs:613-615`
+> (`CanSalesOrderItemCancelCheckAsync` computes `hasCR`, tests `hasRc`), correctly left unfixed
+> as out of scope. The bug class is confirmed wider than anyone had catalogued, and `M0-10` is
+> the audit that finds the rest. Two tasks are now `Ready`: **`M0-06`** (P1, 1 d) and
+> **`M0-10`** (P1, 2 d).
+
+Pre-merge record follows. Implemented on `migration/M0-09-delete-guard-fix`
 (`8e3b19d`), attempt 1 of 3, 0 escalations. Validator verdict **`PASS`**, `scopeOk: true`,
 `failureCategory: none`, every acceptance criterion `MET` — independently re-derived,
 including the validator reproducing the pre-fix red state itself in a separate detached

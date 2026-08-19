@@ -79,8 +79,8 @@ its children are `Completed` — it is never worked directly.
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Completed**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
-| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Needs Review**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
-| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
+| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Completed**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
+| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Ready** | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | Blocked | P0 | M0-13 | decision | G0 |
@@ -266,12 +266,21 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
 
-**Currently `Ready`: `M0-06` (P1, 1 d) — the sole remaining task neither needing a human nor
-implemented, as of the `M0-09` close-out (2026-08-19).** All four tasks released by the
-`M0-12-01` merge are now closed or in hand: `M0-13` `Completed`¹³ (`3f6dfa8`), `M0-12-02`
-`Completed`¹⁴ (`a83f1e2`), `M0-09` `Needs Review`¹⁵ (`8e3b19d`, unmerged), and `M0-06`
-remains. `dotnet test` on the `M0-09` branch: **79 passed, 0 failed** — the suite has gone
-0 → 11 → 36 → 73 → 79 in a single day (six new tests: two pinning the fix, four regression).
+**Currently `Ready`: `M0-06` (P1, 1 d) and `M0-10` (P1, 2 d), as of the `M0-09` merge
+(`47b2d2e`, 2026-08-19).** All four tasks released by the `M0-12-01` merge are now
+`Completed`: `M0-13`¹³ (`3f6dfa8`), `M0-12-02`¹⁴ (`a83f1e2`), `M0-09`¹⁵ (`47b2d2e`) — and
+`M0-09`'s merge in turn released **`M0-10`**. `dotnet test` re-run on `master` after the
+merge: **79 passed, 0 failed** — the suite has gone 0 → 11 → 36 → 73 → 79 in a single day.
+`dotnet build V.SMART.Api --no-incremental`: **0 errors, 6,694 warnings**, at the 6,695
+baseline.
+
+> **`M0-10` matters more than its `Investigation` label suggests.** `M0-09` fixed two
+> compute-one/test-another guards, and its validator found **a third, unreported instance of
+> the identical defect** at `MfgPoService.cs:613-615` (`CanSalesOrderItemCancelCheckAsync`
+> computes `hasCR`, tests `hasRc`) — correctly left unfixed as out of scope, and recorded under
+> R-08 / INV-025. **The bug class is therefore confirmed wider than the two instances anyone
+> had catalogued**, and `M0-10` is the task that audits the rest. It is no longer a
+> speculative sweep; it has a concrete lead and evidence the pattern repeats.
 
 > **`M0-12-02` closed at 11 of 12 criteria, with the twelfth *waived*, not met.** Criterion 8's
 > second half — *"the suite passes in CI on the branch"* — requires pushing the branch so a
@@ -896,7 +905,10 @@ Full record: [`tasks/M0-12-02.md` § Execution Record
 [`failure-log.md` § M0-12-02 · attempt 1](failure-log.md#m0-12-02--attempt-1--2026-08-19) and
 its diagnosis entry.
 
-¹⁵ **M0-09: `Needs Review` 2026-08-19.** Implemented on
+¹⁵ **M0-09: `Completed` and merged (`47b2d2e`, 2026-08-19)** on the owner's in-conversation
+instruction. Re-verified on `master` after the merge: `dotnet test` **79 passed, 0 failed**;
+`dotnet build V.SMART.Api --no-incremental` **0 errors, 6,694 warnings** (baseline 6,695).
+**This released `M0-10`.** Pre-merge record follows. Implemented on
 `migration/M0-09-delete-guard-fix` (`8e3b19d`), attempt 1 of 3, 0 escalations. Validator
 verdict **`PASS`**, `scopeOk: true`, `failureCategory: none` — every acceptance criterion
 `MET`, independently re-derived rather than taken on trust (the validator reproduced the
