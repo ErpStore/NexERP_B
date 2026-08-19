@@ -146,7 +146,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready** | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Blocked**²² | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Needs Review**²² | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
@@ -246,7 +246,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | 0 *(1 `Needs Review` — M2-A01-01, gate exception¹⁸)* | G2 | ⬜ Not met |
+| M2 | 52 | 1 *(M2-B07; also 2 `Needs Review` — M2-A01-01 gate exception¹⁸, M2-C04-01²²)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -1135,29 +1135,41 @@ its connection string in plaintext with `sa` credentials — **Q-32**, which mus
 before `M0-04`'s rotation is executed, or rotation will break every tenant row that embeds the
 password.
 
-²² **M2-C04-01: `Blocked` 2026-08-19 — blocked on a resumable retry, not on a task or a product
-decision.** Branch `migration/M2-C04-01-design-tokens`, commit `cdb147a`. Not merged.
+²² **M2-C04-01: `Needs Review` 2026-08-20 — validated `PASS`, awaiting owner review and merge.**
+Branch `migration/M2-C04-01-design-tokens`, tip `9f886a6`. Not merged, not pushed.
 
-Attempt 1 implemented the full token/theme layer under `frontend/nexgen-web/src/shared/theme/`
-and passed all sixteen acceptance criteria on independent validator re-check — including a
-from-scratch WCAG recomputation (0 failing pairs, both themes) and `typecheck`/`lint`/`test`/
-`build` all green. It failed validation anyway, on a **regression** outside the criteria: `npm
-run coverage`, a verified command (KB-083, `docs/kb/execution/prompt-template.md:366`, "exit 0
-… branches 100 %"), now exits 1 — `frontend/nexgen-web/vitest.config.ts:38` still pins `branches:
-100`, and the ~700 new lines this commit adds are only partly branch-covered. Full evidence:
-[`failure-log.md`](failure-log.md) § "M2-C04-01 · attempt 1". The validator's own disposition was
-**`retry`**, same model, no escalation trigger — the fix is mechanical: cover the missed
-branches, or lower the threshold and correct the KB-083 row in the same commit.
+**History, for context.** Attempt 1 (`cdb147a`, 2026-08-19) implemented the full token/theme
+layer under `frontend/nexgen-web/src/shared/theme/` and passed all sixteen acceptance criteria
+on independent validator re-check, but validated `FAIL`/`regression` on `npm run coverage`
+(`vitest.config.ts:38` pins `branches: 100`; the new code was only partly branch-covered). The
+retry dispatched for that regression (`migration-debugger`) returned no result to the
+orchestrator, but its process left a real, uncommitted, partial fix on disk — preserved
+unmodified as `5313c46` with a WIP disclosure, per the `M0-12-01`/`M2-B07` precedent that an
+empty agent return does not mean an empty disk.
 
-**Why this is `Blocked` rather than mid-retry.** The runner dispatched `migration-debugger` for
-that retry and it **returned no result to the orchestrator** — a tooling/session failure, not a
-verdict on the code. Close-out found its process had nonetheless left a real, uncommitted,
-**partial** fix on disk (`ThemeToggle.tsx`, `theme.test.tsx` — covers two of the four files
-attempt 1's coverage report named as uncovered; not reviewed, not validated), matching the
-`M0-12-01`/`M2-B07` precedent that an empty return does not mean an empty disk. Left as-is,
-unstaged, for the next session to review. Per the `M0-12-01` precedent (footnote ¹²), a lost
-dispatch does not consume an attempt: **1 of 3 attempts used, 0 escalations.** This is
-**blocked on a task** (resuming attempt 2 needs a working session, not a human decision) —
-**owner: Vivek**, as the person who restarts or re-dispatches an autonomous run; no product or
-architecture decision is outstanding. Blocks `M2-C04-02`, `M2-C04-03` and `M2-C03`, which stay
-`Blocked` on this in turn.
+**Resolution, 2026-08-20 (`9f886a6`).** The partial fix was reviewed, completed and extended:
+`ThemeProvider.tsx`, `density.ts` and `useColorScheme.ts` gained coverage for their five
+remaining reachable branches (hostile-`localStorage` paths, corrupt-density fallback, no-
+`matchMedia` degradation), without touching `vitest.config.ts`'s floor. `npm run coverage`
+now exits 0 at **branches 100 %** (statements 95.90 %, functions 86.95 %, lines 95.90 %),
+closing the regression honestly rather than by lowering the gate —
+`git diff --stat aaae3a0 HEAD -- frontend/nexgen-web/vitest.config.ts` is empty. An independent
+validator then re-ran all sixteen acceptance criteria plus the coverage/build/lint/typecheck
+commands against this tip and found every one **MET** or exit 0: verdict `PASS`,
+`failureCategory: none`, `scopeOk: true`, no regressions found. Full evidence:
+[`tasks/M2-C04-01.md` § Execution Record (2026-08-20)](tasks/M2-C04-01.md#execution-record-2026-08-20).
+**Attempts used: 1 of 4, 0 escalations** (per the runner's own accounting for this session; the
+lost attempt-2 dispatch above did not consume budget, consistent with the `M0-12-01` precedent).
+
+**Why `Needs Review`, not `Completed`.** Per
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed), only the repository owner
+may set a task `Completed`, and one manual step is explicitly owed at review and cannot be
+automated: a pass in both themes at 200 % zoom and with `prefers-reduced-motion` enabled —
+`jsdom` computes no layout and applies no stylesheet, so the reduced-motion and focus-ring
+commitments are verified at the stylesheet-text level only. Everything else the task's
+acceptance criteria ask for is independently confirmed.
+
+**Releases, once reviewed and merged:** `M2-C04-02` and `M2-C04-03` (both list this as a Hard
+prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three move to `Ready` on
+`Needs Review` alone, per the *Ready-task selection rule*'s "not `REVIEW`" clause; they stay
+`Blocked` until this is merged.

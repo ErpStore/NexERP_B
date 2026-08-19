@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-081, KB-082, KB-088, KB-107]
 ---
 
@@ -21,165 +21,156 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-C04-01`, `Blocked` after attempt 1, resume rather than restart
+## Active task — `M2-A06`, Exception middleware → `ProblemDetails` + correlation ids
 
-**Task file:** [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) — Design tokens, theme, light/dark.
-> **Updated 2026-08-20, after the close-out below was written.** The uncommitted working-tree
-> diff it describes has been **committed** as **`5313c46`**, unmodified, with an explicit
-> WIP disclosure — so the branch tip is now `5313c46`, not `cdb147a`, and `git status` is clean.
-> Nothing was reviewed, reconciled or fixed in the process; the rows below still describe the
-> content accurately, only its location changed.
->
-> **It does not typecheck as committed:** `theme.test.tsx(9,10)` and `(12,3)` — `TS6133`,
-> `DENSITY_STORAGE_KEY` and `COLOR_SCHEME_PREFERENCES` declared but never read, dangling from
-> the edit the debugger never finished. Fixing those two lines is the first thing the resuming
-> agent should do, before anything else compiles.
->
-> **Independently reproduced on the committed tip:** `npm run coverage` → 139 tests pass,
-> branches **83.67 %** against the `branches: 100` floor, **exit 1**. The regression stands.
-> (Attempt 1's own report said 80.39 %; the difference is precisely the debugger's partial fix.)
->
-> **The remaining uncovered branches, measured, not guessed:** `ThemeProvider.tsx` 66.66 %
-> (lines 43-44, 71-76), `density.ts` 50 % (line 19), `useColorScheme.ts` 80 % (lines 53-54, 102).
-> `ThemeToggle.tsx` is already at 100 % — the debugger's change worked.
->
-> **Two legitimate routes, and the choice must be argued rather than assumed.** Either cover the
-> remaining branches, or change `vitest.config.ts:38` — but a threshold change is only honest if
-> the KB-083 row at `prompt-template.md:366` is updated in the same commit, since it is that row
-> the regression is measured against. **Deleting an unreachable branch beats testing it**, which
-> is what the debugger was doing and why its approach is worth continuing.
+**Task file:** [`tasks/M2-A06.md`](tasks/M2-A06.md).
 
-**Branch:** `migration/M2-C04-01-design-tokens`, tip ~~`cdb147a`~~ **`5313c46`**. **Do not start from a clean
-tree or a fresh branch** — attempt 1's full implementation, which passed all sixteen
-acceptance criteria on independent validator re-check, already exists there.
+**Status:** `Ready`. Not yet started — this file was rewritten by `M2-C04-01`'s close-out
+(2026-08-20) to point here; no branch exists yet.
 
-### Run State
+### Why this task, now
 
-| Field | Value |
+`M2-C04-01` (design tokens, theme, light/dark) closed this session validated `PASS` and moved
+to `Needs Review` — not `Completed`, so it does not release `M2-C04-02`/`M2-C04-03`/`M2-C03`
+yet ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)). Per the
+[Ready-task selection rule](dependency-graph.md#ready-task-selection-rule): `M2-A06` is P0,
+its Hard prerequisite is `G0` (already passed), and among the `Ready` P0 candidates it has the
+highest downstream-unblocking count — it is a **Hard** prerequisite for `M2-B02`
+(→ `M2-B03` → `M2-B10`), `M2-B06` and `M2-B11`. It was recorded as a tied candidate with
+`M2-C04-01` while that task was still open; with `M2-C04-01` closed, `M2-A06` stands alone at
+the top of the ranking.
+
+Other `Ready` P0/P1 candidates considered and ranked below it (fewer downstream unblocks, or
+off the critical path): `M2-B04` (decouple `IApprovalService`), `M2-B12-01` (numbering
+investigation), `M2-C10` (decimal handling), `M0-01-03` (rebuild drill, carried M0 debt),
+`M0-10` (R-08 audit, P1). `M2-A01-02` is nominally `Ready` but its spec (KB-105 decision D-5)
+contradicts current reality (R-40, the `UserId == 1` bypass) — see the warning this file
+carried previously, now folded into `M2-A01-02`'s own task file rather than repeated here;
+do not open it blind.
+
+### What this task does
+
+Give the API one error contract. Add global exception-handling middleware emitting
+`application/problem+json` for every failure, attach a correlation id to every request and
+response, and map status codes per **ADR-002 §4** — most importantly, **a business-rule
+refusal is `409`, with the service's existing message string carried into `title` verbatim**
+(BR-SO-001 — these strings are product UX, never replaced with generic text). Closes **R-24**.
+
+Applies to the two existing controllers (`CurrencyController`, `AuthController`) and their six
+endpoints. A **deliberate breaking change**: `DELETE /api/currencies/{id}`'s refusal moves
+from `400` to `409`.
+
+### Read before starting
+
+| Doc | Why |
 |---|---|
-| Status | `Blocked` — attempt 1 of 3 stopped, retry budget not exhausted |
-| What happened | Attempt 1 (`cdb147a`) implemented the full token/theme layer and passed all sixteen acceptance criteria on independent validator re-check (contrast recomputed from scratch: 0 failing pairs, both themes; `typecheck`/`lint`/`test`/`build` all green). It still validated `FAIL` — category **regression** — because `npm run coverage`, a verified KB-083 command (`prompt-template.md:366`, "exit 0 … branches 100 %"), now exits 1: `vitest.config.ts:38` still pins `branches: 100` and the ~700 new lines under `shared/theme/**` are only partly branch-covered. The validator's disposition was `retry`, same model, no escalation trigger. The runner then dispatched `migration-debugger` for that retry, and it **returned no result to the orchestrator** — but its process left real, uncommitted edits on disk, matching the `M0-12-01`/`M2-B07` precedent that an empty return does not mean an empty disk |
-| Spot-check evidence | `git log --oneline -3` on the branch still shows `cdb147a` as tip (no second **commit** exists), but `git status --porcelain` is **not** clean: `ThemeToggle.tsx` and `theme.test.tsx` carry an uncommitted diff. It replaces `ThemeToggle.tsx`'s index-arithmetic `move(delta)` with a total `RING` lookup keyed by `ColorSchemePreference`, removing exactly two of the branches attempt 1's coverage report named as uncovered in that file; `theme.test.tsx` gains matching imports and a density-attribute reset. It does **not** touch `ThemeProvider.tsx`, `density.ts` or `useColorScheme.ts` — also named uncovered — so it is partial even at face value, and it was **not reviewed, reconciled or validated** this session (no `coverage`/`test`/`lint`/`build` re-run against it). Left as-is, unstaged, deliberately not committed unreviewed and not discarded |
-| Not yet done | Reviewing the uncommitted diff against attempt 1's diagnosis; covering the remaining missed branches in `ThemeProvider.tsx`, `density.ts`, `useColorScheme.ts` (or lowering the threshold and correcting the KB-083 row in the same commit); then re-running `npm run coverage` plus all sixteen acceptance criteria and re-validating |
-| Next step | Re-dispatch the implementer/debugger on this branch at this tip. It should **review the uncommitted working-tree diff first** — decide whether to build on it or discard it — rather than regenerating from `cdb147a` blind; the committed implementation already passes every acceptance criterion |
-| Escalation condition | This is blocked-on-a-task (a resumable retry), not blocked-on-a-human-decision — do not wait for an owner decision to retry. If a **second consecutive** no-result attempt occurs, that repetition is the signal worth escalating to **Vivek** (repository owner), per the `M0-12-01` precedent (`task-tracker.md` footnote ¹²) |
-| Full record | `tasks/M2-C04-01.md` § Execution Record (2026-08-19); `failure-log.md` § M2-C04-01 · attempt 1 · validation, and § M2-C04-01 · attempt 2 · dispatch; `runner-state.md`; `task-tracker.md` footnote ²² |
+| `docs/kb/decisions/ADR-002-rest-api-layer.md` §4 | The status-code table this task implements |
+| `docs/kb/api/api-readiness-assessment.md` (KB-041) | Item A5 and the *Standard error contract* — the target JSON |
+| `docs/kb/api/api-overview.md` (KB-040) | Every current response shape (reuse INV-008, `Complete`) |
+| `docs/kb/business-rules/business-rule-inventory.md` (KB-030) | BR-SO-001 |
+| `docs/kb/architecture/server-side-authorization-spec.md` (KB-105) | The `403` body already defined by `M2-A01-01` — converge on it, do not invent a second shape |
+| `docs/kb/architecture/multi-tenancy.md` (KB-014) | Problem 4 — the silent tenant-resolution failure this middleware must render usefully |
+| `docs/kb/risks/technical-debt-register.md` (KB-060) | R-24 (closes here), R-19, R-20, R-23 |
+
+### Coordination constraints — read before touching `Program.cs`
+
+- **Same-file conflicts:** `M2-A05` and `M2-B01` both edit
+  `V.SMART/V.SMART.Api/Program.cs`. Neither is in flight as of this close-out, but check
+  `git branch --no-merged master` before starting — M2 runs multiple branches in parallel and
+  this has collided before (see `runner-state.md` process note).
+- **`M2-A02`'s tests assert the current (pre-this-task) error shapes deliberately.** `M2-A02`
+  is `Blocked` (not yet implemented), so there is nothing to update yet — but if it lands
+  before this task starts, its assertions must be updated in the same change as this task's
+  contract change, not left asserting the old shapes.
+- **The `403` shape must match `M2-A01-02`'s filter exactly.** `M2-A01-02` is `Ready` but not
+  implemented (and currently blocked in practice by the D-5/R-40 contradiction above). This
+  task should still converge on the `403` shape **KB-105 already specifies**, so whichever of
+  the two lands first does not have to be revisited by the other.
+
+### One bounded investigation this task must run
+
+How does the existing service layer signal a business-rule refusal? `CurrencyService` uses a
+**tuple return** (`(bool success, string message, ...)`), not an exception — confirmed at
+`CurrencyController.cs:64,77,87`. Confirm whether this convention holds more widely, decide how
+`409` gets produced (controller helper / result type / thrown domain exception), and record the
+decision — every later controller copies it. Reuse INV-008 for the response inventory; do not
+re-derive it.
+
+### Do not
+
+Rewrite `CurrencyController.cs` beyond error returns (no route change, no M2-B02 filter DTO).
+Edit any business-service message string — they are product UX. Touch
+`V.SMART/V.SMART.Shared/**`, `V.SMART.Web/**`, `V.SMART/**` MAUI host, or migrations. Reorder
+the pipeline beyond inserting the new middleware first. Fix R-19 (`UserRepository.LoginAsync`
+swallowing exceptions) — out of scope, lives in `V.SMART.Shared`, affects live Blazor. Start a
+second task after this one.
 
 ---
 
-## Ready and unclaimed, once `M2-C04-01` closes — eight tasks, plus two M0 carry-overs
+## Carried forward from `M2-C04-01`'s close-out
+
+- **`M2-C04-01` is `Needs Review`, not `Completed`.** Validated `PASS` on 2026-08-20 (branch
+  `migration/M2-C04-01-design-tokens`, tip `9f886a6`) — all sixteen acceptance criteria `MET`,
+  the coverage regression that stopped attempt 1 closed honestly (branches 100 %, floor
+  untouched). One manual step is still owed at review: both themes at 200 % zoom, with
+  `prefers-reduced-motion` enabled — not automatable, `jsdom` applies no stylesheet. Full
+  record: [`tasks/M2-C04-01.md` § Execution Record (2026-08-20)](tasks/M2-C04-01.md#execution-record-2026-08-20).
+  `M2-C04-02`, `M2-C04-03` and `M2-C03` stay `Blocked` until this is reviewed and merged.
+- **`UserThemePreference.IsDarkMode` is a bare `bool`, cannot represent `system`.** Recorded as
+  an INV-006 amendment and **Q-33** (owner: product + backend, needed by M3-3). No entity
+  change was made. Not relevant to `M2-A06`, but recorded here so it is not re-discovered.
+- **The theme layer's byte cost is recorded** in `frontend/nexgen-web/README.md` against
+  KB-050's `< 250 KB gzip` target: entry JS 91.59 kB gzip, well inside budget.
+
+## Ready and unclaimed once `M2-A06` closes
 
 Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
-These are **not** the task to pick up next — `M2-C04-01` above is, since it already has an
-open attempt and validated (nearly-passing) work on its branch. Listed here for whoever plans
-the *following* task.
+Listed for whoever plans the task after this one — not to be started now.
 
-| Task | What | Est. | Why you might take it first |
+| Task | What | Est. | Note |
 |---|---|---|---|
-| **`M2-B01`** | API versioning → `/api/v1` | 1 d | **Newly released.** Cheapest real progress on the backend; every later controller depends on the route shape |
-| **`M2-B05`** | Typed `ScreenCodes` constants (R-10) | 2 d | **Newly released.** Feeds `M2-A01-02`'s filter and kills a class of string-typo bug |
-| **`M2-B04`** | Decouple `IApprovalService` + 13 `Pages` refs | 1 wk | **Newly released.** The largest single piece of Blazor→service extraction in M2-B |
-| **`M2-B12-01`** | INV-012 numbering investigation | 2 d | **Newly released.** Investigation-only; unblocks the document-numbering chain |
-| **`M2-A06`** | Exception middleware → `ProblemDetails` | 3–5 d | Unblocks `B02`, `B06`, `B11`. Establishes the error contract every controller relies on |
-| **`M2-C10`** | Decimal handling — no float money arithmetic | 2 d | P0 correctness. Blocks `C07`. Wrong-by-default if deferred |
-| **`M2-C11`** | Archive the Angular pilot | 0.5 d | P2 housekeeping. Smallest unit of real progress available |
-| **`M2-A01-02`** | Implement `[RequireScreen]` / `[RequireRight]` | 3 d | **Read the warning below before opening it** |
-| **`M0-01-03`** | Deployment script + rebuild runbook | 1 d | Closes a G0 exception that was deferred on a false premise |
-| **`M0-10`** | R-08 compute-one/test-another guards | — | M0 debt carried into M2 |
+| `M2-B04` | Decouple `IApprovalService` + 13 `Pages` refs | 1 wk | Largest single extraction in M2-B |
+| `M2-B12-01` | INV-012 numbering investigation | 2 d | Investigation-only; unblocks the numbering chain |
+| `M2-B01` | API versioning → `/api/v1` | 1 d | Same-file conflict with `M2-A05` — check nothing is in flight |
+| `M2-B05` | Typed `ScreenCodes` constants (R-10) | 2 d | Feeds `M2-A01-02`'s filter |
+| `M2-C10` | Decimal handling — no float money arithmetic | 2 d | P0 correctness, blocks `M2-C07` |
+| `M2-C11` | Archive the Angular pilot | 0.5 d | P2 housekeeping |
+| `M0-01-03` | Deployment script + rebuild runbook | 1 d | Closes a G0 exception; hardware no longer blocks it |
+| `M0-10` | R-08 compute-one/test-another guards audit | — | M0 debt carried into M2 |
+| `M2-A01-02` | `[RequireScreen]` / `[RequireRight]` | 3 d | **Do not open blind** — spec contradicts reality, see the warning above |
 
-**`M2-B12`, `M2-C04`, `M2-C05` and `M2-A01` are parent containers** and are never worked
-directly — their implementable scope lives entirely in their `-0n` children. `M2-C04-02`,
-`M2-C04-03` and `M2-C03` stay `Blocked` on `M2-C04-01` above, not listed as ready.
-
----
-
-## The rebuild drill was never blocked on hardware
-
-**A SQL Server Express instance has been on this workstation the whole time** — `MSSQL$SQLEXPRESS`
-running, carrying `NexGenErpDb_Master` and a 197-table `NexGenErpDb`, reachable with
-`Server=.\SQLEXPRESS;Trusted_Connection=True`. Found during `M2-B07`, 2026-08-19.
-
-Three consecutive sessions recorded that no database existed, and
-[KB-107](M0-milestone-review.md) made "obtain a disposable SQL Server" its single headline
-recommendation on the strength of that. Nothing in the repository points at the instance — both
-hosts ship `"MasterDb": ""` and both user-secrets stores still hold
-`Database=DoesNotExist_M0-03-01-LocalTest` from `M0-03-01`'s fail-fast test — so each session
-**inferred absence from a config default and recorded the inference as fact.**
-
-**The lesson is not about SQL Server.** A negative result needs the same `file:line`-grade
-evidence as a positive one; *"I could not find X"* is a claim about the search, not about X.
-
-`M0-01-03` is therefore `Ready` (footnote ²¹). Use a **throwaway database** on this instance —
-**not `NexGenErpDb`**, which holds the only provisioned user and its 150 `UserRights` rows.
-
-**And a new blocker for `M0-04`:** the `Tenants` row stores its connection string in plaintext
-**with `sa` credentials** — **Q-32**. Rotating that password without answering Q-32 first would
-break every tenant row that embeds it. `M0-04` must not be executed before it is answered.
-
-
----
-
-## Before `M2-A01-02` is opened — the spec contradicts reality
-
-[KB-105](../architecture/server-side-authorization-spec.md)'s decision **D-5** states there is
-**no Administrator bypass, anywhere**. That was written on 2026-08-18 and is **wrong as
-written**.
-
-`M0-06` subsequently found **R-40**: `UserId == 1` is an undeclared superuser.
-`Login.razor:345-349` auto-grants it all 152 screen rights on every login; no `UserRight` rows
-are seeded at all; and rights are deny-by-default (`RightsHelper.cs:7-20`). So a replacement
-administrator created with any other `UserId` authenticates successfully and then **sees
-nothing**.
-
-**This is not a thing to discover mid-implementation.** Either D-5 changes, or the bypass is
-removed and a rights-provisioning path replaces it — and that second option overlaps `M0-06`,
-which is itself `Blocked` on Q-25/Q-26. Reconcile before writing the filter, not after.
-
-Related and still unanswered: **Q-28** — an API-only user acquires no `UserRight` rows at all,
-because `AuthController.Login` never calls `SyncRightsForUserAsync`. That blocks `M2-A02`
-rather than `M2-A01-02`, but it is the same root cause.
-
----
+`M2-B12`, `M2-C04`, `M2-C05`, `M2-A01` and `M2-D02` are **parent containers** and are never
+worked directly.
 
 ## What M2 inherits from M0 — "gate passed" is not "clean slate"
 
-G0 passed **with three exceptions**, all owner-deferred, **none with a date set**
+G0 passed **with three exceptions**, all owner-deferred, none with a date set
 ([KB-107 §1](M0-milestone-review.md)):
 
-1. **Criterion 1 — no rebuild drill.** No evidence a tenant database can be reconstructed from
-   source control alone. ~~Blocked on a disposable SQL Server, not on work.~~ **Corrected 2026-08-19: a SQL Server was here all along — this is blocked on running the drill, which is work. `M0-01-03` is now `Ready`.** Surfaces at **M6**,
-   the point of maximum cost to discover it does not work.
-2. **Criterion 2 — secrets still in history.**
-3. **Criterion 3 — production credentials still unrotated, in a public repository** (R-01). The
-   only remedy is rotation (`M0-04`); purging history cannot retract what is already cloned.
+1. **Criterion 1 — no rebuild drill.** `M0-01-03` is `Ready` (a SQL Server instance was on
+   this workstation the whole time — see below); the drill itself has not run.
+2. **Criterion 2 — secrets still in history** (`M0-05`, `Blocked` behind `M0-04`).
+3. **Criterion 3 — production credentials unrotated, in a public repository** (R-01). `M0-04`
+   is `Blocked` on an unidentified owner and now also gated on **Q-32** (the `Tenants` table
+   stores the same `sa` credential in plaintext — rotating without answering Q-32 first breaks
+   every tenant row that embeds it).
 
-Still-open M0 work carried in: `M0-06` (`Blocked` on Q-25/Q-26), `M0-10` (`Ready`), `M0-11`
-(`Ready` — writes `ADR-006` recording the answered Q-01), `M0-01-03` (**`Ready`** as of 2026-08-19).
+## Two standing process notes for M2
 
-## Two process notes for M2
-
-- **Check `git branch --no-merged master` before allocating any id.** `M2-A01-01` and `M0-06`
-  collided on **six** ids, because `grep`-before-claim only sees merged work and cannot see a
-  sibling branch. M2 runs more branches in parallel than M0 did, so this will recur. `M0-06`
-  still owes `KB-104 → KB-106` and, per its own branch, `INV-035` and `INV-036` — but `INV-036`
-  is **already taken on `master`** (M0-13's testing recipe), so that branch's ids will need
-  renumbering at merge regardless. `M2-B07` claimed `INV-039` on 2026-08-19 (`investigation-registry.md`),
-  deliberately skipping `INV-035`/`INV-038` to leave `M0-06`'s reserved range alone — the next
-  free id after that is `INV-040`. `M0-06`'s `KB-104` is cited in an `ApplicationDbContext.cs`
-  source comment that must change with it.
-- **`master` requires pull requests.** The 2026-08-19 push reported
-  `Bypassed rule violations … Changes must be made through a pull request`, and succeeded only
-  because the owner holds bypass rights. Prefer a PR. No required status check gates merges yet
-  — the open half of **Q-20**.
+- **Check `git branch --no-merged master` before allocating any KB/INV/Q id.** Six id
+  collisions have already happened across parallel M2 branches — `grep`-before-claim cannot
+  see a sibling branch.
+- **`master` requires pull requests**, but no required status check gates merges yet — that is
+  the open half of **Q-20**. The owner holds bypass rights; prefer a PR regardless.
 
 ## Baselines as of this file
 
 | | |
 |---|---|
-| `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **84 passed, 0 failed** (79 + 5 from `M2-B07`) |
+| `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **84 passed, 0 failed** |
 | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental` | **0 errors, 6,694 warnings** (baseline 6,695) |
-| CI on `master` | **green** |
+| `frontend/nexgen-web` — `npm run typecheck && lint && test -- --run && build && coverage` | All exit 0 as of `M2-C04-01` tip `9f886a6` (2026-08-20); coverage branches **100 %** |
+| CI on `master` | green |
 
-`CLAUDE.md` still says *"`dotnet test` finds nothing — no test project exists until M0-12-01
-creates one."* **That sentence is stale.** The authoritative command table is
+The authoritative, continuously-updated command table is
 [KB-083 § Verified repository commands](prompt-template.md#verified-repository-commands).
