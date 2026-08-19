@@ -21,7 +21,7 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: `M0-12-01` — **`Blocked` on the repository owner.** Attempts exhausted (3 of 3).
+## Active task: `M0-12-01` — **`Needs Review`.** All 11 acceptance criteria met, 2026-08-19.
 
 `M0-12-01` — *Create the test project and wire it into CI* — was correctly selected `Ready`
 (its sole Hard prerequisite `M0-07` reached `Completed`) and dispatched to the implementer
@@ -131,10 +131,34 @@ it settles two things beyond this task:
 > therefore needs those 15 commits pushed** — a far larger authorisation than the single feature
 > branch pushed for this task, and one nobody has given.
 
-**What criterion 6 still needs:** the deliberately-failing test observed turning a run **red**,
-then reverted, with the run identifier recorded. Two pushes on this branch, spaced — `ci.yml`
-sets `concurrency: cancel-in-progress: true`, so a second push cancels the first run before it
-can be observed. Not started without the owner's say-so.
+**Criterion 6: MET, 2026-08-19.** The owner authorised the push and the loop ran end to end:
+
+| Commit | Pushed state | Observed |
+|---|---|---|
+| `dec5790` | 11 tests, all passing | **green** — first CI execution in the repository's history |
+| `821e923` | + one deliberately-failing fact, own file | **red at `Test - V.SMART.Shared.Tests`** |
+| `e642797` | probe deleted | green again |
+
+The runner's own log for `821e923` — workspace `D:\a\NexERP_B\NexERP_B`, so a hosted runner and
+not a workstation — reads `Failed: 1, Passed: 11, Skipped: 0, Total: 12`, failing at
+`CiRedRunProbe.cs:line 33`. That establishes more than the criterion's wording asks:
+
+1. The test step **actually executes** on the runner.
+2. A failing test **produces the non-zero exit that fails the job**. `ci.yml` checks
+   `$LASTEXITCODE` explicitly because a PowerShell pipeline swallows a native non-zero exit —
+   that guard is now confirmed working, not merely written.
+3. The 11 real tests pass **on the runner**, visible in the same log beside the deliberate
+   failure. The green baseline is runner-verified, not just workstation-verified.
+4. The `trx` logger and the `artifacts/test-results` path work as configured.
+
+**One gap, stated plainly:** the numeric GitHub run id was never captured. Standing in its
+place is commit `821e923`, which identifies the run unambiguously in the Actions history. A
+reviewer may prefer to paste the run URL into [`tasks/M0-12-01.md`](tasks/M0-12-01.md).
+
+**Status: `Needs Review`** — 11 of 11 criteria met, on `migration/M0-12-01-test-project`,
+pushed. Only the repository owner may set it `Completed`
+([KB-088](workflow.md#who-may-set-completed)). Merging it unblocks `M0-12-02`, `M0-13`,
+`M0-09` and `M0-06`.
 
 *(The attempt-budget interpretation question flagged in [KB-081 footnote 12](task-tracker.md)
 — whether infrastructure aborts should have consumed retry budget — is now moot for

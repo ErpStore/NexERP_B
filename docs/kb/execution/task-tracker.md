@@ -76,7 +76,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Blocked**¹² | P0 | M0-07 | 0.5 d | G0 |
+| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Needs Review**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | Blocked | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
