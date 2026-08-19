@@ -1127,3 +1127,245 @@ nothing runs Prettier automatically (the task file at :232 explicitly forbids Hu
 **Next attempt routed to** — same model, re-validation only. No KB-091 §6.3 trigger applied to
 the fixed half; the outstanding push half is KB-091 §8 trigger 7 and needs the owner, not a
 model.
+
+---
+
+### M2-C01 · attempt 2 · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus (validator) |
+| Validator verdict | FAIL |
+| Failure category | environment |
+
+**What failed** — exactly one thing, and it is not a defect in the tree. Acceptance criterion 10
+(`tasks/M2-C01.md:373-374`), *"`.github/workflows/ci.yml` contains a `frontend` job running
+`npm ci → typecheck → lint → test → build`, **and it is green on the branch**"*. The first half
+is met; the second half is **not checkable from this session**:
+
+```
+$ git ls-remote --heads origin
+… refs/heads/master, migration/M0-00-vcs-baseline, migration/M0-07-ci-pipeline,
+   migration/M0-12-01-test-project, fix/M0-00a-…, claude/… (6 more)
+   -> migration/M2-C01-react-app-skeleton is ABSENT
+$ which gh
+which: no gh in (…)
+```
+
+No GitHub Actions run exists for this branch and none can be produced without a push, which
+`CLAUDE.md` forbids absent an explicit in-conversation instruction. This is the identical wall
+recorded five times above (**M0-07** ×2, **M0-12-01**, **M0-12-02**, and M2-C01 attempt 1's
+diagnosis) and pre-empted by `current-task.md:39-43`. **What would verify it:** the owner pushes
+`migration/M2-C01-react-app-skeleton` and the `frontend` job is read green, or the owner waives
+the criterion and re-homes it as M0-12-02's was.
+
+**The build failure that failed attempt 1 is genuinely fixed — re-observed, not accepted on
+report.** All commands re-run by this validator from `frontend/nexgen-web/` on the committed
+tree (HEAD `d5182f6`, working tree clean apart from the orchestrator-owned
+` M docs/kb/execution/runner-state.md`), Windows, node v24.19.0, npm 11.17.0:
+
+```
+npm ci                -> exit 0   added 554 packages, audited 555, 28s, 0 vulnerabilities
+npm run typecheck     -> exit 0   (no output)
+npm run lint          -> exit 0   (no output)
+npm run format:check  -> exit 0   "All matched files use Prettier code style!"
+npm run test -- --run -> exit 0   Test Files 1 passed (1) / Tests 1 passed (1)
+npm run coverage      -> exit 0   stmts 82.89 / branches 100 / funcs 80 / lines 82.89
+npm run build         -> exit 0   830 modules; assets/index-DMCCg1LD.js 289.69 kB | gzip 90.90 kB
+                                  assets/react-plVRxVQh.js 102.50 | 34.48; css 201.38 | 29.30
+npm run e2e           -> exit 0   ok 1 [chromium] e2e\smoke.spec.ts:3:1 (2.0s), 1 passed
+bash tools/check-no-build-output.sh -> exit 0
+git status --porcelain (after build+coverage+e2e) -> only ` M docs/kb/execution/runner-state.md`
+dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj -> 0 Error(s), 6695 Warning(s), 2m02s
+```
+
+Every figure in `frontend/nexgen-web/README.md:78-90` and in KB-083's *Verified frontend
+commands* table (`prompt-template.md:349-358`) matches what was observed here, including the
+corrected `Format check` row at `:354`. The .NET warning count is exactly the KB-086 baseline,
+so the backend is unaffected.
+
+**The attempt-1 eslint nit is fixed, and the fix was verified rather than read.**
+`frontend/nexgen-web/eslint.config.js:92-104` now re-declares
+`@typescript-eslint/no-restricted-imports` under `src/shared/api/**` with the banned-library
+patterns only, instead of `'off'`. Confirmed by effective-config dump, not by reading the file:
+`npx eslint --print-config src/shared/api/foo.ts` returns severity 2 with all five
+banned-component-library groups (`@mui/*`, `antd`, `bootstrap`/`react-bootstrap`,
+`primereact`/`primeng`, `@chakra-ui`/`@radix-ui`/`moment`) and **without** the
+`shared/api/generated/*` group. The ADR-003 / R-22 guard is strengthened; nothing was widened.
+
+**Criteria** — 14 of 15 met, all re-derived independently: scripts (`package.json:10-22`);
+lockfile tracked; strict + `noUncheckedIndexedAccess` (`tsconfig.json:9-10`); the unit test
+renders `App` through `providers.tsx` (`src/app/App.test.tsx:11`, `App.tsx:4-10`); one component
+library (`npm ls` → `@mantine/core@7.17.8`; lockfile grep for `@mui/`, `antd`, `bootstrap`,
+`primereact`, `primeng`, `@chakra-ui`, `moment` → **0 hits each**); ADR-003 majors all match
+(`react@19.2.8`, `react-dom@19.2.8`, `vite@6.4.3`, `typescript@5.9.3`, `react-router@7.18.2`,
+`@tanstack/react-query@5.101.4`, `@tanstack/react-table@8.21.3`); `src/` tree matches KB-050 with
+`src/test/`, `src/vite-env.d.ts` and top-level `e2e/` reconciled at
+`react-architecture.md:132-134` (and named in the task file's own Target Result at
+`tasks/M2-C01.md:162-163`, so not invented); KB-083 `last_verified: 2026-08-19`. Only criterion
+10 is short.
+
+**Scope and regressions — clean.** `git diff --name-only bccc8d7 d5182f6` = 41 files, **zero**
+under `V.SMART/`, `frontend/vsmart-erp/`, `db/`, `Existing Store Procedures/` or
+`V.SMART.Shared/Migrations/`. No schema change. No ERP business rule implemented, mirrored or
+approximated in TypeScript — the whole of `src/` is four components, an i18n bundle with one key
+and test/build config. Blazor Server untouched and still building. Two files outside the task's
+*Files Expected to Change* list were modified and are judged **in scope**:
+`docs/kb/execution/ci-pipeline.md` (KB-087 — the document `ci.yml:4` instructs you to update
+before changing the workflow) and `docs/kb/open-questions.md` (Q-30, ADR-003 pin drift —
+recording an open question is a standing constraint, not a scope excursion).
+
+**Non-blocking observations, recorded so they are not rediscovered** — (i) `package.json:7-9`
+declares `"node": ">=22"`, not the `">=22 <23"` that implementation step 4
+(`tasks/M2-C01.md:214`) specifies; the deviation is disclosed at
+`frontend/nexgen-web/README.md:12-13` and `ci.yml:254-255`, and it is not an acceptance
+criterion. (ii) Everything was verified on **Node 24.19.0**; `.nvmrc` pins **22**, which is what
+the CI job would use, so "green on the branch" is unknown on two counts, not one — no hosted
+runner *and* no Node 22 run. `nvm` is not installed on this workstation. (iii)
+`docs/kb/execution/task-tracker.md` still does not show M2-C01 `Completed` — correct; only the
+repository owner may set that (KB-088).
+
+**Next attempt routed to** — no model. A stronger model cannot obtain push authority, a hosted
+runner or a Node 22 toolchain; this is KB-091 §8 trigger 5 (environment unavailable) and
+trigger 7 (would require a push), and it needs the owner's decision, not a retry. The tree
+itself is, on every locally verifiable measure, complete.
+
+---
+
+### M2-C01 · attempt 2 · diagnosis · 2026-08-19
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **No fix applied;
+no source, config or task file touched.** The only file written by this pass is this log.)*
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | environment (confirmed — not re-classified) |
+
+**Reproduced** — yes, independently, on `migration/M2-C01-react-app-skeleton`, HEAD `d5182f6`.
+The failing half of the criterion is a git/GitHub fact, so it reproduces without a build:
+
+```
+$ git rev-parse --abbrev-ref --symbolic-full-name @{u}
+fatal: no upstream configured for branch 'migration/M2-C01-react-app-skeleton'
+
+$ git ls-remote --heads origin
+  600027d  refs/heads/claude/nextgen-erp-rebranding-ae7apu
+  180b756  refs/heads/claude/quotation-access-lj8ck7
+  1f27a5a  refs/heads/claude/remote-control-fyzk2l
+  f0da262  refs/heads/fix/M0-00a-correct-repo-visibility-finding
+  20be92f  refs/heads/master
+  ca6a0b1  refs/heads/migration/M0-00-vcs-baseline
+  772fea3  refs/heads/migration/M0-07-ci-pipeline
+  9d10804  refs/heads/migration/M0-12-01-test-project
+        <- migration/M2-C01-react-app-skeleton is ABSENT: no Actions run can exist
+
+$ command -v gh ; command -v act ; command -v docker   -> all three: NOT FOUND
+```
+
+**One route the earlier entries did not close, checked and closed here.** Q-20 records that the
+owner pushed local `master` (`44e3614..20be92f`) and that CI is green there, so it was worth
+asking whether the `frontend` job had already run on `master`. It has not, and cannot have:
+`git show 20be92f:.github/workflows/ci.yml` contains **one** job (`build`, at `:64`) and the
+only occurrences of the word "frontend" are the comment at `:24-25` — *"A frontend job — no
+React code exists yet (that is M2-C01)"*. The `frontend` and `frontend-e2e` jobs exist **only**
+on this unpushed branch (`.github/workflows/ci.yml:232-287` and `:289`ff). No hosted runner has
+ever executed a single frontend command in this repository's history.
+
+**The tree itself is sound — re-run by this pass, not accepted on report**, from
+`frontend/nexgen-web/` (node v24.19.0, npm 11.17.0, existing `node_modules/`):
+
+```
+npm run typecheck     -> exit 0   (no output)
+npm run lint          -> exit 0   (no output)
+npm run format:check  -> exit 0   "All matched files use Prettier code style!"
+npm run test -- --run -> exit 0   Test Files 1 passed (1) / Tests 1 passed (1), 2.73s
+```
+
+`format:check` is the command that failed attempt 1; it is green on the committed tree, so
+attempt 1's defect is genuinely gone and has not regressed. `git status --porcelain` shows only
+` M docs/kb/execution/failure-log.md` (this entry) and the pre-existing orchestrator-owned
+` M docs/kb/execution/runner-state.md` — no `dist/`, `coverage/`, `playwright-report/` or
+`node_modules/` path.
+
+**Root cause** — confirmed, identical to the validator's: **acceptance criterion 10's second
+half (`tasks/M2-C01.md:373-374`, "…and it is green on the branch") requires a `git push`, which
+the executor is forbidden to perform.** `CLAUDE.md` § Standing constraints: *"Never merge or
+push without an explicit instruction in the current conversation"*; this dispatch carries
+`allowMerge=false`. Not a code defect and not a wiring defect — the job is well-formed
+(`ci.yml:232-287`: checkout → hygiene guard → `setup-node` from `.nvmrc` → `npm ci` →
+typecheck → lint → format:check → test → build, with no `continue-on-error` on any blocking
+step), and every one of those commands is observed exit 0 locally. Nothing in this branch would
+have to change for the CI half to pass; only the push.
+
+**This is a loop, not a fresh failure.** The same wall is now recorded **seven** times in this
+file: **M0-07** attempt 1 and its diagnosis (2026-08-17), **M0-12-01** attempt 3 and its
+diagnosis (2026-08-19), **M0-12-02** attempt 1 and its diagnosis (2026-08-19), and — for this
+very task — **M2-C01 attempt 1's diagnosis**, which stated in terms that *"An owner decision
+(push, or waive-and-re-home, as for M0-12-02) is still required; a retry cannot obtain it."*
+It was also pre-empted before execution began, at `current-task.md:39-43`. Under
+[KB-091 §6.4](autonomous-runner.md#6-retry-and-escalation) a third dispatch rebuilds `d5182f6`
+and stops at the identical wall.
+
+**Why no fix was applied** — every route to green is forbidden or dishonest:
+
+- **Pushing the branch** — the exact constraint that produced the failure. Q-22's precedent is
+  explicit that performing a check does not confer authority to declare it satisfied, and Q-20
+  adds that direct pushes to `origin` violate a configured PR rule and succeed only on the
+  owner's bypass rights.
+- **Recording the local exit-0 runs as satisfying "green on the branch"** — the "silently
+  adjusted check" this workflow forbids, and the worse option because it would be silent. It
+  would also be *wrong on a second count*: everything here ran on Node **24.19.0** while
+  `.nvmrc` pins **22**, which is what the job would use (`ci.yml:254-259`). `nvm` is not
+  installed on this workstation, so even the toolchain the runner would use is unexercised.
+- **Removing `format:check` from the frontend job, or adding `continue-on-error` to it**, to
+  reduce the chance of a red first run — weakening a failing check. Not done.
+- **Amending or splitting criterion 10** — a task-specification change, not a debugger's call.
+
+**Deliberately not fixed, reported instead** — `frontend/nexgen-web/package.json:7-9` declares
+`"node": ">=22"` where implementation step 4 (`tasks/M2-C01.md:214`) specifies `">=22 <23"`.
+Verified in source this pass. It is a real deviation from an implementation step, but it is
+**not** an acceptance criterion, it is disclosed at `frontend/nexgen-web/README.md:12-13` and
+`ci.yml:254-255`, and narrowing it now would enlarge the diff under review with a change
+unrelated to what failed. Recommend the reviewer either accept the disclosed deviation or have
+it tightened alongside any other review feedback.
+
+**Disposition** — `blocked`, agreeing with the validator.
+[KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) trigger 5
+(environment unavailable) and trigger 7 (would require a push) both apply. Fourteen of the
+fifteen criteria are objectively met against independently re-run evidence.
+
+**Decision the orchestrator needs from the repository owner** (one of, not for the debugger to
+choose):
+
+- **A** — an explicit in-conversation instruction to publish
+  `migration/M2-C01-react-app-skeleton` (preferably as a PR, per Q-20's note that direct pushes
+  bypass a configured rule) and read the `frontend` job green. Hosted-runner availability is no
+  longer an unknown — Q-20 and Q-22 record real green *and* red runs for `ErpStore` — so this
+  costs one push and one observed run, and it would simultaneously close residual risks (i) and
+  (ii) below.
+- **B** — waive the "green on the branch" half for this task and re-home it onto the
+  branch-publication work, consistent with **M0-07** being signed off `Completed` with this
+  identical gap open (`d79e1a4`) and with the same option offered for **M0-12-02**.
+
+Option **A** is materially cheaper here than it was for M0-07, because the runner question is
+already answered; the only reason to prefer **B** is to avoid a push mid-milestone.
+
+**Residual risk** — three things stay genuinely unknown until an Actions run happens, and none
+should be asserted as verified meanwhile: (i) whether the two new jobs' YAML is valid to
+GitHub's own parser — it was parsed here with `js-yaml` by the validator, which is not the same
+parser; (ii) whether the frontend suite behaves identically on **Node 22** (`.nvmrc`) and on
+`windows-latest`, since every local observation is Node 24.19.0 on this workstation; (iii)
+whether `npm ci` resolves the same tree from the runner's npm cache. Separately, and unaffected
+by this decision: **Q-30** (ADR-003 pin drift — Vite 6 / Mantine 7 / React Router 7 vs today's
+registry) is raised, not answered, and every later M2-C task inherits it. And a standing hazard
+carried over from attempt 1: nothing runs Prettier automatically (Husky is forbidden at
+`tasks/M2-C01.md:232`), so any future markdown edit under `frontend/nexgen-web/` will re-break
+the blocking `Format check` step.
+
+**Next attempt routed to** — no model. A stronger model cannot obtain push authority, a hosted
+runner or a Node 22 toolchain; this needs the owner's decision, not a retry.
