@@ -977,9 +977,39 @@ nothing invented. `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomai
 validates the whole graph with `BuildServiceProvider(validateScopes: true, validateOnBuild: true)`
 (5 tests, green; 84/84 in the suite). Builds observed: API 0 errors / 6,694 warnings; Web 0
 errors / 6,697 warnings; MAUI head 0 errors / 6,671 warnings.
+**Re-measured 2026-08-19 (M2-B07 attempt 3, on `31a10ba`).** `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`
+→ `6695 Warning(s) / 0 Error(s)` from cold, exactly the KB-083 baseline — the `6,694` above is
+one low. `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` → `5 Warning(s) / 0 Error(s)`
+incremental; the same project built from cold in a `master` worktree gives `6698 Warning(s) / 0
+Error(s)`. `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` → `Failed: 0,
+Passed: 84`. Both hosts start in `Development` and answer requests identically to `master` —
+see the *Verification (2026-08-19) — attempt 3* section of
+[`docs/kb/execution/tasks/M2-B07.md`](../execution/tasks/M2-B07.md).
 **What this does *not* close.** The `IFileOpener` lifetime divergence is a **host**
 registration and survives unchanged, by instruction — Web `Scoped`, MAUI `Singleton`. It is
 recorded here rather than silently normalised, and needs its own decision.
+
+### R-40 — `V.SMART.Api` opts out of build-time DI validation to be able to start
+**Confirmed (M2-B07, 2026-08-19).** `V.SMART/V.SMART.Api/Program.cs` calls
+`builder.Host.UseDefaultServiceProvider(… options.ValidateOnBuild = false …)` immediately
+before `AddVSmartDomain(…)`. It has to: `WebApplicationBuilder` turns `ValidateOnBuild` on by
+itself in the `Development` environment, which both launch profiles set
+(`V.SMART/V.SMART.Api/Properties/launchSettings.json:9,18`), and seven registrations in the
+shared composition root depend on host seams this API host does not yet have — `ReportService`,
+`IUserService`, `IGSTITCService`, `IUserThemePreferenceService`, `ICompanyService`,
+`IItemService` and, transitively via `ReportService`, `IEnquirySalesService`. Without the
+opt-out the host aborts with `AggregateException("Some services are not able to be
+constructed")`, exit code 255 — observed by the M2-B07 validator on `6f452cf`.
+**Impact.** For as long as this line stands, a *genuinely* broken registration in the API's
+graph is not caught at startup; it surfaces at controller activation instead. The equivalent
+guarantee is carried only by
+`tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs`, which validates the
+same graph with test doubles for the seams — so it cannot catch a seam that the API host, and
+only the API host, is missing.
+**Action.** Delete the `UseDefaultServiceProvider` block once M2-B06 / M2-B08 supply
+`IPathProvider`, `IFileUploadService`, `IFileOpener` and an `IJSRuntime` substitute for this
+host; the comment in `Program.cs` says so at the site. `ValidateScopes` was deliberately left
+at the framework default, so captive-dependency detection is unaffected.
 
 ### R-27 — Hardcoded developer-machine values in the MAUI project
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in
