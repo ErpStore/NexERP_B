@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-081, KB-082, KB-088]
 ---
 
@@ -40,7 +40,7 @@ Four blockers, three of them the repository owner's. This is the whole critical 
 
 | # | Blocker | Status | Owner |
 |---|---|---|---|
-| 1 | **`M0-12-01`** — create the test project and wire it into CI | `Blocked`¹² — three dispatches (2026-08-18), all returned no result. **1 of 4 attempts left.** Do not spend it on a fourth identical re-dispatch before someone inspects the agent-dispatch layer (**Q-21**) | Whoever administers the runner's dispatch layer; fallback **Vivek** |
+| 1 | **`M0-12-01`** — create the test project and wire it into CI | `Blocked`¹² — **two** dispatches (2026-08-18), both returned no result. **1 of 3 attempts left** (corrected 2026-08-19 — see below). Do not spend it on a third identical re-dispatch before someone inspects the agent-dispatch layer (**Q-21**) | Whoever administers the runner's dispatch layer; fallback **Vivek** |
 | 2 | **`M0-01-03`** — rebuild drill | `Needs Review`¹ — repo-side work merged; `db/REBUILD-DRILL-LOG.md` is a skeleton, every field `TBD`. A hard G0 exit criterion | **Vivek** — needs a disposable SQL Server instance |
 | 3 | **`M0-07`** — CI green on `master` | `Completed`⁷ as a task, but the G0 box stays **unticked**: never run on a hosted runner, `master` does not carry the workflow, `ci/warning-baseline.json` is still `provisional`, no required status check exists (**Q-20**) | **Vivek** — GitHub org admin |
 | 4 | **`M0-04`** — rotate the exposed credentials | `Blocked`⁴ — owner never identified. Also blocks `M0-05` (purge secrets from history), whose other prerequisite `M0-03` is `Completed` | Unidentified ops/infra person |
@@ -51,11 +51,21 @@ Blocked transitively behind `M0-12-01`: `M0-12`, `M0-12-02`, `M0-13`, `M0-09`, `
 Full detail and candidate owners: [`runner-state.md`](runner-state.md) (KB-093);
 [`task-tracker.md`](task-tracker.md) (KB-081) footnotes 1, 4, 7, 12, 13.
 
-> **Bookkeeping inconsistency, inherited, not yet reconciled.** `runner-state.md` records
-> `M0-12-01` attempts 1–3 of 4, while the narrative that preceded this rewrite described the
-> attempt-2 close-out. Both were left uncommitted by the prior halt and were preserved
-> verbatim in commit `a5e253b` rather than silently reconciled. **Settle which is right before
-> spending `M0-12-01`'s last attempt.**
+> **Bookkeeping inconsistency — RESOLVED 2026-08-19, on `master` in `50a97c9` and `56d8389`.**
+> `runner-state.md` claimed `M0-12-01` had spent 3 of 4 attempts. **Both numbers were wrong.**
+> **Numerator:** the "3" counted the 2026-08-18 pass that made *no dispatch at all* — it recorded
+> `0 of 4 used this pass` and `n/a — no dispatch made this pass` — as though it were an attempt.
+> `task-tracker.md` footnote 12, `failure-log.md` (two entries) and `tasks/M0-12-01.md` (two
+> Execution Records) all agree on **two**, and KB-093's own tie-break rule — *"If this file and
+> KB-081 disagree, KB-081 wins and this file is corrected"* — settles it.
+> **Denominator:** the budget is **3, not 4**, per [KB-091 §6.4](autonomous-runner.md#64-retry-rules)
+> — *"Attempt 3 fails → **`BLOCKED`**. Stop. … Do not attempt a fourth."* — and
+> `.claude/workflows/migration-runner.js:43` (`maxRetries: 2, // 2 retries = up to 3 implementation
+> attempts`), confirmed live by the 2026-08-19 run reporting `maxRetries: 2`. No configured value
+> anywhere is 4; every "of 4" in this KB was agent prose.
+> **Net: `M0-12-01` has used 2 of 3 — exactly one attempt remains.** The standing instruction is
+> unchanged and now correctly grounded: do not re-dispatch until **Q-21** is answered, because a
+> third failure ends the budget outright.
 
 ## Most recently closed: `M2-A01-01` — Implementation spec from ADR-004
 
