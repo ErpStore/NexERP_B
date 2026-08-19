@@ -91,8 +91,16 @@ export default tseslint.config(
   },
   {
     // shared/api/** is the one place allowed to reach into the generated client.
+    // Only the generated-client half of the rule is lifted here -- the banned
+    // component libraries (ADR-003 / R-22) stay banned in this directory too,
+    // so the rule is re-declared with just those patterns rather than 'off'.
     files: ['src/shared/api/**/*.{ts,tsx}'],
-    rules: { '@typescript-eslint/no-restricted-imports': 'off' },
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        { patterns: [...bannedComponentLibraries] },
+      ],
+    },
   },
   {
     files: ['*.config.ts'],
