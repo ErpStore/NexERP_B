@@ -312,7 +312,7 @@ before it is used.
 | INV-019 | Labour DC outgoing rules | `LabourDcOutgoingService.cs` (6,112 LOC) + 6,528-LOC page | Phase 4.7 |
 | INV-020 | TDS and advance adjustment | `AccountsService/**` | Phase 4.8 |
 | INV-024 | `@code` triage per module (presentation / data / business) | `Pages/**` | one module ahead of each migration wave |
-| INV-025 | Delete-guard audit — all ~40 `CanDelete…Async` for the R-08 copy-paste pattern | `BusinessLayer/**` | Phase 0 |
+| INV-025 | Delete-guard audit — all ~40 `CanDelete…Async` for the R-08 copy-paste pattern (**scope note, 2026-08-19**: the M0-09 validator found a second unreported instance at `MfgPoService.cs:613-615` in `CanSalesOrderItemCancelCheckAsync` — not `CanDelete…`-named. Widen the search to any guard method that computes one boolean and tests another; see `technical-debt-register.md` R-08.) | `BusinessLayer/**` | Phase 0 |
 | INV-026 | Live database index inventory vs the EF model | production tenant DB | Phase 2 (blocks R-13) |
 | INV-028 | Row-level scoping via `User.StateCodesCsv` | grep `StateCodes` across `Pages/` and services | Phase 2 (blocks Q-08) |
 

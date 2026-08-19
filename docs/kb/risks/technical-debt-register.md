@@ -605,7 +605,8 @@ one method. An API makes these branches far easier to reach than the current UI 
 > **advisory**: `MfgPoService.DeletePOByPOIdAsync` (`MfgPoService.cs:790-801`) never calls
 > `CanDeleteSalesOrderAsync`; the only enforcement is the caller,
 > `Pages/SalesAndLabour_pages/SalesPo_Pages/MfgPOList.razor:1079-1090` (`HandleDelete`),
-> while `ConfirmDelete_Click` (`:1108`) deletes at `:1119` without re-checking. So M0-09
+> while `ConfirmDelete_Click` (`:1108`) deletes at `:1118` without re-checking (corrected from
+> an earlier `:1119` citation by the M0-09 validator, 2026-08-19). So M0-09
 > hardens *what the check reports*, not the delete path itself. A future
 > `DELETE /api/v1/sales-orders/{id}` must call the guard server-side or repeat this gap.
 > Scoped to **M0-10** as a lead; deliberately out of M0-09's two-line scope.
@@ -622,6 +623,18 @@ one method. An API makes these branches far easier to reach than the current UI 
 > All three return the same `(bool CanDelete, string Message)` tuple as their `Async`-suffixed
 > peers. M0-10 establishes the canonical count and must search by the `CanDelete` prefix, not
 > the `Async` suffix.
+
+> **Second unreported same-pattern instance, found by the M0-09 validator, 2026-08-19
+> (Confirmed).** `MfgPoService.cs:613-615`, inside `CanSalesOrderItemCancelCheckAsync`
+> (a line-level cancel guard, **not** a `CanDelete…` method): `hasCR` is computed at `:613`
+> from `ContractReviews.GetQueryable().AnyAsync(...)`, but the guard at `:614-615` tests
+> `hasRc` — the Route Card boolean computed earlier at `:608` — so the Contract Review branch
+> is unreachable, identically to BR-SO-002 before this task's fix. Not touched by M0-09
+> (outside its authorised two-line surface); not fixed. **This means M0-10's brief, scoped as
+> "audit `CanDelete…Async`", would miss this by name** — the method is
+> `CanSalesOrderItemCancelCheckAsync`. M0-10 should widen its search to any guard method that
+> computes one boolean and tests another, not just the `CanDelete…`/`CanDelete` family. See
+> also `INV-025`'s scope note in `docs/kb/investigation-registry.md`.
 
 ### R-09 — Default administrator account with a committed password hash
 **Confirmed.** `ApplicationDbContext.cs:1136` seeds `UserName = "Administrator"` with a
