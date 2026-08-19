@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -76,14 +76,14 @@ its children are `Completed` — it is never worked directly.
 | M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Blocked**¹² | P0 | M0-07 | 0.5 d | G0 |
-| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | Blocked | P0 | M0-12-01 | 2.5 d | G0 |
-| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | Blocked | P0 | M0-12-01 | 3 d | G0 |
-| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | Blocked | P1 | M0-12-01 | 0.5 d | G0 |
-| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
-| M0-06 | M0 | Remove the seeded default Administrator credential | Security | Blocked | P1 | M0-12-01 | 1 d | G0 |
+| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
+| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Completed**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
+| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
+| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Completed**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
+| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Ready** | P1 | M0-09 | 2 d | G0 |
+| M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
-| M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | Blocked | P0 | M0-13 | decision | G0 |
+| M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Ready**¹⁷ | P0 | M0-13 | decision | G0 |
 
 ## M1 — Repository Understanding · Gate G1 ✅
 
@@ -106,7 +106,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | Blocked | P0 | G0 | 1–2 wks | G2 |
-| M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Needs Review**¹³ | P0 | G0 *(exception)* | 2 d | G2 |
+| M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Needs Review**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | Blocked | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | Blocked | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | Blocked | P0 | M2-A01-03 | 1 d | G2 |
@@ -246,7 +246,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | 0 *(1 `Needs Review` — M2-A01-01, gate exception¹³)* | G2 | ⬜ Not met |
+| M2 | 52 | 0 *(1 `Needs Review` — M2-A01-01, gate exception¹⁸)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -266,9 +266,61 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
 
+**Currently `Ready`: `M0-06` (P1, 1 d) and `M0-10` (P1, 2 d), as of the `M0-09` merge
+(`47b2d2e`, 2026-08-19).** All four tasks released by the `M0-12-01` merge are now
+`Completed`: `M0-13`¹³ (`3f6dfa8`), `M0-12-02`¹⁴ (`a83f1e2`), `M0-09`¹⁵ (`47b2d2e`) — and
+`M0-09`'s merge in turn released **`M0-10`**. `dotnet test` re-run on `master` after the
+merge: **79 passed, 0 failed** — the suite has gone 0 → 11 → 36 → 73 → 79 in a single day.
+`dotnet build V.SMART.Api --no-incremental`: **0 errors, 6,694 warnings**, at the 6,695
+baseline.
+
+> **`M0-10` matters more than its `Investigation` label suggests.** `M0-09` fixed two
+> compute-one/test-another guards, and its validator found **a third, unreported instance of
+> the identical defect** at `MfgPoService.cs:613-615` (`CanSalesOrderItemCancelCheckAsync`
+> computes `hasCR`, tests `hasRc`) — correctly left unfixed as out of scope, and recorded under
+> R-08 / INV-025. **The bug class is therefore confirmed wider than the two instances anyone
+> had catalogued**, and `M0-10` is the task that audits the rest. It is no longer a
+> speculative sweep; it has a concrete lead and evidence the pattern repeats.
+
+> **`M0-12-02` closed at 11 of 12 criteria, with the twelfth *waived*, not met.** Criterion 8's
+> second half — *"the suite passes in CI on the branch"* — requires pushing the branch so a
+> hosted Actions run exists, which an execution session may not do. The owner waived it
+> in-conversation on 2026-08-19, on the **`M0-07` precedent** (signed off `Completed` with the
+> identical gap open, `d79e1a4`). The reasoning, recorded so it is not mistaken for an
+> oversight: `M0-12-01` had already proven this pipeline runs this suite end to end — green,
+> **red at the `Test - V.SMART.Shared.Tests` step**, green again — so criterion 8 would have
+> re-tested the *pipeline* rather than this task. **Both G0 characterisation tasks are now
+> done.**
+
+> **`M0-11` is released, and it is now blocked on *you*, not on a task.** Its sole Hard
+> prerequisite `M0-13` is `Completed`, so the dependency is genuinely clear. But `M0-11` is a
+> **Product Decision** — the Q-01 call on silent FIFO under-issue — and rule 1 of the
+> [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) excludes a task
+> "blocked on a human step nobody has scheduled… **surfacing it to that owner is itself the
+> useful action**". So it stays `Blocked`, with **Vivek** as the named owner, and no runner may
+> self-select it. What changed is the *reason*: it is no longer waiting on engineering work.
+> `M0-13`'s 25 tests pin the current behaviour — including R-07's silent under-allocation,
+> asserted deliberately as-is rather than fixed — so the decision is now made against a fixed
+> baseline instead of a moving one.
+
+`M0-12-01` is `Completed`: the owner cleared the Q-21 gate, authorised the push, and instructed
+the merge, all in-conversation on 2026-08-19. All 11 acceptance criteria are met — criterion 6
+was verified on a hosted runner by the green → red → green loop (`dec5790` green, `821e923`
+**red at the `Test - V.SMART.Shared.Tests` step**, `e642797` green), with the runner's own log
+showing `Failed: 1, Passed: 11, Total: 12` at the red step. `dotnet test` was re-run on `master`
+after the merge: **11 passed, 0 failed.** Full record in footnote 12; **Q-22 resolved** as
+option (A).
+
+Of the four tasks the `M0-12-01` merge released, **`M0-12-02` and `M0-13` are the ones G0
+actually asks for** — they are the characterisation tests the gate names; `M0-13` is now
+implemented (`Needs Review`¹³), as is `M0-12-02` (`Completed`¹⁴) and `M0-09`
+(`Needs Review`¹⁵). `M0-06` (1 d, P1) is the only one of the four still `Ready`.
+
+Every other M0 task remains `Completed`, `Blocked` on a named human, or
+`Needs Review` and therefore not re-selectable:
 ---
 
-### ¹³ M2-A01-01 — `Needs Review`, executed 2026-08-18 under a **deliberate G0 gate exception**
+### ¹⁸ M2-A01-01 — `Needs Review`, executed 2026-08-18 under a **deliberate G0 gate exception**
 
 **This is the first M2 task to be worked, and G0 has not passed.** Recording it here so the
 deviation is visible rather than silent.
@@ -314,11 +366,14 @@ M0-02 is `Needs Review`⁶ (Q-14 explicitly deferred by Vivek, its named owner);
 `Completed` parent container, never worked directly; M0-03-01/02/03 and M0-14 are `Completed`;
 M0-01-03 is `Needs Review`¹, awaiting a human-executed rebuild drill; M0-04 is `Blocked`⁴ on an
 unidentified credential owner; M0-07 is `Blocked`⁷ on `origin` push plus GitHub org admin
-rights; M0-05 stays `Blocked` because M0-04 has not run; everything downstream of
-M0-07/M0-12-01 stays `Blocked` transitively. No task satisfies the *Ready-task selection rule*
-— **the runner cannot open anything until a human clears M0-04, M0-07 or M0-01-03's drill.**
-**Active task:** none — see [`current-task.md`](current-task.md), which now records this as
-the hand-off state rather than pointing at an in-progress task. Selection rule for what
+rights; M0-05 stays `Blocked` because M0-04 has not run; M0-13 is `Needs Review`¹³, awaiting
+owner review/merge; M0-09 is `Needs Review`¹⁵, likewise awaiting owner review/merge; `M0-10`
+stays `Blocked` behind `M0-09` and `M0-11` behind `M0-13` (genuinely `Completed`, not merely
+`Reviewed`, is what the selection rule requires). **The G0 exit gate still needs a human** for
+M0-04, M0-01-03's drill, and the branch-protection half of M0-07 (Q-20) — so merging
+`M0-12-02`, `M0-09` and completing `M0-06` would **not** clear G0 on its own, and **M2 stays
+barred**.
+**Active task:** none — see [`current-task.md`](current-task.md). Selection rule for what
 becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 **M0-15: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and merged to
@@ -389,7 +444,20 @@ no provenance) and are correctly **not** part of this branch's diff. `M0-03-02` 
 `Blocked` — its Hard prerequisite is this task at `Completed`, and `Needs Review` does not
 satisfy that per the *Ready-task selection rule*'s "not `REVIEW`" clause.
 
-⁴ **M0-04: `Blocked` on a human, not on a task.** The 2026-08-17 run opened it and stopped at
+⁴ **M0-04: `Blocked` — DEFERRED to the end of the milestone by the owner, 2026-08-19.**
+The owner confirmed production SQL / GST e-Invoice gateway access is not available now and
+will be scheduled at the end of the milestone. `M0-05` (purge secrets from history) is
+deferred with it, being blocked on nothing else. **G0 criteria 2 and 3 are correspondingly
+deferred** — see [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19).
+
+> **The exposure is live meanwhile, and this is not a bookkeeping detail.** R-01 records live
+> database credentials committed to source control, in a repository that is **public** by
+> deliberate decision (KB-085 / INV-034). The KB's own assessment is that *"the values are
+> compromised regardless"*. `M0-05` cannot fix that on its own: purging history from a public
+> repository does not retract what is already cloned, forked or cached. **Rotation — `M0-04`,
+> the deferred item — is the only actual remedy.** The owner was told this before deciding.
+
+Original record follows. The 2026-08-17 run opened it and stopped at
 classification without cutting a branch or attempting work — `tasksAttempted: 0`. Its blocking
 dependency is organisational, not technical: the actual rotation needs a named person with
 production SQL Server access and access to the GST e-Invoice / e-Way gateway account, and **no
@@ -656,7 +724,7 @@ and exposed in git history until both run.
 anything; just re-run.** (The close-out below was written as `Blocked` "on a human"; that
 diagnosis was wrong and is corrected at the end of this footnote.) `M0-07` had already
 satisfied this task's sole Hard prerequisite and it was correctly selected `Ready` and
-dispatched (attempt 1 of 4, `opus`). The dispatched implementer **returned no result at all** —
+dispatched (attempt 1 of 3, `opus`). The dispatched implementer **returned no result at all** —
 no diff, no text, no tool output — so the validator also returned no verdict
 (`{"verdict": "none", "note": "validation did not complete"}`). Verified at close-out: no
 `migration/M0-12-01-*` branch exists, no `tests/` directory exists at the repository root,
@@ -679,7 +747,7 @@ agents for this cycle terminated on a transient upstream API error —
 — i.e. 2 of the run's 5 agents errored server-side (`agents_error: 2`). The implementer returned
 nothing because it never ran to completion, not because dispatch mis-fired. **No owner action is
 required and no tooling audit is warranted.** The correct response is simply to **re-run the
-runner**; the task specification is unchanged and needs no re-work. Attempts used: 1 of 4, so
+runner**; the task specification is unchanged and needs no re-work. Attempts used: 1 of 3, so
 three remain. Status is therefore restored to `Ready`, not left `Blocked` on a human, because
 nothing human-held is in the way.
 **Blocks:** `M0-12-02`, `M0-13`, `M0-09`, `M0-06`, and transitively `M0-10` and `M0-11` — the
@@ -687,7 +755,7 @@ same four-plus-two tasks M0-07's completion was about to unblock.
 
 **Update, 2026-08-18 — attempt 2 repeated the exact same failure; status moves back to
 `Blocked`, this time on a human, not on nothing.** The re-dispatch this footnote recommended
-was carried out: attempt 2 of 4, `opus`, same classification. **The implementer again
+was carried out: attempt 2 of 3, `opus`, same classification. **The implementer again
 returned no result at all** — no diff, no text, no tool output — and the validator again
 recorded `{"verdict": "none", "note": "validation did not complete"}`. Re-verified at
 close-out: still no `migration/M0-12-01-*` branch, still no `tests/` directory, `git
@@ -702,15 +770,261 @@ misdiagnosis get corrected is visible only from inside the run that produced it,
 close-out session reading the repository afterward. **So this is recorded honestly as
 `Blocked` on a human — specifically, someone who can read the runner's dispatch/agent-invocation
 logs for both cycles and confirm or rule out a systemic (not transient) cause — rather than
-re-dispatched a third time on the same unverified assumption.** Attempts used: 2 of 4; two
-remain, held in reserve until the cause is checked. Full record:
+re-dispatched a third time on the same unverified assumption.** Attempts used: **2 of 3 — one remains**, held in reserve until the cause is checked.
+*(Denominator corrected 2026-08-19: the budget is 3, not 4 — [KB-091 §6.4](autonomous-runner.md#64-retry-rules),
+"Attempt 3 fails → BLOCKED. Stop. … Do not attempt a fourth", matching `migration-runner.js:43`
+`maxRetries: 2, // 2 retries = up to 3 implementation attempts`. Earlier text here read "of 4",
+which no authority supports.)* Full record:
 [`tasks/M0-12-01.md` § Execution Record (2026-08-18) — Attempt 2](tasks/M0-12-01.md#execution-record-2026-08-18--attempt-2-repeated-empty-return);
 attempt logged in [`failure-log.md`](failure-log.md#m0-12-01--attempt-2--2026-08-18). See also
 open question **Q-21** in [`open-questions.md`](../open-questions.md).
 
-**Owner to unblock:** whoever administers the autonomous runner / agent-dispatch
+**Update, 2026-08-19 — Q-21 answered. The *investigation* the gate asked for is complete; the
+*decision* it asked for is still the owner's, and the task stays `Blocked` until he makes it.**
+The paragraph above is wrong on one point of fact: the agent-completion log is **not**
+visible only from inside its own run. The per-agent transcripts persist on disk at
+`~/.claude/projects/<project>/<sessionId>/subagents/workflows/<runId>/agent-<agentId>.jsonl`,
+and reading them settles the question outright — **every agent in both attempts ended on
+`"apiErrorStatus":529, "error":"server_error"`.** Attempt 1's `migration-investigator` recorded
+`529` at 16:41:00Z (`req_011CeAYN4EMJrAe6z7CZ1qX8`) **after 158,887 bytes of successful tool
+work**; its `migration-implementer` at 16:44:18Z (`req_011CeAYdkQF6u4n5sSMXvwoi`) died on its
+first call. Attempt 2 repeated the pattern across three agents. An investigator that reads
+158 KB of source before dying was dispatched correctly and was running normally, which rules
+out the systemic-dispatch hypothesis this footnote was holding the task for. Corroborated the
+same day by two runner invocations dispatching 4 of 4 agents with `agents_error: 0` and
+`agents_empty_result: 0`.
+
+> **Gate CLEARED 2026-08-19 by the repository owner.** Sequence, recorded because the
+> distinction matters: a session took the evidence above, moved `M0-12-01` to `Ready` and
+> dispatched it **on its own authority**; the harness safety classifier stopped that run,
+> correctly, because this footnote's gate reserves the confirmation for **a human**, and
+> performing the check does not confer authority to declare it satisfied. The flip was
+> withdrawn, the evidence was put to the owner, and **Vivek cleared it in his own words** —
+> *"yes, the 529 evidence clears the gate — run it"*. `M0-12-01` is `Ready` **on his
+> authority**. The precedent this sets is narrow: an AI session may *gather* the evidence a
+> human-owned gate asks for, but only the named human may declare the gate passed.
+>
+> **Still undecided, and deliberately not assumed:** whether the two `529` aborts consumed
+> retry budget at all (the KB-091 §6.4 reading below). The conservative count governs —
+> **2 of 3 used, one remains.** If attempt 3 also dies on infrastructure without producing
+> work, halt and put *that* question to the owner rather than declaring the task `Blocked` for
+> good.
+
+> **Open interpretation, flagged not applied.** [KB-091 §6.4](autonomous-runner.md#64-retry-rules)
+> counts *validation failures* ("Attempt 1 fails → `DIAGNOSING`… Attempt 2 fails → `ESCALATED`").
+> Neither M0-12-01 attempt produced work or a validation verdict — both aborted on infrastructure
+> before implementing anything. On that reading the two `529` aborts should not consume the
+> retry budget at all, and the task still has its full three. **This session did not apply that
+> reading** — it is recorded as a question for the owner, and the conservative count (one
+> attempt left) governs. If a third attempt also dies on a `529`, this is the paragraph to
+> revisit before declaring the task `Blocked` for good.
+
+**Owner to unblock (gate cleared): none — cleared 2026-08-19 by Vivek.** The original wording
+of this row, which sought a dispatch-layer administrator, is retained below for history:
+whoever administers the autonomous runner / agent-dispatch
 infrastructure for this project. No such person is named anywhere in the repository; in their
 absence, the repository owner (**Vivek**) is the fallback contact, consistent with every other
 `Blocked`-on-a-human row in this table that lacks a more specific named owner (compare `M0-04`
 footnote 4). This is a **runner-health** question, not a task-specification question — no
 change to `tasks/M0-12-01.md` is indicated by anything found this session.
+
+**Update, 2026-08-19 — attempt 3 of 3, dispatched after Vivek cleared the gate above, produced
+real work and moved the task back to `Blocked`, this time on a content decision, not a
+dispatch mystery.** The implementer committed `9557de2` on
+`migration/M0-12-01-test-project`: the test project (`tests/V.SMART.Shared.Tests/`, `.csproj` +
+6 source files), the `.sln` registration (19 lines, all 6 platform configs), the CI test step
+in `.github/workflows/ci.yml`, `INV-031` (`Complete`, 8 findings, each `Confirmed`/`Inferred`/
+`Unknown`-tagged), and the KB-083/KB-060 documentation updates. This close-out session
+independently re-ran the evidence rather than trusting the report: `dotnet test` → 11
+discovered, 11 passed, 0 failed; `dotnet build V.SMART.Api` → 0 errors, 6,695 warnings
+(baseline, no new warnings); `git status --porcelain` clean of build output; `git diff --stat
+HEAD~1 HEAD -- V.SMART/` empty. **10 of the 11 acceptance criteria are `MET`.**
+
+**What is not met — criterion 6, and why it cannot be met from inside an execution session.**
+The criterion requires observing a deliberately-failing test turn a live GitHub Actions run
+red, on a pushed branch, with the run identifier recorded. Task step 14
+(`tasks/M0-12-01.md:289-291`) instructs exactly this — "push the branch, confirm CI goes red" —
+but `CLAUDE.md` § Standing constraints is explicit: *"Never merge or push without an explicit
+instruction in the current conversation"*, and the runner dispatches with `allowMerge=false`.
+No local substitute exists (`gh`, `act`, docker — none installed on this workstation). The
+branch has never been pushed (`git branch -r` shows no
+`origin/migration/M0-12-01-test-project`; `git rev-parse --abbrev-ref @{u}` reports no
+upstream configured), so the workflow has never executed on a hosted runner and no run
+identifier exists. **This is the identical gap already carried, and accepted, for `M0-07`'s
+own CI criterion** — see [`ci-pipeline.md`](ci-pipeline.md) §8 and this footnote's earlier
+text above (`M0-07` `Blocked`⁷) — and `M0-07` was signed off `Completed` with that gap open
+(`d79e1a4`). Criterion 6 inherits an existing, already-precedented gap; it does not create a
+new category of problem.
+
+**Attempts used: 3 of 3 — budget exhausted** ([KB-091 §6.4](autonomous-runner.md#64-retry-rules)).
+A fourth dispatch would not help: the wall is push authority, not code, so it would reproduce
+`9557de2` and stop identically. Both the validator (`failureCategory: environment`) and an
+independent debugger pass (`disposition: blocked`) agree. **Status: `Blocked` on the
+repository owner** — a decision, not something further investigation or implementation can
+resolve. **Blocks, transitively, unchanged:** `M0-12-02`, `M0-13`, `M0-09`, `M0-06`, `M0-10`,
+`M0-11`.
+
+**Owner to unblock: Vivek**, choosing one of two options (recorded as **Q-22** in
+[`open-questions.md`](../open-questions.md)):
+
+- **A.** Explicitly authorise pushing `migration/M0-12-01-test-project` in-conversation; then
+  break one smoke assertion, observe red, revert, and record the run identifier. Best paired
+  with resolving Q-20 (hosted-runner availability) first, or the push may hit the same
+  unanswered organisational question `M0-07` already flagged.
+- **B.** Waive criterion 6 for `M0-12-01`, re-homing it onto whichever task first pushes a
+  branch — consistent with the `M0-07` precedent already accepted into `Completed`.
+
+Full record: [`tasks/M0-12-01.md` § Execution Record
+(2026-08-19)](tasks/M0-12-01.md#execution-record-2026-08-19);
+[`failure-log.md` § M0-12-01 · attempt 3](failure-log.md#m0-12-01--attempt-3--2026-08-19).
+
+**M0-13: `Needs Review` 2026-08-19.** Implemented on
+`migration/M0-13-stockmanagerservice-characterisation` (`9d8d7be`), attempt 1 of 3, 0
+escalations. Validator verdict **`PASS`**, `scopeOk: true`, `failureCategory: none` — all 12
+acceptance criteria `MET`, no regressions found. 25 new tests (suite 11 → 36, all green, run
+twice) pin all 16 statements of BR-STK-001 and BR-STK-002/R-07, including the R-07 drift
+asserted numerically on both the create and update paths and the statement-16 asymmetry (100
+against 0 throws; 100 against 1 succeeds and drifts by 99). `git diff --stat master...HEAD`
+shows zero files under `V.SMART/`; `dotnet build V.SMART.Api` still 0 errors / 6,694 warnings
+(at baseline). KB-030, KB-060, KB-004 (Q-01) and the investigation registry (INV-011
+annotated, new row INV-036) were all updated in the same commit. **R-07 stays open — it is
+pinned, not fixed**, exactly as the task required. Full record:
+[`tasks/M0-13.md` § Execution Record (2026-08-19)](tasks/M0-13.md#execution-record-2026-08-19).
+
+Not `Completed`: this task's own completion conditions include no human step, but this
+project's standing convention ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed))
+reserves that status for the repository owner once the branch is reviewed and merged — the
+same convention already applied to M0-03, M0-08, M0-12-01 and every other `PASS`-validated
+task in this milestone. **Unblocks nothing yet**: `M0-11` (Product Decision, Q-01) names
+`M0-13` as a Hard prerequisite and the
+[Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) requires that
+prerequisite to be genuinely `COMPLETED`, not `REVIEW` — `M0-11` stays `Blocked` until the
+owner reviews and merges this branch.
+
+¹⁴ **M0-12-02: `Completed` and merged (`a83f1e2`, 2026-08-19) — 11 of 12 acceptance criteria
+`MET`, the twelfth WAIVED by the repository owner.**
+
+> **Read the waiver as a waiver, not as a pass.** Criterion 8's second half — *"the suite
+> passes in CI on the branch"* — was **never satisfied**. It requires pushing the branch so a
+> hosted Actions run exists, which `CLAUDE.md` forbids an execution session to do. The owner
+> waived it in-conversation on the **`M0-07` precedent** (`d79e1a4`, signed off `Completed`
+> with the identical gap open). Justification recorded so a later reader does not mistake this
+> for sloppiness: `M0-12-01` had already proven this pipeline runs this suite end to end —
+> green, **red at the `Test - V.SMART.Shared.Tests` step**, green again — so criterion 8 would
+> have re-tested the *pipeline*, not this task. **If a future task needs per-branch CI
+> evidence, this waiver is not a precedent for skipping it** — it rests specifically on
+> `M0-12-01` having already demonstrated the gate works.
+
+The paragraph below is the pre-merge close-out, retained verbatim for the record.
+
+**Pre-merge state (2026-08-19):** implemented on
+`migration/M0-12-02-calculationservice-characterisation` (`050f06b`), attempt 1 of 3, 0
+escalations. Validator verdict `FAIL`, `failureCategory: environment`, `scopeOk: true`. 37
+new tests (suite 36 → 73, all green, run twice: `Failed: 0, Passed: 73`) pin every row of
+BR-CALC-001 (19) and BR-CALC-002 (3), both tax branches with a three-line/three-rate
+item-wise case, both `.5` midpoints, a negative `RoundOff`, the two silent early returns with
+twelve fields asserted unmutated, the fixed-vs-percentage header-discount asymmetry, and the
+unlisted-GST-rate/R-15 pair — all independently re-derived and re-checked against source, not
+taken from the implementer's report. `git diff --stat master...HEAD` shows zero files under
+`V.SMART/`; `dotnet build V.SMART.Api --no-incremental` → 0 errors, 6,694 warnings, at
+baseline. KB-030, KB-060, KB-004 (new **Q-23**, **Q-24**) and KB-003 (INV-011 annotated) were
+all updated in the same commit.
+
+**What is not met — criterion 8's second half, and why it cannot be met from inside an
+execution session.** *"the suite passes in CI on the branch"* requires pushing
+`migration/M0-12-02-calculationservice-characterisation` to `origin` so `ci.yml` executes on
+a hosted runner. `git ls-remote --heads origin` lists eight branches and this one is not
+among them; `CLAUDE.md` § Standing constraints forbids pushing without an explicit
+in-conversation instruction, and this dispatch carried `allow_push=false`. This is the
+identical gap already carried for **M0-07** (signed off `Completed` with it open, `d79e1a4`)
+and resolved for **M0-12-01** only once the owner explicitly authorised the push (**Q-22**).
+Nothing about the branch itself is in question — `ci.yml:183-190` runs the whole test project
+with no filter, and its `$LASTEXITCODE` re-raise was already confirmed working on a hosted
+runner by M0-12-01's `821e923`.
+
+**Attempts used: 1 of 3** — not exhausted, but a same-spec retry rebuilds `050f06b` and stops
+at the identical wall, so no further attempt was spent chasing it
+([KB-091 §6.4](autonomous-runner.md#64-retry-rules)). **Status: `Blocked` on the repository
+owner** — a decision, not something further investigation or implementation can resolve.
+**Blocks, transitively, unchanged:** nothing new — `M0-12-02` was not itself a Hard
+prerequisite for any other task; `M0-09` and `M0-06` remain independently `Ready`.
+
+**Owner to unblock: Vivek**, choosing one of two options:
+
+- **A.** Explicitly authorise pushing `migration/M0-12-02-calculationservice-characterisation`
+  and observe the `Test - V.SMART.Shared.Tests` step green — the exact route already taken
+  for `M0-12-01` under Q-22.
+- **B.** Waive the "in CI" half of criterion 8 and re-home it, consistent with the `M0-07`
+  precedent already accepted into `Completed` (`d79e1a4`).
+
+Full record: [`tasks/M0-12-02.md` § Execution Record
+(2026-08-19)](tasks/M0-12-02.md#execution-record-2026-08-19);
+[`failure-log.md` § M0-12-02 · attempt 1](failure-log.md#m0-12-02--attempt-1--2026-08-19) and
+its diagnosis entry.
+
+¹⁵ **M0-09: `Completed` and merged (`47b2d2e`, 2026-08-19)** on the owner's in-conversation
+instruction. Re-verified on `master` after the merge: `dotnet test` **79 passed, 0 failed**;
+`dotnet build V.SMART.Api --no-incremental` **0 errors, 6,694 warnings** (baseline 6,695).
+**This released `M0-10`.** Pre-merge record follows. Implemented on
+`migration/M0-09-delete-guard-fix` (`8e3b19d`), attempt 1 of 3, 0 escalations. Validator
+verdict **`PASS`**, `scopeOk: true`, `failureCategory: none` — every acceptance criterion
+`MET`, independently re-derived rather than taken on trust (the validator reproduced the
+pre-fix red state itself in a separate detached worktree at `3549571`). `MfgPoService.cs`
+changed exactly two identifiers: `hasInvoice` → `hasExpInvoice` (`:504`) and `hasRc` →
+`hasCR` (`:525`); no `Message` string, guard order, or query changed. Two new tests
+(`MfgPoServiceDeleteGuardTests.cs`) were observed to fail pre-fix and pass post-fix; the
+existing Tax Invoice/Route Card guard tests pass throughout. Suite: 79/79 green (73 → 79).
+`dotnet build V.SMART.Api` (CI form, `--no-incremental`): 0 errors, 6,693 warnings — at the
+6,695 baseline. `git diff --stat master...HEAD` touches one file under `V.SMART/`, two lines,
+plus KB-030, KB-060, KB-080 (this file's predecessor version), KB-003, and two new test
+files. KB-030's BR-SO-002 was rewritten from live defect to fixed, naming the commit; KB-060's
+R-08 was marked resolved on its first action item only, with the second (the wider
+`CanDelete…` audit) explicitly left open as `M0-10` / `INV-025`.
+
+**Not `Completed`**, for the same standing reason as `M0-13` and every other `PASS`-validated
+task this milestone ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)):
+the branch is implemented and validated but not yet reviewed and merged by the repository
+owner. **Unblocks nothing yet** — `M0-10` names `M0-09` as a Hard prerequisite and the
+[Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) requires that
+prerequisite to be genuinely `Completed`, not `Needs Review`, so `M0-10` stays `Blocked`
+until this branch is reviewed and merged.
+
+**One validator-found lead, not acted on and not part of this task's scope**: an unreported
+instance of the identical compute-one/test-another pattern exists at
+`MfgPoService.cs:613-615`, inside `CanSalesOrderItemCancelCheckAsync` — `hasCR` is computed
+at `:613` but the guard at `:614-615` tests `hasRc` (the Route Card boolean from `:608`), so
+the Contract-Review branch of that line-cancel check is unreachable for the same reason
+BR-SO-002's delete guard was. This is pre-existing, outside M0-09's authorised two-line
+surface, and does not fail this task. It is recorded as a scope note on `INV-025` (see
+`investigation-registry.md`) and as a new bullet under R-08 in
+`docs/kb/risks/technical-debt-register.md` (KB-060), both updated in this close-out, so
+`M0-10` picks it up without re-deriving it.
+
+Full record: [`tasks/M0-09.md` § Execution Record
+(2026-08-19)](tasks/M0-09.md#execution-record-2026-08-19).
+
+¹⁷ **M0-11: `Blocked` → `Ready`, 2026-08-19 — the human step it was waiting for has happened.**
+This task was never blocked on engineering. It was blocked on a product decision only the
+repository owner could take, and he took it: **Q-01 is answered — *preserve but surface*.** The
+API will reproduce today's allocation behaviour exactly (a short issue still succeeds, still
+allocates what is available) but the shortfall is returned to the caller and shown, instead of
+being silent.
+
+**What changes about this task:** its deliverable is unchanged — `ADR-006-fifo-under-issue.md`
+— but it is now written to **record an accepted decision**, not to propose two options for
+someone to choose between. The acceptance criteria still apply in full, including arguing both
+options in good faith and mapping every behavioural statement to an `M0-13` test by exact name;
+a decision brief that omits the rejected option is not a brief, it is an announcement. Note the
+task file's own criterion — *"Option B addresses **visibility**, not merely 'leave it as it
+is'"* — anticipated exactly this answer.
+
+**What this task does NOT cover, and must not silently absorb:** the owner deferred the
+*implementation* of surfacing until after Milestone 2. That work has **no task id yet** and is
+not part of `M0-11`, `M0-13`, or any current M2 task. When it is scheduled it must address two
+things beyond the obvious: (a) `StockManagerService.cs:154-155` commits an orphan `StockIssue`
+row for the full quantity **before** allocation is attempted, so even a *refused* issue leaves
+a row that does not match reality; (b) tests `S13`–`S16` pin the current behaviour and must be
+updated in the same commit as any change, or they will correctly go red.
+
+**G0 criterion 7 is met** by the answer being recorded in `open-questions.md`; it does not wait
+on `ADR-006`. See [KB-080 § Exit Gate — G0](README.md#exit-gate--g0).

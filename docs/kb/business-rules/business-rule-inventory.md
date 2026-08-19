@@ -17,7 +17,7 @@ database_tables: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, Users,
 business_rules: [BR-CALC-001, BR-CALC-002, BR-STK-001, BR-STK-002, BR-SO-001, BR-SO-002, BR-SO-003, BR-AUTH-001, BR-AUTH-002, BR-APPR-001, BR-RPT-001, BR-TEN-001]
 status: partial
 confidence: mixed
-last_verified: 2026-08-12
+last_verified: 2026-08-19
 dependencies: [KB-011, KB-012, KB-013]
 ---
 
@@ -59,9 +59,31 @@ Ordered algorithm:
 8. Grand total = taxable + taxes + TCS + `OtherCharges`; if `IsRoundOffEnabled`,
    `Math.Round(x, 0, MidpointRounding.AwayFromZero)` with the delta stored in `RoundOff`
 
+**Precision and rounding (Confirmed, M0-12-02, 2026-08-19).** **No intermediate rounding
+occurs anywhere in the method.** Every intermediate — discount, basic, packing, insurance,
+taxable, each per-line taxable base, each tax accumulation, TCS and the pre-round grand
+total — is full `decimal` precision. There is exactly **one** `Math.Round` call in the whole
+method, at `CalculationService.cs:103`, and it executes only when `IsRoundOffEnabled`
+(`:101`). It rounds to **0 decimal places** with `MidpointRounding.AwayFromZero`, not
+banker's rounding. `RoundOff` is **signed** — `rounded − preRound` at `:104` — so it is
+negative whenever the total rounds down. When round-off is disabled, `RoundOff` is set to
+`0` and `GrandTotal` is the unrounded value (`:109-110`).
+
+This is the contract the React client (M2-C10) and the future
+`POST /api/documents/calculate` endpoint must honour: an implementation that rounded to
+currency precision at any intermediate step would produce different money. Pinned by
+`S18_NoIntermediateRounding_FullDecimalPrecisionSurvivesToTheGrandTotal`, which shows five
+decimal places surviving to `GrandTotal`.
+
+*Not established:* whether the decimal **scale** of the returned values is part of that
+contract. Exact-value assertions cannot see scale (`18.000m` equals `18m` under
+`decimal.Equals`) — recorded as an open question in [KB-004](../open-questions.md).
+
 **Evidence.** `V.SMART.Shared/Services/CalculationService.cs:12-114` (`UpdateTotalsAsync`
-begins at `:12`; the file is 117 lines — a previously cited `:12-118` was out of range);
-`Utility_Constants/ICalculationDocument.cs`; `Utility_Constants/ICalculationDocumentSubItem.cs`.
+begins at `:12`; the file is 117 lines — a previously cited `:12-118` was out of range;
+re-verified again 2026-08-19 by M0-12-02, unchanged);
+`Utility_Constants/ICalculationDocument.cs:11-40`;
+`Utility_Constants/ICalculationDocumentSubItem.cs:12-25`.
 
 **Confidence.** Confirmed.
 **Disposition.** **Preserve verbatim — do not port to TypeScript.**
@@ -69,13 +91,37 @@ begins at `:12`; the file is 117 lines — a previously cited `:12-118` was out 
 React client may render an optimistic local estimate for responsiveness, but the server
 result is authoritative and must overwrite it before save.
 
+**Pinned by executable tests (M0-12-02, 2026-08-19).** Every step of the algorithm above is
+now asserted by
+`tests/V.SMART.Shared.Tests/Services/CalculationServiceCharacterisationTests.cs`
+(30 tests, all green; the file header carries the full statement-to-test map). Both tax
+branches are covered — the item-wise branch with three lines at three different rate shapes
+— as are the boundaries the method handles silently:
+
+| Test | What it pins |
+|---|---|
+| `S01_NullDocument_…` / `S01_NullSubItemCollection_…` / `S01_EmptySubItemCollection_SilentlyReturnsWithoutComputing_AndMutatesNothing` | the three silent returns at `:14-15`; twelve pre-set output fields are asserted **unchanged**, so a future "zero it out" early return fails |
+| `S05_WhenDiscountExceedsGross_TotalBasicAmountGoesNegative_WithNoFloorAtZero` | no floor at zero at `:35` — a discount above gross gives a negative basic amount, taxable and grand total |
+| `S10_ItemWiseBranch_WhenEveryLineGrossIsZero_ProportionGuardYieldsZeroTax` | the divide-by-zero guard at `:61`, and its consequence: freight is in `TotalTaxable` but attracts no tax |
+| `S11_ItemWiseBranch_WhenHeaderDiscountIsAFixedAmount_ItDoesNotReduceTheTaxableBase` | ⚠️ `:63-65` — a **fixed** header discount does not reduce the item-wise taxable base; 1000 gross less 100 fixed discount is taxed on **1000**, not 900 |
+| `S11_ItemWiseBranch_WhenHeaderDiscountIsAPercentage_ItIsSpreadAcrossLinesByProportion` | the contrast: the same 100 of discount, spread by proportion, taxes 900 |
+| `S15_TcsPercent_IsAppliedToATaxInclusiveBase_AndOtherChargesAreExcluded` | TCS base at `:87-95` is tax-inclusive and excludes `OtherCharges` |
+| `S17_WhenRoundOffEnabled_MidpointRoundsAwayFromZero_NotBankers` and `S17_…AndAnOddIntegerMidpoint_…` | `MidpointRounding.AwayFromZero` at `:103`, proved on both a `.5` that banker's would round down and one it would round up |
+| `S17_WhenRoundingDown_RoundOffIsNegative` | `RoundOff` is signed |
+| `S13_ItemWiseBranch_PerLineTaxAmountsAreNeverWritten_OnlyHeaderTotalsAccumulate` | the service never writes `LineCGSTAmount`/`LineSGSTAmount`/`LineIGSTAmount` |
+| `S19_UpdateTotalsAsync_CompletesSynchronously_DespiteTheAsyncSignature` | the returned `Task` is already completed — four `DebitNoteUpsert.razor` call sites depend on it (see R-39) |
+
+A red test there means **this rule changed**. If the change was intended, update the test in
+the same commit as the production change and amend this entry.
+
 ### BR-CALC-002 — GST rates are restricted to a fixed set
 
 **Statement.** IGST is one of `0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28` %.
 CGST/SGST use the half-rate list `0, 0.05, 0.125, 0.5, 0.75, 1.5, 2.5, 3, 3.75, 6, 9, 14` %.
 
-**Evidence.** `Utility_Constants/CommonConstants.cs` — `IGSTRates`, `GSTRates`,
-`GetIGST(decimal)`, `GetGST(decimal)`.
+**Evidence.** `Utility_Constants/CommonConstants.cs:11-16` (`IGSTRates`), `:18-23`
+(`GSTRates`), `:25-26` (`GetIGST(decimal)`, `GetGST(decimal)`) — re-verified 2026-08-19
+(M0-12-02).
 
 **Confidence.** Confirmed.
 **Disposition.** Preserve.
@@ -83,6 +129,27 @@ CGST/SGST use the half-rate list `0, 0.05, 0.125, 0.5, 0.75, 1.5, 2.5, 3, 3.75, 
 from the server list. Note `GetIGST`/`GetGST` return `0` (via `FirstOrDefault`) for an
 unlisted rate rather than raising — silently coercing an invalid rate to zero tax. Worth
 tightening; see risk R-15.
+
+**Pinned by executable tests (M0-12-02, 2026-08-19).**
+`tests/V.SMART.Shared.Tests/Services/CommonConstantsGstRateTests.cs` (7 tests, all green)
+pins both lists **by content and by order**, the round-trip of a listed rate, and the R-15
+defect itself: `GetIGST_WithUnlistedRate_SilentlyReturnsZero_R15` and
+`GetGST_WithUnlistedRate_SilentlyReturnsZero_R15` assert the zero coercion **green**, as a
+characterisation baseline. `GetIGST_CannotDistinguishNotFoundFromTheListedZeroRate_R15`
+records why a caller cannot detect the defect: `GetIGST(17m)` and `GetIGST(0m)` return the
+same value.
+
+**Additional current behaviour observed while pinning (Confirmed, M0-12-02).**
+`CalculationService` neither calls `GetIGST`/`GetGST` nor validates a rate — there is no
+reference to `CommonConstants` anywhere in `CalculationService.cs:12-114`. It multiplies by
+whatever rate the document carries, including one absent from these lists. Pinned by
+`S21_R15_AnUnlistedGstRate_IsAppliedWithoutValidationOrCoercionToZero`, which shows a 17%
+IGST rate producing 170 on a taxable value of 1000. So R-15 is **latent in the engine and
+live only at whatever call site routes a rate through `GetIGST`/`GetGST`** — the two paths
+disagree, one charging 170 and the other 0 for the same document.
+
+These tests **must not be "fixed"**. If R-15 is repaired, update them in the **same commit**
+as the production change.
 
 ---
 
@@ -111,6 +178,24 @@ system.
 `IStockManagerService`. Add integration tests around it **before** any module that writes
 stock is migrated (Phase 5 pulled forward — see migration strategy).
 
+**Pinned by executable tests (M0-13, 2026-08-19).** Every statement above is now asserted by
+`tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs`
+(25 tests, all green). The FIFO ordering itself is pinned by
+`S05_Issue_AcrossThreeBatches_ConsumesOldestAddDateFirst` (three batches at distinct
+`AddDate` values, inserted newest-first so insertion order cannot explain the result),
+`RcSubID` discrimination by `S06_Issue_WithNullRcSubId_DoesNotConsumeRouteCardBoundBatches`
+and `S06_Issue_WithRouteCardRcSubId_DoesNotConsumeFreeStockBatches`, and track reversal on
+re-issue by `S04_ReIssue_WithSmallerQuantity_ReversesPriorTracksBeforeReallocating`. The
+file header of that suite carries the full statement-to-test map. A red test there means
+this rule changed.
+
+**Not pinned — Unknown (M0-13).** `.OrderBy(sa => sa.AddDate)` at `:206` declares no
+secondary sort key, so FIFO order between two batches sharing an identical `AddDate` is
+undefined. The test harness (EF Core InMemory, INV-031) evaluates `OrderBy` as
+LINQ-to-objects, which is a *stable* sort; SQL Server's `ORDER BY` guarantees no such thing.
+The suite therefore uses distinct `AddDate` values throughout and asserts nothing about
+ties. Resolving this needs a run against a real SQL Server instance.
+
 ### BR-STK-002 — ⚠️ Over-issue is silently permitted when batch balance is insufficient
 
 **Statement (defect, not intended behaviour).** `TrackStockUsageAsync` throws
@@ -135,6 +220,29 @@ depend on negative/over-issue being permitted for back-dated entry. Raise as a p
 decision (Q-01). If confirmed a bug, fix once in `StockManagerService` so both the Blazor
 UI and the API get the fix. Risk R-07.
 
+**Pinned by executable tests (M0-13, 2026-08-19).** The defect is now asserted **green** —
+deliberately, as a characterisation baseline — in
+`tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs`:
+
+| Test | What it pins |
+|---|---|
+| `S13_R07_IssueOrUpdateStock_WhenNoBatchHasBalance_ThrowsNoAvailableStockToIssue` | 100 requested against **zero** balance → `InvalidOperationException("No available stock to issue.")` |
+| `S14_R07_IssueOrUpdateStock_WhenBatchesExistButTotalBalanceIsShort_SilentlyUnderAllocatesAndDoesNotThrow` | 100 requested against 30 available → **no exception**; `IssueQty` 100, `Σ UsedQty` 30, drift asserted as exactly `70m` |
+| `S15_R07_IssueOrUpdateStock_WhenReIssueIncreasesQuantityBeyondAvailableStock_SilentlyUnderAllocatesOnTheUpdatePathToo` | the same drift occurs on the **update** path (re-issue 3 → 100 against a batch of 5; drift `95m`) |
+| `S16_R07_IssuingOneHundred_ThrowsAgainstZeroStock_ButSilentlyDriftsByNinetyNineAgainstOneUnit` | the asymmetry of statement 16: one unit of stock is the whole difference between a hard refusal and a silent 99-unit hole |
+
+These tests **must not be "fixed"**. If the product decision (M0-11 / Q-01) is to add the
+missing `remainingQty > 0` check, update these tests in the **same commit** as the production
+change.
+
+**Additional current behaviour observed while pinning (Confirmed, M0-13).** When the throw at
+`:209-210` fires on the *create* path, the `StockIssue` row has **already been created and
+committed** by `_unitOfWork.SaveAsync()` at `:154-155`. A refused issue therefore leaves an
+orphan `StockIssue` row carrying the full requested quantity with **no** `StockIssueTrack`
+rows at all. Pinned by the last three assertions of
+`S13_R07_IssueOrUpdateStock_WhenNoBatchHasBalance_ThrowsNoAvailableStockToIssue`. This is part
+of what Q-01 has to decide about.
+
 ---
 
 ## Sales Order rules
@@ -147,29 +255,55 @@ Sales DC (`MfgDcSub.RefPoSubId`), Tax Invoice (`MfgInvSub.RefPoSubId`),
 Export Invoice (`ExpInvSub.RefPoSubId`), Proforma Invoice (`PerformaInvSub.RefPoSubId`),
 Route Card (`RouteCard.RefPoId`), Contract Review (`ContractReview.PoId`).
 
-**Evidence.** `BusinessLayer/BusinessService/SalesService/MfgPoService.cs:465-565`.
+**Evidence.** `BusinessLayer/BusinessService/SalesService/MfgPoService.cs:465-565`
+(span re-verified 2026-08-19). **All six document types now guard correctly** — see
+BR-SO-002, fixed by M0-09.
 
 **Confidence.** Confirmed.
 **Disposition.** Preserve.
 **Migration note.** The returned `Message` strings are product UX — surface them verbatim
 in the React error toast. Do not replace with generic "Cannot delete".
+Pinned by `tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`, which
+asserts four of the guard messages byte-for-byte plus the permissive missing-order path
+(`MfgPoService.cs:474-475`).
 
-### BR-SO-002 — ⚠️ Two guards in that chain are unreachable (copy-paste defects)
+### BR-SO-002 — Two guards in that chain were unreachable (copy-paste defects) — **FIXED**
 
-**Statement (defect).** In the same method:
-- The **Export Invoice** guard computes `hasExpInvoice` but then tests
-  `if (hasInvoice)` — so an order with only an export invoice and no domestic invoice
-  **can be deleted**. `MfgPoService.cs:499-505`.
-- The **Contract Review** guard computes `hasCR` but then tests `if (hasRc)` — so an order
-  with a contract review and no route card **can be deleted**. `MfgPoService.cs:523-525`.
+**Statement (the defect, as it stood until 2026-08-19).** In the same method:
+- The **Export Invoice** guard computed `hasExpInvoice` but tested `if (hasInvoice)`
+  (`MfgPoService.cs:504`) — so an order with only an export invoice and no domestic
+  invoice could be deleted.
+- The **Contract Review** guard computed `hasCR` but tested `if (hasRc)`
+  (`MfgPoService.cs:525`) — so an order with a contract review and no route card could be
+  deleted.
 
-**Evidence.** `MfgPoService.cs:499-505` and `:523-525`.
+**Evidence (defect).** `MfgPoService.cs:499-505` and `:523-526`, re-verified 2026-08-19
+immediately before the fix.
+
+**Fix.** Task **M0-09**, branch `migration/M0-09-delete-guard-fix`, commit
+*"M0-09: Fix two unreachable delete guards in CanDeleteSalesOrderAsync (R-08)"* — two
+identifier changes, `hasInvoice` → `hasExpInvoice` at `:504` and `hasRc` → `hasCR` at
+`:525`. No message string, guard order or query changed.
+
+**Proof the guards were unreachable.** The two new tests were run against the unfixed
+service and failed with the observed value
+`(True, "Sales Order can be safely deleted.")` where `(False, <the guard message>)` was
+expected. Both pass after the fix.
+
+**Tests that pin it** (`tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`):
+`CanDeleteSalesOrder_WithOnlyExportInvoice_IsRefused`,
+`CanDeleteSalesOrder_WithOnlyContractReview_IsRefused`, plus the regression pair
+`CanDeleteSalesOrder_WithTaxInvoice_IsRefused` and
+`CanDeleteSalesOrder_WithRouteCard_IsRefused` (green before and after).
+
+**Behaviour change.** Sales Orders whose only downstream document is an export invoice, or
+only a contract review, were reported deletable and are now refused. No data is altered —
+`CanDeleteSalesOrderAsync` is a read-only eligibility check.
 
 **Confidence.** Confirmed.
-**Disposition.** **Bug.** Fix in the service (one place, benefits both UIs).
-**Migration note.** Fix before exposing the delete endpoint — an API makes the wrong
-branch far easier to hit. Risk R-08. Audit the other ~40 `CanDelete…Async` methods for the
-same copy-paste pattern (INV-011).
+**Disposition.** Fixed in the service (one place, benefits both UIs).
+**Still open.** The audit of the other ~40 `CanDelete…Async` methods for the same
+copy-paste pattern is **not** done here — it is task M0-10 / INV-025.
 
 ### BR-SO-003 — Order and line cancellation require a reason and check transactions first
 

@@ -65,6 +65,32 @@ last_verified: 2026-08-18
 Ranges are reserved so that concurrent sessions cannot collide. **Before claiming an id,
 `grep` this file for it.** Ids are never reused or renumbered.
 
+> ### ⚠ Id collision — half resolved 2026-08-19, half still live
+>
+> Two unmerged branches each claimed the same ids, because `grep`-before-claim only sees
+> *merged* work and cannot see a sibling branch. **`M2-A01-01` renumbered and merged; `M0-06`
+> has not, and must renumber before it does.**
+>
+> | Id claimed by both | `M2-A01-01` — **renumbered to** | `M0-06` — **must still renumber to** |
+> |---|---|---|
+> | `KB-104` | **`KB-105`** ✔ merged | `KB-106` — *note it is also cited in an `ApplicationDbContext.cs` source comment, which must change with it* |
+> | `INV-035` | **`INV-037`** ✔ merged | `INV-038` |
+> | `Q-22` `Q-23` `Q-24` | **`Q-27` `Q-28` `Q-29`** ✔ merged | n/a — `M0-06` holds `Q-25`/`Q-26`, which do not collide |
+> | footnote `¹³` | **`¹⁸`** ✔ merged | `¹⁶` — does not collide, `master` skips 16 |
+>
+> **The collision was wider than first recorded.** It was found as two ids; it was actually
+> **six** — three open questions and a tracker footnote were also duplicated, and merging blind
+> would have silently overwritten three of `master`'s open questions with three different ones
+> bearing the same numbers.
+>
+> **This is a process defect, not a mistake by either session.** `grep`-before-claim only works
+> against what is *merged*; it cannot see a sibling branch. Two branches allocating from one
+> registry will collide again. Until the allocation rule accounts for in-flight branches —
+> reserving on branch creation, or partitioning ranges per workstream — **check
+> `git branch --no-merged master` for competing claims before allocating an id**, not just this
+> file. `M0-06`'s runbook already cites KB-104 in a source comment
+> (`ApplicationDbContext.cs`), so renumbering that side means editing that comment too.
+
 | Range | Purpose | Allocated |
 |---|---|---|
 | KB-000 – KB-079 | Analysis knowledge base (as-is + proposals) | through KB-070 |
@@ -74,13 +100,13 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-087 | **Claimed 2026-08-17 by M0-07** — [ci-pipeline.md](execution/ci-pipeline.md) | allocated |
 | KB-088 – KB-090 | **Claimed 2026-08-16** — [workflow.md](execution/workflow.md), [current-task.md](execution/current-task.md), [task-template.md](execution/task-template.md) | allocated |
 | KB-091 – KB-093 | **Claimed 2026-08-16** — [autonomous-runner.md](execution/autonomous-runner.md), [failure-log.md](execution/failure-log.md), [runner-state.md](execution/runner-state.md) | allocated |
-| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11), KB-105 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **Next free: KB-105**, or KB-114+ |
+| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11), KB-105 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **Next free: KB-106**, or KB-114+ — but `M0-06`'s unmerged branch still claims `KB-104`, which must become `KB-106` before it merges (its id is also cited in an `ApplicationDbContext.cs` source comment) |
 | ADR-nnn | Architecture decisions | through ADR-005 |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
-| INV-nnn | Investigation registry rows | through INV-037 (030–033 reserved; INV-037 claimed 2026-08-18 by M2-A01-01; **next free INV-036** — see investigation-registry.md) |
+| INV-nnn | Investigation registry rows | through INV-037 (030–033 reserved; **INV-036** claimed 2026-08-19 by M0-13; **INV-037** by M2-A01-01, renumbered from 035 on merge). **Next free: INV-038** — but `M0-06`'s unmerged branch still claims `INV-035`, which must become `INV-038` before it merges. See investigation-registry.md |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
 | R-nn | Risks | through R-37 |
-| Q-nn | Open questions | through Q-29 (Q-20 claimed 2026-08-17 by M0-07; Q-21 by the 2026-08-18 M0-12-01 close-out; **Q-27, Q-28, Q-29 claimed 2026-08-18 by M2-A01-01**. **Next free: Q-25.** Note `M3-1-01` still says it expects to start at Q-20 — that text is stale) |
+| Q-nn | Open questions | through Q-29, **with a gap**: Q-20 (M0-07), Q-21 (M0-12-01 close-out), Q-22 (M0-12-01 push authority), Q-23/Q-24 (M0-12-02), **Q-27/Q-28/Q-29 (M2-A01-01, renumbered from 22–24 on merge)**. **`Q-25` and `Q-26` are claimed by `M0-06`'s unmerged branch — do not reuse them.** **Next free: Q-30.** Note `M3-1-01` still says it expects to start at Q-20 — that text is stale |
 
 A task that produces a durable document allocates the next free **KB-1xx** id, adds its row
 to the registry above, and records the id in the task's *Documentation Updates* section.

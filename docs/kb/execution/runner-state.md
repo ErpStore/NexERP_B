@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 ---
 
@@ -38,25 +38,26 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `BLOCKED` |
-| **Stop reason** | `M0-12-01: implementer returned no result` |
-| **Run started** | 2026-08-18 |
-| **Last transition** | 2026-08-18 — runner halted after attempt 1 of this run (cumulative attempt 3 of 4) returned no result from implementer. No implementation occurred. |
-| **Current task** | `M0-12-01` — Create the test project and wire it into CI — **`Blocked`** (attempts 1, 2, and 3 of 4 all returned no result from the implementer; nothing implemented, nothing to reconcile) |
-| **Current phase** | `BLOCKED` |
-| **Current agent** | n/a — no run is live |
-| **Current model** | Implement: `opus`; Validate: `opus`; Investigate: `opus` (Classification: `task_type: Testing` → base MEDIUM, raised to **HIGH** because 4 tasks — `M0-12-02`, `M0-13`, `M0-09`, `M0-06` — name `M0-12-01` in `depends_on`, per KB-091 §4.2; Risk: MEDIUM default; no frontmatter override present in `tasks/M0-12-01.md`) |
-| **Attempt** | 3 of 4 used cumulatively (attempt 1: 2026-08-18 first dispatch; attempt 2: 2026-08-18 second dispatch; attempt 3: 2026-08-18 third dispatch, this halt). One remains, held in reserve pending human review — do not spend it on an identical re-dispatch without first checking the dispatch layer. |
-| **Escalations** | 0 of 1 (this cycle) — no escalation trigger applied; there was no failure content to classify on any of the three attempts |
-| **Last validation** | `M0-12-01` — verdict `none` ("validation did not complete"), attempt 3 of 4, 0 escalations. Not a `PASS`/`FAIL` — the implementer produced nothing to validate, for the third consecutive attempt. Full record: [`tasks/M0-12-01.md` § Execution Record](tasks/M0-12-01.md). The most recent actual `PASS` remains `M0-14` (Vivek sign-off, merge `275c6e2`). |
-| **Tasks processed this run** | M0-12-01: complexity `HIGH`, risk `MEDIUM`, attempt 1 of this run, escalations 0, verdict `none`, status `BLOCKED`, stop reason `implementer returned no result` |
-| **Classification** | `task_type: Testing` → base `MEDIUM` ([KB-091 §4.1](autonomous-runner.md#41-base-complexity-from-task_type)). Raise applied: 4 tasks (`M0-12-02`, `M0-13`, `M0-09`, `M0-06`) name `M0-12-01` in their `depends_on` — ≥3 tasks naming this one ([KB-091 §4.2](autonomous-runner.md#42-raise-one-level-for-each-of-these-that-is-true)) → **complexity HIGH**. No other raise applies: `estimate` is 0.5 d (not ≥3 d); `depends_on` names only 1 task (`M0-07`); `business_rules: []` in frontmatter; `source_files` all sit under the single project `V.SMART.Shared`; the task does not modify authn/authz/tenancy/numbering/calculation logic. **Risk: MEDIUM (default)** — unchanged from selection; this classification was never exercised because no implementation occurred. |
-| **Models this run** | Per [KB-091 §5.1](autonomous-runner.md#51-the-routing-table) at complexity HIGH: Investigate `opus`, Implement `opus`, Validate `opus`, Diagnose (first failure) `opus`, Diagnose (escalated) `opus`. |
-| **Blocked on** | **`M0-12-01` is now genuinely blocked** — not on task content, but on confirming the dispatch/agent-invocation layer is healthy before spending the fourth and final attempt on what may be the same unverifiable non-event. Still genuinely human-blocked elsewhere: `M0-04` `Blocked`⁴ (unidentified owner, production SQL / GST gateway access — also blocks `M0-05`); `M0-01-03` `Needs Review` (repo-side work merged; only a human-executed rebuild drill remains, a hard G0 exit criterion). Also outstanding but not blocking selection: M0-07's sixth criterion — branch protection does not yet require the CI check (mechanism location Unknown; `/rulesets` returns `[]` while `branches/master` reports `protected: true`, so check Settings → **Branches**). |
-| **Owner to unblock M0-12-01** | **Whoever administers the autonomous runner / agent-dispatch infrastructure — not named anywhere in the repository.** In their absence, the repository owner (**Vivek**) is the fallback contact. They need to check whether all three empty-return attempts (2026-08-18) share a real cause (e.g. all genuinely `529 Overloaded`) or whether something systemic in dispatch is failing silently. Attempts used: 3 of 4, one remains — do not spend it on an unexamined fourth identical re-dispatch. See Q-21 in `../open-questions.md`. |
+| **Status** | `STOPPED` |
+| **Stop reason** | Clean end of session — `M0-09` close-out complete. This session's instruction was record-outcome-only ("do NOT implement anything and do NOT start another task"), so it stops at this task boundary by design, not because of a blocker. |
+| **Run started** | 2026-08-19 |
+| **Last transition** | 2026-08-19 — `M0-09` implemented on `migration/M0-09-delete-guard-fix` (`8e3b19d`), validated `PASS` (`scopeOk: true`, `failureCategory: none`, all 12 acceptance criteria `MET`, independently re-derived including a separate-worktree reproduction of the pre-fix red state), and closed out `Needs Review` — not `Completed`, per [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed). `docs/kb/execution/tasks/M0-09.md`, `task-tracker.md` (footnote 15), `current-task.md`, `technical-debt-register.md` and `investigation-registry.md` all updated in this close-out session. Selected `M0-06` as the next dependency-ready task per the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule): of the four tasks the `M0-12-01` merge released, `M0-12-02` and `M0-13` are `Completed`, `M0-09` just closed `Needs Review` (not re-selectable), leaving `M0-06` as the sole genuinely `Ready` candidate — no tie-break needed. `M0-06`'s ordering prerequisite on `M0-13` (both risk touching `ApplicationDbContext.cs` seed data) is satisfied — `M0-13` is `Completed` and merged. |
+| **Current task** | `M0-06` — Remove the seeded default Administrator credential. See [`tasks/M0-06.md`](tasks/M0-06.md). Not yet started. |
+| **Current phase** | Selected, not dispatched — this close-out session's instruction was record-outcome-only. |
+| **Current agent** | n/a — not yet dispatched |
+| **Current model** | n/a — not yet classified for this task |
+| **Attempt** | 0 of 3 |
+| **Escalations** | 0 |
+| **Last validation** | `M0-09` — verdict `PASS`, attempt 1 of 3, 0 escalations, `scopeOk: true`, `failureCategory: none`. Full record: [`tasks/M0-09.md` § Execution Record (2026-08-19)](tasks/M0-09.md#execution-record-2026-08-19); `task-tracker.md` footnote 15. No validation yet for `M0-06`. |
+| **Tasks processed this run** | `M0-09` — implemented, validated `PASS`, recorded `Needs Review` (awaiting owner review/merge) |
+| **Classification** | Not yet computed for `M0-06` — leave to the session that dispatches it. `M0-06` is `task_type: Security`, `business_rules: [BR-AUTH-001, BR-AUTH-002]` non-empty, and touches `ApplicationDbContext.cs`/`Migrations/`, which are exactly the surfaces [KB-091 §4.2](autonomous-runner.md#42-raise-one-level-for-each-of-these-that-is-true) and §4.3 flag for raises — expect at least `HIGH` complexity and `HIGH` risk, but compute it properly rather than reusing this note as the classification. |
+| **Models this run** | n/a — no model routing decided for `M0-06` yet |
+| **Blocked on** | Nothing blocks `M0-06` itself. Still human-blocked elsewhere, and still barring **G0** (so M2 remains shut): `M0-04` `Blocked`⁴ (unidentified owner, production SQL / GST gateway access — also blocks `M0-05`); `M0-01-03` `Needs Review` (repo-side work merged; only a human-executed rebuild drill remains, a hard G0 exit criterion); `M0-09` `Needs Review` (this session's work, awaiting owner review/merge — blocks `M0-10` until merged); `M0-11` `Blocked` on the owner (Q-01 product decision, released by `M0-13`'s merge but not runner-selectable). |
 | **Owner to unblock M0-04** | Unknown. Must be identified from operations/infrastructure team. Once rotated, also unblocks `M0-05` (purge secrets from git history), whose other Hard prerequisite (`M0-03`) is already `Completed`. |
 | **Owner to unblock M0-01-03** | Repository owner — needs to run/record the rebuild drill against a real, disposable SQL Server instance (`db/REBUILD-DRILL-LOG.md` is a skeleton, every field `TBD`); see `tasks/M0-01-03.md`. This is a hard G0 exit criterion. |
-| **Next ready task** | **None.** `M0-12-01` — the only task that had reached `Ready` — is now `Blocked` pending the dispatch-layer check above. `M0-12-02`, `M0-13`, `M0-09`, `M0-06` (and transitively `M0-10`, `M0-11`) stay `Blocked` behind it. No run should self-select a next task; this is a stop for a human, per Status `BLOCKED` above. |
+| **Owner to unblock M0-09** | Repository owner — review and merge `migration/M0-09-delete-guard-fix` (`8e3b19d`), validated `PASS`. Once merged, `M0-10` (INV-025, delete-guard audit) becomes `Ready`. |
+| **Owner to unblock M0-11** | Repository owner — `M0-13` is `Completed` and merged (`9b57552`), so `M0-11` (the Q-01 product decision) is released; it needs an owner decision, not runner work — no runner may self-select a `Product Decision` task ([KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)). |
+| **Next ready task** | `M0-06` (P1, 1 d), selected above. `M0-10` stays `Blocked` behind `M0-09` until `M0-09` is reviewed and merged to genuinely `Completed`. |
 
 ### Status values
 

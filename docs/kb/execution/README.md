@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-17
+last_verified: 2026-08-19
 dependencies: [KB-001, KB-002, KB-003, KB-005, KB-020, KB-030, KB-040, KB-041, KB-050, KB-051, KB-052, KB-053, KB-060, KB-070, KB-071, KB-081, KB-082, KB-083, KB-084]
 ---
 
@@ -348,6 +348,12 @@ None. M0 starts immediately.
 - `M0-13 → M0-11`. The decision must be taken with current behaviour already pinned by
   tests, or the change is invisible.
 - `M0-09 → M0-10`. The audit uses the fix as its reference pattern.
+  **2026-08-19:** M0-09's fix is implemented on `migration/M0-09-delete-guard-fix` (two
+  identifiers in `MfgPoService.CanDeleteSalesOrderAsync`, pinned by
+  `tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`; suite 79/79 green).
+  **M0-10's reference pattern therefore exists**: a `CanDelete…` guard that computes one
+  boolean and tests another, proven unreachable by a test that seeds *only* the document the
+  guard is supposed to catch. Task status is recorded in KB-081, not here.
 
 **Must NOT be parallelised despite appearing unrelated:**
 - `M0-14` and `M0-03-01` both edit `V.SMART.Web/appsettings.json`.
@@ -387,23 +393,87 @@ otherwise **M0-12-01 → M0-13 → M0-11**.
 ### Exit Gate — G0
 - [ ] A fresh, empty SQL Server can be brought to a working tenant database **from source
       control alone** (EF migrations + all 94 procedures) and the app runs against it.
-- [ ] No connection string or JWT secret in the working tree **or** in `git grep … HEAD`.
-- [ ] Exposed credentials rotated, confirmed by the person with production access.
-- [ ] Repository visibility deliberately decided and recorded.
-- [ ] CI green on `master`, running on every push, with a recorded warning baseline.
-      *(M0-07, 2026-08-17: the pipeline, the gate and the baseline exist and are proven
-      locally — `.github/workflows/ci.yml`, `ci/warning-baseline.json`, [KB-087](ci-pipeline.md).
-      The box stays **unticked**: the workflow has never run on a hosted runner, `master` does
-      not yet carry it, the committed baseline is still marked `provisional` until the runner
-      regenerates it, and no required status check exists. See KB-087 §8 for exactly what is
-      and is not verified.)*
-- [ ] `CalculationService` and `StockManagerService` characterisation tests passing in CI.
-- [ ] Q-01 answered and recorded in [open-questions.md](../open-questions.md).
+- [~] No connection string or JWT secret in the working tree **or** in `git grep … HEAD`.
+      *(**DEFERRED to the end of the milestone by the repository owner, 2026-08-19.** Depends
+      entirely on `M0-05`, which depends entirely on `M0-04`. Not met, and deliberately not
+      counted as met — see the **G0 deferral** note below.)*
+- [~] Exposed credentials rotated, confirmed by the person with production access.
+      *(**DEFERRED to the end of the milestone by the repository owner, 2026-08-19.**
+      Production SQL / GST e-Invoice gateway access is not available now; the owner will
+      schedule it. `M0-04` stays `Blocked`. **The exposure is live meanwhile** — R-01 records
+      live database credentials in a public repository's history, and the KB's own assessment
+      is that "the values are compromised regardless". See the **G0 deferral** note below.)*
+- [x] Repository visibility deliberately decided and recorded.
+      *(**MET.** Public, by deliberate owner decision 2026-08-12, recorded in
+      [KB-085](M0-00-baseline-decisions.md#repository-visibility-correction-inv-034) via INV-034
+      after an earlier finding was corrected twice. The criterion asks that the choice be
+      deliberate and recorded — it is; it does not ask that the repository be private.)*
+- [x] CI green on `master`, running on every push, with a recorded warning baseline.
+      *(**MET 2026-08-19.** `master` was pushed on the owner's explicit in-conversation
+      instruction (`44e3614..20be92f`, 37 commits) — the first time `origin/master` has carried
+      `.github/workflows/ci.yml` — and the **run on `master` is green**, owner-confirmed. The
+      workflow triggers `on: push: branches: ['**']`, so "on every push" holds. **Two caveats,
+      recorded rather than glossed:** (1) `ci/warning-baseline.json` still carries
+      `"provisional": true` — per [KB-087](ci-pipeline.md) the runner's numbers supersede local
+      ones, so the baseline should be regenerated from this green run's warning total before
+      the flag is cleared; (2) **no required status check is attached** — the push reported
+      `Bypassed rule violations … Changes must be made through a pull request`, so a
+      pull-request rule exists and the owner holds bypass rights, but CI does not gate merges.
+      That second half is the part of **Q-20** still open.)*
+- [x] `CalculationService` and `StockManagerService` characterisation tests passing in CI.
+      *(**MET 2026-08-19.** Both suites exist and now run on a hosted runner: `StockManagerService`
+      — 25 tests (M0-13); `CalculationService` — 30 plus 7 for the `CommonConstants` GST rate
+      lists (M0-12-02); plus M0-12-01's 11 and M0-09's 6. `master` was pushed on the owner's
+      explicit instruction (`44e3614..20be92f`, 37 commits) and the **CI run on `master` is
+      green**, owner-confirmed — so all **79** tests are covered by a hosted run, not only a
+      workstation. Supersedes the earlier note that no hosted run covered them.)*
+- [x] Q-01 answered and recorded in [open-questions.md](../open-questions.md).
+      *(**MET 2026-08-19.** The repository owner decided: **preserve but surface** — the API
+      reproduces today's allocation exactly, but the shortfall is returned to the caller and
+      shown, rather than being silent. Decided against a **pinned** baseline: `M0-13` had
+      already fixed the behaviour in green characterisation tests (`S13`–`S16`), so this was a
+      choice about measured code, not unpinned code. The criterion asks that Q-01 be *answered
+      and recorded* — it is. **Two things it does not close:** `M0-11` still owes `ADR-006`,
+      the written brief, which now records an accepted decision rather than proposing options;
+      and the **implementation** of surfacing is deferred by the owner until after Milestone 2
+      and has no task id yet. Neither is a G0 exit condition.)*
+
+### G0 deferral — criteria 2 and 3, decided by the repository owner 2026-08-19
+
+**Owner decision, in his words:** *"currently we dont have Needs production SQL / GST gateway
+access this we will plan it at end completing the milestone"*, and — when told that deferring
+those two still leaves G0 short — *"G0 closes with 2 and 3 deferred"*.
+
+**What this means, stated so nobody later reads G0 as fully passed:**
+
+- Criteria **2** (no secrets in tree or history) and **3** (credentials rotated) are **not
+  met**. They are marked `[~]`, not `[x]`. `M0-04` and `M0-05` remain `Blocked`.
+- G0 may be declared passed for the purpose of **unbarring M2** with those two outstanding.
+  This is a scope decision by the owner, not a finding that the criteria were satisfied.
+- **The security exposure is live while they wait.** [R-01](../risks/technical-debt-register.md)
+  records live database credentials committed to source control, in a repository that is
+  **public** by deliberate decision (KB-085/INV-034). The KB's own assessment is that "the
+  values are compromised regardless", and `M0-05` cannot fix that alone — purging history from
+  a public repository does not retract what is already cloned, forked or cached. **Rotation
+  (`M0-04`) is the only actual remedy**, and it is the deferred item.
+- The owner was told this before deciding. Recorded here because a deferral whose risk is
+  written down is a schedule choice; one whose risk is not is an accident waiting to be
+  rediscovered.
+
+**Still genuinely open, and not covered by this deferral:** criterion **1** only — the rebuild
+drill (`M0-01-03`), which needs a disposable SQL Server. Criterion **7** closed on 2026-08-19
+when the owner answered Q-01 (*preserve but surface*). **One criterion now stands between the
+project and G0, and it is the only one that cannot be settled by a decision — it needs
+hardware.**
 
 ### Definition of Done
 All G0 boxes ticked **and** the milestone review recorded per
 [KB-084](review-templates.md): planned vs actual duration, variance, outstanding risks,
 lessons learned. Tasks being marked Completed is not sufficient.
+
+**Amended 2026-08-19:** criteria 2 and 3 are deferred by owner decision (above) and will not be
+ticked at G0. The milestone review must record them as carried debt into M2, with `M0-04`/`M0-05`
+still open, rather than silently omitting them.
 
 ---
 

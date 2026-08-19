@@ -21,103 +21,107 @@ dependencies: [KB-081, KB-082, KB-088]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: **none.** Gate G0 still bars M2, and no M0 task is selectable.
+## Active task: **M0-06** — Remove the seeded default Administrator credential
 
-Nothing is in progress. The last session closed `M2-A01-01` (below) under a one-off,
-owner-authorised gate exception; **that exception is spent and does not transfer.** No task
-satisfies the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+Full spec: [`tasks/M0-06.md`](tasks/M0-06.md). Type Security, P1, estimate 1 d, Gate G0.
+Depends on `M0-12-01` (Hard, `Completed`) and is ordered after `M0-13` (Hard ordering
+constraint — both risk touching `ApplicationDbContext.cs` seed data; `M0-13` is now
+`Completed` and merged, `3f6dfa8`, so this ordering constraint is satisfied).
 
-**Do not open `M2-A01-02`, or any other M2 task.** Every one of them declares `G0` — directly
-or transitively — and G0 has **zero of seven exit criteria ticked**
-([KB-080 §7](README.md#7-m0--stabilise)). `M2-A01-01` was exempted only because it produces
-documentation and changes no behaviour. `M2-A01-02` writes the authorization filter, and
-[KB-105 §9](../architecture/server-side-authorization-spec.md) lists verification for it that
-**cannot run until `M0-12-01` creates a test project** — which is itself `Blocked`.
+**Do NOT implement it yet.** This entry only selects it as the next dependency-ready task; a
+future session executes it.
 
-## What a human must clear, before anything else can move
+### Why this task, not another
 
-Four blockers, three of them the repository owner's. This is the whole critical path.
+Selection rule: [`dependency-graph.md` § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
-| # | Blocker | Status | Owner |
-|---|---|---|---|
-| 1 | **`M0-12-01`** — create the test project and wire it into CI | `Blocked`¹² — **two** dispatches (2026-08-18), both returned no result. **1 of 3 attempts left** (corrected 2026-08-19 — see below). Do not spend it on a third identical re-dispatch before someone inspects the agent-dispatch layer (**Q-21**) | Whoever administers the runner's dispatch layer; fallback **Vivek** |
-| 2 | **`M0-01-03`** — rebuild drill | `Needs Review`¹ — repo-side work merged; `db/REBUILD-DRILL-LOG.md` is a skeleton, every field `TBD`. A hard G0 exit criterion | **Vivek** — needs a disposable SQL Server instance |
-| 3 | **`M0-07`** — CI green on `master` | `Completed`⁷ as a task, but the G0 box stays **unticked**: never run on a hosted runner, `master` does not carry the workflow, `ci/warning-baseline.json` is still `provisional`, no required status check exists (**Q-20**) | **Vivek** — GitHub org admin |
-| 4 | **`M0-04`** — rotate the exposed credentials | `Blocked`⁴ — owner never identified. Also blocks `M0-05` (purge secrets from history), whose other prerequisite `M0-03` is `Completed` | Unidentified ops/infra person |
+`M0-09` (fix the two unreachable delete guards, R-08) closed this session at
+`Needs Review` (validated `PASS`, implemented on `migration/M0-09-delete-guard-fix`,
+`8e3b19d`) — it is **not** a candidate again until reviewed and merged. That leaves `M0-06`
+as the only task the `M0-12-01` merge released that is both dependency-ready and not
+blocked on a human step: `M0-12-02` and `M0-13` are `Completed`, `M0-09` is `Needs Review`,
+and `M0-06` alone remains genuinely `Ready`. No tie-break was needed.
 
-Blocked transitively behind `M0-12-01`: `M0-12`, `M0-12-02`, `M0-13`, `M0-09`, `M0-10`,
-`M0-06`, `M0-11`. Parent containers, never worked directly: `M0-01`, `M0-12`.
+`M0-10` (audit all `CanDelete…Async` guards, INV-025) is **not** ready — it names `M0-09` as
+a Hard prerequisite and the selection rule requires that prerequisite to be genuinely
+`Completed`, not `Needs Review`. It stays `Blocked` until `M0-09`'s branch is reviewed and
+merged.
 
-Full detail and candidate owners: [`runner-state.md`](runner-state.md) (KB-093);
-[`task-tracker.md`](task-tracker.md) (KB-081) footnotes 1, 4, 7, 12, 13.
+### What M0-06 does, in brief
 
-> **Bookkeeping inconsistency — RESOLVED 2026-08-19, on `master` in `50a97c9` and `56d8389`.**
-> `runner-state.md` claimed `M0-12-01` had spent 3 of 4 attempts. **Both numbers were wrong.**
-> **Numerator:** the "3" counted the 2026-08-18 pass that made *no dispatch at all* — it recorded
-> `0 of 4 used this pass` and `n/a — no dispatch made this pass` — as though it were an attempt.
-> `task-tracker.md` footnote 12, `failure-log.md` (two entries) and `tasks/M0-12-01.md` (two
-> Execution Records) all agree on **two**, and KB-093's own tie-break rule — *"If this file and
-> KB-081 disagree, KB-081 wins and this file is corrected"* — settles it.
-> **Denominator:** the budget is **3, not 4**, per [KB-091 §6.4](autonomous-runner.md#64-retry-rules)
-> — *"Attempt 3 fails → **`BLOCKED`**. Stop. … Do not attempt a fourth."* — and
-> `.claude/workflows/migration-runner.js:43` (`maxRetries: 2, // 2 retries = up to 3 implementation
-> attempts`), confirmed live by the 2026-08-19 run reporting `maxRetries: 2`. No configured value
-> anywhere is 4; every "of 4" in this KB was agent prose.
-> **Net: `M0-12-01` has used 2 of 3 — exactly one attempt remains.** The standing instruction is
-> unchanged and now correctly grounded: do not re-dispatch until **Q-21** is answered, because a
-> third failure ends the budget outright.
+`ApplicationDbContext.OnModelCreating` seeds a hard-coded `Administrator` user with a fixed
+PBKDF2 hash into **every tenant database** (`ApplicationDbContext.cs:1136-1148`, per R-09 /
+KB-060). The task removes that seed from source and replaces it with a bootstrap path that
+does not leave a known password in source control — **without locking out any tenant that
+has no other administrator account**. Read the full task file before starting: it requires
+three deliverables (seed removed, a documented/executed bootstrap or migration path, and an
+explicit statement of tenant impact), not just a code deletion.
 
-## Most recently closed: `M2-A01-01` — Implementation spec from ADR-004
+**Ordering constraint, already satisfied but re-verify at start:** confirm
+`ApplicationDbContext.cs`'s current seed section still matches the cited line range before
+touching it — `M0-13`'s merge may have shifted nearby lines even though it targeted
+`StockManagerService.cs`, not this file.
 
-`Needs Review` on `migration/M2-A01-01-authorization-spec`. Documentation only; no `.cs`,
-`.razor`, `.csproj` or `.json` file touched. `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`
-→ **0 errors, 6,695 warnings**, matching the [KB-086](M0-15-build-baseline.md) baseline exactly,
-which is how "nothing under `V.SMART/` changed" was proven. Executed under the gate exception
-described in [KB-081 footnote 13](task-tracker.md) and
-[KB-105 §12](../architecture/server-side-authorization-spec.md).
+### What M0-09 left for a future session, carried forward here in case it is relevant
 
-**Deliverable:** [`architecture/server-side-authorization-spec.md`](../architecture/server-side-authorization-spec.md),
-`doc_id` **KB-105** (not `KB-016` as the task file suggested — the INDEX allocation rule
-reserves `KB-1xx` for task-produced contract specs; the task file's own instruction to verify
-against the INDEX is what produced this). Full record:
-[`tasks/M2-A01-01.md` § Execution Record (2026-08-18)](tasks/M2-A01-01.md#execution-record-2026-08-18).
+Not part of `M0-06`'s scope, but recorded so nothing is lost: an **unreported instance of
+the same compute-one/test-another guard defect** exists at `MfgPoService.cs:613-615`
+(`CanSalesOrderItemCancelCheckAsync` — `hasCR` computed, `hasRc` tested), found by the
+`M0-09` validator, not fixed, and not `M0-06`'s concern. It is recorded under R-08 in
+[`technical-debt-register.md`](risks/technical-debt-register.md) (KB-060) and as a scope
+note on `INV-025` in [`investigation-registry.md`](investigation-registry.md) (KB-003), for
+`M0-10` to pick up once it runs.
 
-### Discoveries a future session must reuse rather than re-derive
+## Most recently closed: `M0-09` — Fix the two unreachable delete guards (R-08)
 
-- **`Program.cs` line numbers have shifted again.** In `V.SMART/V.SMART.Api/Program.cs`,
-  `UseAuthentication()` is at **`:121`** and `UseAuthorization()` at **`:122`** — the
-  `M2-A01-01` task file says `:114`/`:115`. `JwtTokenService`'s claim list is at `:29-35`, not
-  `:25-31`. Both API and Web `Program.cs` are shared composition roots; **always re-read
-  before citing a line number in either.**
-- **`RightsHelper`'s screen-name match is LINQ-to-Objects, not SQL.**
-  `UserRightsRepository.cs:27` calls `ToListAsync()` before `RightsHelper.cs:8` runs, so the
-  comparison is ordinal and case-sensitive. Pushing it into SQL would make it
-  collation-dependent and silently *widen* access. This single fact decides the filter's
-  design ([KB-105 §D-1](../architecture/server-side-authorization-spec.md)).
-- **`Screens.ScreenName` is `nvarchar(max)`** — SQL Server cannot index it as a key column, so
-  no uniqueness is enforceable on it as declared.
-- **`CurrentUserService.GetUserIdAsync()` returns `0`** for a missing or unparseable claim
-  (`:59-65`). Anything on the API side that needs a user id must read the claim directly.
-- **No code path writes a `Screens` row** — the 152 seeded rows are the entire runtime
-  catalogue (Confirmed negative result; the full list is KB-105 Appendix A).
-- **`M2-B05` must not "correct" the seed's typos.** `Id = 82` is `"Sub-Contrect GRN"`; `Id =
-  107` is `"Advaceadjustment"`. They are the canonical matching strings.
+**`Completed` and merged (`47b2d2e`, 2026-08-19)** on the owner's in-conversation instruction.
+Re-verified on `master` after the merge: `dotnet test` **79 passed, 0 failed**;
+`dotnet build V.SMART.Api --no-incremental` **0 errors, 6,694 warnings** (baseline 6,695).
 
-### Three new questions, one of which blocks a specific task
+> **This released `M0-10`, which is now `Ready` — and it is no longer a speculative sweep.**
+> `M0-09` fixed two compute-one/test-another guards; its validator found a **third, unreported
+> instance of the identical defect** at `MfgPoService.cs:613-615`
+> (`CanSalesOrderItemCancelCheckAsync` computes `hasCR`, tests `hasRc`), correctly left unfixed
+> as out of scope. The bug class is confirmed wider than anyone had catalogued, and `M0-10` is
+> the audit that finds the rest. Two tasks are now `Ready`: **`M0-06`** (P1, 1 d) and
+> **`M0-10`** (P1, 2 d).
 
-| ID | In one line | Blocks |
-|---|---|---|
-| **Q-27** | Do duplicate `(UserId, ScreenId)` rows exist in live tenant DBs? Nothing in the model prevents them, and the rights query has no `OrderBy`, so Blazor's `FirstOrDefault` is **already non-deterministic today** | Nothing immediately — decides whether the filter faithfully reproduces correct behaviour or a latent bug |
-| **Q-28** | An API-only user acquires **no** `UserRight` rows: `AuthController.Login` never calls `SyncRightsForUserAsync`, and the Blazor path does so only for `UserId == 1` | **`M2-A02`** — the filter would 403 an administrator out of the vertical slice on its first request |
-| **Q-29** | All five `UserRight` write sites are in the **Blazor** host, none in the API, so cross-process cache invalidation does not exist and the ≈60 s TTL is the only staleness bound | Scope of `M2-A01-03` |
+Pre-merge record follows. Implemented on `migration/M0-09-delete-guard-fix`
+(`8e3b19d`), attempt 1 of 3, 0 escalations. Validator verdict **`PASS`**, `scopeOk: true`,
+`failureCategory: none`, every acceptance criterion `MET` — independently re-derived,
+including the validator reproducing the pre-fix red state itself in a separate detached
+worktree. Two identifier changes only (`MfgPoService.cs:504,525`), no `Message` string or
+guard order touched. Suite 73 → 79, all green, run twice. `dotnet build V.SMART.Api`
+(CI form): 0 errors, 6,693 warnings (at the 6,695 baseline). KB-030, KB-060, KB-080,
+KB-003 all updated in the implementation commit; this close-out additionally recorded a
+validator-found lead (`MfgPoService.cs:613-615`) that the implementation commit did not
+surface. Full record:
+[`tasks/M0-09.md` § Execution Record (2026-08-19)](tasks/M0-09.md#execution-record-2026-08-19),
+[`task-tracker.md`](task-tracker.md) footnote 15.
 
-`Q-28` does **not** block `M2-A01-02`; it blocks `M2-A02`. All three are in
-[`open-questions.md`](../open-questions.md).
+**Not `Completed`** — awaiting the repository owner's review and merge, same standing
+convention as every other `PASS`-validated task this milestone
+([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)). **Unblocks nothing
+yet**: `M0-10` stays `Blocked` until this branch is merged.
 
-## Other open blockers, unchanged by this session
+## Other open blockers, unaffected by this change
 
-- **`Needs Review`** — implemented, validated, committed on its own branch, awaiting a human
-  review-and-merge step no autonomous session may perform
-  ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)): `M0-01-03`, `M0-02`,
-  and now `M2-A01-01`.
-- **`Blocked` on an unscheduled human**, not on any task: `M0-04`.
+- **`Needs Review`** — implemented, validated, committed on its own branch, awaiting a
+  human review-and-merge/sign-off step that no autonomous session may perform on its own
+  authority ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)):
+  `M0-01-03`, `M0-09`.
+- **`Blocked` on an unscheduled human**, not on any task: `M0-04` (unidentified owner —
+  tracker footnote 4).
+- **`Blocked`, transitively:** `M0-11` (Q-01 product decision, released by `M0-13`'s merge
+  but not runner-selectable — needs the owner, not a task), `M0-10` (behind `M0-09`'s
+  merge), `M0-05` (behind `M0-04`).
+- **A parent container**, never worked directly: `M0-01`, `M0-12`.
+
+Full detail on why each is blocked and who the candidate owner is:
+[`runner-state.md`](runner-state.md) (KB-093) § *Blocked on* / *Owner to unblock ...* rows,
+and [`task-tracker.md`](task-tracker.md) (KB-081) footnotes 1, 4, 13, 15.
+
+> **This does not open M2.** Gate G0 still has zero of seven exit criteria ticked.
+> `M0-01-03`'s rebuild drill, `M0-07`'s CI branch-protection criterion and `M0-04`'s
+> credential rotation remain human-owned and unchanged by this session. Even once `M0-06`
+> and `M0-09`/`M0-10` land, G0 still needs those three human steps.

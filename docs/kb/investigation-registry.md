@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 ---
 
 # Investigation Registry
@@ -31,7 +31,9 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-010 | External integrations (e-Invoice, e-Way, IFSC, SMTP, biometric) | Complete | `E_Invoice/**`, `EinvoiceDatabaseService.cs`, `EWayDatabaseService.cs`, `BankService.cs`, URL scan | [KB-011](architecture/backend-architecture.md#integrations-with-external-systems) | 2026-08-12 |
 | INV-021 | Angular pilot: scope and value | Complete | `frontend/vsmart-erp/src/**`, `package.json` | [KB-015](architecture/frontend-architecture-existing.md#the-angular-19-pilot-frontendvsmart-erp) | 2026-08-12 |
 | INV-022 | Background jobs / scheduled tasks | Complete | grep for `IHostedService`, `BackgroundService`, `PeriodicTimer`, Hangfire, Quartz — **none exist** | [KB-010](architecture/system-overview.md#background-processing) | 2026-08-12 |
-| INV-023 | Testing and CI | Complete | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
+| INV-023 | Testing and CI | Complete *(historical — **superseded 2026-08-19**: the first test project landed with M0-12-01. Read this row as a statement about 2026-08-12, not about now)* | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
+| INV-031 | Test-harness feasibility: hosting `ApplicationDbContext` in a test process | Complete | `V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs`, `.../Data/HumanResource/Attendance/Attendance.cs`, `.../Data/Inspection/**`, `.../Data/Master/Inventory_module/Item.cs`, `.../Data/Inventory(Stock)/StockAdd.cs`, `.../Services/MultiCompanyService/{I,}TenantDbContextFactory.cs`, `.../Services/CurrentUserService.cs`, plus **executed** spikes under EF Core 9.0.5 InMemory and Sqlite | **InMemory works, Sqlite does not** — full findings below | 2026-08-19 |
+| INV-036 | Testing an EF-backed business service through `IUnitOfWork` — the general recipe | Complete | `V.SMART/V.SMART.Shared/Repository/Repository.cs:70-83,103-115,137-172,323-326`, `.../Repository/InventoryStockRepository/StockAddRepository.cs:20`, `.../Repository/IRepository/IUnitOfWork.cs:84,270-272`, `.../Repository/UnitOfWork.cs:485,672,793`, plus the executed suite in `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs` (36/36 green, run twice) | **Recipe (Confirmed, M0-13):** mock `IUnitOfWork`, configure only the repository properties the service under test touches plus `SaveAsync`, and back each with the **real** repository over **one** real `ApplicationDbContext` (InMemory — INV-031). Two non-obvious constraints, each of which silently yields a test that asserts nothing if missed: **(1) `Repository<T>` never persists** — `CreateAsync` only calls `_dbSet.AddAsync` (`:70-83`), `UpdateAsync` only `_dbSet.Update` (`:103-115`), `DeleteAsync` only `_dbSet.Remove` (`:137-172`) — so the mock's `SaveAsync` **must** forward to `context.SaveChangesAsync()`, or nothing the service does reaches the store. **(2) One context instance for everything** — `GetQueryable()` returns `_dbSet.AsQueryable()` (`:323-326`), a *tracking* query, so the entities a service mutates are the instances a test asserts on, but only when repositories and assertions share one context; `TestDbContextFactory.CreateContext()` returns a fresh context per call over a shared database name, so call it once per test. Making the mock's `SaveAsync` throw on the *n*th call is also the only practical way to drive a non-`InvalidOperationException` into a service's `catch`, which is how the exception-translation paths were pinned. **Rejected alternative (Confirmed):** the real `UnitOfWork` over a fake `ITenantDbContextFactory` — its constructor (`UnitOfWork.cs:485`; `StockAdds` at `:672`, `SaveAsync` at `:793`) instantiates roughly 190 repositories per test and additionally needs `IPasswordHasher<User>`. **Negative results:** the InMemory provider cannot pin sort tie-breaking (it sorts stably, SQL Server does not), SQL null-equality semantics, or `[Precision]` rounding — keep test data clear of all three. | [KB-030](business-rules/business-rule-inventory.md), `tests/V.SMART.Shared.Tests/Infrastructure/StockScenarioBuilder.cs` | 2026-08-19 |
 | INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility. **Solution-build gap closed 2026-08-17 by M0-15** — see below.)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`, `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj`, `dotnet build NexGen-ERP---2025-master.sln`, `dotnet workload list` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands), [KB-086](execution/M0-15-build-baseline.md) | 2026-08-18 |
 
 **M0-07 amendment to INV-023 (2026-08-17) — CI now exists in the repository, but has never
@@ -49,6 +51,98 @@ session cannot push, so the workflow has never executed on a GitHub-hosted runne
 baseline is marked `provisional` until the runner regenerates it; and no required status check
 is configured on `master`. Confidence: **Confirmed** for what the files contain and for the
 local gate behaviour; **Unknown** for runner behaviour.
+
+### INV-031 — Test-harness feasibility: hosting `ApplicationDbContext` in a test process
+
+Produced by **M0-12-01**, 2026-08-19. Every finding below was **executed**, not reasoned
+about; each spike is retained as a permanent test in
+`tests/V.SMART.Shared.Tests/DbFixtureTests.cs`, so if one of these facts changes, CI says so.
+
+> **The pre-spike inference was wrong, and in the opposite direction.** The task specification
+> inferred (high confidence) that `Microsoft.EntityFrameworkCore.InMemory` could **not** build
+> this model because `OnModelCreating` calls the relational-only `ToView(null)` 65 times, and
+> that `Microsoft.EntityFrameworkCore.Sqlite` **could**, being relational. Both halves are
+> false. Do not re-derive this from the `ToView` count — it does not predict the outcome under
+> EF Core 9.0.5.
+
+**Finding 1 — the InMemory provider hosts the model. Sqlite does not.**
+*Evidence:* executed 2026-08-19, EF Core 9.0.5, SDK 10.0.400, `net9.0`.
+`new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(...).Options).Database.EnsureCreated()`
+returns `true`. The same call over
+`new SqliteConnection("DataSource=:memory:")` throws, verbatim:
+
+```
+Microsoft.Data.Sqlite.SqliteException: SQLite Error 1: 'near "MAX": syntax error'.
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+```
+
+*Business rule:* n/a. *Confidence:* **Confirmed**. *Last verified:* 2026-08-19.
+
+**Finding 2 — the Sqlite failure has a specific, locatable cause, and it is production code
+this task could not touch.** `Database.GenerateCreateScript()` under Sqlite emits an 8,523-line
+script containing five columns typed `NVARCHAR(MAX)` / `nvarchar(max)` — a SQL-Server-only
+type name that SQLite's parser rejects. They come from nine `[Column(TypeName = ...)]`
+attributes, **not** from `ApplicationDbContext.OnModelCreating` (which is why grepping the
+context for `HasColumnType` found nothing):
+`V.SMART/V.SMART.Shared/Data/HumanResource/Attendance/Attendance.cs:27,30,42,45`;
+`.../Data/Inspection/FinalInspection/FinalInspection.cs:87`;
+`.../Data/Inspection/FinalInspection/FinalInspectionRef.cs:21`;
+`.../Data/Inspection/IncomingInspection/IncomingInspectionRef.cs:23`;
+`.../Data/Inspection/MasterInspection/InspectionRef.cs:24`;
+`.../Data/Inspection/MasterInspection/MasterInspection.cs:47`.
+*Consequence:* Sqlite becomes viable only if those attributes are removed or made
+provider-conditional — a production-code change, out of scope here, and recorded as technical
+debt rather than made. *Confidence:* **Confirmed**. *Last verified:* 2026-08-19.
+
+**Finding 3 — `EnsureCreated()` DOES apply the `HasData` seeds under the InMemory provider.**
+This is the answer M0-06 and M0-13 were waiting on. Observed counts immediately after
+`EnsureCreated()`, with no manual seeding: `Screens` **152**, `Users` **1** (`UserName` =
+`"Administrator"`), `Stores` **9**, `UOM` **49**, `Category` **16**. Note there are **ten**
+`HasData` calls in `OnModelCreating`, not the two the task file named — `User` (:1136),
+`Screens` (:1151), `InspectionSettings` (:1331), `ScreenManagement` (:1340), `Category`
+(:1694), `Store` (:1715), `UOM` (:1729), `State` (:1783), `Currency` (:1828) and `StoreMap`
+(:1835). *Confidence:* **Confirmed**. *Last verified:* 2026-08-19.
+
+**Finding 4 — the foreign-key requirement for seeding `StockAdd`.** `StockAdd` declares three
+foreign keys — `ItemId`→`Item`, `StoreId`→`Store`, `ScreenCode`→`Screens`
+(`V.SMART/V.SMART.Shared/Data/Inventory(Stock)/StockAdd.cs:22-54`). Because of Finding 3,
+`Store` and `Screens` **already exist** after `EnsureCreated()`, so only an `Item` must be
+created. `Item` in turn needs a `MeasureUnit` (FK to `UOM`, `Item.cs:50-54`) and a
+`CategoryCode` (`Item.cs:41-45`) — both satisfiable from seeded rows — **and** non-nullable
+`HSNCode` / `SACCode` (`Item.cs:141-147`), which the InMemory provider *does* enforce:
+omitting them throws
+`Microsoft.EntityFrameworkCore.DbUpdateException : Required properties '{'HSNCode', 'SACCode'}' are missing for the instance of entity type 'Item'.`
+`TestDbContextFactory.SeedMasterData(context)` does exactly this and returns the new `ItemId`.
+*Confidence:* **Confirmed** (each fact observed as a test failure and then as a pass).
+*Last verified:* 2026-08-19.
+
+**Finding 5 — InMemory enforces required properties but NOT foreign keys.** A `StockAdd` with
+a dangling `ItemId` saves without error. Seed the parents anyway, for parity with SQL Server
+and so the test reads truthfully; do **not** rely on this harness to catch an FK violation.
+*Confidence:* **Confirmed** (nullability error observed in Finding 4; no FK error ever raised).
+*Last verified:* 2026-08-19.
+
+**Finding 6 — the harness satisfies the `IAsyncQueryProvider` constraint.** `IRepository<T>.GetQueryable()`
+results have EF async operators applied to them by callers — e.g.
+`StockManagerService.cs:114-116` (`FirstOrDefaultAsync`) and `:205-207` (`ToListAsync`) — which
+a `list.AsQueryable()` double cannot serve. The InMemory provider is a real EF Core provider,
+so `await context.Screens.Where(...).ToListAsync()` works. **M0-13 is therefore NOT blocked.**
+*Confidence:* **Confirmed** (executed). *Last verified:* 2026-08-19.
+
+**Finding 7 — what this harness cannot do, stated so nobody assumes otherwise.** The InMemory
+provider does not translate LINQ to SQL, so it **cannot** catch a "could not be translated"
+regression, and it does not enforce relational constraints such as the
+`OnDelete(DeleteBehavior.Restrict)` configured for `StockIssueTrack`→`StockAdd`
+(`ApplicationDbContext.cs:509-512`). Anything depending on SQL semantics needs a real SQL
+Server, which no test in this repository has. *Confidence:* **Confirmed** by the provider's
+documented contract plus Finding 5. *Last verified:* 2026-08-19.
+
+**Finding 8 — a plain `net9.0` test project references the multi-targeted, Razor-SDK
+`V.SMART.Shared` cleanly.** No `SetTargetFramework` and no switch to `net9.0-windows` was
+needed; the reference resolves to the `net9.0` leg automatically and the build succeeds
+(2 warnings, both the pre-existing `NU1608`, 0 errors). Negative result worth recording — this
+was an anticipated obstacle that did not materialise. *Confidence:* **Confirmed.**
+*Last verified:* 2026-08-19.
 
 **M0-07 amendment to INV-029 (2026-08-17) — runner-vs-local warning count: NOT YET COMPARED.**
 This is an explicit negative result, recorded so no future session assumes it was done. The
@@ -199,7 +293,7 @@ file. **No history rewrite is required for R-14.** Enforcement is now mechanical
 
 | ID | Topic | Status | Gap | Doc |
 |---|---|---|---|---|
-| INV-011 | Business rules — cross-module sweep | **Partial** | 12 rules extracted with evidence (calculation, FIFO stock, sales-order lifecycle, auth, approval, reporting, tenancy). Per-module extraction pending — see below | [KB-030](business-rules/business-rule-inventory.md) |
+| INV-011 | Business rules — cross-module sweep | **Partial** | 12 rules extracted with evidence (calculation, FIFO stock, sales-order lifecycle, auth, approval, reporting, tenancy). Per-module extraction pending — see below. **2026-08-19 (M0-13): BR-STK-001 and BR-STK-002 are now pinned by 25 executable characterisation tests** in `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs` (suite 36/36 green), covering FIFO order, `RcSubID`/`StoreId` discrimination, re-issue reversal, `AddOrUpdateStockAsync` arithmetic, both delete guards, all five user-facing exception strings, and the R-07 drift asserted numerically. Every line citation in KB-030 for those two rules was re-verified against the working tree on that date and is correct. **2026-08-19 (M0-12-02): BR-CALC-001 and BR-CALC-002 are now pinned by 37 executable characterisation tests** — `tests/V.SMART.Shared.Tests/Services/CalculationServiceCharacterisationTests.cs` (30) and `tests/V.SMART.Shared.Tests/Services/CommonConstantsGstRateTests.cs` (7); suite 73/73 green. They cover all nine algorithm steps, both tax branches (item-wise exercised with three lines at three rate shapes), the three silent early returns, the divide-by-zero guard, the negative-basic boundary, the tax-inclusive TCS base, `MidpointRounding.AwayFromZero` on two distinct midpoints, the signed `RoundOff`, the absence of intermediate rounding, and the R-15 zero-coercion. **Every line citation in KB-030 for those two rules was re-verified against the working tree on that date and is correct** — nothing had moved since M0-13's correction of the `:12-118` → `:12-114` range. **Negative results (Confirmed):** decimal **scale** could *not* be pinned (xUnit's `Assert.Equal(decimal, decimal)` is numerically equal across scales) — raised as **Q-24**; and `GetIGST`'s "not found" answer is indistinguishable from the listed `0.000m` rate, so R-15 can be pinned by value but not by that distinction. **2026-08-19 (M0-09): BR-SO-002 is now FIXED and pinned.** The two unreachable guards in `MfgPoService.CanDeleteSalesOrderAsync` (`:504` tested `hasInvoice` where it computed `hasExpInvoice`; `:525` tested `hasRc` where it computed `hasCR`) were corrected on branch `migration/M0-09-delete-guard-fix`. Both defects were re-verified present at those exact lines immediately before the fix, and the two new tests in `tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs` were **observed to fail** against the unfixed service, returning `(True, "Sales Order can be safely deleted.")` — the proof the guards were unreachable. BR-SO-001's `MfgPoService.cs:465-565` span and its message strings were re-verified unchanged on that date. **The wider `CanDelete…` audit is NOT part of this** — it remains INV-025 / task M0-10, untouched. **Stays `Partial`** — the other ten rules are unpinned and per-module extraction is still pending. **Negative result (Confirmed):** FIFO tie-breaking on equal `AddDate` could **not** be pinned — `StockManagerService.cs:206` declares no secondary sort key and the InMemory harness (INV-031) sorts stably while SQL Server does not; the suite uses distinct `AddDate` values and asserts nothing about ties. Same for whether SQL Server agrees with InMemory on `RcSubID == null` matching, and for `[Precision]` rounding — all three need a real SQL Server instance. | [KB-030](business-rules/business-rule-inventory.md) |
 | INV-030 | Stored-procedure drift across tenant databases (Q-14) | **Partial** (2026-08-17, M0-02 tooling half) | **The question is not answered — it is undecided, which is not the same as "no drift".** Method and database-free tooling delivered: `db/tools/list-deployed-procedures.sql` extended with *Query B* (`FINGERPRINT_QUERY_VERSION 2`) emitting `schema_name`, `procedure_name`, `create_date`, `modify_date`, `definition_length`, **`hash_raw`** and **`hash_normalised`** — the pre-existing single `DefinitionSha256Hex` (CR/TAB-stripped only) was neither, a Confirmed gap found by this task; plus `db/tools/compare-tenant-fingerprints.sh` (classifies `identical`/`cosmetic`/`divergent`/`missing_in_tenant`/`extra_in_tenant`, prints the arithmetic, aborts loudly on header mismatch, malformed row, `NULL` hash or duplicate row — each of those failure modes exercised against synthetic fixtures on 2026-08-17, no database, no fabricated CSV in `db/drift/`), `db/RUNBOOK-tenant-drift-check.md` and `db/drift/README.md`. **Negative result, Confirmed:** `db/drift/` contains no tenant fingerprint, so zero tenants have been compared. **Blocker:** a DBA holding `VIEW DEFINITION` on **≥2** tenant databases, plus a working tenant list (Q-12 unanswered); a session may not acquire or reuse a credential. **Owner:** DBA — first candidate operator **PavanKunar** (ran the M0-01-02 capture), with the migration lead to resolve which database the "baseline" label denotes given the `IQSMARTDEMO_DB_2025-26` → `NexGenErpDb` provenance caveat in `db/stored-procedures/CAPTURE-STATUS.md`. Do **not** re-derive the tooling; re-open only to run the comparison once CSVs land. **Status of the question, 2026-08-18: Q-14 EXPLICITLY DEFERRED by Vivek** (repository owner / migration lead), the named owner, closing M0-02 via [KB-080 §7](execution/README.md)'s "answered **or** explicitly deferred with reason" path. **This row stays `Partial`, deliberately** — deferring the question does not complete the investigation: zero tenants have been fingerprinted and zero compared, so the drift classification is *undecided*, never "none". Reopen on any CSV landing in `db/drift/`, or on any per-tenant report / statutory-document surprise; the tooling is complete and must not be re-derived. | [KB-103](architecture/stored-procedure-drift.md) |
 
 ## Scheduled — run one module ahead of its migration
@@ -219,7 +313,7 @@ before it is used.
 | INV-019 | Labour DC outgoing rules | `LabourDcOutgoingService.cs` (6,112 LOC) + 6,528-LOC page | Phase 4.7 |
 | INV-020 | TDS and advance adjustment | `AccountsService/**` | Phase 4.8 |
 | INV-024 | `@code` triage per module (presentation / data / business) | `Pages/**` | one module ahead of each migration wave |
-| INV-025 | Delete-guard audit — all ~40 `CanDelete…Async` for the R-08 copy-paste pattern | `BusinessLayer/**` | Phase 0 |
+| INV-025 | Delete-guard audit — all ~40 `CanDelete…Async` for the R-08 copy-paste pattern (**scope note, 2026-08-19**: the M0-09 validator found a second unreported instance at `MfgPoService.cs:613-615` in `CanSalesOrderItemCancelCheckAsync` — not `CanDelete…`-named. Widen the search to any guard method that computes one boolean and tests another; see `technical-debt-register.md` R-08.) | `BusinessLayer/**` | Phase 0 |
 | INV-026 | Live database index inventory vs the EF model | production tenant DB | Phase 2 (blocks R-13) |
 | INV-028 | Row-level scoping via `User.StateCodesCsv` | grep `StateCodes` across `Pages/` and services | Phase 2 (blocks Q-08) |
 
@@ -232,7 +326,7 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 | ID | Reserved for | Task | Status |
 |---|---|---|---|
 | INV-030 | Stored-procedure drift across tenant databases (Q-14) | M0-02 | **Allocated and in use — `Partial`, see the Partial table above; Q-14 deferred 2026-08-18 (owner Vivek), row stays `Partial`** |
-| INV-031 | Test-harness feasibility — can `ApplicationDbContext` be hosted in a test process, and under which EF provider? (`ToView(null)` × 65 makes InMemory doubtful) | M0-12-01 | Reserved |
+| INV-031 | Test-harness feasibility — can `ApplicationDbContext` be hosted in a test process, and under which EF provider? (`ToView(null)` × 65 makes InMemory doubtful) | M0-12-01 | **Allocated and used — `Complete`, see the Completed table above (M0-12-01, 2026-08-19). The parenthesised doubt was wrong: InMemory works, Sqlite fails.** |
 | INV-032 | Decimal representation across the HTTP wire — format, precision source, rounding mode | M2-C10 | Reserved |
 | INV-033 | Screen-name → route mapping for permission-filtered navigation | M2-C03 | Reserved |
 | INV-034 | Repository visibility correction (moved to Completed table above) | M0-00 | Completed |

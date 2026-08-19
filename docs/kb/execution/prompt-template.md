@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-080, KB-002, KB-003, KB-005, KB-088, KB-090]
 ---
 
@@ -313,6 +313,7 @@ methodology and reproducibility evidence). Do not put an unverified command in a
 | Build the whole solution | `dotnet build NexGen-ERP---2025-master.sln` | 0 errors, 13,367 warnings, ~4m7s–4m16s **on this machine, from a clean `obj`** (reproducible x2). A dirty `obj` produced 2 file-lock/permission errors unrelated to code. Whether it succeeds on a workload-free CI runner is **Unknown** — untested (KB-086 §4). **Not recommended for CI** — see KB-086 §7. |
 | **The CI build command** (M0-07) | `dotnet restore <csproj>` then `dotnet build <csproj> --no-restore --no-incremental -v normal -nologo -bl:<path>.binlog`, run for `V.SMART.Api` and `V.SMART.Web` | Api: 0 errors, **6,693** warnings; Web: 0 errors, **6,695** warnings (measured 2026-08-17, M0-07, locally — 2 and 3 lower than the plain-`dotnet build` figures above because separating restore moves the `NU1608` restore warnings out of the build log; see [KB-087](ci-pipeline.md) §4). `--no-incremental` and `-v normal` are **required** by the warning gate, not stylistic |
 | Analyzer warning gate (M0-07) | `pwsh tools/compare-warnings.ps1 -LogPath <log> -BaselinePath ci/warning-baseline.json -Target <V.SMART.Api\|V.SMART.Web>` (POSIX sibling: `tools/compare-warnings.sh <log> <baseline> <target>`) | exit 0 = at/below baseline, 1 = gate failure, 2 = the measurement could not be trusted. Verified locally 2026-08-17 on four logs, both variants agreeing. See [KB-087](ci-pipeline.md) |
+| **Run the tests** (M0-12-01) | `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **11 tests discovered, 11 passed, 0 failed, 0 skipped**; test execution 9s, whole command ~15s warm (measured 2026-08-19, M0-12-01, locally, SDK 10.0.400). Do **not** add `--no-build` or `--no-restore`: this is the only project that restores it. It is currently the repository's *only* test project — a `dotnet test` that reports fewer than 11 tests has targeted the wrong path |
 | Working-tree state | `git status --porcelain` | 0 entries (or only the by-design-untracked `V.SMART/V.SMART.Api/`) as of 2026-08-17, after M0-00 |
 | Search committed history | `git grep -l "<pattern>" HEAD` | works |
 
@@ -334,9 +335,28 @@ total) — **not** `MUD0002` as previously described; `MUD0002` is 130 occurrenc
 total. CI (M0-07) must record this baseline and fail on *new* warnings — it cannot use
 `-warnaserror` until the baseline is cleared.
 
-## Test commands — do not use yet
+## Test commands
 
-There is **no test project in the solution** (INV-023, Confirmed). `dotnet test` will find
-nothing. The first test project is created by **M0-12**. Until M0-12 lands, no prompt may
-list `dotnet test` as a verification command. After it lands, this table must be updated
-here so that every later prompt inherits the correct command.
+Superseded 2026-08-19 by **M0-12-01**, which created the repository's first test project.
+The command is now in the *Verified repository commands* table above; the row is the
+authority, this section only explains it.
+
+```bash
+dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+```
+
+**Measured 2026-08-19 (M0-12-01, locally, SDK 10.0.400):** 11 tests discovered, 11 passed,
+0 failed, 0 skipped. Test execution 9s; the whole command ~15s warm. It restores and builds
+the test project itself — **do not** pass `--no-build` or `--no-restore`, because neither the
+CI restore step nor any other project restores this one.
+
+**What the 11 tests actually cover, so no prompt overclaims them (Confirmed):** smoke and
+harness only. One trivially-true discovery test, one assembly-loadability test, one
+`CalculationService.UpdateTotalsAsync` call asserting only that `GrandTotal` moved off its
+default, two test-double construction tests, and six EF-fixture tests that pin the INV-031
+findings. **There is no business-behaviour coverage yet.** Real assertions arrive with
+M0-12-02 (`CalculationService`) and M0-13 (`StockManagerService`). Risk R-05
+([KB-060](../risks/technical-debt-register.md)) is *not* closed by this.
+
+The scope is `tests/V.SMART.Shared.Tests` only. `dotnet test NexGen-ERP---2025-master.sln`
+is **unverified** and inherits the solution build's MAUI-workload problem — do not use it.

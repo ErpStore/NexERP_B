@@ -21,7 +21,7 @@ source_files:
   - db/RUNBOOK-rebuild-tenant-database.md
 status: complete
 confidence: mixed
-last_verified: 2026-08-18
+last_verified: 2026-08-19
 dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
@@ -428,7 +428,56 @@ other work** — it is cheap and it is currently a single-point-of-failure for t
 > correct on inspection.
 
 ### R-05 — No automated tests, no CI
-**Confirmed.** No test project; `.github/` contains no workflows.
+**Confirmed, and still open.** A test project and a CI pipeline now exist; *coverage* does not.
+
+> **Coverage added 2026-08-19 (M0-12-02) — the second of the two services R-05 names.**
+>
+> `tests/V.SMART.Shared.Tests/Services/CalculationServiceCharacterisationTests.cs` (30 tests)
+> and `tests/V.SMART.Shared.Tests/Services/CommonConstantsGstRateTests.cs` (7 tests) add **37**
+> characterisation tests over `CalculationService.UpdateTotalsAsync` and the
+> `CommonConstants` GST rate lists, taking the suite from 36 to **73 tests, 73 passing**
+> (`dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj`, run twice, identical
+> both times). They pin all nine algorithm steps, both tax branches, the three silent early
+> returns, the divide-by-zero guard, the negative-basic-amount boundary, the tax-inclusive TCS
+> base, `MidpointRounding.AwayFromZero` on two distinct midpoints, the signed `RoundOff`, and
+> the absence of any intermediate rounding. `CalculationService` needs no fixture — it is a
+> pure unit (`CalculationService.cs:10-12`).
+>
+> **Both** services R-05 names — `ICalculationService` and `IStockManagerService` — are now
+> covered. That is G0 exit criterion 6 met **locally**. The remaining ~283 business services
+> are uncovered, and **CI has still never run green on a hosted runner**, so **R-05 stays
+> open.**
+
+> **Coverage added 2026-08-19 (M0-13) — the first real business-behaviour coverage.**
+>
+> `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs` adds **25**
+> characterisation tests over `StockManagerService`, taking the suite from 11 to **36 tests,
+> 36 passing** (`dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj`, run
+> twice, stable). Unlike the M0-12-01 smoke tests, these assert behaviour: the FIFO allocation
+> order, `RcSubID` and `StoreId` discrimination, track reversal on re-issue,
+> `AddOrUpdateStockAsync`'s consumed-quantity arithmetic, both delete guards, all five
+> user-facing exception message strings, and the R-07 drift.
+>
+> This closes the *first* of the two services R-05 names. `IStockManagerService` is now covered;
+> the rest of the ~285 business services are not, and CI has still never run green on a hosted
+> runner. **R-05 stays open.**
+
+> **Status 2026-08-19 (M0-12-01) — the harness exists. The safety net does not.**
+>
+> - `tests/V.SMART.Shared.Tests/` is the repository's first test project, registered in the
+>   `.sln`, running **11 tests, 11 passing** via
+>   `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj`, and wired into
+>   `.github/workflows/ci.yml` after the analyzer gates.
+> - **Those 11 tests assert almost nothing about business behaviour.** They are smoke and
+>   harness tests: discovery, assembly loadability, one `CalculationService.UpdateTotalsAsync`
+>   call asserting only that `GrandTotal` moved off its default, two test-double construction
+>   tests, and six EF-fixture tests pinning the INV-031 findings. Read "11 passing" as "the
+>   loop works", never as "the logic is covered".
+> - **The CI step has still never run on a hosted runner** — an execution session cannot push
+>   — so the M0-07 caveats below are unchanged: no green run, no required status check.
+>
+> This risk closes when M0-12-02/M0-13 land real characterisation tests **and** CI is green on
+> `master` as a required check. M0-12-01 moved the blocker, it did not close the risk.
 
 > **Status 2026-08-17 (M0-07) — the CI half is addressed, the tests half is untouched, and
 > neither is fully closed.**
@@ -462,11 +511,17 @@ for `ICalculationService` and `IStockManagerService` **before** touching them (M
 > - `StockManagerService` and `MfgPoService` apply **EF Core async operators** to
 >   `IRepository<T>.GetQueryable()` results, so a collection-backed repository stub throws at
 >   runtime. They need a real EF provider.
-> - `ApplicationDbContext.OnModelCreating` calls the **relational-only `ToView(null)` 65
+> - ~~`ApplicationDbContext.OnModelCreating` calls the **relational-only `ToView(null)` 65
 >   times**, so the EF Core **InMemory** provider probably cannot build the model at all;
->   **SQLite in-memory** probably can. *(Inferred — neither has been executed.)* Task
->   **M0-12-01** must spike both and record the exact exception text before M0-13, M0-09 and
->   M0-06 can proceed; each carries an explicit Blocked condition if no fixture materialises.
+>   **SQLite in-memory** probably can.~~ **Both halves of that inference were falsified by
+>   M0-12-01 on 2026-08-19 (Confirmed, executed).** InMemory builds the model and applies the
+>   `HasData` seeds; **SQLite fails** with
+>   `Microsoft.Data.Sqlite.SqliteException: SQLite Error 1: 'near "MAX": syntax error'`,
+>   caused by nine `[Column(TypeName = "nvarchar(max)")]` attributes on `Attendance` and five
+>   Inspection entities — see INV-031 in [KB-003](../investigation-registry.md). The fixture
+>   ships on InMemory; **M0-13, M0-09 and M0-06 are not blocked.** New debt this creates:
+>   InMemory cannot catch a LINQ-translation regression and does not enforce foreign keys, so
+>   nothing in this repository yet tests SQL semantics.
 
 ---
 
@@ -492,14 +547,69 @@ path.
 **Action.** Confirm intent (Q-01). If unintended, add a post-loop check and fix in the
 service so both UIs benefit. Add tests first.
 
-### R-08 — Copy-paste defects in delete guards
-**Confirmed.** `MfgPoService.cs:504` tests `hasInvoice` where it computes `hasExpInvoice`;
-`:525` tests `hasRc` where it computes `hasCR`. Two guards are unreachable, so a Sales
-Order with only an export invoice, or only a contract review, can be deleted.
+> **Status 2026-08-19 (M0-13) — PINNED, NOT FIXED. This risk stays OPEN.**
+>
+> Nothing in `StockManagerService.cs` changed. The absence of a post-loop `remainingQty > 0`
+> check between the loop's close at `:231` and `SaveAsync()` at `:233` was re-verified against
+> the working tree on 2026-08-19 and is still there.
+>
+> What changed is that the behaviour is now **asserted green** by named characterisation tests
+> in `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs`, so any
+> future change to it turns a test red instead of passing unnoticed:
+>
+> - `S13_R07_IssueOrUpdateStock_WhenNoBatchHasBalance_ThrowsNoAvailableStockToIssue`
+> - `S14_R07_IssueOrUpdateStock_WhenBatchesExistButTotalBalanceIsShort_SilentlyUnderAllocatesAndDoesNotThrow`
+>   — asserts the drift numerically: `IssueQty 100 − Σ UsedQty 30 == 70m`
+> - `S15_R07_IssueOrUpdateStock_WhenReIssueIncreasesQuantityBeyondAvailableStock_SilentlyUnderAllocatesOnTheUpdatePathToo`
+> - `S16_R07_IssuingOneHundred_ThrowsAgainstZeroStock_ButSilentlyDriftsByNinetyNineAgainstOneUnit`
+>
+> The decision to keep or tighten the behaviour remains **M0-11 / Q-01**, and it is now taken
+> against a measured baseline rather than against unpinned code. **Do not close R-07** until
+> that decision is taken and applied as its own reviewable change.
+>
+> **Additional behaviour surfaced while pinning (Confirmed).** On the create path the
+> `StockIssue` row is committed at `:154-155` *before* tracking runs, so even the *refusal*
+> case leaves an orphan `StockIssue` for the full quantity with zero `StockIssueTrack` rows.
+> M0-11's brief should cover this as well as the drift.
+
+### R-08 — Copy-paste defects in delete guards — **RESOLVED (first action item only)**
+**Confirmed (the defect, until 2026-08-19).** `MfgPoService.cs:504` tested `hasInvoice`
+where it computed `hasExpInvoice`; `:525` tested `hasRc` where it computed `hasCR`. Two
+guards were unreachable, so a Sales Order with only an export invoice, or only a contract
+review, could be deleted.
 **Impact.** Referential-integrity violation → orphaned downstream documents.
-**Action.** Fix both; then audit **every** `CanDelete…` method for the same pattern
-(INV-025, task M0-10). An API makes these branches far easier to reach than the current UI
-does.
+
+**Resolved 2026-08-19** by task **M0-09**, branch `migration/M0-09-delete-guard-fix`,
+commit *"M0-09: Fix two unreachable delete guards in CanDeleteSalesOrderAsync (R-08)"* —
+two identifier changes and nothing else. Pinned by
+`tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`
+(`CanDeleteSalesOrder_WithOnlyExportInvoice_IsRefused`,
+`CanDeleteSalesOrder_WithOnlyContractReview_IsRefused`, plus the regression pair for the
+Tax Invoice and Route Card guards). Both new tests were observed to fail before the fix,
+returning `(True, "Sales Order can be safely deleted.")`, which is the proof the guards
+were unreachable.
+
+**Behaviour change — operations must be told.** A Sales Order whose only downstream
+document is an **export invoice**, or only a **contract review**, used to be reported
+deletable and is now refused with the existing message
+("Cannot delete this Sales Order as a Export - Invoice transaction exists." /
+"Cannot delete this Sales Order as a Contract Review transaction exists."). Nobody's data
+changes: `CanDeleteSalesOrderAsync` is a read-only eligibility check, so this only stops a
+deletion that would have orphaned documents.
+
+**Still open — second action item.** Auditing **every** other `CanDelete…` method for the
+same pattern remains open as **INV-025 / task M0-10**. M0-09 deliberately touched exactly
+one method. An API makes these branches far easier to reach than the current UI does.
+
+> **Related gap noticed while fixing, not acted on (Confirmed, 2026-08-19).** The guard is
+> **advisory**: `MfgPoService.DeletePOByPOIdAsync` (`MfgPoService.cs:790-801`) never calls
+> `CanDeleteSalesOrderAsync`; the only enforcement is the caller,
+> `Pages/SalesAndLabour_pages/SalesPo_Pages/MfgPOList.razor:1079-1090` (`HandleDelete`),
+> while `ConfirmDelete_Click` (`:1108`) deletes at `:1118` without re-checking (corrected from
+> an earlier `:1119` citation by the M0-09 validator, 2026-08-19). So M0-09
+> hardens *what the check reports*, not the delete path itself. A future
+> `DELETE /api/v1/sales-orders/{id}` must call the guard server-side or repeat this gap.
+> Scoped to **M0-10** as a lead; deliberately out of M0-09's two-line scope.
 
 > **Scope correction, 2026-08-12 (Confirmed).** "~40 methods" understated the audit by more
 > than half. A scoped grep over `V.SMART/V.SMART.Shared/BusinessLayer/` returns **63**
@@ -513,6 +623,18 @@ does.
 > All three return the same `(bool CanDelete, string Message)` tuple as their `Async`-suffixed
 > peers. M0-10 establishes the canonical count and must search by the `CanDelete` prefix, not
 > the `Async` suffix.
+
+> **Second unreported same-pattern instance, found by the M0-09 validator, 2026-08-19
+> (Confirmed).** `MfgPoService.cs:613-615`, inside `CanSalesOrderItemCancelCheckAsync`
+> (a line-level cancel guard, **not** a `CanDelete…` method): `hasCR` is computed at `:613`
+> from `ContractReviews.GetQueryable().AnyAsync(...)`, but the guard at `:614-615` tests
+> `hasRc` — the Route Card boolean computed earlier at `:608` — so the Contract Review branch
+> is unreachable, identically to BR-SO-002 before this task's fix. Not touched by M0-09
+> (outside its authorised two-line surface); not fixed. **This means M0-10's brief, scoped as
+> "audit `CanDelete…Async`", would miss this by name** — the method is
+> `CanSalesOrderItemCancelCheckAsync`. M0-10 should widen its search to any guard method that
+> computes one boolean and tests another, not just the `CanDelete…`/`CanDelete` family. See
+> also `INV-025`'s scope note in `docs/kb/investigation-registry.md`.
 
 ### R-09 — Default administrator account with a committed password hash
 **Confirmed.** `ApplicationDbContext.cs:1136` seeds `UserName = "Administrator"` with a
@@ -701,6 +823,29 @@ now tracked (commits `2c224b6`, M0-00), the `.sln` disposition remains M0-00's r
 returning `0` for an unlisted rate rather than raising.
 **Action.** Return `decimal?` or throw; validate at the API boundary.
 
+> **Pinned by executable tests 2026-08-19 (M0-12-02). Not closed.**
+>
+> | Test (`tests/V.SMART.Shared.Tests/Services/…`) | What it pins |
+> |---|---|
+> | `CommonConstantsGstRateTests.GetIGST_WithUnlistedRate_SilentlyReturnsZero_R15` | `GetIGST(17m)`, `GetIGST(-5m)` and `GetIGST(28.0001m)` all return `0m` — `CommonConstants.cs:25` |
+> | `CommonConstantsGstRateTests.GetGST_WithUnlistedRate_SilentlyReturnsZero_R15` | the same for `GetGST` (`:26`), including that an *IGST* rate of 18 is unlisted for CGST/SGST and so returns `0m` |
+> | `CommonConstantsGstRateTests.GetIGST_CannotDistinguishNotFoundFromTheListedZeroRate_R15` | why the defect is undetectable at the call site: `GetIGST(17m) == GetIGST(0m)`, because `0.000m` is a legitimately listed rate (`:13`, `:20`) |
+> | `CalculationServiceCharacterisationTests.S21_R15_AnUnlistedGstRate_IsAppliedWithoutValidationOrCoercionToZero` | the other half of the hazard — `CalculationService` does **not** route rates through these helpers and charges the unlisted 17% in full (170 on a taxable 1000) |
+>
+> **Sharpened statement (Confirmed, M0-12-02).** R-15 is not a single defect but a
+> *disagreement*: `CalculationService.cs:12-114` contains no reference to `CommonConstants`
+> and applies any rate it is given, while any caller that sanitises a rate through
+> `GetIGST`/`GetGST` first turns an unlisted rate into zero tax. The same mistyped rate
+> therefore produces 170 on one path and 0 on the other. Fixing R-15 must decide which path
+> is authoritative, not merely change the helper's return type.
+>
+> Whether any tenant database actually stores an off-list rate is **Unknown** — it would need
+> a query against a real tenant database, which no test infrastructure here has. That is what
+> separates "latent" from "live".
+>
+> These tests assert the defective behaviour **deliberately**. Do not "fix" them; if R-15 is
+> repaired, update them in the same commit as the production change.
+
 ### R-16 — QR token expiry not enforced
 **Confirmed.** `GetUserByQrToken` checks `QrToken`, `IsQrEnabled`, `IsActive` but **not**
 `QrExpiryDate`, which the schema stores.
@@ -803,6 +948,43 @@ middleware; no `ProblemDetails`.
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in
 `V.SMART.csproj`.
 **Action.** Move to build parameters.
+
+### R-39 — Four fire-and-forget `UpdateTotalsAsync` calls are correct only while the engine is synchronous
+**Confirmed (M0-12-02, 2026-08-19).** `UpdateTotalsAsync` is declared `async Task` but does
+no asynchronous work — its last statement is `await Task.CompletedTask`
+(`V.SMART/V.SMART.Shared/Services/CalculationService.cs:113`), so the returned `Task` is
+already completed when it is handed back.
+
+Four call sites rely on that without knowing it. They invoke the method from **`void`**
+handlers and never await the result:
+
+| Call site | Handler |
+|---|---|
+| `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/DebitNote_pages/DebitNoteUpsert.razor:2629` | `private void OnDiscountPercentChanged()` |
+| `…/DebitNoteUpsert.razor:2635` | `private void OnPandFPercentChanged()` |
+| `…/DebitNoteUpsert.razor:2641` | `private void OnInsurancePercentChanged()` |
+| `…/DebitNoteUpsert.razor:2647` | `private void OnTCSPercentChanged()` |
+
+Each calls `_calculationService.UpdateTotalsAsync(DebitNoteVMs);` and then `StateHasChanged()`
+on the next line. Today the totals are already computed by the time `StateHasChanged` runs.
+
+**Impact.** BR-CALC-001's migration note requires the same engine to be reachable as
+`POST /api/documents/calculate`. The moment any implementation on this path becomes genuinely
+asynchronous — an HTTP call, an EF query, a cache lookup — these four handlers render **stale
+totals** and swallow any exception into an unobserved task. Nothing warns: there is no
+compiler diagnostic for a discarded `Task` returned by a method call statement in a `void`
+Blazor handler, and no test would fail except
+`S19_UpdateTotalsAsync_CompletesSynchronously_DespiteTheAsyncSignature`, which exists
+precisely as that tripwire (`tests/V.SMART.Shared.Tests/Services/CalculationServiceCharacterisationTests.cs`).
+
+**Not affected:** the many `@bind:after='() => _calculationService.UpdateTotalsAsync(…)'`
+bindings in the same file (e.g. `:640`, `:694`, `:960`) — those lambdas return the `Task` to
+Blazor, which awaits it.
+
+**Action.** Out of scope for M0-12-02 (a Blazor code change, and this task may not modify
+`V.SMART/`). Convert the four handlers to `async Task` **before** anything makes the
+calculation path asynchronous. Do not treat the synchronous completion as a licence to leave
+them.
 
 ---
 
