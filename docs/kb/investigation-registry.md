@@ -34,6 +34,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-023 | Testing and CI | Complete *(historical — **superseded 2026-08-19**: the first test project landed with M0-12-01. Read this row as a statement about 2026-08-12, not about now)* | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
 | INV-031 | Test-harness feasibility: hosting `ApplicationDbContext` in a test process | Complete | `V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs`, `.../Data/HumanResource/Attendance/Attendance.cs`, `.../Data/Inspection/**`, `.../Data/Master/Inventory_module/Item.cs`, `.../Data/Inventory(Stock)/StockAdd.cs`, `.../Services/MultiCompanyService/{I,}TenantDbContextFactory.cs`, `.../Services/CurrentUserService.cs`, plus **executed** spikes under EF Core 9.0.5 InMemory and Sqlite | **InMemory works, Sqlite does not** — full findings below | 2026-08-19 |
 | INV-036 | Testing an EF-backed business service through `IUnitOfWork` — the general recipe | Complete | `V.SMART/V.SMART.Shared/Repository/Repository.cs:70-83,103-115,137-172,323-326`, `.../Repository/InventoryStockRepository/StockAddRepository.cs:20`, `.../Repository/IRepository/IUnitOfWork.cs:84,270-272`, `.../Repository/UnitOfWork.cs:485,672,793`, plus the executed suite in `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs` (36/36 green, run twice) | **Recipe (Confirmed, M0-13):** mock `IUnitOfWork`, configure only the repository properties the service under test touches plus `SaveAsync`, and back each with the **real** repository over **one** real `ApplicationDbContext` (InMemory — INV-031). Two non-obvious constraints, each of which silently yields a test that asserts nothing if missed: **(1) `Repository<T>` never persists** — `CreateAsync` only calls `_dbSet.AddAsync` (`:70-83`), `UpdateAsync` only `_dbSet.Update` (`:103-115`), `DeleteAsync` only `_dbSet.Remove` (`:137-172`) — so the mock's `SaveAsync` **must** forward to `context.SaveChangesAsync()`, or nothing the service does reaches the store. **(2) One context instance for everything** — `GetQueryable()` returns `_dbSet.AsQueryable()` (`:323-326`), a *tracking* query, so the entities a service mutates are the instances a test asserts on, but only when repositories and assertions share one context; `TestDbContextFactory.CreateContext()` returns a fresh context per call over a shared database name, so call it once per test. Making the mock's `SaveAsync` throw on the *n*th call is also the only practical way to drive a non-`InvalidOperationException` into a service's `catch`, which is how the exception-translation paths were pinned. **Rejected alternative (Confirmed):** the real `UnitOfWork` over a fake `ITenantDbContextFactory` — its constructor (`UnitOfWork.cs:485`; `StockAdds` at `:672`, `SaveAsync` at `:793`) instantiates roughly 190 repositories per test and additionally needs `IPasswordHasher<User>`. **Negative results:** the InMemory provider cannot pin sort tie-breaking (it sorts stably, SQL Server does not), SQL null-equality semantics, or `[Precision]` rounding — keep test data clear of all three. | [KB-030](business-rules/business-rule-inventory.md), `tests/V.SMART.Shared.Tests/Infrastructure/StockScenarioBuilder.cs` | 2026-08-19 |
+| INV-035 | Default administrator seed: removal mechanics and per-tenant impact | Complete | `V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs:1136-1148` (pre-change), `.../Migrations/ApplicationDbContextModelSnapshot.cs`, `.../Migrations/20260217110637_InitialCreate.cs:7196-7200,7232-7236,7562`, `.../Repository/MasterRepository/Admins/UserRepository.cs:34-49`, `.../Pages/.../Login.razor:345-349`, `.../UserRights_Pages/UserRights.razor:82-215`, `.../Identity_Pages/RegisterUpsert.razor:426,444`, `.../AdminService/UserRightService.cs:32-87`, `.../Shared/RightsHelper.cs:7-20`, `V.SMART.Api/Controllers/AuthController.cs:47`, `.../Data/MasterDbContext.cs:5-9`, `.../Data/TenantInfo.cs:3-9`, plus **executed** `dotnet ef migrations add` probes (three, all reverted) | **Executed, not reasoned.** (1) Removing the `HasData` row **does** scaffold `DeleteData(table:"Users", keyColumn:"UserId", keyValue:1)` — and the generated `Down()` re-`InsertData`s the published hash. (2) It would **not** be blocked: all three FKs to `Users` are `Cascade`, so it would succeed and silently cascade-delete the user's rights/authorities/theme rows — the task file's `Restrict` premise was **wrong**. (3) A non-constant `HasData` value is **accepted** by the tooling but useless: two consecutive `migrations add` runs with `Guid.NewGuid()` emitted two different `UpdateData` literals, so "random per deployment" is impossible through `HasData`. (4) No must-change-password field exists. (5) `UserId == 1` is an undeclared superuser (R-40). Negative results and full detail below. | [KB-104](security/default-admin-removal-runbook.md), R-09, R-40 | 2026-08-19 |
 | INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility. **Solution-build gap closed 2026-08-17 by M0-15** — see below.)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`, `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj`, `dotnet build NexGen-ERP---2025-master.sln`, `dotnet workload list` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands), [KB-086](execution/M0-15-build-baseline.md) | 2026-08-18 |
 
 **M0-07 amendment to INV-023 (2026-08-17) — CI now exists in the repository, but has never
@@ -288,6 +289,143 @@ file. **No history rewrite is required for R-14.** Enforcement is now mechanical
 | INV-034 | Repository visibility of `ErpStore/NexERP_B` — timeline: reported public (flawed test) → corrected to private → **owner deliberately made it public again**, same day | Complete | `git -c credential.helper= ls-remote` (private: fails demanding auth; public: succeeds, exit 0) vs. plain `git ls-remote` (always silently succeeds via cached credentials — not a valid test on its own); unauthenticated `curl https://api.github.com/repos/ErpStore/NexERP_B` (private: 404; public: 200); `git config --system --get-all credential.helper` (`manager`) | [KB-085 §Repository visibility correction](execution/M0-00-baseline-decisions.md#repository-visibility-correction-inv-034) | 2026-08-12 |
 | INV-027 | Stored-procedure DDL capture (all 94) | **Complete** (2026-08-13, M0-01-02 half B/C — DDL actually landed and was verified, not just the tooling) | Reference-vs-scripted reconciliation (M0-01-01, unchanged): 94 referenced, 13 declared, 11 `scripted`, 1 `case_mismatch`, 1 `unreferenced`, 82 `missing` — worklist `db/stored-procedures/manifest.csv`. **Live-database capture (M0-01-02, this update):** operator PavanKunar ran `db/tools/Export-StoredProcedures.ps1` against `NexGenErpDb` (`DESKTOP-FIIBE97\SQLEXPRESS`, SQL authentication) on 2026-08-13. **78 of 82** `missing` procedures captured cleanly into `db/stored-procedures/`; **4 negative results** (genuinely absent, not a tool defect — independently cross-checked against the source text): `Sp_BomAnalysis`, `Sp_Print_Estimation`, `Sp_Print_Receipts`, `Sp_Print_SingleProcessInspection` — escalated in `db/stored-procedures/CAPTURE-STATUS.md` for a human dead-code-vs-latent-defect decision, per procedure. `db/tools/verify-capture.sh` exits 0 (0 hard failures, 4 recorded warnings for the negative results). **Provenance is not a clean single-tenant capture — read before reusing this finding:** `NexGenErpDb` was empty of procedures until the operator manually deployed a script (`AllSp.sql`, local, not committed) originally scripted from a *different* database, `IQSMARTDEMO_DB_2025-26` (a demo tenant reachable via the connection string already commented out in `ApplicationDbContextFactory.cs`). The DDL's actual origin is `IQSMARTDEMO_DB_2025-26`, relayed through `NexGenErpDb`, not a capture directly from a nominated production tenant. Full detail in `db/stored-procedures/CAPTURE-STATUS.md`, "Provenance caveat". **Tooling fix recorded the same day:** 3 of the 78 initially failed ("unrecognized leading statement") because their deployed definitions carry a leading `-- ====...` comment before `CREATE PROCEDURE` — `Export-StoredProcedures.ps1`'s regex didn't tolerate a leading comment even though `verify-capture.sh`'s own spec already does; fixed, re-captured cleanly (see git history). **What this leaves open, explicitly not this investigation's job:** whether `IQSMARTDEMO_DB_2025-26` is representative of a real production tenant is Q-14 (open-questions.md), owned by M0-02 — this capture is now that task's input, not its answer. | [KB-102](architecture/stored-procedure-inventory.md), [db/stored-procedures/CAPTURE-STATUS.md](../../db/stored-procedures/CAPTURE-STATUS.md) | 2026-08-13 |
 
+### INV-035 — Default administrator seed: removal mechanics and per-tenant impact
+
+Produced by **M0-06**, 2026-08-19. Questions 1 and 2 below were **executed with the EF tooling**,
+not reasoned about; the exact output is quoted. Three probe migrations were generated and all
+three were deleted again, with `ApplicationDbContextModelSnapshot.cs` restored from git each
+time.
+
+**Tooling used (previously unverified in this repository — it works):**
+
+```bash
+export ConnectionStrings__DesignTimeTenantDb="<any value; no connection is opened>"
+dotnet ef migrations add <Name> \
+  --project V.SMART/V.SMART.Shared/V.SMART.Shared.csproj \
+  --framework net9.0 --context ApplicationDbContext
+```
+
+Both switches are required: `--framework net9.0` because `V.SMART.Shared` multi-targets, and
+`--context ApplicationDbContext` because the project has more than one `DbContext` (without it
+the tool exits with *"More than one DbContext was found. Specify which one to use."*).
+`dotnet-ef` 10.0.11 on SDK 10.0.400 drove the EF Core 9.0.5 model without complaint. **The
+connection string is never opened** by `migrations add`, so no credential is needed and none was
+committed — `Data/MigrationData/DesignTimeConnectionString.cs:23-62` merely requires the
+variable to be *set*.
+
+#### Finding 1 (Confirmed, executed) — removing `HasData` scaffolds a `DELETE`, and the `Down()` re-commits the hash
+
+With the seed block deleted, `migrations add RemoveDefaultAdministratorSeed` printed
+*"An operation was scaffolded that may result in the loss of data."* and generated, verbatim:
+
+```csharp
+protected override void Up(MigrationBuilder migrationBuilder)
+{
+    migrationBuilder.DeleteData(
+        table: "Users",
+        keyColumn: "UserId",
+        keyValue: 1);
+}
+
+protected override void Down(MigrationBuilder migrationBuilder)
+{
+    migrationBuilder.InsertData(
+        table: "Users",
+        columns: new[] { "UserId", ... 35 columns ... },
+        values: new object[] { 1, ..., "Administrator", "<the published PBKDF2 hash>" });
+}
+```
+
+Two consequences. The `Down()` would have re-committed the very hash the task exists to remove,
+and the `Up()` is not safe to ship (Finding 2). Both halves were therefore replaced by hand with
+documented no-ops; the migration is retained **only** to carry the updated model snapshot, so
+that the next unrelated `migrations add` does not silently scaffold that `DeleteData` into
+someone else's migration.
+
+#### Finding 2 (Confirmed) — the delete would NOT be blocked; it cascades silently. The task file's premise was wrong
+
+M0-06's task file (*Investigation Requirements* item 1, *Existing Behavior to Preserve* item 6)
+asserted that the global `DeleteBehavior.Restrict` loop would make `UserRight`/`UserAuthority`
+rows **block** the delete. The source says otherwise. Exactly three foreign keys reference
+`User` in the whole model, and all three are `Cascade`:
+
+| Relationship | Evidence (post-M0-06 snapshot) |
+|---|---|
+| `UserRight.User` | `ApplicationDbContextModelSnapshot.cs:25924-25928` — `OnDelete(DeleteBehavior.Cascade)`, `IsRequired()` |
+| `UserAuthority.User` | `:25937-25941` |
+| `UserThemePreference.User` | `:26422-26426` |
+
+The physical DDL agrees: `Migrations/20260217110637_InitialCreate.cs:7196-7200`
+(`FK_UserAuthority_Users_UserId`, `onDelete: ReferentialAction.Cascade`) and `:7232-7236`
+(`FK_UserRights_Users_UserId`, Cascade). The reason the global loop does not catch them is that
+it rewrites a relationship **only** when its behaviour is not already
+`Cascade`/`NoAction`/`Restrict`, and EF defaults a **required** FK to `Cascade`.
+
+**The failure mode is therefore silent data loss, not a loud abort** — the opposite of what the
+task anticipated, and worse. This is why KB-104's removal step deletes the dependants
+explicitly, inside a transaction, with the row counts reviewed before commit.
+
+#### Finding 3 (Confirmed, executed) — a non-constant `HasData` value is accepted but useless
+
+`UserPassword` was temporarily set to `System.Guid.NewGuid().ToString()` and `migrations add`
+was run **twice with no source change in between**. Neither run errored. The two generated
+migrations were:
+
+```csharp
+// M0_06_ProbeB_1
+migrationBuilder.UpdateData(table: "Users", keyColumn: "UserId", keyValue: 1,
+    column: "UserPassword", value: "91324d66-7aea-4e31-b2a0-e9630d0afbd7");
+
+// M0_06_ProbeB_2 — no source change between the two runs
+migrationBuilder.UpdateData(table: "Users", keyColumn: "UserId", keyValue: 1,
+    column: "UserPassword", value: "8c121da5-0005-4fd5-9a40-32a73fda66a4");
+```
+
+So EF Core 9 does **not** reject a non-deterministic `HasData` value, but the value is evaluated
+**once, at scaffold time**, and baked into the migration and the snapshot as a literal. Every
+deployment gets the *same* "random" password, it is committed to source, and every subsequent
+`migrations add` produces a spurious `UpdateData`. **"Random per-deployment password" is
+therefore not achievable through `HasData`.** It must be a runtime bootstrap component — which
+is Option A, and which M0-06 deferred rather than half-building.
+
+#### Finding 4 (Confirmed) — no must-change-password mechanism exists
+
+`Data/Master/Admin_Module/User.cs` has no `MustChangePassword`, no `PasswordChangedDate` and no
+equivalent. Option B ("keep the row, force a change at login") therefore needs a schema change
+plus a Blazor login-flow change, and was rejected on cost inside a 1-day task.
+
+#### Finding 5 (Confirmed) — `UserId == 1` is an undeclared superuser, and that is a second lockout route
+
+Recorded in full as **R-40** in `risks/technical-debt-register.md`, and as Trap 2 in
+[KB-104](security/default-admin-removal-runbook.md). Summary: `Login.razor:345-349` auto-grants
+`UserId 1` all 152 screen rights on every login via `UserRightService.cs:32-87`; no `UserRight`
+rows are seeded by `HasData` at all; rights are deny-by-default (`RightsHelper.cs:7-20`,
+`?? false`). A replacement administrator with a different `UserId` therefore authenticates and
+sees nothing, and cannot grant rights to itself (`UserRights.razor:215`).
+
+#### Negative results — recorded so nobody greps for these again
+
+| Searched for | Result |
+|---|---|
+| The committed PBKDF2 hash, across the whole repository (`git grep --untracked`) | **110 files before M0-06; 109 after** (measured with `git grep --untracked -l`). All 109 remaining are pre-existing historical migration files under `V.SMART/V.SMART.Shared/Migrations/` — 108 `*.Designer.cs` model snapshots plus the `InsertData` at `20260217110637_InitialCreate.cs:7562` (which also carries `admin@example.com`, `9999999999` and `Administrator` on that one line). History is never edited; **M0-05** owns removing it from git history. The single non-migration occurrence, `ApplicationDbContext.cs:1142`, is the one M0-06 deleted. |
+| Any other seeded credential — `AQAAAAIA` (the ASP.NET Identity v3 hash prefix) in `*.cs`/`*.razor`/`*.json`, excluding `Migrations/` and `ApplicationDbContext.cs` | **Zero hits.** There is no second seeded credential anywhere. |
+| `Entity<User>()` outside `Migrations/` | **Exactly one hit** — the block M0-06 removed. No second `User` seed exists, including in `MasterDbContext`. |
+| `admin@example.com` / `9999999999` outside `Migrations/` | One hit each, both in the removed block. (Other `999999999` matches are unrelated `[Range(0, 999999999999.999)]` attributes in `AssemblyDefVM.cs` / `AssemblyDefLabourVM.cs`.) |
+| The literal `"Administrator"` outside `Migrations/` | Six hits, **none of them a username lookup**: the removed seed (2), the `UserRole` enum member (`Data/Enum/UserRole.cs:5`), a filter-dropdown status string (`AdminService/UserService.cs:208-209`), and two `<AuthorizeView Roles="Administrator,…">` in `Layout/NavMenu.razor:36,148`. **No code anywhere queries `UserName == "Administrator"`.** Removing the row breaks nothing that matches on the name; the numeric `UserId == 1` checks (Finding 5) are the real dependency. |
+| `.Migrate()`, `MigrateAsync`, `EnsureCreated` across all of `V.SMART/` | **Zero hits.** Nothing applies migrations at startup. Independently re-verifies M0-01's finding and Q-02: a new migration reaches no tenant by itself. |
+| `SyncRightsForUserAsync` across `V.SMART/` | **Exactly three hits** — `IUserRightService.cs:11`, `UserRightService.cs:32`, `Login.razor:348`. **None in `V.SMART.Api`**: `AuthController.cs:47` authenticates without the rights-bootstrap hook. |
+| `DeleteData` against table `"Users"` anywhere in `Migrations/` | **Zero hits** — there was no precedent for deleting the admin row. (There *is* precedent for seed deletion generally: `20260228134840_…cs:128-136` and `20260304055613_…cs:34-42` each delete a `UserRights` seed row before the `Screens` row it depended on.) |
+
+#### Unknowns this investigation could not close
+
+- **How many real users each tenant has, and whether any tenant's only administrator is the
+  seeded account.** Requires database access. KB-104 section 3 gives the read-only query; the
+  deployment owner must run it. Raised as **Q-25**.
+- **Whether `UserId 1` has ever logged in in a given tenant** — decides whether the cascade
+  would destroy real rows. Same query, columns `RightsRowsForUser1` etc.
+- **Q-02** (per-tenant migration rollout) and **Q-12** (production tenant list) remain open.
+
+
 ## Partial
 
 | ID | Topic | Status | Gap | Doc |
@@ -329,7 +467,9 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 | INV-032 | Decimal representation across the HTTP wire — format, precision source, rounding mode | M2-C10 | Reserved |
 | INV-033 | Screen-name → route mapping for permission-filtered navigation | M2-C03 | Reserved |
 | INV-034 | Repository visibility correction (moved to Completed table above) | M0-00 | Completed |
-| **INV-035 +** | **next free** | — | — |
+| INV-035 | Default administrator seed: removal mechanics and per-tenant impact | M0-06 | **Allocated and used — `Complete`, see the Completed table above (M0-06, 2026-08-19). Note it disproved the task file's `Restrict` premise: the FKs are `Cascade`.** |
+| INV-036 | Testing an EF-backed business service through `IUnitOfWork` — the general recipe | M0-13 | **Allocated and used — `Complete`, see the Completed table above.** |
+| **INV-037 +** | **next free** | — | — |
 
 Before claiming an id: `grep -rn "INV-0[0-9][0-9]" docs/` across **both** `docs/kb/` and
 `docs/kb/execution/tasks/`, then add the row here in the same change that uses it. Never

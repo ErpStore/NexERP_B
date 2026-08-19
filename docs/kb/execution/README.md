@@ -359,6 +359,16 @@ None. M0 starts immediately.
 - `M0-14` and `M0-03-01` both edit `V.SMART.Web/appsettings.json`.
 - `M0-06` and `M0-13` both risk touching `ApplicationDbContext.cs` seed data.
 
+> **Constraint discharged, 2026-08-19.** `M0-13` was `Completed` and merged (`3f6dfa8`) before
+> `M0-06` opened, so the two never ran concurrently. `M0-06` is at **Needs Review** on
+> `migration/M0-06-remove-default-admin`: the `HasData` seed for the default `Administrator` is
+> removed from `OnModelCreating`, `Screens` and the FK-behaviour loop untouched, 85/85 tests
+> green. **It does not close R-09** — the accompanying migration
+> `20260819095649_RemoveDefaultAdministratorSeed` has a deliberately empty `Up()`, so every
+> existing tenant database still holds the account until a human executes
+> [KB-104](../security/default-admin-removal-runbook.md) per tenant (new open question **Q-25**),
+> and the hash stays in published history until `M0-05`. Task status of record: KB-081.
+
 ### Critical Path
 
 ```

@@ -62,12 +62,20 @@ public class DbFixtureTests
         // INV-031, Confirmed: EnsureCreated() DOES apply the model's HasData seeds
         // under the InMemory provider. Observed counts, 2026-08-19.
         // M0-06 and M0-13 both depend on this answer.
+        //
+        // AMENDED BY M0-06, 2026-08-19: the two User assertions that stood here
+        //     Assert.Equal(1, context.Users.Count());
+        //     Assert.Equal("Administrator", context.Users.Single().UserName);
+        // were removed because M0-06 removed that seed from the model (risk R-09 -
+        // a published default credential in every tenant database). The Users table
+        // is now expected to be EMPTY on a freshly created database; that expectation
+        // is asserted positively in Data/SeedDataTests.cs. The remaining counts are
+        // unchanged and still pin INV-031's finding that HasData seeds are applied.
         using var factory = new TestDbContextFactory();
         using var context = factory.CreateContext();
 
         Assert.Equal(152, context.Screens.Count());
-        Assert.Equal(1, context.Users.Count());
-        Assert.Equal("Administrator", context.Users.Single().UserName);
+        Assert.Empty(context.Users);
         Assert.Equal(9, context.Stores.Count());
         Assert.Equal(49, context.UOM.Count());
         Assert.Equal(16, context.Category.Count());
