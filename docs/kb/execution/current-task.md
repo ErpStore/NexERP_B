@@ -21,31 +21,33 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No active task — `M2-B07` closed, next task not yet selected
+## Active task — `M2-C04-01`, `Blocked` after attempt 1, resume rather than restart
 
-**`M2-B07` is `Completed` and merged (`ffbb1dd`, 2026-08-19).** `AddVSmartDomain()` in
-`V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs` is now the single
-composition root for the domain graph, called once by each of the three hosts. It closes
-**R-26**: `V.SMART.Web` and `MauiProgram` had drifted apart, each registering services the
-other lacked.
+**Task file:** [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) — Design tokens, theme, light/dark.
+**Branch:** `migration/M2-C04-01-design-tokens`, tip **`cdb147a`**. **Do not start from a clean
+tree or a fresh branch** — attempt 1's full implementation, which passed all sixteen
+acceptance criteria on independent validator re-check, already exists there.
 
-**Read the close as a waiver, not a pass.** Every mechanical criterion was met. *"Three screens
-from three different modules render without a DI resolution error"* was **never satisfied** — it
-needs a signed-in interactive Blazor circuit, and no session may acquire or reuse a credential
-(Q-14 / R-01). The screens `302` to `/access-denied` under screen-right authorization,
-**identically on `master`**, so that is not a regression this task introduced. Full record:
-[`task-tracker.md`](task-tracker.md) footnote ²⁰.
+### Run State
 
-**It left a debt that is due back, not optional.** `V.SMART.Api` opts out of `ValidateOnBuild`
-(`31a10ba`) because seven seam-coupled registrations abort its startup in Development. The block
-carries a `REMOVE THIS BLOCK` marker tied to **`M2-B06`** and **`M2-B08`** — whichever of those
-lands last must delete it and confirm the graph validates. `ValidateScopes` stays on.
+| Field | Value |
+|---|---|
+| Status | `Blocked` — attempt 1 of 3 stopped, retry budget not exhausted |
+| What happened | Attempt 1 (`cdb147a`) implemented the full token/theme layer and passed all sixteen acceptance criteria on independent validator re-check (contrast recomputed from scratch: 0 failing pairs, both themes; `typecheck`/`lint`/`test`/`build` all green). It still validated `FAIL` — category **regression** — because `npm run coverage`, a verified KB-083 command (`prompt-template.md:366`, "exit 0 … branches 100 %"), now exits 1: `vitest.config.ts:38` still pins `branches: 100` and the ~700 new lines under `shared/theme/**` are only partly branch-covered. The validator's disposition was `retry`, same model, no escalation trigger. The runner then dispatched `migration-debugger` for that retry, and it **returned no result to the orchestrator** — but its process left real, uncommitted edits on disk, matching the `M0-12-01`/`M2-B07` precedent that an empty return does not mean an empty disk |
+| Spot-check evidence | `git log --oneline -3` on the branch still shows `cdb147a` as tip (no second **commit** exists), but `git status --porcelain` is **not** clean: `ThemeToggle.tsx` and `theme.test.tsx` carry an uncommitted diff. It replaces `ThemeToggle.tsx`'s index-arithmetic `move(delta)` with a total `RING` lookup keyed by `ColorSchemePreference`, removing exactly two of the branches attempt 1's coverage report named as uncovered in that file; `theme.test.tsx` gains matching imports and a density-attribute reset. It does **not** touch `ThemeProvider.tsx`, `density.ts` or `useColorScheme.ts` — also named uncovered — so it is partial even at face value, and it was **not reviewed, reconciled or validated** this session (no `coverage`/`test`/`lint`/`build` re-run against it). Left as-is, unstaged, deliberately not committed unreviewed and not discarded |
+| Not yet done | Reviewing the uncommitted diff against attempt 1's diagnosis; covering the remaining missed branches in `ThemeProvider.tsx`, `density.ts`, `useColorScheme.ts` (or lowering the threshold and correcting the KB-083 row in the same commit); then re-running `npm run coverage` plus all sixteen acceptance criteria and re-validating |
+| Next step | Re-dispatch the implementer/debugger on this branch at this tip. It should **review the uncommitted working-tree diff first** — decide whether to build on it or discard it — rather than regenerating from `cdb147a` blind; the committed implementation already passes every acceptance criterion |
+| Escalation condition | This is blocked-on-a-task (a resumable retry), not blocked-on-a-human-decision — do not wait for an owner decision to retry. If a **second consecutive** no-result attempt occurs, that repetition is the signal worth escalating to **Vivek** (repository owner), per the `M0-12-01` precedent (`task-tracker.md` footnote ¹²) |
+| Full record | `tasks/M2-C04-01.md` § Execution Record (2026-08-19); `failure-log.md` § M2-C04-01 · attempt 1 · validation, and § M2-C04-01 · attempt 2 · dispatch; `runner-state.md`; `task-tracker.md` footnote ²² |
 
 ---
 
-## Ready and unclaimed — nine M2 tasks, plus two M0 carry-overs
+## Ready and unclaimed, once `M2-C04-01` closes — eight tasks, plus two M0 carry-overs
 
 Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+These are **not** the task to pick up next — `M2-C04-01` above is, since it already has an
+open attempt and validated (nearly-passing) work on its branch. Listed here for whoever plans
+the *following* task.
 
 | Task | What | Est. | Why you might take it first |
 |---|---|---|---|
@@ -54,15 +56,15 @@ Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-
 | **`M2-B04`** | Decouple `IApprovalService` + 13 `Pages` refs | 1 wk | **Newly released.** The largest single piece of Blazor→service extraction in M2-B |
 | **`M2-B12-01`** | INV-012 numbering investigation | 2 d | **Newly released.** Investigation-only; unblocks the document-numbering chain |
 | **`M2-A06`** | Exception middleware → `ProblemDetails` | 3–5 d | Unblocks `B02`, `B06`, `B11`. Establishes the error contract every controller relies on |
-| **`M2-C04-01`** | Design tokens, theme, light/dark | 3 d | Where "make the UI genuinely better" becomes concrete decisions. Blocks `C04-02/03`, `C03` |
 | **`M2-C10`** | Decimal handling — no float money arithmetic | 2 d | P0 correctness. Blocks `C07`. Wrong-by-default if deferred |
 | **`M2-C11`** | Archive the Angular pilot | 0.5 d | P2 housekeeping. Smallest unit of real progress available |
 | **`M2-A01-02`** | Implement `[RequireScreen]` / `[RequireRight]` | 3 d | **Read the warning below before opening it** |
-| **`M0-01-03`** | Deployment script + rebuild runbook | 1 d | **Newly unblocked — see below.** Closes a G0 exception that was deferred on a false premise |
+| **`M0-01-03`** | Deployment script + rebuild runbook | 1 d | Closes a G0 exception that was deferred on a false premise |
 | **`M0-10`** | R-08 compute-one/test-another guards | — | M0 debt carried into M2 |
 
 **`M2-B12`, `M2-C04`, `M2-C05` and `M2-A01` are parent containers** and are never worked
-directly — their implementable scope lives entirely in their `-0n` children.
+directly — their implementable scope lives entirely in their `-0n` children. `M2-C04-02`,
+`M2-C04-03` and `M2-C03` stay `Blocked` on `M2-C04-01` above, not listed as ready.
 
 ---
 

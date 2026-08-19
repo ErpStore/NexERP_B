@@ -1958,3 +1958,122 @@ false`) remains open and dated to M2-B06 / M2-B08.
 
 **Next attempt routed to** — no model. A stronger model cannot obtain the ERP user's password or
 drive a browser session; this needs the owner.
+
+---
+
+### M2-C04-01 · attempt 1 · validation · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus |
+| Validator verdict | FAIL |
+| Failure category | regression |
+
+**What failed** — not an acceptance criterion. All sixteen acceptance criteria were checked and
+met; the four criterion-16 commands were re-run by the validator and all four exited 0
+(`npm run typecheck`, `npm run lint`, `npm run test -- --run` → **5 files, 139 tests passed**,
+`npm run build` → entry 91.59 kB gzip). Both `git grep` checks returned nothing. What failed is a
+**previously-passing verified repository command that this commit broke and nobody re-ran**:
+
+```
+$ cd frontend/nexgen-web && npm run coverage
+ Test Files  5 passed (5)
+      Tests  139 passed (139)
+All files      |    93.5 |    80.39 |   86.95 |    93.5
+ app           |   82.89 |      100 |      80 |   82.89
+ shared/theme  |   95.88 |    78.72 |   88.88 |   95.88
+ERROR: Coverage for branches (80.39%) does not meet global threshold (100%)
+COV_EXIT=1
+```
+
+**Root cause** — `commit cdb147a` adds ~700 lines of new source under
+`frontend/nexgen-web/src/shared/theme/` whose branches are only partly exercised, while
+`frontend/nexgen-web/vitest.config.ts:38` still pins `branches: 100` — the floor M2-C01 set from
+its own measured 100 %. New uncovered branches therefore trip the gate.
+
+**Evidence** —
+`frontend/nexgen-web/vitest.config.ts:36-41` (`statements: 82, branches: 100, functions: 80, lines: 82`);
+`docs/kb/execution/prompt-template.md:366` (KB-083 verified-commands row: *"Coverage | `npm run coverage` | exit 0 — statements 82.89 %, branches **100 %**, functions 80 %, lines 82.89 %. `vitest.config.ts` thresholds are set to the floor of those numbers, so they can only be raised"*).
+The drop is wholly attributable to this commit: the coverage report shows the pre-existing `app/`
+folder still at **100 %** branches and every uncovered branch inside files this commit created —
+`ThemeProvider.tsx` 66.66 %, `ThemeToggle.tsx` 85.71 %, `density.ts` 50 %, `useColorScheme.ts` 80 %.
+Uncovered lines named by v8: `ThemeProvider.tsx:43-44,71-76`, `ThemeToggle.tsx:34-39`,
+`useColorScheme.ts:53-54,102`, `breakpoints.ts:23-24`, `tokens.ts:140-141`.
+CI does **not** currently run `npm run coverage` (`.github/workflows/ci.yml` runs typecheck, lint,
+format:check, test, build, e2e only), so this does not break the pipeline today — it breaks a
+documented command and silently invalidates a KB-083 row.
+The implementer's own report did not mention `npm run coverage`; it was neither run nor disclosed.
+
+**Everything else observed clean, so a retry must not re-litigate it** — contrast independently
+recomputed by the validator with its own WCAG implementation over the parsed `tokens.css`:
+**0 failing pairs** in either theme, and the ratios in KB-051's correction table reproduce exactly
+(`--border` light worst 3.19, dark 3.30; `--success` light 4.61; `--warning` light 4.55;
+`--focus-ring` light 4.51; original `#D8DEE6` on `--accent-subtle` = 1.18). Thresholds were not
+lowered. The ESLint raw-colour ban was verified to fire on a throwaway probe file
+(`no-restricted-syntax`, 2 errors, exit 1; probe deleted, tree clean). Nothing under `V.SMART/`
+changed, no schema change, no business logic in TypeScript,
+`V.SMART/.../UserThemePreference.cs:20` is untouched, INV-006 amendment and Q-33 present.
+`npm run format:check` exit 0.
+
+**Disposition** — `retry`. Narrow and mechanical: either cover the missed branches in
+`shared/theme/**` so `branches` stays at 100, or — if a lower branch floor is the honest number
+for this tree — change `vitest.config.ts` **and** correct the KB-083 row in the same commit,
+because that row currently records a result that is no longer reproducible. Do not simply delete
+the threshold. No other change is required; the sixteen acceptance criteria are met.
+
+**Next attempt routed to** — same model (`opus`). No KB-091 §6.3 escalation trigger applies:
+the category is `regression`, the root cause is known, and the fix is a test/threshold change
+inside the task's own new files.
+
+---
+
+### M2-C04-01 · attempt 2 · dispatch · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (debugger, dispatched per attempt 1's `retry` disposition) |
+| Validator verdict | none |
+| Failure category | environment |
+
+**What failed** — the `migration-debugger` agent dispatched against attempt 1's diagnosis
+returned **no result to the orchestrator**: no verdict, no summary text. Its *process*,
+however, left real, uncommitted edits on disk — matching the `M0-12-01`-attempt-1 →
+`M2-B07`-close-out precedent exactly (an empty return does not mean an empty disk). Confirmed
+at close-out: `git log --oneline -3` on `migration/M2-C04-01-design-tokens` still shows
+`cdb147a` as tip (attempt 1's commit, unchanged; no second commit exists); but
+`git status --porcelain` is **not** clean — `ThemeToggle.tsx` and `theme.test.tsx` carry
+uncommitted working-tree changes. The diff replaces `ThemeToggle.tsx`'s index-arithmetic
+`move(delta)` with a total `RING` lookup keyed by `ColorSchemePreference`, removing exactly two
+of the branches attempt 1's coverage report named as uncovered in that file (an
+`indexOf() === -1` fallback and an `if (!next) return` guard, both unreachable once
+`noUncheckedIndexedAccess` is satisfied by a total `Record`); `theme.test.tsx` gains the
+matching imports and a `document.documentElement.dataset.density` reset in `beforeEach`. It
+does **not** touch `ThemeProvider.tsx`, `density.ts` or `useColorScheme.ts`, which attempt 1's
+coverage report also named as uncovered — so even taken at face value this diff is partial, not
+a finished fix. **Not reviewed, not reconciled against the acceptance criteria, and not
+validated** — `npm run coverage`/`test`/`lint`/`build` were not re-run against it this session.
+
+**Root cause** — **UNKNOWN**, and not investigated further this session: an empty agent return
+carries no server-side error text to confirm it (contrast with `M0-12-01` attempt 1, where the
+completion record surfaced `API Error: 529 Overloaded`). Recording this as `unknown` rather than
+guessing a cause per `CLAUDE.md`'s "never write an inference so that it reads as fact." Whether
+the debugger died mid-fix (leaving the partial diff as a stopped-in-place snapshot) or completed
+this much deliberately and then failed only to report back is likewise unknown.
+
+**Evidence** — see [`tasks/M2-C04-01.md` § Execution Record (2026-08-19)](tasks/M2-C04-01.md#execution-record-2026-08-19).
+
+**Disposition** — recorded `blocked` by the run itself, per
+[KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) item 1: an empty
+debugger return with nothing *validated* to retry against is a safety stop rather than a silent
+re-dispatch. Per the `M0-12-01` precedent (KB-081 footnote ¹²), a lost dispatch is not a retry
+and does not consume attempt budget: **1 of 3 attempts used, 0 escalations, two remain.** The
+uncommitted diff is left **as-is, unstaged, on the branch's working tree** for the next
+session to review rather than discarded or committed unreviewed — it was not committed this
+session because it is unvalidated, and it was not deleted because discarding unreviewed work
+that resembles genuine progress is worse than leaving it for review. Attempt 1's own diagnosis
+(cover the missed branches in `shared/theme/**`, or lower `vitest.config.ts:38` and correct the
+KB-083 row in the same commit) still stands; the next attempt should review the uncommitted
+diff against that diagnosis, complete the remaining three files, then run `npm run
+coverage`/`test`/`lint`/`build` before committing anything.

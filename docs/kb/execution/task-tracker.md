@@ -146,7 +146,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready** | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Ready** | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Blocked**²² | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
@@ -1134,3 +1134,30 @@ rests on a stated reason that no longer holds. Use a throwaway database on this 
 its connection string in plaintext with `sa` credentials — **Q-32**, which must be answered
 before `M0-04`'s rotation is executed, or rotation will break every tenant row that embeds the
 password.
+
+²² **M2-C04-01: `Blocked` 2026-08-19 — blocked on a resumable retry, not on a task or a product
+decision.** Branch `migration/M2-C04-01-design-tokens`, commit `cdb147a`. Not merged.
+
+Attempt 1 implemented the full token/theme layer under `frontend/nexgen-web/src/shared/theme/`
+and passed all sixteen acceptance criteria on independent validator re-check — including a
+from-scratch WCAG recomputation (0 failing pairs, both themes) and `typecheck`/`lint`/`test`/
+`build` all green. It failed validation anyway, on a **regression** outside the criteria: `npm
+run coverage`, a verified command (KB-083, `docs/kb/execution/prompt-template.md:366`, "exit 0
+… branches 100 %"), now exits 1 — `frontend/nexgen-web/vitest.config.ts:38` still pins `branches:
+100`, and the ~700 new lines this commit adds are only partly branch-covered. Full evidence:
+[`failure-log.md`](failure-log.md) § "M2-C04-01 · attempt 1". The validator's own disposition was
+**`retry`**, same model, no escalation trigger — the fix is mechanical: cover the missed
+branches, or lower the threshold and correct the KB-083 row in the same commit.
+
+**Why this is `Blocked` rather than mid-retry.** The runner dispatched `migration-debugger` for
+that retry and it **returned no result to the orchestrator** — a tooling/session failure, not a
+verdict on the code. Close-out found its process had nonetheless left a real, uncommitted,
+**partial** fix on disk (`ThemeToggle.tsx`, `theme.test.tsx` — covers two of the four files
+attempt 1's coverage report named as uncovered; not reviewed, not validated), matching the
+`M0-12-01`/`M2-B07` precedent that an empty return does not mean an empty disk. Left as-is,
+unstaged, for the next session to review. Per the `M0-12-01` precedent (footnote ¹²), a lost
+dispatch does not consume an attempt: **1 of 3 attempts used, 0 escalations.** This is
+**blocked on a task** (resuming attempt 2 needs a working session, not a human decision) —
+**owner: Vivek**, as the person who restarts or re-dispatches an autonomous run; no product or
+architecture decision is outstanding. Blocks `M2-C04-02`, `M2-C04-03` and `M2-C03`, which stay
+`Blocked` on this in turn.
