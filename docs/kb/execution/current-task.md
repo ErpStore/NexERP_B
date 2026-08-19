@@ -111,10 +111,30 @@ identifier recorded. Two things stand in the way, and only the first is a decisi
    would confuse "red because the assertion failed" with "red because the workflow is broken",
    which is precisely what the criterion is trying to distinguish.
 
-**Next step: a human reads the Actions tab** for `migration/M0-12-01-test-project` and reports
-whether the run started, and whether it went green with 11 passing tests. That single
-observation also answers **Q-20** (are hosted runners available and approved for `ErpStore`?),
-which is a hard `G0` exit criterion in its own right.
+**Observed 2026-08-19: the run is GREEN.** Reported by the repository owner from the Actions
+tab. This is the first successful execution of the CI pipeline in the repository's history, and
+it settles two things beyond this task:
+
+- **Hosted runners are available and approved for `ErpStore`** — the `windows-latest` job ran.
+  That is the half of **Q-20** that was genuinely unknown, now answered by demonstration.
+- **The analyzer warning gate passes on a real runner** against the provisional baseline
+  (`ci/warning-baseline.json` still carries `"provisional": true`). Per
+  [KB-087](ci-pipeline.md), where runner and local disagree the runner wins, so the baseline
+  should be regenerated from this run's own numbers before the flag is cleared — that needs the
+  warning total from the run log, which no session can read.
+
+> **Correction, and it matters for G0.** An earlier note in this file claimed `master` carries
+> the workflow. **`origin/master` does not** — its tip is `44e3614` and
+> `.github/workflows/ci.yml` is absent there. *Local* `master` has it, and is **15 commits ahead
+> and unpushed**, including the whole of M0-07. That is the real reason CI has never run on
+> `master`: not runners, not permissions, just unpublished work. **G0's "CI green on `master`"
+> therefore needs those 15 commits pushed** — a far larger authorisation than the single feature
+> branch pushed for this task, and one nobody has given.
+
+**What criterion 6 still needs:** the deliberately-failing test observed turning a run **red**,
+then reverted, with the run identifier recorded. Two pushes on this branch, spaced — `ci.yml`
+sets `concurrency: cancel-in-progress: true`, so a second push cancels the first run before it
+can be observed. Not started without the owner's say-so.
 
 *(The attempt-budget interpretation question flagged in [KB-081 footnote 12](task-tracker.md)
 — whether infrastructure aborts should have consumed retry budget — is now moot for
