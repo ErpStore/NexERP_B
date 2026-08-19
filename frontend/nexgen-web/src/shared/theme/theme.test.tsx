@@ -2,13 +2,17 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { useEffect } from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readGlobalCss } from '@/test/tokens-source';
 
-import { ThemeProvider, useTheme } from './ThemeProvider';
+import { DENSITY_STORAGE_KEY, ThemeProvider, useTheme } from './ThemeProvider';
 import { ThemeToggle } from './ThemeToggle';
-import { DARK_MEDIA_QUERY, THEME_STORAGE_KEY } from './useColorScheme';
+import {
+  COLOR_SCHEME_PREFERENCES,
+  DARK_MEDIA_QUERY,
+  THEME_STORAGE_KEY,
+} from './useColorScheme';
 
 /**
  * A controllable matchMedia. jsdom has none worth the name, and the harness stub
@@ -75,6 +79,7 @@ beforeEach(() => {
   mountCount = 0;
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
+  delete document.documentElement.dataset.density;
   installMatchMedia();
 });
 
@@ -82,6 +87,7 @@ afterEach(() => {
   // Vitest runs with globals: false, so RTL's automatic cleanup is NOT installed.
   // Without this every render leaks into the next test.
   cleanup();
+  vi.restoreAllMocks();
   window.localStorage.clear();
 });
 

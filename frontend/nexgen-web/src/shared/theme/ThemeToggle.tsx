@@ -25,20 +25,36 @@ const OPTION_LABELS: Record<ColorSchemePreference, string> = {
   system: 'System',
 };
 
+/**
+ * The wrap-around ring the arrow keys walk, written out per preference rather
+ * than computed by indexing COLOR_SCHEME_PREFERENCES.
+ *
+ * Indexing that tuple with a computed number yields `T | undefined` under
+ * `noUncheckedIndexedAccess`, which forced two guards -- an `indexOf() === -1`
+ * fallback and an `if (!next) return` -- that the type system already makes
+ * unreachable. Unreachable code cannot be tested, only ignored. A total
+ * Record over the union removes both: TypeScript proves exhaustiveness, so
+ * every path here is one a keystroke can actually take.
+ *
+ * The order is the render order of COLOR_SCHEME_PREFERENCES
+ * (light -> dark -> system -> light); theme.test.tsx asserts the two agree.
+ */
+const RING: Record<ColorSchemePreference, Record<MoveDirection, ColorSchemePreference>> = {
+  light: { next: 'dark', previous: 'system' },
+  dark: { next: 'system', previous: 'light' },
+  system: { next: 'light', previous: 'dark' },
+};
+
+type MoveDirection = 'next' | 'previous';
+
 export function ThemeToggle({ label = 'Colour scheme' }: { label?: string }) {
   const { preference, setPreference } = useTheme();
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const move = (delta: number) => {
-    const index = COLOR_SCHEME_PREFERENCES.indexOf(preference);
-    const from = index === -1 ? 0 : index;
-    const next =
-      COLOR_SCHEME_PREFERENCES[
-        (from + delta + COLOR_SCHEME_PREFERENCES.length) % COLOR_SCHEME_PREFERENCES.length
-      ];
-    if (!next) return;
-    setPreference(next);
-    refs.current[next]?.focus();
+  const move = (direction: MoveDirection) => {
+    const target = RING[preference][direction];
+    setPreference(target);
+    refs.current[target]?.focus();
   };
 
   // The handler lives on each option rather than on the group: an element with
@@ -47,10 +63,10 @@ export function ThemeToggle({ label = 'Colour scheme' }: { label?: string }) {
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       event.preventDefault();
-      move(1);
+      move('next');
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
       event.preventDefault();
-      move(-1);
+      move('previous');
     }
   };
 
