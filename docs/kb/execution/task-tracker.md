@@ -79,7 +79,7 @@ its children are `Completed` — it is never worked directly.
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Completed**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
-| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Ready** | P1 | M0-12-01 | 0.5 d | G0 |
+| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Needs Review**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
@@ -266,12 +266,12 @@ to `master` (`ec2f0f3` + `7fbb768`). Full record:
 the same name (no `-csharp` suffix) still exists, cut from a pre-M0-15-recut point — **do not
 merge it**.
 
-**Currently `Ready`: `M0-09` (P1, 0.5 d) and `M0-06` (P1, 1 d) — two tasks, neither needing a
-human, as of the `M0-12-02` merge (`a83f1e2`, 2026-08-19).** All four tasks released by the
+**Currently `Ready`: `M0-06` (P1, 1 d) — the sole remaining task neither needing a human nor
+implemented, as of the `M0-09` close-out (2026-08-19).** All four tasks released by the
 `M0-12-01` merge are now closed or in hand: `M0-13` `Completed`¹³ (`3f6dfa8`), `M0-12-02`
-`Completed`¹⁴ (`a83f1e2`), and these two remain. `dotnet test` re-run on `master` after the
-`M0-12-02` merge: **73 passed, 0 failed** — the suite has gone 0 → 11 → 36 → 73 in a single
-day.
+`Completed`¹⁴ (`a83f1e2`), `M0-09` `Needs Review`¹⁵ (`8e3b19d`, unmerged), and `M0-06`
+remains. `dotnet test` on the `M0-09` branch: **79 passed, 0 failed** — the suite has gone
+0 → 11 → 36 → 73 → 79 in a single day (six new tests: two pinning the fix, four regression).
 
 > **`M0-12-02` closed at 11 of 12 criteria, with the twelfth *waived*, not met.** Criterion 8's
 > second half — *"the suite passes in CI on the branch"* — requires pushing the branch so a
@@ -304,8 +304,8 @@ option (A).
 
 Of the four tasks the `M0-12-01` merge released, **`M0-12-02` and `M0-13` are the ones G0
 actually asks for** — they are the characterisation tests the gate names; `M0-13` is now
-implemented (`Needs Review`¹³). `M0-12-02` remains the sole `Ready` P0. `M0-09` (0.5 d) and
-`M0-06` (1 d) are smaller, P1, and independent of each other and of `M0-12-02`.
+implemented (`Needs Review`¹³), as is `M0-12-02` (`Completed`¹⁴) and `M0-09`
+(`Needs Review`¹⁵). `M0-06` (1 d, P1) is the only one of the four still `Ready`.
 
 Every other M0 task remains `Completed`, `Blocked` on a named human, or
 `Needs Review` and therefore not re-selectable:
@@ -314,11 +314,12 @@ M0-02 is `Needs Review`⁶ (Q-14 explicitly deferred by Vivek, its named owner);
 M0-01-03 is `Needs Review`¹, awaiting a human-executed rebuild drill; M0-04 is `Blocked`⁴ on an
 unidentified credential owner; M0-07 is `Blocked`⁷ on `origin` push plus GitHub org admin
 rights; M0-05 stays `Blocked` because M0-04 has not run; M0-13 is `Needs Review`¹³, awaiting
-owner review/merge; `M0-10` stays `Blocked` behind `M0-09` and `M0-11` behind `M0-13`
-(genuinely `Completed`, not merely `Reviewed`, is what the selection rule requires). **The G0
-exit gate still needs a human** for M0-04, M0-01-03's drill, and the branch-protection half of
-M0-07 (Q-20) — so completing `M0-12-02`, `M0-09` and `M0-06` would **not** clear G0 on its
-own, and **M2 stays barred**.
+owner review/merge; M0-09 is `Needs Review`¹⁵, likewise awaiting owner review/merge; `M0-10`
+stays `Blocked` behind `M0-09` and `M0-11` behind `M0-13` (genuinely `Completed`, not merely
+`Reviewed`, is what the selection rule requires). **The G0 exit gate still needs a human** for
+M0-04, M0-01-03's drill, and the branch-protection half of M0-07 (Q-20) — so merging
+`M0-12-02`, `M0-09` and completing `M0-06` would **not** clear G0 on its own, and **M2 stays
+barred**.
 **Active task:** none — see [`current-task.md`](current-task.md). Selection rule for what
 becomes active next: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
@@ -894,3 +895,41 @@ Full record: [`tasks/M0-12-02.md` § Execution Record
 (2026-08-19)](tasks/M0-12-02.md#execution-record-2026-08-19);
 [`failure-log.md` § M0-12-02 · attempt 1](failure-log.md#m0-12-02--attempt-1--2026-08-19) and
 its diagnosis entry.
+
+¹⁵ **M0-09: `Needs Review` 2026-08-19.** Implemented on
+`migration/M0-09-delete-guard-fix` (`8e3b19d`), attempt 1 of 3, 0 escalations. Validator
+verdict **`PASS`**, `scopeOk: true`, `failureCategory: none` — every acceptance criterion
+`MET`, independently re-derived rather than taken on trust (the validator reproduced the
+pre-fix red state itself in a separate detached worktree at `3549571`). `MfgPoService.cs`
+changed exactly two identifiers: `hasInvoice` → `hasExpInvoice` (`:504`) and `hasRc` →
+`hasCR` (`:525`); no `Message` string, guard order, or query changed. Two new tests
+(`MfgPoServiceDeleteGuardTests.cs`) were observed to fail pre-fix and pass post-fix; the
+existing Tax Invoice/Route Card guard tests pass throughout. Suite: 79/79 green (73 → 79).
+`dotnet build V.SMART.Api` (CI form, `--no-incremental`): 0 errors, 6,693 warnings — at the
+6,695 baseline. `git diff --stat master...HEAD` touches one file under `V.SMART/`, two lines,
+plus KB-030, KB-060, KB-080 (this file's predecessor version), KB-003, and two new test
+files. KB-030's BR-SO-002 was rewritten from live defect to fixed, naming the commit; KB-060's
+R-08 was marked resolved on its first action item only, with the second (the wider
+`CanDelete…` audit) explicitly left open as `M0-10` / `INV-025`.
+
+**Not `Completed`**, for the same standing reason as `M0-13` and every other `PASS`-validated
+task this milestone ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)):
+the branch is implemented and validated but not yet reviewed and merged by the repository
+owner. **Unblocks nothing yet** — `M0-10` names `M0-09` as a Hard prerequisite and the
+[Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) requires that
+prerequisite to be genuinely `Completed`, not `Needs Review`, so `M0-10` stays `Blocked`
+until this branch is reviewed and merged.
+
+**One validator-found lead, not acted on and not part of this task's scope**: an unreported
+instance of the identical compute-one/test-another pattern exists at
+`MfgPoService.cs:613-615`, inside `CanSalesOrderItemCancelCheckAsync` — `hasCR` is computed
+at `:613` but the guard at `:614-615` tests `hasRc` (the Route Card boolean from `:608`), so
+the Contract-Review branch of that line-cancel check is unreachable for the same reason
+BR-SO-002's delete guard was. This is pre-existing, outside M0-09's authorised two-line
+surface, and does not fail this task. It is recorded as a scope note on `INV-025` (see
+`investigation-registry.md`) and as a new bullet under R-08 in
+`docs/kb/risks/technical-debt-register.md` (KB-060), both updated in this close-out, so
+`M0-10` picks it up without re-deriving it.
+
+Full record: [`tasks/M0-09.md` § Execution Record
+(2026-08-19)](tasks/M0-09.md#execution-record-2026-08-19).

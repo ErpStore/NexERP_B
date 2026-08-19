@@ -501,7 +501,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.SalesService
                     .AnyAsync(qs =>
                         qs.RefPoSubId.HasValue &&
                         PoSubIds.Contains(qs.RefPoSubId.Value));
-                if (hasInvoice)
+                if (hasExpInvoice)
                     return (false, "Cannot delete this Sales Order as a Export - Invoice transaction exists.");
 
 
@@ -522,7 +522,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.SalesService
 
                 // Check Contract Review
                 bool hasCR = await _unitOfWork.ContractReviews.GetQueryable().AnyAsync(qs => qs.PoId == poId);
-                if (hasRc)
+                if (hasCR)
                     return (false, "Cannot delete this Sales Order as a Contract Review transaction exists.");
 
                 // Check Sales MReq

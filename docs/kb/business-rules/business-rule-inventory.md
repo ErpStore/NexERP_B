@@ -255,29 +255,55 @@ Sales DC (`MfgDcSub.RefPoSubId`), Tax Invoice (`MfgInvSub.RefPoSubId`),
 Export Invoice (`ExpInvSub.RefPoSubId`), Proforma Invoice (`PerformaInvSub.RefPoSubId`),
 Route Card (`RouteCard.RefPoId`), Contract Review (`ContractReview.PoId`).
 
-**Evidence.** `BusinessLayer/BusinessService/SalesService/MfgPoService.cs:465-565`.
+**Evidence.** `BusinessLayer/BusinessService/SalesService/MfgPoService.cs:465-565`
+(span re-verified 2026-08-19). **All six document types now guard correctly** — see
+BR-SO-002, fixed by M0-09.
 
 **Confidence.** Confirmed.
 **Disposition.** Preserve.
 **Migration note.** The returned `Message` strings are product UX — surface them verbatim
 in the React error toast. Do not replace with generic "Cannot delete".
+Pinned by `tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`, which
+asserts four of the guard messages byte-for-byte plus the permissive missing-order path
+(`MfgPoService.cs:474-475`).
 
-### BR-SO-002 — ⚠️ Two guards in that chain are unreachable (copy-paste defects)
+### BR-SO-002 — Two guards in that chain were unreachable (copy-paste defects) — **FIXED**
 
-**Statement (defect).** In the same method:
-- The **Export Invoice** guard computes `hasExpInvoice` but then tests
-  `if (hasInvoice)` — so an order with only an export invoice and no domestic invoice
-  **can be deleted**. `MfgPoService.cs:499-505`.
-- The **Contract Review** guard computes `hasCR` but then tests `if (hasRc)` — so an order
-  with a contract review and no route card **can be deleted**. `MfgPoService.cs:523-525`.
+**Statement (the defect, as it stood until 2026-08-19).** In the same method:
+- The **Export Invoice** guard computed `hasExpInvoice` but tested `if (hasInvoice)`
+  (`MfgPoService.cs:504`) — so an order with only an export invoice and no domestic
+  invoice could be deleted.
+- The **Contract Review** guard computed `hasCR` but tested `if (hasRc)`
+  (`MfgPoService.cs:525`) — so an order with a contract review and no route card could be
+  deleted.
 
-**Evidence.** `MfgPoService.cs:499-505` and `:523-525`.
+**Evidence (defect).** `MfgPoService.cs:499-505` and `:523-526`, re-verified 2026-08-19
+immediately before the fix.
+
+**Fix.** Task **M0-09**, branch `migration/M0-09-delete-guard-fix`, commit
+*"M0-09: Fix two unreachable delete guards in CanDeleteSalesOrderAsync (R-08)"* — two
+identifier changes, `hasInvoice` → `hasExpInvoice` at `:504` and `hasRc` → `hasCR` at
+`:525`. No message string, guard order or query changed.
+
+**Proof the guards were unreachable.** The two new tests were run against the unfixed
+service and failed with the observed value
+`(True, "Sales Order can be safely deleted.")` where `(False, <the guard message>)` was
+expected. Both pass after the fix.
+
+**Tests that pin it** (`tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`):
+`CanDeleteSalesOrder_WithOnlyExportInvoice_IsRefused`,
+`CanDeleteSalesOrder_WithOnlyContractReview_IsRefused`, plus the regression pair
+`CanDeleteSalesOrder_WithTaxInvoice_IsRefused` and
+`CanDeleteSalesOrder_WithRouteCard_IsRefused` (green before and after).
+
+**Behaviour change.** Sales Orders whose only downstream document is an export invoice, or
+only a contract review, were reported deletable and are now refused. No data is altered —
+`CanDeleteSalesOrderAsync` is a read-only eligibility check.
 
 **Confidence.** Confirmed.
-**Disposition.** **Bug.** Fix in the service (one place, benefits both UIs).
-**Migration note.** Fix before exposing the delete endpoint — an API makes the wrong
-branch far easier to hit. Risk R-08. Audit the other ~40 `CanDelete…Async` methods for the
-same copy-paste pattern (INV-011).
+**Disposition.** Fixed in the service (one place, benefits both UIs).
+**Still open.** The audit of the other ~40 `CanDelete…Async` methods for the same
+copy-paste pattern is **not** done here — it is task M0-10 / INV-025.
 
 ### BR-SO-003 — Order and line cancellation require a reason and check transactions first
 

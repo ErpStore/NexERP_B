@@ -348,6 +348,12 @@ None. M0 starts immediately.
 - `M0-13 → M0-11`. The decision must be taken with current behaviour already pinned by
   tests, or the change is invisible.
 - `M0-09 → M0-10`. The audit uses the fix as its reference pattern.
+  **2026-08-19:** M0-09's fix is implemented on `migration/M0-09-delete-guard-fix` (two
+  identifiers in `MfgPoService.CanDeleteSalesOrderAsync`, pinned by
+  `tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`; suite 79/79 green).
+  **M0-10's reference pattern therefore exists**: a `CanDelete…` guard that computes one
+  boolean and tests another, proven unreachable by a test that seeds *only* the document the
+  guard is supposed to catch. Task status is recorded in KB-081, not here.
 
 **Must NOT be parallelised despite appearing unrelated:**
 - `M0-14` and `M0-03-01` both edit `V.SMART.Web/appsettings.json`.
