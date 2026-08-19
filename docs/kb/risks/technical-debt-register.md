@@ -430,6 +430,20 @@ other work** — it is cheap and it is currently a single-point-of-failure for t
 ### R-05 — No automated tests, no CI
 **Confirmed, and still open.** A test project and a CI pipeline now exist; *coverage* does not.
 
+> **Coverage added 2026-08-19 (M0-13) — the first real business-behaviour coverage.**
+>
+> `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs` adds **25**
+> characterisation tests over `StockManagerService`, taking the suite from 11 to **36 tests,
+> 36 passing** (`dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj`, run
+> twice, stable). Unlike the M0-12-01 smoke tests, these assert behaviour: the FIFO allocation
+> order, `RcSubID` and `StoreId` discrimination, track reversal on re-issue,
+> `AddOrUpdateStockAsync`'s consumed-quantity arithmetic, both delete guards, all five
+> user-facing exception message strings, and the R-07 drift.
+>
+> This closes the *first* of the two services R-05 names. `IStockManagerService` is now covered;
+> the rest of the ~285 business services are not, and CI has still never run green on a hosted
+> runner. **R-05 stays open.**
+
 > **Status 2026-08-19 (M0-12-01) — the harness exists. The safety net does not.**
 >
 > - `tests/V.SMART.Shared.Tests/` is the repository's first test project, registered in the
@@ -514,6 +528,31 @@ full quantity while `StockIssueTrack` accounts for less.
 path.
 **Action.** Confirm intent (Q-01). If unintended, add a post-loop check and fix in the
 service so both UIs benefit. Add tests first.
+
+> **Status 2026-08-19 (M0-13) — PINNED, NOT FIXED. This risk stays OPEN.**
+>
+> Nothing in `StockManagerService.cs` changed. The absence of a post-loop `remainingQty > 0`
+> check between the loop's close at `:231` and `SaveAsync()` at `:233` was re-verified against
+> the working tree on 2026-08-19 and is still there.
+>
+> What changed is that the behaviour is now **asserted green** by named characterisation tests
+> in `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs`, so any
+> future change to it turns a test red instead of passing unnoticed:
+>
+> - `S13_R07_IssueOrUpdateStock_WhenNoBatchHasBalance_ThrowsNoAvailableStockToIssue`
+> - `S14_R07_IssueOrUpdateStock_WhenBatchesExistButTotalBalanceIsShort_SilentlyUnderAllocatesAndDoesNotThrow`
+>   — asserts the drift numerically: `IssueQty 100 − Σ UsedQty 30 == 70m`
+> - `S15_R07_IssueOrUpdateStock_WhenReIssueIncreasesQuantityBeyondAvailableStock_SilentlyUnderAllocatesOnTheUpdatePathToo`
+> - `S16_R07_IssuingOneHundred_ThrowsAgainstZeroStock_ButSilentlyDriftsByNinetyNineAgainstOneUnit`
+>
+> The decision to keep or tighten the behaviour remains **M0-11 / Q-01**, and it is now taken
+> against a measured baseline rather than against unpinned code. **Do not close R-07** until
+> that decision is taken and applied as its own reviewable change.
+>
+> **Additional behaviour surfaced while pinning (Confirmed).** On the create path the
+> `StockIssue` row is committed at `:154-155` *before* tracking runs, so even the *refusal*
+> case leaves an orphan `StockIssue` for the full quantity with zero `StockIssueTrack` rows.
+> M0-11's brief should cover this as well as the drift.
 
 ### R-08 — Copy-paste defects in delete guards
 **Confirmed.** `MfgPoService.cs:504` tests `hasInvoice` where it computes `hasExpInvoice`;
