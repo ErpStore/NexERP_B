@@ -21,12 +21,33 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: **none selected yet — M2 is open.** Pick one of four.
+## Active task: **`M2-C01`** — Vite + React 19 + TS strict + lint + test + CI
+
+**Selected by the repository owner, 2026-08-19** — the first task of M2 and the first React
+code in this repository. Full spec: [`tasks/M2-C01.md`](tasks/M2-C01.md). Type Frontend, P0,
+estimate 3 d, Gate G2.
+
+Creates `frontend/nexgen-web/` as a Vite 6 + React 19 + TypeScript `strict` workspace, and
+**establishes the canonical frontend commands** (`npm ci`, `typecheck`, `lint`, `test`,
+`build`, `e2e`) that every later M2-C task cites.
+
+**Verified available on this workstation, 2026-08-19:** `node v24.19.0`, `npm 11.17.0`.
+
+**Do not touch `frontend/vsmart-erp/`** — that is the archived Angular pilot, and archiving it
+is `M2-C11`'s job, not this one.
+
+**One criterion cannot be met from an execution session:** *"`.github/workflows/ci.yml`
+contains a `frontend` job … **and it is green on the branch**"*. Green-on-the-branch requires a
+push, which `CLAUDE.md` forbids without an explicit in-conversation instruction. Add the job,
+verify every command locally, and record that half as `NOT MET` with the reason — the same wall
+`M0-12-02` hit, resolved there by an owner decision, not by retrying.
+
+---
 
 **Gate G0 PASSED WITH EXCEPTIONS on 2026-08-19.** Milestone review:
 [KB-107](M0-milestone-review.md). M2 — Foundation is open for the first time.
 
-Four tasks are `Ready`, all P0, none needing a human first:
+The other three tasks are `Ready` and unclaimed:
 
 | Task | What | Est. | Why you might take it first |
 |---|---|---|---|
