@@ -21,75 +21,38 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task: **`M2-C01`** — Vite + React 19 + TS strict + lint + test + CI
+## No active task — `M2-C01` closed, next task not yet selected
 
-**Selected by the repository owner, 2026-08-19** — the first task of M2 and the first React
-code in this repository. Full spec: [`tasks/M2-C01.md`](tasks/M2-C01.md). Type Frontend, P0,
-estimate 3 d, Gate G2.
+**`M2-C01` is `Completed` and merged (`12f172f`, 2026-08-19).** `frontend/nexgen-web/` is on
+`master`: Vite 6 + React 19 + TypeScript `strict`, Mantine 7, TanStack Query, Vitest + RTL +
+MSW, a Playwright scaffold, and the KB-050 feature-sliced skeleton. The canonical frontend
+commands (`npm ci`, `typecheck`, `lint`, `format:check`, `test`, `coverage`, `build`, `e2e`)
+are established and recorded in
+[KB-083 § Verified repository commands](prompt-template.md#verified-repository-commands).
 
-Creates `frontend/nexgen-web/` as a Vite 6 + React 19 + TypeScript `strict` workspace, and
-**establishes the canonical frontend commands** (`npm ci`, `typecheck`, `lint`, `test`,
-`build`, `e2e`) that every later M2-C task cites.
-
-**Verified available on this workstation, 2026-08-19:** `node v24.19.0`, `npm 11.17.0`.
-
-**Do not touch `frontend/vsmart-erp/`** — that is the archived Angular pilot, and archiving it
-is `M2-C11`'s job, not this one.
-
-**One criterion cannot be met from an execution session:** *"`.github/workflows/ci.yml`
-contains a `frontend` job … **and it is green on the branch**"*. Green-on-the-branch requires a
-push, which `CLAUDE.md` forbids without an explicit in-conversation instruction. Add the job,
-verify every command locally, and record that half as `NOT MET` with the reason — the same wall
-`M0-12-02` hit, resolved there by an owner decision, not by retrying.
+**Read the close as a waiver, not a pass.** 14 of 15 acceptance criteria were met. The 15th —
+criterion 10's second half, *"the `frontend` job … is green on the branch"* — was **never
+satisfied**; it needs a push, which an execution session may not make. The owner waived it on
+the `M0-07` (`d79e1a4`) and `M0-12-02` (`a83f1e2`) precedent. Full record:
+[`task-tracker.md`](task-tracker.md) footnote ¹⁹.
 
 ---
 
-## Run State — `BLOCKED`, 2026-08-19
+## Ready and unclaimed — six tasks
 
-**This is exactly the wall predicted above, now hit and recorded.** `M2-C01` is fully
-implemented on `migration/M2-C01-react-app-skeleton` (`4ac7241`, `8fb8e6d`, `d5182f6`) and
-14 of 15 acceptance criteria are independently re-verified `MET`. The 15th — CI's `frontend`
-job "green on the branch" — is `NOT MET, NOT CHECKABLE`: no GitHub Actions run exists or can
-be produced without a push (`git ls-remote --heads origin` does not list this branch; `gh` is
-not installed on this workstation), and pushing is forbidden absent an explicit
-in-conversation instruction.
-
-**This file still points at `M2-C01` deliberately** — do not select a new active task without
-reading this section first. A later session resumes here, it does not restart the
-investigation or the scaffold.
-
-**What unblocks it — one owner decision, two options, nothing else will do:**
-- **A** — the repository owner authorises publishing `migration/M2-C01-react-app-skeleton`
-  (preferably as a PR, per Q-20) and reads the `frontend` job green on a hosted runner.
-- **B** — the owner waives the "green on the branch" half for this task and re-homes it,
-  exactly as was done for `M0-07` (`d79e1a4`).
-
-Full record: [`tasks/M2-C01.md` § Execution Record
-(2026-08-19)](tasks/M2-C01.md#execution-record-2026-08-19),
-[`failure-log.md` § M2-C01 · attempt 2](failure-log.md#m2-c01--attempt-2--2026-08-19),
-`task-tracker.md` footnote ¹⁸, and [`runner-state.md`](runner-state.md) (Status `BLOCKED`).
-
-**Until this is resolved, do not start any task that depends on `M2-C01`** — `M2-C02`,
-`M2-C03`, `M2-C04-*`, `M2-C05-*`, `M2-C10`, `M2-C11` all build on work that is not yet on
-`master`. `M2-B07` and `M2-A06` remain genuine, unrelated `Ready` alternatives (see the table
-below); `M2-A01-02` is a `Ready` alternative in name only — its own D-5/R-40 contradiction is
-still unresolved.
-
----
-
-**Gate G0 PASSED WITH EXCEPTIONS on 2026-08-19.** Milestone review:
-[KB-107](M0-milestone-review.md). M2 — Foundation is open for the first time.
-
-The other three tasks are `Ready` and unclaimed:
+Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 
 | Task | What | Est. | Why you might take it first |
 |---|---|---|---|
 | **`M2-B07`** | Shared `AddVSmartDomain()` DI extension | 3 d | **Unblocks the most** — `B01`, `B04`, `B05`, `B08`, `B09` all wait on it. The DI seam everything in M2-B hangs off |
-| **`M2-C01`** | Vite + React 19 + TS strict + lint + test + CI | 3 d | Touches nothing the backend touches — can run **in parallel** with `M2-B07`, no same-file conflict |
 | **`M2-A06`** | Exception middleware → `ProblemDetails` | 3–5 d | Unblocks `B02`, `B06`, `B11`. Establishes the error contract every controller then relies on |
-| **`M2-A01-02`** | Implement `[RequireScreen]` / `[RequireRight]` | 3 d | Spec already written and merged ([KB-105](../architecture/server-side-authorization-spec.md)). **Read the warning below first** |
+| **`M2-C04-01`** | Design tokens, theme, light/dark | 3 d | The first task where "make the UI genuinely better" becomes concrete decisions. Blocks `C04-02`, `C04-03`, `C03` |
+| **`M2-C10`** | Decimal handling — no float money arithmetic | 2 d | P0 correctness. Blocks `C07`. Cheap, self-contained, and wrong-by-default if deferred |
+| **`M2-C11`** | Archive the Angular pilot | 0.5 d | P2 housekeeping. The smallest unit of real progress available |
+| **`M2-A01-02`** | Implement `[RequireScreen]` / `[RequireRight]` | 3 d | Spec merged ([KB-105](../architecture/server-side-authorization-spec.md)) — but **read the warning below before opening it** |
 
-Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
+**`M2-C04` is a parent container** and is never worked directly — its implementable scope lives
+entirely in `M2-C04-01/02/03`. Same for `M2-C05` and `M2-A01`.
 
 ---
 
