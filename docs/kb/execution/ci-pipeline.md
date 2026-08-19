@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: complete
 confidence: confirmed
-last_verified: 2026-08-17
+last_verified: 2026-08-19
 dependencies: [KB-080, KB-083, KB-086, KB-060]
 ---
 
@@ -86,6 +86,39 @@ These are [KB-086](M0-15-build-baseline.md) §7's recommended commands (Api and 
 
 ---
 
+### The frontend jobs (added 2026-08-19 by M2-C01)
+
+The workflow now has **three** jobs, not one. `build` (above) is unchanged; M2-C01 appended
+two more, and changed nothing inside `build`.
+
+| | `frontend` | `frontend-e2e` |
+|---|---|---|
+| Blocking? | **Yes** | **No** — `continue-on-error: true` |
+| Runner | `windows-latest` | `windows-latest` |
+| Timeout | 20 min | 20 min |
+| Working directory | `frontend/nexgen-web` | `frontend/nexgen-web` |
+| Node | `actions/setup-node@v4`, `node-version-file: frontend/nexgen-web/.nvmrc` (**22**), `cache: npm` keyed on that project's `package-lock.json` | same |
+| Steps | checkout → hygiene guard → setup-node → report toolchain → `npm ci` → `npm run typecheck` → `npm run lint` → `npm run format:check` → `npm run test -- --run` → `npm run build` | checkout → setup-node → `npm ci` → `npx playwright install --with-deps chromium` → `npm run e2e` → upload report |
+| `needs` | — | `frontend` |
+
+Three decisions worth stating rather than leaving to be re-derived:
+
+- **`npm ci`, never `npm install`.** CI installs exactly what `package-lock.json` pins.
+- **`windows-latest`, not `ubuntu-latest`.** A Node job has none of the MAUI/workload reasons
+  §2 gives for Windows, and Linux would be faster and cheaper. It matches `build` here for one
+  reason only: every command in the job was verified on a Windows workstation, and the job's
+  first ever execution should not also be its first execution on an unverified platform. The
+  lockfile does carry the Linux `rollup`/`esbuild` optional binaries, so the move stays
+  available.
+- **E2E is non-blocking on purpose.** The only spec asserts a placeholder heading. A Playwright
+  flake failing CI over that buys nothing and teaches the team to ignore red. It becomes
+  blocking at **M2-D01**, the first real screen.
+
+**Neither job has ever run on a GitHub-hosted runner.** M2-C01 executed in a session that may
+not push, so "green on the branch" is unverified for both — recorded as NOT MET in that task's
+report, not quietly assumed. What *is* verified is every step's command, run locally on
+2026-08-19: see [KB-083 § Verified frontend commands](prompt-template.md#verified-frontend-commands).
+
 ## 2. Runner choice — `windows-latest`
 
 **Decision: `windows-latest`.** Recorded here rather than in an ADR because it is a build-
@@ -115,7 +148,7 @@ runners ship no MAUI workloads (KB-086 §4, Unknown-by-measurement). See §3.
 |---|---|---|
 | `V.SMART/V.SMART` (the MAUI head), and therefore `dotnet build NexGen-ERP---2025-master.sln` | KB-086 §4: the solution build succeeds on a developer workstation **only** with MAUI workloads installed *and* a fully clean `obj/`; a dirty `obj/` produced file-lock errors. Whether a workload-free hosted runner can build it at all is recorded as **Unknown** — untested. **Cost: a regression in the MAUI head is not caught until someone builds the solution locally.** | Revisit when **Q-11** (the MAUI app's future, [KB-004](../open-questions.md)) is answered. If the answer is "keep it", a follow-up task adds a separate job with an explicit `dotnet workload install`. |
 | `dotnet test` | There is **no test project in the solution** (INV-023, Confirmed). A test step now is either red or vacuously green, and both teach the team to ignore CI. | **M0-12-01**, at the commented placeholder in `ci.yml`. |
-| Any frontend job | No React code exists yet; the Angular pilot at `frontend/vsmart-erp/` is archived by M2-C11. | **M2-C01**. |
+| ~~Any frontend job~~ **Added 2026-08-19 by M2-C01** | `frontend` (blocking: `npm ci` → typecheck → lint → format:check → test → build) and `frontend-e2e` (Playwright smoke, `continue-on-error: true`). Both `windows-latest`, both scoped to `frontend/nexgen-web/`, Node pinned from `.nvmrc`. **Neither has ever run on a hosted runner** — M2-C01 could not push. Every step was verified locally instead ([KB-083 § Verified frontend commands](prompt-template.md#verified-frontend-commands)). | E2E becomes blocking at **M2-D01**, the first real screen — remove `continue-on-error` there. The Angular pilot at `frontend/vsmart-erp/` is still built by nothing; **M2-C11** archives it. |
 | Any deploy / publish / release step | This pipeline compiles; it ships nothing. Deployment topology is **Q-16**, unanswered. | Out of scope until Q-16 is answered. |
 
 ---
@@ -331,7 +364,7 @@ In order:
 | **M0-12-01** | The first test project, and the `dotnet test` step at the commented placeholder. Also updates KB-083's "Test commands — do not use yet" section in the same commit |
 | **M2-B10** | OpenAPI polish and TypeScript client generation, verified in CI |
 | **M2-A03** | The permission-matrix harness, as a merge-blocking gate |
-| **M2-C01** | A frontend job — Vite + React, lint and test |
+| ~~**M2-C01**~~ **DONE 2026-08-19** | The `frontend` and `frontend-e2e` jobs — see §3 |
 
 Anyone adding a job should keep the existing invariants: no secrets, no deployment, no
 `-warnaserror`, and every new gate baselined before it is enforced.

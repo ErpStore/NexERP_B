@@ -21,8 +21,12 @@
 #   * `-warnaserror` / `TreatWarningsAsErrors` -- the baseline is ~6,693 warnings
 #     (ci/warning-baseline.json). Warnings-as-errors would make CI permanently red.
 #     The gate is a ratchet against a committed baseline instead.
-#   * A frontend job -- no React code exists yet (that is M2-C01); the Angular
-#     pilot under frontend/vsmart-erp/ is archived by M2-C11.
+#   * A BLOCKING end-to-end job. M2-C01 added the `frontend` job (blocking) and
+#     the `frontend-e2e` job (continue-on-error). E2E becomes blocking when the
+#     first real React screen lands (M2-D01) -- until then it asserts only a
+#     placeholder heading, and a flake would fail CI for no information.
+#   * Any job for the Angular pilot under frontend/vsmart-erp/. It is archived
+#     by M2-C11, not built.
 #
 # PROJECTS BUILT, AND THE ONE EXCLUDED
 #   Built:    V.SMART/V.SMART.Api  and  V.SMART/V.SMART.Web
@@ -210,3 +214,124 @@ jobs:
             artifacts/*.binlog
           retention-days: 14
           if-no-files-found: warn
+
+  # ======================================================== frontend (M2-C01) ===
+  # The React app at frontend/nexgen-web/. A SEPARATE job, not extra steps on
+  # `build`: it shares no toolchain, no cache and no failure mode with the .NET
+  # build, and running them in parallel keeps either one's red signal readable.
+  #
+  # RUNNER: windows-latest, matching `build` and -- more importantly -- matching
+  # the workstation where every command below was verified locally (M2-C01).
+  # ubuntu-latest would be faster and cheaper; package-lock.json does carry the
+  # linux optional binaries for rollup and esbuild, so the switch is available.
+  # It is not taken here because it would make the job's first ever run its first
+  # ever run on an unverified platform.
+  #
+  # `npm ci`, never `npm install` -- CI must install exactly what the committed
+  # lockfile pins.
+  frontend:
+    name: Frontend - typecheck, lint, test and build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend/nexgen-web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Same guard as `build`, for the same reason: instant, and there is no
+      # point installing into a tree that has dist/ or node_modules/ committed.
+      - name: Hygiene guard - no build output tracked
+        shell: bash
+        working-directory: .
+        run: bash tools/check-no-build-output.sh
+
+      # node-version-file pins from .nvmrc (22) so the runner and a developer
+      # workstation agree. package.json declares engines >=22 with an open upper
+      # bound -- see M2-C01's report and frontend/nexgen-web/README.md.
+      - name: Set up Node (pinned by .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/nexgen-web/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/nexgen-web/package-lock.json
+
+      - name: Report toolchain
+        run: |
+          node --version
+          npm --version
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # --max-warnings=0 is inside the script. A warning is a failure here from
+      # commit one, including every jsx-a11y warning: accessibility is a
+      # build-time gate, not a later pass (KB-051).
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Unit tests
+        run: npm run test -- --run
+
+      - name: Build
+        run: npm run build
+
+  # ------------------------------------------------- frontend e2e (M2-C01) ---
+  # NON-BLOCKING on purpose (continue-on-error). Today the only spec asserts a
+  # placeholder heading; a Playwright flake failing CI would buy nothing and
+  # teach the team to ignore red. This becomes blocking when the first real
+  # screen lands (M2-D01) -- remove continue-on-error there, and say so in
+  # KB-087.
+  frontend-e2e:
+    name: Frontend - Playwright smoke (non-blocking)
+    runs-on: windows-latest
+    needs: frontend
+    timeout-minutes: 20
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: frontend/nexgen-web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node (pinned by .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/nexgen-web/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/nexgen-web/package-lock.json
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      # Browser binaries are not in the npm cache; --with-deps is a no-op on
+      # Windows but keeps the step portable if the runner ever moves to Linux.
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts starts the Vite dev server itself (webServer).
+      - name: E2E smoke
+        run: npm run e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: frontend/nexgen-web/playwright-report
+          retention-days: 14
+          if-no-files-found: ignore

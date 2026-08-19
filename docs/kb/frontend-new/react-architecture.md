@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-19
 dependencies: [KB-013, KB-015, KB-040, KB-041]
 ---
 
@@ -113,6 +113,29 @@ src/
   layouts/
     AppShell.tsx  AuthLayout.tsx  PrintLayout.tsx
 ```
+
+> **Realised 2026-08-19 by M2-C01 at `frontend/nexgen-web/`.** This tree is no longer a
+> proposal: the skeleton above exists on disk, as empty directories carrying `.gitkeep`
+> wherever the contents belong to a later task. Reconciliation, so nobody has to diff it:
+>
+> - **Created and populated:** `src/app/` (`App.tsx`, `providers.tsx`, `router.tsx`, plus
+>   `App.test.tsx`), `src/shared/i18n/` (`en.json`, one key).
+> - **Created empty (`.gitkeep`):** `src/shared/{api,auth,components,hooks,lib,types}/`,
+>   `src/features/`, `src/layouts/`.
+> - **Named above but deliberately NOT created yet**, because the file *is* the later task and
+>   an empty stub would be a lie about readiness: `shared/api/generated/` and `client.ts`,
+>   `queryKeys.ts` (**M2-B10**); `shared/auth/*` (**M2-C02**); every `shared/components/*`
+>   primitive (**M2-C04-02/03**); `layouts/AppShell.tsx`, `AuthLayout.tsx`, `PrintLayout.tsx`
+>   (**M2-C03**); every `features/*` module folder (**M2-D** onward). The ESLint rule confining
+>   `shared/api/generated/**` to `shared/api/**` was nonetheless written now, so it never has to
+>   be retrofitted.
+> - **Present in the built tree but not named above** — three additions, none of them a new
+>   concept: `src/test/` (Vitest `setup.ts` and the MSW harness), `src/vite-env.d.ts`, and a
+>   top-level `e2e/` for Playwright, which sits beside `src/` rather than inside it.
+>
+> Measured bundle baseline at that commit: entry chunk **90.90 kB gzip**, initial JS
+> **125.38 kB gzip** — see the performance targets below and
+> `frontend/nexgen-web/README.md`.
 
 Each feature folder holds `api.ts` (query/mutation hooks), `schema.ts` (Zod),
 `types.ts`, `routes.tsx`, `pages/`, `components/`. Features never import from each other

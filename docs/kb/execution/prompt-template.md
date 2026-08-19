@@ -335,6 +335,47 @@ total) — **not** `MUD0002` as previously described; `MUD0002` is 130 occurrenc
 total. CI (M0-07) must record this baseline and fail on *new* warnings — it cannot use
 `-warnaserror` until the baseline is cleared.
 
+## Verified frontend commands
+
+Added by **M2-C01**, which created `frontend/nexgen-web/` — the repository's first React
+project. Before it, this document had **no** frontend row of any kind; the only other
+JavaScript tree, `frontend/vsmart-erp/`, is the archived Angular pilot and has never had a
+verified command here.
+
+Every command below was **run locally on 2026-08-19** on this Windows workstation
+(`node v24.19.0`, `npm 11.17.0`) from `frontend/nexgen-web/`, after `rm -rf node_modules`
+followed by `npm ci`. Exit codes were observed, not assumed.
+
+| Purpose | Command (from `frontend/nexgen-web/`) | Verified result |
+|---|---|---|
+| Install exactly what the lockfile pins | `npm ci` | exit 0; **554 packages in 23s** from an empty `node_modules/`. Two `allow-scripts` warnings (`esbuild`, `msw` postinstall not auto-approved by npm 11) — **not** failures: the platform binary `@esbuild/win32-x64` is a normal optional dependency and is present, and every build/test below passes without approving them |
+| Typecheck | `npm run typecheck` | exit 0, no output. Runs `tsc --noEmit` twice — `tsconfig.json` (`src/` + `e2e/`) and `tsconfig.node.json` (root config files) — because the two need different `lib`/`types` |
+| Lint | `npm run lint` | exit 0, no output. `eslint . --max-warnings=0`, type-aware `typescript-eslint`, `react-hooks`, `jsx-a11y`, `simple-import-sort`, plus the two ADR-003 `no-restricted-imports` rules |
+| Format check | `npm run format:check` | exit 0 — "All matched files use Prettier code style!" |
+| Unit tests | `npm run test -- --run` | exit 0 — **1 test file, 1 test passed**, ~30s cold (jsdom environment setup dominates: 20.4s), ~3.7s warm |
+| Coverage | `npm run coverage` | exit 0 — statements **82.89 %**, branches **100 %**, functions **80 %**, lines **82.89 %**. `vitest.config.ts` thresholds are set to the floor of those numbers, so they can only be raised |
+| Production build | `npm run build` | exit 0 — typecheck then `vite build`, 830 modules, **3.56s**. Entry chunk `assets/index-*.js` 289.69 kB raw / **90.90 kB gzip**; vendor `react` chunk 102.50 kB / 34.48 kB gzip; Mantine CSS 201.38 kB / 29.30 kB gzip. Initial JS gzip **125.38 kB** against KB-050's `< 250 KB gzip` budget |
+| E2E smoke | `npm run e2e` | exit 0 — **1 passed (6.2s)**, chromium. Playwright starts the Vite dev server itself. Requires `npx playwright install chromium` once per machine; that download succeeded here |
+
+**`npm ci`, never `npm install`, in CI.** `package-lock.json` is committed, and it carries the
+Linux optional binaries for `rollup` and `esbuild` as well as the Windows ones — so moving the
+CI job to `ubuntu-latest` later is available, though M2-C01 deliberately did not take it (the
+job's first ever run should not also be its first run on an unverified platform).
+
+**Node version, stated plainly (M2-C01 deviation).** `.nvmrc` pins **22** and CI resolves from
+it, but `package.json` declares `"engines": { "node": ">=22" }` with an **open upper bound**,
+not the `>=22 <23` the task file asked for. The only Node on this workstation is **24.19.0**,
+and this task's definition of done is that the commands above are *verified* — which can only
+be done on the Node actually installed. A closed `<23` range would have made every local
+`npm` command emit `EBADENGINE`, and an outright failure under `engine-strict`. Nothing above
+was verified on Node 22.
+
+**Not yet verified (do not put these in a prompt):** `npm run dev` and `npm run preview` as
+CI-checkable commands (they are long-running servers; only the Playwright `webServer` path
+exercises `dev`), and any frontend command on a GitHub-hosted runner — the `frontend` and
+`frontend-e2e` jobs added to `.github/workflows/ci.yml` by M2-C01 have **never executed**,
+because an execution session may not push.
+
 ## Test commands
 
 Superseded 2026-08-19 by **M0-12-01**, which created the repository's first test project.
