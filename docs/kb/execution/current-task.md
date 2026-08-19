@@ -27,6 +27,46 @@ Full spec: [`tasks/M0-12-02.md`](tasks/M0-12-02.md). Type Testing, P0, estimate 
 G0. Its sole Hard prerequisite, `M0-12-01`, is `Completed` and merged (`bdee81f`,
 2026-08-19) — `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` works.
 
+### Run State — `Blocked` on the repository owner, 2026-08-19
+
+**Do not re-dispatch this task expecting a different result.** It is implemented on
+`migration/M0-12-02-calculationservice-characterisation` (`050f06b`), attempt 1 of 3, 0
+escalations, validator verdict `FAIL`/`failureCategory: environment`. **11 of 12 acceptance
+criteria are objectively `MET`** — re-run and re-derived independently, not taken from the
+implementer's report: `dotnet test` → 73/73 passing (twice); `dotnet build V.SMART.Api
+--no-incremental` → 0 errors, 6,694 warnings (at the 6,695 baseline); `git diff --stat
+master...HEAD` → 9 files, zero under `V.SMART/`; all 19 BR-CALC-001 rows and all 3
+BR-CALC-002 rows covered by named tests; both tax branches; both `.5` rounding midpoints and
+a negative `RoundOff`; the silent early returns with twelve fields asserted unmutated; the
+fixed-vs-percentage header-discount asymmetry; the unlisted-GST-rate/R-15 pair; exact
+`decimal` comparison throughout (grepped, no `double`/tolerance/parsed string); KB-030,
+KB-060, KB-004 (new Q-23, Q-24) and KB-003 all updated in-commit.
+
+**The twelfth — criterion 8's second half, "the suite passes in CI on the branch" — is
+unmeetable from inside an execution session.** It requires pushing the branch to `origin` so
+`ci.yml` runs on a hosted GitHub Actions runner. `git ls-remote --heads origin` lists eight
+branches and this one is not among them. `CLAUDE.md` § Standing constraints forbids pushing
+without an explicit in-conversation instruction, and this dispatch's `allow_push` was
+`false`. This is the same wall already hit by `M0-07` (signed off `Completed` with the gap
+open, `d79e1a4`) and by `M0-12-01` (resolved only once the owner explicitly authorised the
+push, **Q-22**). A diagnosis pass reproduced the identical result independently and agrees:
+`disposition: blocked`, no code or test file touched, no fix applied.
+
+**What resumes this task:** the repository owner (Vivek) choosing (A) explicitly authorise
+pushing `migration/M0-12-02-calculationservice-characterisation` and observe the
+`Test - V.SMART.Shared.Tests` CI step green, or (B) waive criterion 8's "in CI" half and
+re-home it, per the M0-07 precedent. Neither option requires re-implementing anything —
+`050f06b` already stands. Full record:
+[`tasks/M0-12-02.md` § Execution Record (2026-08-19)](tasks/M0-12-02.md#execution-record-2026-08-19),
+[`failure-log.md` § M0-12-02 · attempt 1](failure-log.md#m0-12-02--attempt-1--2026-08-19) and
+its diagnosis entry, [`task-tracker.md`](task-tracker.md) footnote 14,
+[`runner-state.md`](runner-state.md) (KB-093).
+
+**`M0-09` (P1, 0.5 d) and `M0-06` (P1, 1 d) remain independently `Ready`** and are not
+blocked by this — `M0-12-02` is not a Hard prerequisite for either. A later session may
+select one of them under the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)
+if the owner has not yet resolved `M0-12-02`, but this close-out does not make that call.
+
 **Why this task, not another.** Selection rule:
 [`dependency-graph.md` § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 Of the tasks the `M0-12-01` merge released (`M0-12-02`, `M0-13`, `M0-09`, `M0-06`), `M0-13`

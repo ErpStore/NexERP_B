@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-17
+last_verified: 2026-08-19
 dependencies: [KB-001, KB-002, KB-003, KB-005, KB-020, KB-030, KB-040, KB-041, KB-050, KB-051, KB-052, KB-053, KB-060, KB-070, KB-071, KB-081, KB-082, KB-083, KB-084]
 ---
 
@@ -398,6 +398,14 @@ otherwise **M0-12-01 → M0-13 → M0-11**.
       regenerates it, and no required status check exists. See KB-087 §8 for exactly what is
       and is not verified.)*
 - [ ] `CalculationService` and `StockManagerService` characterisation tests passing in CI.
+      *(Both suites now exist and pass **locally**: `StockManagerService` — 25 tests, M0-13,
+      2026-08-19; `CalculationService` — 30 tests plus 7 for the `CommonConstants` GST rate
+      lists, M0-12-02, 2026-08-19. `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj`
+      reports **73 tests, 73 passing**, run twice with identical results. The box stays
+      **unticked** because the criterion says *in CI*: the M0-12-02 branch has not been pushed
+      — an execution session may not push — so no hosted run covers these 37 tests. What was
+      proven on a runner (M0-12-01, Q-22) is that the test **step** executes and that a
+      failing test reddens the job; that is the mechanism, not this coverage.)*
 - [ ] Q-01 answered and recorded in [open-questions.md](../open-questions.md).
 
 ### Definition of Done
