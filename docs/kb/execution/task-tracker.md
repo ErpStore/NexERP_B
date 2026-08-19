@@ -77,7 +77,7 @@ its children are `Completed` — it is never worked directly.
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
-| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Ready** | P0 | M0-12-01 | 2.5 d | G0 |
+| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Blocked**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Ready** | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | Blocked | P1 | M0-09 | 2 d | G0 |
@@ -822,3 +822,49 @@ task in this milestone. **Unblocks nothing yet**: `M0-11` (Product Decision, Q-0
 [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) requires that
 prerequisite to be genuinely `COMPLETED`, not `REVIEW` — `M0-11` stays `Blocked` until the
 owner reviews and merges this branch.
+
+¹⁴ **M0-12-02: `Blocked` on the repository owner, 2026-08-19 — 11 of 12 acceptance criteria
+`MET`, blocked on the twelfth.** Implemented on
+`migration/M0-12-02-calculationservice-characterisation` (`050f06b`), attempt 1 of 3, 0
+escalations. Validator verdict `FAIL`, `failureCategory: environment`, `scopeOk: true`. 37
+new tests (suite 36 → 73, all green, run twice: `Failed: 0, Passed: 73`) pin every row of
+BR-CALC-001 (19) and BR-CALC-002 (3), both tax branches with a three-line/three-rate
+item-wise case, both `.5` midpoints, a negative `RoundOff`, the two silent early returns with
+twelve fields asserted unmutated, the fixed-vs-percentage header-discount asymmetry, and the
+unlisted-GST-rate/R-15 pair — all independently re-derived and re-checked against source, not
+taken from the implementer's report. `git diff --stat master...HEAD` shows zero files under
+`V.SMART/`; `dotnet build V.SMART.Api --no-incremental` → 0 errors, 6,694 warnings, at
+baseline. KB-030, KB-060, KB-004 (new **Q-23**, **Q-24**) and KB-003 (INV-011 annotated) were
+all updated in the same commit.
+
+**What is not met — criterion 8's second half, and why it cannot be met from inside an
+execution session.** *"the suite passes in CI on the branch"* requires pushing
+`migration/M0-12-02-calculationservice-characterisation` to `origin` so `ci.yml` executes on
+a hosted runner. `git ls-remote --heads origin` lists eight branches and this one is not
+among them; `CLAUDE.md` § Standing constraints forbids pushing without an explicit
+in-conversation instruction, and this dispatch carried `allow_push=false`. This is the
+identical gap already carried for **M0-07** (signed off `Completed` with it open, `d79e1a4`)
+and resolved for **M0-12-01** only once the owner explicitly authorised the push (**Q-22**).
+Nothing about the branch itself is in question — `ci.yml:183-190` runs the whole test project
+with no filter, and its `$LASTEXITCODE` re-raise was already confirmed working on a hosted
+runner by M0-12-01's `821e923`.
+
+**Attempts used: 1 of 3** — not exhausted, but a same-spec retry rebuilds `050f06b` and stops
+at the identical wall, so no further attempt was spent chasing it
+([KB-091 §6.4](autonomous-runner.md#64-retry-rules)). **Status: `Blocked` on the repository
+owner** — a decision, not something further investigation or implementation can resolve.
+**Blocks, transitively, unchanged:** nothing new — `M0-12-02` was not itself a Hard
+prerequisite for any other task; `M0-09` and `M0-06` remain independently `Ready`.
+
+**Owner to unblock: Vivek**, choosing one of two options:
+
+- **A.** Explicitly authorise pushing `migration/M0-12-02-calculationservice-characterisation`
+  and observe the `Test - V.SMART.Shared.Tests` step green — the exact route already taken
+  for `M0-12-01` under Q-22.
+- **B.** Waive the "in CI" half of criterion 8 and re-home it, consistent with the `M0-07`
+  precedent already accepted into `Completed` (`d79e1a4`).
+
+Full record: [`tasks/M0-12-02.md` § Execution Record
+(2026-08-19)](tasks/M0-12-02.md#execution-record-2026-08-19);
+[`failure-log.md` § M0-12-02 · attempt 1](failure-log.md#m0-12-02--attempt-1--2026-08-19) and
+its diagnosis entry.
