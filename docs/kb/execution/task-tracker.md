@@ -1158,7 +1158,7 @@ validator then re-ran all sixteen acceptance criteria plus the coverage/build/li
 commands against this tip and found every one **MET** or exit 0: verdict `PASS`,
 `failureCategory: none`, `scopeOk: true`, no regressions found. Full evidence:
 [`tasks/M2-C04-01.md` § Execution Record (2026-08-20)](tasks/M2-C04-01.md#execution-record-2026-08-20).
-**Attempts used: 1 of 4, 0 escalations** (per the runner's own accounting for this session; the
+**Attempts used: 1 of 3, 0 escalations** (per the runner's own accounting for this session; the
 lost attempt-2 dispatch above did not consume budget, consistent with the `M0-12-01` precedent).
 
 **Why `Needs Review`, not `Completed`.** Per

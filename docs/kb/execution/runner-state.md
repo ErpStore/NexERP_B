@@ -46,7 +46,7 @@ corrected.
 | **Current phase** | n/a — no task is in flight. |
 | **Current agent** | n/a — no agent is live |
 | **Current model** | n/a |
-| **Attempt** | `M2-C04-01`: 1 of 4 used this session, 0 escalations, per the final validator's own accounting (the lost attempt-2 dispatch recorded in the prior state did not consume budget, consistent with the `M0-12-01` precedent — KB-081 footnote ¹²). Task is now closed; the counter does not carry forward to whatever opens next. |
+| **Attempt** | `M2-C04-01`: 1 of 3 used this session, 0 escalations, per the final validator's own accounting (the lost attempt-2 dispatch recorded in the prior state did not consume budget, consistent with the `M0-12-01` precedent — KB-081 footnote ¹²). Task is now closed; the counter does not carry forward to whatever opens next. |
 | **Escalations** | 0 |
 | **Last validation** | `M2-C04-01`, tip `9f886a6` — validator verdict **`PASS`**, `failureCategory: none`, `scopeOk: true`. All sixteen acceptance criteria independently re-checked and `MET`, including a from-scratch WCAG recomputation (110 pairs, 0 failing, both themes) and re-runs of `typecheck`/`lint`/`test`/`build`/`coverage` all green (`branches 100 %`). No regressions found; `V.SMART/` untouched. Full evidence: `tasks/M2-C04-01.md` § Execution Record (2026-08-20). |
 | **Tasks processed this run** | `M0-12-01`, `M0-13`, `M0-12-02`, `M0-09`, `M2-A01-01`, `M2-C01`, `M2-B07` — all `Completed` and merged. `M2-C04-01` — implemented, validated `PASS`, closed `Needs Review`. |
