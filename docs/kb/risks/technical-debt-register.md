@@ -572,14 +572,43 @@ service so both UIs benefit. Add tests first.
 > case leaves an orphan `StockIssue` for the full quantity with zero `StockIssueTrack` rows.
 > M0-11's brief should cover this as well as the drift.
 
-### R-08 — Copy-paste defects in delete guards
-**Confirmed.** `MfgPoService.cs:504` tests `hasInvoice` where it computes `hasExpInvoice`;
-`:525` tests `hasRc` where it computes `hasCR`. Two guards are unreachable, so a Sales
-Order with only an export invoice, or only a contract review, can be deleted.
+### R-08 — Copy-paste defects in delete guards — **RESOLVED (first action item only)**
+**Confirmed (the defect, until 2026-08-19).** `MfgPoService.cs:504` tested `hasInvoice`
+where it computed `hasExpInvoice`; `:525` tested `hasRc` where it computed `hasCR`. Two
+guards were unreachable, so a Sales Order with only an export invoice, or only a contract
+review, could be deleted.
 **Impact.** Referential-integrity violation → orphaned downstream documents.
-**Action.** Fix both; then audit **every** `CanDelete…` method for the same pattern
-(INV-025, task M0-10). An API makes these branches far easier to reach than the current UI
-does.
+
+**Resolved 2026-08-19** by task **M0-09**, branch `migration/M0-09-delete-guard-fix`,
+commit *"M0-09: Fix two unreachable delete guards in CanDeleteSalesOrderAsync (R-08)"* —
+two identifier changes and nothing else. Pinned by
+`tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`
+(`CanDeleteSalesOrder_WithOnlyExportInvoice_IsRefused`,
+`CanDeleteSalesOrder_WithOnlyContractReview_IsRefused`, plus the regression pair for the
+Tax Invoice and Route Card guards). Both new tests were observed to fail before the fix,
+returning `(True, "Sales Order can be safely deleted.")`, which is the proof the guards
+were unreachable.
+
+**Behaviour change — operations must be told.** A Sales Order whose only downstream
+document is an **export invoice**, or only a **contract review**, used to be reported
+deletable and is now refused with the existing message
+("Cannot delete this Sales Order as a Export - Invoice transaction exists." /
+"Cannot delete this Sales Order as a Contract Review transaction exists."). Nobody's data
+changes: `CanDeleteSalesOrderAsync` is a read-only eligibility check, so this only stops a
+deletion that would have orphaned documents.
+
+**Still open — second action item.** Auditing **every** other `CanDelete…` method for the
+same pattern remains open as **INV-025 / task M0-10**. M0-09 deliberately touched exactly
+one method. An API makes these branches far easier to reach than the current UI does.
+
+> **Related gap noticed while fixing, not acted on (Confirmed, 2026-08-19).** The guard is
+> **advisory**: `MfgPoService.DeletePOByPOIdAsync` (`MfgPoService.cs:790-801`) never calls
+> `CanDeleteSalesOrderAsync`; the only enforcement is the caller,
+> `Pages/SalesAndLabour_pages/SalesPo_Pages/MfgPOList.razor:1079-1090` (`HandleDelete`),
+> while `ConfirmDelete_Click` (`:1108`) deletes at `:1119` without re-checking. So M0-09
+> hardens *what the check reports*, not the delete path itself. A future
+> `DELETE /api/v1/sales-orders/{id}` must call the guard server-side or repeat this gap.
+> Scoped to **M0-10** as a lead; deliberately out of M0-09's two-line scope.
 
 > **Scope correction, 2026-08-12 (Confirmed).** "~40 methods" understated the audit by more
 > than half. A scoped grep over `V.SMART/V.SMART.Shared/BusinessLayer/` returns **63**
