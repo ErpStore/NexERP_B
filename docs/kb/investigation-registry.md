@@ -289,6 +289,56 @@ file. **No history rewrite is required for R-14.** Enforcement is now mechanical
 | INV-027 | Stored-procedure DDL capture (all 94) | **Complete** (2026-08-13, M0-01-02 half B/C — DDL actually landed and was verified, not just the tooling) | Reference-vs-scripted reconciliation (M0-01-01, unchanged): 94 referenced, 13 declared, 11 `scripted`, 1 `case_mismatch`, 1 `unreferenced`, 82 `missing` — worklist `db/stored-procedures/manifest.csv`. **Live-database capture (M0-01-02, this update):** operator PavanKunar ran `db/tools/Export-StoredProcedures.ps1` against `NexGenErpDb` (`DESKTOP-FIIBE97\SQLEXPRESS`, SQL authentication) on 2026-08-13. **78 of 82** `missing` procedures captured cleanly into `db/stored-procedures/`; **4 negative results** (genuinely absent, not a tool defect — independently cross-checked against the source text): `Sp_BomAnalysis`, `Sp_Print_Estimation`, `Sp_Print_Receipts`, `Sp_Print_SingleProcessInspection` — escalated in `db/stored-procedures/CAPTURE-STATUS.md` for a human dead-code-vs-latent-defect decision, per procedure. `db/tools/verify-capture.sh` exits 0 (0 hard failures, 4 recorded warnings for the negative results). **Provenance is not a clean single-tenant capture — read before reusing this finding:** `NexGenErpDb` was empty of procedures until the operator manually deployed a script (`AllSp.sql`, local, not committed) originally scripted from a *different* database, `IQSMARTDEMO_DB_2025-26` (a demo tenant reachable via the connection string already commented out in `ApplicationDbContextFactory.cs`). The DDL's actual origin is `IQSMARTDEMO_DB_2025-26`, relayed through `NexGenErpDb`, not a capture directly from a nominated production tenant. Full detail in `db/stored-procedures/CAPTURE-STATUS.md`, "Provenance caveat". **Tooling fix recorded the same day:** 3 of the 78 initially failed ("unrecognized leading statement") because their deployed definitions carry a leading `-- ====...` comment before `CREATE PROCEDURE` — `Export-StoredProcedures.ps1`'s regex didn't tolerate a leading comment even though `verify-capture.sh`'s own spec already does; fixed, re-captured cleanly (see git history). **What this leaves open, explicitly not this investigation's job:** whether `IQSMARTDEMO_DB_2025-26` is representative of a real production tenant is Q-14 (open-questions.md), owned by M0-02 — this capture is now that task's input, not its answer. | [KB-102](architecture/stored-procedure-inventory.md), [db/stored-procedures/CAPTURE-STATUS.md](../../db/stored-procedures/CAPTURE-STATUS.md) | 2026-08-13 |
 | INV-037 | `UserRight`/`Screens` uniqueness, duplicate-row risk, and rights write sites | Complete | `Data/ApplicationDbContext.cs` (`HasIndex`/`HasAlternateKey` grep — 5 hits, **none** on either entity; `HasData` seed at `:1151`), `Migrations/ApplicationDbContextModelSnapshot.cs:4676-4680,9127-9145,25933-25945`, `Migrations/20260217110637_InitialCreate.cs:563-576,7204-7237,9796-9803`, `Data/Master/Admin_Module/UserRight.cs`, `Data/Master/MasterScreeenManagement_Module/Screens.cs`, `BusinessLayer/…/AdminService/UserRightService.cs`, `BusinessLayer/…/AdminService/UserService.cs:442-464`, `BusinessLayer/…/HRMasterService/EmployeeService.cs:185-191`, `Pages/Master_Module_pages/UserRights_Pages/UserRights.razor:299,446,462`, `Pages/Master_Module_pages/Employee_Pages/EmployeeUpsert.razor:918,921`, `Pages/Master_Module_pages/Identity_Pages/Login.razor:345-349`, `V.SMART.Api/Controllers/AuthController.cs`, `V.SMART.Api/Program.cs`, `V.SMART.Api/Auth/JwtTokenService.cs`, `Services/CurrentUserService.cs:50-66`, `Services/MultiCompanyService/TenantProvider.cs:25-58` | [KB-105](architecture/server-side-authorization-spec.md). **Negative results:** no unique constraint or alternate key on `UserRight` — only non-unique FK indexes; no index of any kind on `Screens` beyond its PK, and `ScreenName` is `nvarchar(max)` so it cannot be one; no collation configured anywhere in the model or migrations; **no code path writes a `Screens` row**. **Positive:** all 152 seeded `ScreenName`s unique (also case-insensitively), `Id == ScreenCode` throughout; 5 `UserRight` write sites, **all in the Blazor host, none in the API**. Whether duplicates exist in live tenant DBs stays **Unknown** — Q-27 | 2026-08-18 |
 
+**M2-C01 amendment to INV-029 (2026-08-19) — the post-M0 `.gitignore` / `.github/workflows/`
+state, and the repository's first React project.** M2-C01's task file was written on
+2026-08-12 and asserts that `.github/workflows/` is empty and that `.gitignore` ignores only
+`node_modules/`. **Both are false now**; M0-07 and M0-08 landed in between. Confirmed by
+direct inspection on 2026-08-19 before any file was written.
+
+```yaml
+Finding:        The React application project frontend/nexgen-web/ now exists, and npm ci,
+                typecheck, lint, format:check, test, coverage, build and e2e are verified
+                working commands on this workstation (node v24.19.0, npm 11.17.0). CI gained
+                a blocking `frontend` job and a non-blocking `frontend-e2e` job. Neither has
+                ever run on a GitHub-hosted runner.
+Evidence:       frontend/nexgen-web/package.json, frontend/nexgen-web/package-lock.json,
+                .github/workflows/ci.yml (jobs: build, frontend, frontend-e2e),
+                docs/kb/execution/prompt-template.md "Verified frontend commands"
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-19
+```
+
+- **Pre-existing state, re-verified rather than assumed (Confirmed).** `.github/workflows/ci.yml`
+  exists (M0-07), 213 lines, one `build` job on `windows-latest` — so M2-C01's "if ci.yml does
+  not exist, stop and report Blocked on M0-07" branch did **not** fire. `.gitignore` was 385
+  lines: M0-08's block at `:381-385` already covers `**/dist/`, `**/.angular/`, `**/out-tsc/`,
+  `**/coverage/`, and `:286` covers `node_modules/` — i.e. most of what a Vite/Vitest tree
+  produces was already ignored.
+- **Negative result — do not re-derive.** Grepped `.gitignore` for `env`, `playwright`,
+  `test-results` and `.vite`: **no rule for any of them**, and in particular **no `.env` rule
+  anywhere in the file**. In a public repository (R-01) that meant a developer's `.env` was
+  committable. M2-C01 added `.env`, `.env.*`, `!.env.example`, `**/playwright-report/`,
+  `**/test-results/`, `**/.vite/`. Confidence: **Confirmed**.
+- **Negative result — `tools/check-no-build-output.sh` does not cover any of them.** Its
+  pattern (`tools/check-no-build-output.sh:29`) matches `TestResults/` — the unhyphenated .NET
+  spelling — and not `test-results/`, `playwright-report/`, `coverage/` or `.vite/`. So for
+  those four paths `.gitignore` is the only defence; the CI hygiene guard is not a backstop.
+  Confidence: **Confirmed**.
+- **Toolchain drift worth recording (Confirmed, 2026-08-19).** ADR-003's pinned majors are now
+  well behind the npm registry, and one pin is unsatisfiable via the task file's own scaffold
+  command: `npm create vite@latest` emits **Vite 8** with `@vitejs/plugin-react@6`, which
+  peer-requires `vite ^8`. M2-C01 therefore did **not** run that command; it wrote
+  `package.json` directly against the ADR-003 majors (`vite@6` + `@vitejs/plugin-react@4.7.0`,
+  whose peer range includes Vite 6). Registry `latest` measured the same day: vite 8.2.1,
+  @mantine/core 9.5.1, react-router 8.3.0, typescript 7.0.2, eslint 10.8.1, vitest 4.1.11 —
+  against ADR-003's Vite 6 / Mantine 7 / Router 7 / TypeScript 5. All the ADR-003 majors remain
+  installable today; that will not stay true indefinitely.
+- **ESLint 9, not 10 (Confirmed).** `eslint-plugin-jsx-a11y@6.10.2` peers `eslint ^3 … ^9` —
+  it does not yet declare ESLint 10 support. `typescript-eslint@8` peers `typescript >=4.8.4
+  <6.1.0`, which is a second argument for honouring ADR-003's TypeScript 5 pin rather than
+  taking `typescript@latest` (7.0.2).
+
 ## Partial
 
 | ID | Topic | Status | Gap | Doc |

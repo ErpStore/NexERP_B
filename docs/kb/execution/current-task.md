@@ -44,6 +44,39 @@ verify every command locally, and record that half as `NOT MET` with the reason 
 
 ---
 
+## Run State — `BLOCKED`, 2026-08-19
+
+**This is exactly the wall predicted above, now hit and recorded.** `M2-C01` is fully
+implemented on `migration/M2-C01-react-app-skeleton` (`4ac7241`, `8fb8e6d`, `d5182f6`) and
+14 of 15 acceptance criteria are independently re-verified `MET`. The 15th — CI's `frontend`
+job "green on the branch" — is `NOT MET, NOT CHECKABLE`: no GitHub Actions run exists or can
+be produced without a push (`git ls-remote --heads origin` does not list this branch; `gh` is
+not installed on this workstation), and pushing is forbidden absent an explicit
+in-conversation instruction.
+
+**This file still points at `M2-C01` deliberately** — do not select a new active task without
+reading this section first. A later session resumes here, it does not restart the
+investigation or the scaffold.
+
+**What unblocks it — one owner decision, two options, nothing else will do:**
+- **A** — the repository owner authorises publishing `migration/M2-C01-react-app-skeleton`
+  (preferably as a PR, per Q-20) and reads the `frontend` job green on a hosted runner.
+- **B** — the owner waives the "green on the branch" half for this task and re-homes it,
+  exactly as was done for `M0-07` (`d79e1a4`).
+
+Full record: [`tasks/M2-C01.md` § Execution Record
+(2026-08-19)](tasks/M2-C01.md#execution-record-2026-08-19),
+[`failure-log.md` § M2-C01 · attempt 2](failure-log.md#m2-c01--attempt-2--2026-08-19),
+`task-tracker.md` footnote ¹⁸, and [`runner-state.md`](runner-state.md) (Status `BLOCKED`).
+
+**Until this is resolved, do not start any task that depends on `M2-C01`** — `M2-C02`,
+`M2-C03`, `M2-C04-*`, `M2-C05-*`, `M2-C10`, `M2-C11` all build on work that is not yet on
+`master`. `M2-B07` and `M2-A06` remain genuine, unrelated `Ready` alternatives (see the table
+below); `M2-A01-02` is a `Ready` alternative in name only — its own D-5/R-40 contradiction is
+still unresolved.
+
+---
+
 **Gate G0 PASSED WITH EXCEPTIONS on 2026-08-19.** Milestone review:
 [KB-107](M0-milestone-review.md). M2 — Foundation is open for the first time.
 

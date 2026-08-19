@@ -141,7 +141,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-C01 | M2 | Vite + React 19 + TS strict + lint + test + CI | Frontend | **Ready** | P0 | G0 | 3 d | G2 |
+| M2-C01 | M2 | Vite + React 19 + TS strict + lint + test + CI | Frontend | **Blocked**¹⁸ | P0 | G0 | 3 d | G2 |
 | M2-C11 | M2 | Archive the Angular pilot | DevOps | Blocked | P2 | M2-C01 | 0.5 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
@@ -1028,3 +1028,22 @@ updated in the same commit as any change, or they will correctly go red.
 
 **G0 criterion 7 is met** by the answer being recorded in `open-questions.md`; it does not wait
 on `ADR-006`. See [KB-080 § Exit Gate — G0](README.md#exit-gate--g0).
+
+¹⁸ **M2-C01: `Ready` → `Blocked`, 2026-08-19 — blocked on the repository owner, not on
+engineering.** Two implementation attempts on `migration/M2-C01-react-app-skeleton`
+(`4ac7241`, `8fb8e6d`, `d5182f6`) built `frontend/nexgen-web/` as a Vite 6 + React 19 +
+TypeScript-strict workspace and independently re-verified 14 of 15 acceptance criteria `MET`
+against commands actually run — `npm ci`, `typecheck`, `lint`, `format:check`, `test`,
+`coverage`, `build`, `e2e` all exit 0; only `@mantine/core` is present in the dependency tree;
+every ADR-003 major matches; `src/` matches KB-050; no `V.SMART/` or `frontend/vsmart-erp/`
+file touched; KB-083 updated. The sole `NOT MET`: criterion 10 (`tasks/M2-C01.md:373-374`),
+*"`.github/workflows/ci.yml` contains a `frontend` job … **and it is green on the branch**"* —
+the job exists and is well-formed, but no GitHub Actions run can exist without a push, which
+`CLAUDE.md` forbids absent an explicit in-conversation instruction (`git ls-remote --heads
+origin` does not list this branch; `gh` is not installed on this workstation). This is the
+identical wall `M0-07`, `M0-12-01` and `M0-12-02` already hit. **Owner: Vivek (repository
+owner) — the only person who can authorise publishing the branch (option A) or waive the
+"green on the branch" half as was done for `M0-07` (`d79e1a4`) and offered for `M0-12-02`
+(option B).** Full record: [`tasks/M2-C01.md` § Execution Record
+(2026-08-19)](tasks/M2-C01.md#execution-record-2026-08-19),
+[`failure-log.md`](failure-log.md#m2-c01--attempt-2--2026-08-19).
