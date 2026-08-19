@@ -137,6 +137,28 @@ src/
 > **125.38 kB gzip** — see the performance targets below and
 > `frontend/nexgen-web/README.md`.
 
+> **Extended 2026-08-19 by M2-C04-01 — the theme layer.** Two additions to the tree above,
+> both named by this task rather than by this document, and reported as **proposed paths**:
+>
+> - **`src/shared/theme/`** — `tokens.css` (the two palettes; the only file in `src/**`
+>   allowed to contain a colour literal), `tokens.ts`, `theme.ts`, `ThemeProvider.tsx`,
+>   `useColorScheme.ts`, `ThemeToggle.tsx` + `ThemeToggle.module.css`, `density.ts`,
+>   `breakpoints.ts`, `README.md`, and four test files. It sits under `shared/` rather than
+>   `shared/components/`: it is not a primitive, it is what the primitives are made of.
+> - **`src/styles/global.css`** — reset, base typography, focus ring, tabular numerals,
+>   reduced motion, and the six `@font-face` declarations. Fonts are **self-hosted** from
+>   `public/fonts/` (also new); there is no CDN request at first paint.
+>
+> A third small addition, `src/test/tokens-source.ts`, reads `tokens.css` from disk so the
+> contrast and drift tests measure the real stylesheet rather than a copy of it.
+>
+> **Measured cost against the `< 250 KB gzip` initial-JS target** (`npm run build`,
+> 2026-08-19, same toolchain): entry chunk **91.59 kB gzip** (+0.69), vendor chunk unchanged
+> at 34.48 kB, so initial JS is **126.07 kB gzip** — half the budget still unspent. CSS grew
+> to 30.49 kB gzip (+1.19). The six `woff2` latin subsets add **139.74 kB** on disk but are
+> **outside** the initial-JS figure: they load through `@font-face` with `font-display: swap`,
+> off the critical path.
+
 Each feature folder holds `api.ts` (query/mutation hooks), `schema.ts` (Zod),
 `types.ts`, `routes.tsx`, `pages/`, `components/`. Features never import from each other
 — shared things move to `shared/`.
