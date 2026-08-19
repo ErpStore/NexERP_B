@@ -49,17 +49,28 @@ judgement call that only the deployment owner holds.
 **not** remove the account from any database that already exists, nor from any database built by
 replaying migrations. That removal is the human procedure below.
 
+> **This is an acceptance criterion M0-06 did not meet, and it is escalated, not papered over.**
+> The task required that *"no default administrator credential is seeded into a newly created
+> tenant database"*. That holds for a database created from the EF **model**, and does **not**
+> hold for one created by replaying the **migrations** — which is the only provisioning path this
+> repository supports (Q-02: nothing calls `Migrate()`, `MigrateAsync()` or `EnsureCreated()`).
+> Closing it requires a decision only the deployment owner can take; that decision is written out
+> as **Q-26** in [KB-004](../open-questions.md). Until it is taken, treat a **newly provisioned**
+> tenant exactly like an existing one: run section 3, then section 5, **before** the tenant is
+> reachable by anyone.
+
 ---
 
 ## 2. Open questions this runbook does not resolve
 
-Both are flagged, not assumed away.
+All four are flagged, not assumed away.
 
 | Question | State | Why it matters here |
 |---|---|---|
 | **Q-02 — how are EF migrations rolled out per tenant?** | **Unknown.** Re-verified 2026-08-19: `git grep --untracked` across all of `V.SMART/` for `.Migrate()`, `MigrateAsync` and `EnsureCreated` returns **zero** hits. Nothing in the application applies migrations at startup. | A new migration **does not reach any tenant by itself**. Whatever mechanism actually deploys schema changes — manual `dotnet ef database update`, a DBA script, or nothing — is unknown to the repository. The owner must state it before section 5 is scheduled. |
 | **Q-12 — which tenants are in production?** | **Unknown contents; the enumeration mechanism is Confirmed.** `MasterDbContext.cs:5-9` declares `DbSet<TenantInfo> Tenants`; `TenantInfo.cs:3-9` gives `Id`, `Name`, `Hostname`, `ConnectionString`. The list is a table in the master database. | Section 3's pre-check must be run against **every row** of that table. The repository cannot tell you how many rows there are. |
 | **Q-25 — does any tenant still depend on the seeded `Administrator` account?** | **Unknown pending execution of section 3.** Raised by M0-06; see `open-questions.md` (KB-004). | This is the question that decides whether section 5 may run at all. |
+| **Q-26 — how must a newly provisioned tenant database avoid the credential?** | **Unknown — DECISION REQUIRED of the deployment owner.** Raised 2026-08-19 by M0-06 (attempt 2); see `open-questions.md` (KB-004). | This is the one thing M0-06 could **not** deliver. Provisioning replays `InitialCreate.cs:7562`, so a brand-new tenant database still comes up holding the published credential, and nothing in the repository may edit migration history to change that. Until the owner picks a provisioning path — ops procedure, runtime bootstrap component, or authorised guarded DML — **section 5 below is the only removal mechanism, and it must be run on newly provisioned tenants too, not just existing ones.** |
 
 ---
 
