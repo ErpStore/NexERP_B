@@ -937,3 +937,193 @@ both are product decisions on **pinned** behaviour, and neither blocks this task
 
 **Next attempt routed to** — no model. A stronger model cannot obtain push authority or a hosted
 runner; this needs the owner's decision.
+
+---
+
+### M2-C01 · attempt 1 · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus (validator) |
+| Validator verdict | FAIL |
+| Failure category | build |
+
+**What failed** — two things, one of them a *false recorded command result*, which is the more
+serious of the pair.
+
+1. **`npm run format:check` exits 1 on the committed tree.** Re-run by the validator from
+   `frontend/nexgen-web/` after `rm -rf node_modules && npm ci`:
+
+   ```
+   > nexgen-web@0.0.0 format:check
+   > prettier --check .
+   Checking formatting...
+   [warn] README.md
+   [warn] Code style issues found in the above file. Run Prettier with --write to fix.
+   FMT_EXIT=1
+   ```
+
+   Not a working-tree artefact and not a line-ending artefact: `git status --porcelain
+   frontend/nexgen-web/README.md` is empty, and running prettier against the **committed blob**
+   (`git show 4ac7241:frontend/nexgen-web/README.md`) also exits 1. The differences are
+   substantive markdown — `*emphasis*` vs `_emphasis_` and unaligned table pipes at
+   `frontend/nexgen-web/README.md:12,18-28,40,46,78-83`.
+
+2. **`docs/kb/execution/prompt-template.md:354` records that command as
+   `exit 0 — "All matched files use Prettier code style!"`.** It does not. KB-083's
+   verified-commands table is the one place in the repository whose entire value is that its
+   rows were observed; every later M2-C task cites it. A row that was not observed is worse
+   than a missing row.
+
+**Knock-on** — `.github/workflows/ci.yml:280-281` adds a `Format check` step (`npm run
+format:check`) to the new blocking `frontend` job, with no `continue-on-error`. So acceptance
+criterion 10 ("…and it is green on the branch", `tasks/M2-C01.md:373-374`) is not merely
+*unverifiable-without-a-push* as `current-task.md:39-43` anticipated — the job as committed
+would go **red**, for a reason that has nothing to do with push authority and is fixable in one
+command (`npm run format`, then re-run `npm run typecheck && npm run lint && npm run format:check`).
+
+**Everything else was re-run and passed** (validator's own observations, Windows, node v24.19.0,
+npm 11.17.0, from `frontend/nexgen-web/` after `rm -rf node_modules`):
+`npm ci` exit 0 (554 packages, 23s) · `npm run typecheck` exit 0 · `npm run lint` exit 0 ·
+`npm run test -- --run` exit 0 (1 file, 1 test) · `npm run coverage` exit 0 (stmts 82.89 %,
+branches 100 %, funcs 80 %) · `npm run build` exit 0 (830 modules, entry chunk 289.69 kB raw /
+**90.90 kB gzip**, matching `frontend/nexgen-web/README.md:80`) · `npm run e2e` exit 0
+(1 passed, chromium) · `bash tools/check-no-build-output.sh` exit 0 ·
+`dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → **0 errors, 6,695 warnings**, 2m16s —
+exactly the KB-086 baseline, so the backend is unaffected.
+
+**Scope and regressions** — clean. `git diff --name-only bccc8d7 4ac7241` = 40 files, **zero**
+under `V.SMART/`, `frontend/vsmart-erp/`, `db/`, `Existing Store Procedures/` or
+`V.SMART.Shared/Migrations/` (grep count 0). No schema change. No ERP business logic in
+TypeScript — the only behaviour is provider composition, one placeholder route and build
+config. `src/` tree matches KB-050 § Project structure, with `src/test/`, `src/vite-env.d.ts`
+and a top-level `e2e/` reconciled at `docs/kb/frontend-new/react-architecture.md:132-134`.
+Dependency tree searched for `@mui/`, `antd`, `bootstrap`, `primereact`, `primeng`,
+`@chakra-ui/`, `@radix-ui/`, `moment` in both `node_modules/` and `package-lock.json` — **no
+match**; `@mantine/core@7` is the only component library.
+
+**Nits, not the failure** — `frontend/nexgen-web/eslint.config.js:94-95` disables
+`@typescript-eslint/no-restricted-imports` *entirely* under `src/shared/api/**`, which also
+switches off the banned-component-library half of the rule in that directory; only the
+`generated/**` half needed the exemption. And `docs/kb/execution/task-tracker.md` was not set
+to `Completed` — correct: only the repository owner may do that.
+
+**Fix for attempt 2** — run `npm run format` in `frontend/nexgen-web/`, re-run the full command
+set, and correct the `format:check` row at `docs/kb/execution/prompt-template.md:354` to the
+result actually observed. Then criterion 10's remaining gap is only the push half, which is the
+same owner decision already recorded four times above (M0-07, M0-12-01, M0-12-02) and is not
+something a retry can obtain.
+
+**Next attempt routed to** — same model. This is a one-command formatting defect plus a
+documentation correction, not a design or business-rule problem.
+
+---
+
+### M2-C01 · attempt 1 · diagnosis · 2026-08-19
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **A fix was
+applied this time**, unlike the M0-07 / M0-12-01 / M0-12-02 diagnoses: the cause is a simple
+implementation error inside this task's own authorised file list.)*
+
+| Field | Value |
+|---|---|
+| Runner state | FIXED — ready for re-validation |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | build (confirmed — not re-classified) |
+
+**Reproduced** — yes, independently, on `migration/M2-C01-react-app-skeleton`, HEAD `4ac7241`,
+from `frontend/nexgen-web/` with the existing `node_modules/`:
+
+```
+$ npm run format:check
+> prettier --check .
+Checking formatting...
+[warn] README.md
+[warn] Code style issues found in the above file. Run Prettier with --write to fix.
+FMT_EXIT=1
+```
+
+`git status --porcelain frontend/nexgen-web/` was **empty** before the fix, so the failing file
+was the committed blob, not a dirty working tree. `.prettierrc:5` sets `"endOfLine": "auto"`,
+which rules out the CRLF hypothesis independently of the validator's blob check.
+
+**Root cause** — `frontend/nexgen-web/README.md` was edited after the last `npm run format`
+and committed un-normalised. `npx prettier README.md | diff -u README.md -` shows **20 changed
+lines, all cosmetic**: `*emphasis*` → `_emphasis_` at :12 and :40/:46, and column-aligned pipes
+in the two markdown tables at :18-28 and :78-83. No prose, no number and no command name
+changes — the recorded bundle sizes (289.69 kB raw / 90.90 kB gzip) are byte-identical before
+and after. Because `.github/workflows/ci.yml:280-281` runs `npm run format:check` as a blocking
+step of the `frontend` job (no `continue-on-error` anywhere in `:232-287`), that one
+unformatted file would have turned the job red on its first run — which is why the failure is
+categorised `build` and not "the same push wall as M0-07".
+
+The second half — `docs/kb/execution/prompt-template.md:354` recording that command as
+`exit 0 — "All matched files use Prettier code style!"` — is the same defect seen from the
+other side: the row was written from the intended result rather than an observed one. That is
+the more serious half, because KB-083 is the one table whose entire value is that its rows were
+run, and every later M2-C task cites it.
+
+**Fix applied** — two files, both inside this task's authorised list
+(`tasks/M2-C01.md:289-290` names `README.md`; criterion 14 at :381-382 owns the KB-083 rows):
+
+1. `npm run format` in `frontend/nexgen-web/` → `README.md 47ms`, every other file
+   `(unchanged)`. Exactly one file rewritten; `git diff --stat` = `1 file changed, 20
+   insertions(+), 20 deletions(-)`.
+2. `docs/kb/execution/prompt-template.md:354` — the `Format check` row now states the result
+   re-observed today **and** says in terms that the row as first written was not observed, with
+   a `Correction, 2026-08-19` paragraph after the table pointing here. The false claim is
+   corrected in place rather than silently overwritten.
+
+**Re-validated** — every frontend command re-run by this pass from `frontend/nexgen-web/`
+(node v24.19.0, npm 11.17.0), exit codes observed, not assumed:
+
+```
+npm run format:check  -> exit 0   "All matched files use Prettier code style!"
+npm run typecheck     -> exit 0   (no output)
+npm run lint          -> exit 0   (no output)
+npm run test -- --run -> exit 0   Test Files 1 passed (1) / Tests 1 passed (1), 2.83s
+npm run build         -> exit 0   830 modules; assets/index-DMCCg1LD.js 289.69 kB | gzip 90.90 kB
+npm run e2e           -> exit 0   ok 1 [chromium] e2e\smoke.spec.ts:3:1 (331ms), 1 passed (2.0s)
+bash tools/check-no-build-output.sh -> exit 0
+```
+
+The build hash and both sizes are unchanged from the validated commit, so `README.md:80`'s
+recorded figure still matches the artefact. `git status --porcelain` after the build lists only
+`frontend/nexgen-web/README.md`, `docs/kb/execution/prompt-template.md`, this file, and the
+pre-existing orchestrator-owned ` M docs/kb/execution/runner-state.md`. No `dist/`, no
+`node_modules/`, no `playwright-report/`, no `test-results/`.
+
+**Disposition** — `fixed`. Not a loop: the only prior M2-C01 entry is the validator's, and its
+"Fix for attempt 2" was a *recommendation*, never an attempt. Nothing in this log records this
+fix as tried.
+
+**What is still NOT MET, and cannot be fixed here** — the second half of criterion 10
+(`tasks/M2-C01.md:373-374`, *"and it is green on the branch"*). `git ls-remote --heads origin`
+does not list `migration/M2-C01-react-app-skeleton`, `gh` is not installed, and pushing is
+forbidden. This is the identical wall recorded four times above (**M0-07** ×2, **M0-12-01**,
+**M0-12-02**) and pre-empted by `current-task.md:39-43`. What this fix changes is that the job
+is no longer *provably red* — it is now unverified-pending-a-push, which is the state the task
+file anticipated. An owner decision (push, or waive-and-re-home, as for M0-12-02) is still
+required; a retry cannot obtain it.
+
+**Not fixed, deliberately — reported instead** — `frontend/nexgen-web/eslint.config.js:93-95`
+turns `@typescript-eslint/no-restricted-imports` **off entirely** for `src/shared/api/**`, which
+also disables the banned-component-library half of the ADR-003 / R-22 guard in that directory;
+only the `generated/**` exemption was needed. It is real but it is not what failed validation,
+and narrowing it would enlarge the diff under review with an unrelated change. Recommend it be
+picked up by **M2-C02** (the generated-client task that will actually populate
+`src/shared/api/`), where the exemption's true shape is knowable.
+
+**Residual risk** — (i) no frontend command has ever run on a GitHub-hosted runner, so
+`ci.yml`'s two new jobs stay unexecuted and their YAML is unparsed by GitHub (same as M0-07's
+open item); (ii) everything was verified on Node **24.19.0** while `.nvmrc` pins **22** — the
+open-ended `engines` range is a recorded M2-C01 deviation, not a new one; (iii) a future edit to
+any markdown file under `frontend/nexgen-web/` will re-break the same blocking step, since
+nothing runs Prettier automatically (the task file at :232 explicitly forbids Husky).
+
+**Next attempt routed to** — same model, re-validation only. No KB-091 §6.3 trigger applied to
+the fixed half; the outstanding push half is KB-091 §8 trigger 7 and needs the owner, not a
+model.

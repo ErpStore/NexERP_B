@@ -351,11 +351,19 @@ followed by `npm ci`. Exit codes were observed, not assumed.
 | Install exactly what the lockfile pins | `npm ci` | exit 0; **554 packages in 23s** from an empty `node_modules/`. Two `allow-scripts` warnings (`esbuild`, `msw` postinstall not auto-approved by npm 11) — **not** failures: the platform binary `@esbuild/win32-x64` is a normal optional dependency and is present, and every build/test below passes without approving them |
 | Typecheck | `npm run typecheck` | exit 0, no output. Runs `tsc --noEmit` twice — `tsconfig.json` (`src/` + `e2e/`) and `tsconfig.node.json` (root config files) — because the two need different `lib`/`types` |
 | Lint | `npm run lint` | exit 0, no output. `eslint . --max-warnings=0`, type-aware `typescript-eslint`, `react-hooks`, `jsx-a11y`, `simple-import-sort`, plus the two ADR-003 `no-restricted-imports` rules |
-| Format check | `npm run format:check` | exit 0 — "All matched files use Prettier code style!" |
+| Format check | `npm run format:check` | exit 0 — "All matched files use Prettier code style!" Re-observed 2026-08-19 after the correction noted below; the row as first written was not observed |
 | Unit tests | `npm run test -- --run` | exit 0 — **1 test file, 1 test passed**, ~30s cold (jsdom environment setup dominates: 20.4s), ~3.7s warm |
 | Coverage | `npm run coverage` | exit 0 — statements **82.89 %**, branches **100 %**, functions **80 %**, lines **82.89 %**. `vitest.config.ts` thresholds are set to the floor of those numbers, so they can only be raised |
 | Production build | `npm run build` | exit 0 — typecheck then `vite build`, 830 modules, **3.56s**. Entry chunk `assets/index-*.js` 289.69 kB raw / **90.90 kB gzip**; vendor `react` chunk 102.50 kB / 34.48 kB gzip; Mantine CSS 201.38 kB / 29.30 kB gzip. Initial JS gzip **125.38 kB** against KB-050's `< 250 KB gzip` budget |
 | E2E smoke | `npm run e2e` | exit 0 — **1 passed (6.2s)**, chromium. Playwright starts the Vite dev server itself. Requires `npx playwright install chromium` once per machine; that download succeeded here |
+
+**Correction, 2026-08-19 (M2-C01 attempt 1 → attempt 2).** The `Format check` row above was
+originally committed (`4ac7241`) claiming `exit 0` when the command actually exited **1** on
+that tree: `frontend/nexgen-web/README.md` was edited after the last `npm run format` and
+carried un-normalised markdown (`*emphasis*` rather than `_emphasis_`, unaligned table pipes).
+Validation caught it, `npm run format` was run, and the row was then re-observed as stated.
+Recorded here rather than silently overwritten, because this table's only value is that its
+rows were run — see [`failure-log.md`](failure-log.md) (KB-092), M2-C01 attempt 1.
 
 **`npm ci`, never `npm install`, in CI.** `package-lock.json` is committed, and it carries the
 Linux optional binaries for `rollup` and `esbuild` as well as the Windows ones — so moving the
