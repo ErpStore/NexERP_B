@@ -92,11 +92,29 @@ closed; the task specification was never a content problem.
 > close-out session gathered and re-verified the criterion-6 evidence, but only the owner may
 > decide whether to authorise the push or waive the criterion.
 
-**Next step is Q-22, not another dispatch.** Recorded in
-[`open-questions.md`](../open-questions.md): the owner must either (A) explicitly authorise
-pushing `migration/M0-12-01-test-project` this conversation, or (B) waive acceptance criterion
-6 as was done for `M0-07`. A human or a later run resumes from here — there is nothing left
-for an execution session to attempt on its own authority.
+**Q-22: option (A) taken — the owner authorised the push, 2026-08-19, and it was made.**
+`migration/M0-12-01-test-project` is on `origin` at `dec5790`. **This is the first time the CI
+pipeline has ever executed**: `ci.yml` fires `on: push: branches: ['**']` on `windows-latest`
+([`ci.yml:47-52`](../../../.github/workflows/ci.yml)), so the push alone triggers a run — the
+gap `M0-07` was signed off with (**Q-20**) is being closed as a side effect.
+
+**What criterion 6 still needs, and why no session can finish it.** The criterion wants a
+*deliberately-failing* test observed turning a run **red**, then reverted, with the run
+identifier recorded. Two things stand in the way, and only the first is a decision:
+
+1. **Observation is impossible from a session.** No `gh`, no `act`, no docker on this
+   workstation, and [R-01](../open-questions.md) forbids a session acquiring a credential to
+   query the Actions API. **A human must read the run result** and report it. This is not a
+   retry-able failure; a fourth dispatch would hit the identical wall.
+2. **The break/revert loop has not been started**, deliberately — it should not run until the
+   green run is confirmed working. Breaking CI before knowing the pipeline executes at all
+   would confuse "red because the assertion failed" with "red because the workflow is broken",
+   which is precisely what the criterion is trying to distinguish.
+
+**Next step: a human reads the Actions tab** for `migration/M0-12-01-test-project` and reports
+whether the run started, and whether it went green with 11 passing tests. That single
+observation also answers **Q-20** (are hosted runners available and approved for `ErpStore`?),
+which is a hard `G0` exit criterion in its own right.
 
 *(The attempt-budget interpretation question flagged in [KB-081 footnote 12](task-tracker.md)
 — whether infrastructure aborts should have consumed retry budget — is now moot for
