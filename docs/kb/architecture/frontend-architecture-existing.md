@@ -205,9 +205,12 @@ on the server. State that does exist:
 | Screen rights | `BaseUserRightsComponent.userRights` | component, reloaded per page |
 | Local storage | `Blazored.LocalStorage` | browser |
 
-**Implication:** there is no existing client-state design to port. The React app starts
-from a clean sheet — which is why TanStack Query + a thin Zustand store is proposed rather
-than a heavyweight global store.
+**Implication:** there is no existing client-state design to port. The Angular app starts
+from a clean sheet — which is why typed services over `HttpClient` plus signals are proposed
+([ADR-007](../decisions/ADR-007-angular-stack.md)) rather than a heavyweight global store.
+*(This sentence previously proposed TanStack Query + Zustand, under the superseded ADR-003.
+The observation it rests on — that Blazor holds screen rights in a per-page component and
+nothing else survives as client state — is unchanged and is what actually matters here.)*
 
 ## Forms and validation
 

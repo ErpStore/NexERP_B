@@ -1,6 +1,6 @@
 ---
 doc_id: KB-052
-title: Existing Feature → New React Screen Mapping (Proposal)
+title: Existing Feature → New Angular Screen Mapping (Proposal)
 module: frontend-new
 source_files:
   - V.SMART/V.SMART.Shared/Pages/
@@ -12,7 +12,7 @@ last_verified: 2026-08-12
 dependencies: [KB-020, KB-041, KB-050]
 ---
 
-# Existing Feature → New React Screen Mapping
+# Existing Feature → New Angular Screen Mapping
 
 > **Proposal.** "Existing API/logic" names the **service** that must be exposed — none of
 > these endpoints exist yet except Currency (see [`api/api-overview.md`](../api/api-overview.md)).
@@ -34,7 +34,7 @@ out of the Razor `@code` block (see
 
 ## Masters
 
-| Existing feature | Existing routes | Existing service | New React screen | New components | Complexity |
+| Existing feature | Existing routes | Existing service | New Angular screen | New components | Complexity |
 |---|---|---|---|---|---|
 | Currency Master | `/currency`, `/currency/create`, `/currency/update/{id}` | `ICurrencyService` — **API already exists** | `masters/currency` List + Drawer form | DataGrid, FormLayout, Drawer | **Low** ⭐ start here |
 | Expense / Income / Bank / Cost Centre / Project Type | `/expense`, `/income`, `/bank`, `/costcenter`, `/project-type-master` | `MasterService/AccountsService` | one generic `MasterCrudPage` config per entity | DataGrid, FormLayout | **Low** |
@@ -63,7 +63,7 @@ out of the Razor `@code` block (see
 
 ## Sales
 
-| Existing feature | Existing routes | Existing service | New React screen | New components | Complexity |
+| Existing feature | Existing routes | Existing service | New Angular screen | New components | Complexity |
 |---|---|---|---|---|---|
 | Leads | `/Leads`, `/Leads-details/*` | `ILeadService` | List + form | DataGrid, FormLayout | **Low** |
 | Sales Enquiry | `/enquirySales*`, `/enquiryDetails/{id}` | `IEnquirySalesService` | DocumentEditor | DocumentEditor, LineItemGrid | **High** |
@@ -79,7 +79,7 @@ out of the Razor `@code` block (see
 
 ## Labour Work
 
-| Existing feature | Existing routes | Existing service | New React screen | Complexity |
+| Existing feature | Existing routes | Existing service | New Angular screen | Complexity |
 |---|---|---|---|---|
 | Labour GRN (cum DC) | `/labourGRNList`, `/labourGRN/*` | `ILabourGRNService` (1,924 LOC) | DocumentEditor + stock | **Very High** |
 | Labour SCN | `/labourSCNList`, `/labourSCN/*` | `ILabourSCNService` | DocumentEditor + `IStockManagerService` | **Very High** |
@@ -88,7 +88,7 @@ out of the Razor `@code` block (see
 
 ## Out Sourcing / Purchase / Sub Contract
 
-| Existing feature | Existing routes | Existing service | New React screen | Complexity |
+| Existing feature | Existing routes | Existing service | New Angular screen | Complexity |
 |---|---|---|---|---|
 | Material Requisition | `/materialRequisitionList`, `/materialRequisition/*` | `IMaterialReqService` | DocumentEditor + approval | **High** |
 | Purchase Enquiry | `/EnquiryPurchase`, `/enquiryPurchase/*` | `IEnquiryPurchaseService` | DocumentEditor + multi-vendor assign | **High** |
@@ -106,7 +106,7 @@ out of the Razor `@code` block (see
 
 ## Planning / Production
 
-| Existing feature | Existing routes | Existing service | New React screen | Complexity |
+| Existing feature | Existing routes | Existing service | New Angular screen | Complexity |
 |---|---|---|---|---|
 | **Authorisation (approvals)** | `/approval` | `IApprovalService` | Unified approval inbox — filter by type/level, bulk approve/reject with reason | **High** ⭐ high user value, do early |
 | Job Order | `/jobOrderList`, `/jobOrder/*` | `IJobOrderService` | DocumentEditor + assembly explosion | **Very High** |
@@ -121,7 +121,7 @@ out of the Razor `@code` block (see
 
 ## Inventory / Stock
 
-| Existing feature | Existing routes | Existing service | New React screen | Complexity |
+| Existing feature | Existing routes | Existing service | New Angular screen | Complexity |
 |---|---|---|---|---|
 | Stock Issue-Request | `/stockIssReqList`, `/stockIssReq/*` | `IStockIssueRequestService` | DocumentEditor + approval | **High** |
 | Consumable Issue Note (MIN) | `/minIssList`, `/minIss/*` | `IMINService` | DocumentEditor + **stock issue** | **High** |
@@ -133,7 +133,7 @@ out of the Razor `@code` block (see
 
 ## Inspection · Maintenance · HR · Accounts
 
-| Existing feature | Existing routes | Existing service | New React screen | Complexity |
+| Existing feature | Existing routes | Existing service | New Angular screen | Complexity |
 |---|---|---|---|---|
 | Inspection Master / Defects Master | `/MasterInspection`, `/DefectInfo` | `IMasterInspectionService`, `IDefectInfoService` | List + form | Medium |
 | GRN Inspection | `/IncomingInspection*` | `IIncomingInspectionService` | Inspection form + defect capture | Medium |

@@ -137,7 +137,7 @@ UTILITIES  (Correspondence — attachments against any document)
 
 ## Module table
 
-Legend for **Frontend complexity**: how hard the *React rebuild* is, driven mainly by how
+Legend for **Frontend complexity**: how hard the *Angular rebuild* is, driven mainly by how
 much logic sits in `@code` and how many upstream document pickers are involved.
 
 | # | Module | Purpose | Key entities | Screens | Service folder | Complexity |

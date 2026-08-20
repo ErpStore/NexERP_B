@@ -25,7 +25,7 @@ Two independent reporting mechanisms exist, both entirely server-side:
    `ReportExecutor.ExecuteAsync<T>` into keyless entity types, surfaced on ~40 report
    screens.
 
-Both already return data or bytes with no UI coupling. Reproducing them in React would mean
+Both already return data or bytes with no UI coupling. Reproducing them in Angular would mean
 rebuilding 104 pixel-accurate statutory documents (invoices, e-way bills, delivery
 challans) plus 94 non-trivial SQL reports — for no functional gain and considerable
 compliance risk.
@@ -51,7 +51,7 @@ GET /api/v1/reports/{slug}/export?format=xlsx|pdf|csv  → file
 > must decide and record which**, because M2-C09's grid design depends on the answer, and
 > the 300-second ceiling is a real operational limit, not a theoretical one.
 
-The React client renders PDFs from a blob URL and never generates them.
+The Angular client renders PDFs from a blob URL and never generates them.
 
 **The ~40 report screens are built from one declarative `ReportPage` framework** — a report
 definition supplies parameters, columns, the procedure slug, and export options. Forty
@@ -75,7 +75,7 @@ framework. Per-tenant template overrides and print settings keep working untouch
 work can proceed in parallel with module migration because it is read-only.
 
 **Negative.** FastReport `.frx` files remain editable only in the FastReport designer — a
-specialist skill outside the React team. The 300-second report timeout will block an HTTP
+specialist skill outside the Angular team. The 300-second report timeout will block an HTTP
 request thread just as it blocks a Blazor circuit today; long reports should move to a
 background-job + download pattern if they prove problematic (there is currently **no**
 background infrastructure at all). Reports bypass the service layer and query the database

@@ -39,7 +39,7 @@ dependencies: [KB-020, KB-041, KB-050, KB-052, KB-060, KB-070, ADR-001, ADR-002,
 
 ## Backend platform — settled
 
-The backend for the React product is **ASP.NET Core Web API (.NET 9)**, in the existing
+The backend for the Angular product is **ASP.NET Core Web API (.NET 9)**, in the existing
 `V.SMART/V.SMART.Api` project. It is **extended, not created and not rewritten**
 ([ADR-001](../decisions/ADR-001-keep-existing-backend.md),
 [ADR-002](../decisions/ADR-002-rest-api-layer.md)).
@@ -50,7 +50,7 @@ Precisely what that means, because it is easy to misread:
 |---|---|---|
 | Where business logic lives | `V.SMART.Shared` class library (285 services, 128,518 LOC) | **unchanged — same library, same code** |
 | How Blazor Server reaches it | direct in-process DI call, **no HTTP** | unchanged (Blazor keeps running during migration) |
-| How React will reach it | — | HTTP → `V.SMART.Api` controllers → **the same services** |
+| How Angular will reach it | — | HTTP → `V.SMART.Api` controllers → **the same services** |
 | State of `V.SMART.Api` | exists, .NET 9, JWT + Swagger, **2 controllers / 6 endpoints** | ~60–80 controllers over the same services |
 
 So "are we using ASP.NET Core Web API?" — **yes**, and it already exists; it is roughly 10%
@@ -81,7 +81,7 @@ afterthought.
 |---|---|---|---|---|
 | **M0** | Stabilise — safety net | 2–3 wks | G0 | ⬜ Not started |
 | **M1** | Repository understanding | — | G1 | ✅ Complete (rolling) |
-| **M2** | Foundation — API + React shell + vertical slice | 6–8 wks | G2 | ⬜ Blocked by G0 |
+| **M2** | Foundation — API + Angular shell + vertical slice | 6–8 wks | G2 | ⬜ Blocked by G0 |
 | **M3** | Core modules — masters → sales order | 12–16 wks | G3 | ⬜ Blocked by G2 |
 | **M4** | Advanced modules | 16–22 wks | G4 | ⬜ Blocked by G3 |
 | **M5** | Hardening sweep | 6–8 wks (overlapped) | G5 | ⬜ Runs from M2 |
@@ -154,14 +154,14 @@ inside M3 and M4, not as M1 debt.
 
 - [x] Architecture, data model, auth, tenancy, existing UI documented with `file:line` evidence.
 - [x] Every module inventoried with dependencies and migration complexity.
-- [x] The "can the backend serve React unmodified?" question answered with evidence.
+- [x] The "can the backend serve Angular unmodified?" question answered with evidence.
 - [x] As-is and proposal documentation kept in separate directories.
 
 ---
 
 ## M2 — Foundation
 
-**Goal.** One module works end-to-end in React through the Web API, with server-enforced
+**Goal.** One module works end-to-end in Angular through the Web API, with server-enforced
 permissions — proving every architectural decision before they are applied 60 more times.
 
 **This is the milestone that de-risks the project.** If the vertical slice is awkward, it is
@@ -200,11 +200,11 @@ far cheaper to change the pattern here than in M4.
 | M2-B10 | OpenAPI polish + TypeScript client generation wired into CI | B10 | 3 d | ⬜ |
 | M2-B11 | Health checks + structured logging sink replacing the flat-file logger | C2, R-23 | 3 d | ⬜ |
 
-### M2-C — React foundation
+### M2-C — Angular foundation
 
 | ID | Task | Est. | Status |
 |---|---|---|---|
-| M2-C01 | Vite 6 + React 19 + TS strict; ESLint/Prettier; Vitest + RTL + MSW; Playwright; CI | 3 d | ⬜ |
+| M2-C01 | Angular 22 CLI + TS strict; ESLint/Prettier; Jest-or-Vitest + Angular Testing Library; Playwright; CI | 3 d | ⬜ |
 | M2-C02 | Auth: login, token refresh, route guards, permission store, `PermissionGate` | 1 wk | ⬜ |
 | M2-C03 | App shell — header, permission-filtered sidebar, breadcrumbs, ⌘K palette, light/dark | 1.5 wks | ⬜ |
 | M2-C04 | Design-system primitives per [design-system.md](../frontend-new/design-system.md) | 2 wks | ⬜ |
@@ -220,13 +220,13 @@ far cheaper to change the pattern here than in M4.
 
 | ID | Task | Est. | Status |
 |---|---|---|---|
-| M2-D01 | Currency: controller (exists) + React list/form, permission-gated | 3 d | ⬜ |
-| M2-D02 | Customer Master: extract `@code` logic → controller → React screens | 1.5 wks | ⬜ |
-| M2-D03 | Parity test — create/edit/delete a customer through Blazor and through React, compare persisted rows | 3 d | ⬜ |
+| M2-D01 | Currency: controller (exists) + Angular list/form, permission-gated | 3 d | ⬜ |
+| M2-D02 | Customer Master: extract `@code` logic → controller → Angular screens | 1.5 wks | ⬜ |
+| M2-D03 | Parity test — create/edit/delete a customer through Blazor and through Angular, compare persisted rows | 3 d | ⬜ |
 
 ### Exit gate G2
 
-- [ ] Currency **and** Customer Master fully working in React: login, tenant resolution,
+- [ ] Currency **and** Customer Master fully working in Angular: login, tenant resolution,
       permission-gated CRUD, server paging, validation, error contract, Excel export.
 - [ ] The Blazor app is **untouched and still live** against the same database.
 - [ ] A user with no rights on a screen is refused by the **API**, not just by the UI —
@@ -240,7 +240,7 @@ far cheaper to change the pattern here than in M4.
 ## M3 — Core modules
 
 **Goal.** A pilot tenant runs masters, the sales pipeline through Sales Order, approvals,
-and core reports entirely in React.
+and core reports entirely in Angular.
 
 **Per-wave recipe** — every wave, without exception:
 
@@ -248,7 +248,7 @@ and core reports entirely in React.
 2. Triage the module's `@code` (INV-024): presentation / data-fetch / **business**.
 3. Extract the business slice into services; verify against the running Blazor app.
 4. Build controllers from the M2-B03 template.
-5. Build React screens.
+5. Build Angular screens.
 6. Parity test, then feature-flag on for the pilot tenant.
 
 | ID | Wave | Modules | Est. | Status |
@@ -271,8 +271,8 @@ and core reports entirely in React.
 ### Exit gate G3
 
 - [ ] Pilot tenant operating masters, sales pipeline through Sales Order, approvals and
-      core reports in React, in production, with Blazor available as a per-module fallback.
-- [ ] Permission matrix administered from the React app itself (M3-3).
+      core reports in Angular, in production, with Blazor available as a per-module fallback.
+- [ ] Permission matrix administered from the Angular app itself (M3-3).
 - [ ] Parity tests green for every wave.
 - [ ] M4 estimates re-baselined against actual M3-5 extraction effort (M3-9).
 - [ ] Zero fallbacks to Blazor for migrated modules over the final two weeks of the milestone.
@@ -299,8 +299,8 @@ and core reports entirely in React.
 
 ### Exit gate G4
 
-- [ ] Every module in [module-inventory.md](../modules/module-inventory.md) available in React.
-- [ ] All 440 legacy routes either mapped to a React route or explicitly retired with a
+- [ ] Every module in [module-inventory.md](../modules/module-inventory.md) available in Angular.
+- [ ] All 440 legacy routes either mapped to an Angular route or explicitly retired with a
       recorded reason ([page-map.md](../frontend-new/page-map.md)).
 - [ ] e-Invoice and e-Way Bill verified against the gateway sandbox **and** one live document
       per tenant.
@@ -340,7 +340,7 @@ terminal phase would be a lie about when the work happens.
 
 | ID | Step | Status |
 |---|---|---|
-| M6-01 | Deployment topology: React static build on CDN/nginx; API containerised; Blazor retained; per-tenant subdomain routing preserved (resolve Q-16) | ⬜ |
+| M6-01 | Deployment topology: Angular static build on CDN/nginx; API containerised; Blazor retained; per-tenant subdomain routing preserved (resolve Q-16) | ⬜ |
 | M6-02 | Monitoring: structured logs, APM traces, error tracking, uptime, per-tenant dashboards | ⬜ |
 | M6-03 | Staged rollout by per-tenant/per-module flag — smallest tenant first (needs Q-12) | ⬜ |
 | M6-04 | Rollback drill: flip a module back to Blazor in production and confirm no data issue | ⬜ |
@@ -351,7 +351,7 @@ terminal phase would be a lie about when the work happens.
 
 ### Exit gate G6
 
-- [ ] All tenants on React for all modules.
+- [ ] All tenants on Angular for all modules.
 - [ ] One full financial period with zero module-level fallbacks.
 - [ ] Rollback drill executed successfully at least once in production.
 - [ ] Blazor routes retired; the decommissioning decision recorded as an ADR.
@@ -378,7 +378,7 @@ Assumes 2–3 backend, 2–3 frontend, 1 QA. **The dominant variable is M4**, an
 1. No database schema change.
 2. No rewrite of any business service; no replacement of EF Core, AutoMapper, FastReport, or
    the 94 stored procedures.
-3. Business logic is extracted from `@code` into services **before** the React screen is
+3. Business logic is extracted from `@code` into services **before** the Angular screen is
    built — never reimplemented in TypeScript.
 4. The server is authoritative for calculations, validation, permissions and numbering. The
    client may mirror a calculation for responsiveness but never owns the result.

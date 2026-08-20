@@ -86,7 +86,7 @@ on `M2-C02`. ADR-003 planned to archive it. **It becomes the baseline instead.**
 | Concern | Choice | Change from ADR-003 |
 |---|---|---|
 | Framework | **Angular**, standalone components, `strict` TypeScript | replaces React 19 |
-| Exact major version | **Verified at scaffold time on the workstation**, as `M2-C01` did for Node. The pilot is on 19.2; do not assume, run `ng version` and record it | new |
+| Exact major version | **Angular 22.x** — owner decision *"use the latest Angular version"*, 2026-08-20 | new |
 | Build | **Angular CLI** (esbuild) | replaces Vite 6 |
 | Routing | **Angular Router**, functional guards | replaces React Router v7 |
 | Server state | **Typed Angular services over `HttpClient`**, explicit refetch | replaces TanStack Query — see below |
@@ -101,6 +101,33 @@ on `M2-C02`. ADR-003 planned to archive it. **It becomes the baseline instead.**
 | Money display arithmetic | **decimal.js** | **unchanged** — framework-agnostic |
 | i18n | **Runtime-switchable** (`ngx-translate` or equivalent), from day one | replaces react-i18next |
 | Testing | **Jest or Vitest + Angular Testing Library + Playwright** | replaces Vitest + RTL + MSW |
+
+### Versions — measured against the npm registry on 2026-08-20, not recalled
+
+| Package | Version | How |
+|---|---|---|
+| `@angular/core` | **22.1.3** | `npm view @angular/core version` — `dist-tags.latest` |
+| `@angular/cli` | **22.1.5** | `npm view @angular/cli version` |
+| `primeng` | **22.1.0** | `npm view primeng version` — **matching major**, which matters: PrimeNG tracks Angular's major line |
+| Node required | `^22.22.3 \|\| ^24.15.0 \|\| >=26.0.0` | `npm view @angular/core@22.1.3 engines` |
+| Node present | **v24.19.0**, npm 11.17.0 | this workstation — **satisfies `^24.15.0`**, so Angular 22 installs here |
+
+**"Angular 22.x", not "22.1.3".** The **major** is the decision; a patch or minor bump is not a
+spec violation, and pinning an exact patch guarantees this document is wrong within weeks.
+`M2-C01` records what it actually installs.
+
+**The pilot is three majors behind — 19.2, against 22.1.3.** v20, v21 and v22 have all shipped
+since. So "adopt the pilot" is **not** adopt-as-is, and `M2-C11` must choose:
+
+- **`ng update` 19 → 20 → 21 → 22** — three sequential major migrations across 40 files, and it
+  carries the pilot's structure forward including the two defects named below.
+- **`ng new` on 22, port the 9 components** — the pilot's value is its auth service, guard and
+  interceptor, roughly 500 lines. Scaffolding is what `ng new` regenerates free and correctly for
+  the target version.
+
+**Recommended: the second.** Three chained major upgrades to preserve boilerplate you would
+otherwise get for free is the expensive path, and it inherits the defects by default rather than
+by choice. `M2-C11` makes the call and records it.
 
 ### Key rationales
 
@@ -188,7 +215,8 @@ this decision affordable. `M2-B10` (OpenAPI → TypeScript client) serves Angula
 
 ## What this ADR does not decide
 
-- **The exact Angular major version** — `M2-C01` verifies and records it.
+- ~~**The exact Angular major version**~~ — **decided 2026-08-20: Angular 22.x**, owner instruction *"use the latest Angular version"*, measured against the npm registry. `M2-C01` records the exact patch it installs.
+- **Whether `M2-C11` upgrades the pilot 19 → 22 or scaffolds fresh on 22 and ports its 9 components** — ADR-007 recommends the second and gives the reasoning; `M2-C11` decides and records.
 - **Whether PrimeNG's table suffices for `M2-C07`'s keyboard-first line-item entry**, or AG Grid is
   required — `M2-C07` evaluates and records.
 - **Token storage for the JWT** — `M2-C02`, against ADR-004.

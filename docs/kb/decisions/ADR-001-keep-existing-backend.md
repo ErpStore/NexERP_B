@@ -14,7 +14,7 @@ dependencies: [KB-011, KB-041]
 
 ## Context
 
-The product goal is a new React frontend. A frontend replacement often invites a backend
+The product goal is a new Angular frontend. A frontend replacement often invites a backend
 rewrite. The measured facts argue strongly against that here:
 
 - ~128,500 LOC of business services encoding a decade of manufacturing-ERP domain rules,
