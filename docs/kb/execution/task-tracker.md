@@ -124,7 +124,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Ready** | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Ready** | P1 | M2-B07 | 1 d | G2 |
-| M2-B02 | M2 | Paging / sort / filter contract | Backend | **Ready** | P0 | M2-A06 | 1 wk | G2 |
+| M2-B02 | M2 | Paging / sort / filter contract | Backend | **Needs Review**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Ready** | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Ready** | P1 | M2-A06 | 1 wk | G2 |
@@ -1282,3 +1282,47 @@ of the task's own required "before `UseCors`" ordering — flagged forward to **
 
 **Releases, once reviewed and merged:** `M2-B02` (→ `M2-B03` → `M2-B10`), `M2-B06`, `M2-B11` —
 all list `M2-A06` as a Hard prerequisite. None moves to `Ready` on `Needs Review` alone.
+
+²⁴ **M2-B02: `Needs Review` — implemented and independently validated `PASS` on
+`migration/M2-B02-paging-contract` (`c603115`), 2026-08-20. Not merged; per
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) only the repository owner
+may set it `Completed`.**
+
+All eighteen acceptance criteria independently re-checked `MET` (the `toDate` 23:59-boundary
+criterion `MET` with a stated limit — proven through the real, untouched `CurrencyFilterBuilder`
+predicate one level below HTTP, not against a live SQL Server round trip, because every
+`Currency` row in the reachable dev tenant has a null `CreatedDate`). `dotnet build
+V.SMART.Api --no-incremental`: **0 errors, 6,695 warnings** (KB-083 baseline, no new warnings).
+`dotnet test tests/V.SMART.Api.Tests/…`: **56 passed, 0 failed**. `dotnet test
+tests/V.SMART.Shared.Tests/…`: **84 passed, 0 failed** — no regression. `dotnet build
+V.SMART.Web`: **0 errors** — Blazor host intact, `CurrencyList.razor:344-348`'s three-argument
+call still binds unchanged. `CurrencyFilterBuilder` diffed byte-identical against its pre-change
+location (`CurrencyService.cs:157-186` → `:180-209`). A live pre/post comparison of
+`GET api/currencies?pageNumber=1&pageSize=10` against the same tenant database returned a
+**byte-identical** body (`md5` equal, `cmp` silent).
+
+**One retry inside the same attempt, not a fresh dispatch.** The first validation pass found the
+implementation sound but `FAIL`ed it on two defects: the OpenAPI document had regressed from
+camelCase to PascalCase query-parameter names (contradicting `ADR-002` §2a and `api-overview.md`,
+which this task itself must keep in sync — `M2-B10` generates its TypeScript client from this
+document), and the `toDate` 23:59 criterion was unverified rather than failing. Both were fixed
+on the same branch: explicit `[FromQuery(Name = …)]` wire names sourced from `const` fields on
+`PagedQuery`/`CurrencyQuery`, and two new boundary tests in `PagedContractTests.cs`. Full record:
+`docs/kb/execution/failure-log.md` § "M2-B02" and [`tasks/M2-B02.md` § Execution Record
+(2026-08-20)](tasks/M2-B02.md#execution-record-2026-08-20).
+
+**INV-041 (`Complete`):** no service in `V.SMART.Shared/BusinessLayer/` takes a `sort`
+parameter; the chosen mechanism is an additive 4-argument `SearchWithDynamicFilterAsync`
+overload, not a reserved filter-dictionary key (rejected — every `*FilterBuilder` silently
+ignores an unrecognised key, `_ => query`) and not controller-side sorting (rejected — `Skip`/
+`Take` run first). **Q-36 raised, not guessed at:** `CurrencyList.razor:758-760` sets a `Status`
+filter key `CurrencyFilterBuilder` has no case for, so that dropdown already filters nothing in
+production — the in-the-wild evidence for the filter-dictionary rejection above, not this
+task's to fix.
+
+**Behaviour changes, both prescribed by the task's own contract, not accidental:** default
+`pageSize` moves `10 → 20` (`ADR-002` §2a, `KB-040`); an unparseable `fromDate`/`toDate` now
+returns `400` instead of being silently discarded by the old `string?` re-parse.
+
+**Releases, once reviewed and merged:** `M2-B03` (→ `M2-B10`), `M2-B09`, `M2-C05`, `M2-C05-01` —
+all list `M2-B02` as a Hard prerequisite. None moves to `Ready` on `Needs Review` alone.

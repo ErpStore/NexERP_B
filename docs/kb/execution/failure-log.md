@@ -2077,3 +2077,247 @@ that resembles genuine progress is worse than leaving it for review. Attempt 1's
 KB-083 row in the same commit) still stands; the next attempt should review the uncommitted
 diff against that diagnosis, complete the remaining three files, then run `npm run
 coverage`/`test`/`lint`/`build` before committing anything.
+
+---
+
+### M2-B02 · attempt 1 · validation · 2026-08-20
+
+| Field | Value |
+|---|---|
+| Runner state | validated FAIL |
+| Model in use | opus (independent validator) |
+| Validator verdict | **FAIL** |
+| Failure category | acceptance-criterion |
+
+**Branch / commit** — `migration/M2-B02-paging-contract`, `609500d`. 18 files, +991/-43.
+
+**What is genuinely met, verified first-hand this session — do not re-do it on the retry.**
+The validator obtained a live, DB-backed run of both the pre-change and the post-change API
+(`git worktree` at `609500d~1`, both hosts pointed at `DESKTOP-FIIBE97\SQLEXPRESS` /
+`NexGenErpDb_Master` over Windows integrated auth, JWT minted locally against a throwaway
+`Jwt__Secret`; no credential was read, written or recorded). Observed:
+
+- **The step-3/step-12 baseline regression the implementer reported as NOT MET is in fact
+  met.** `GET api/currencies?pageNumber=1&pageSize=10` returns a **byte-identical** body
+  before and after: `md5 = 7817f0221813638febb0a1a8e10c4acc` on both, `cmp` silent. The
+  acceptance criterion "same rows in the same order as the pre-change capture" is satisfied.
+- `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` — **0 errors, 6,695 warnings**, exactly
+  the KB-083 baseline. `V.SMART.Web` — 0 errors. Blazor host intact.
+- `dotnet test tests/V.SMART.Api.Tests/...` — **46 passed / 0 failed** (21 from M2-A06 + 25
+  new). `dotnet test tests/V.SMART.Shared.Tests/...` — **84 passed / 0 failed**.
+- Over HTTP: `sort=currName` / `sort=-currName` / `sort=-isSystemDefined,currName` all order
+  correctly; `sort=password` → 400 listing all seven permitted values; `pageSize=101` → 400;
+  `pageNumber=0` → 400; `fromDate=not-a-date` → 400 with `errors.FromDate`;
+  `fromDate>toDate` → 400 on both fields. All bodies `application/problem+json`, all with
+  `traceId`. `currName=Rup` → `totalCount: 1` against an unfiltered 3 (filtered, unpaged count
+  confirmed). Paging pages 1/2/3 at `pageSize=1` and a short last page all correct.
+- `CurrencyFilterBuilder` is **byte-identical** — old `CurrencyService.cs:157-186` vs new
+  `:180-209`, `diff` silent.
+- `PagedCurrencyResponse`: 0 hits under `V.SMART/`. 67 `*FilterBuilder` classes (matches).
+  `SearchWithDynamicFilterAsync` now 136 `Task<` declarations, i.e. 134 + the additive pair.
+- ADR-002 §2a addendum records option 1 chosen and both rejections, including the explicit
+  rejection of controller-side sort after materialisation. INV-041 and Q-36 recorded. Every
+  spot-checked citation (`CurrencyService.cs:279`, `:80-81`, `:206`;
+  `CurrencyList.razor:344-348`, `:758-760`, `:85-87`) is accurate.
+- Scope is clean: no migration, no `.sql`, no `DbContext`, no `.ts`/`.tsx`, no
+  `Program.cs`, no `AuthController.cs`, no ViewModel, no second business service.
+
+**What failed.**
+
+1. **OpenAPI query-parameter names regressed from camelCase to PascalCase, and the two KB
+   documents this task was required to write say camelCase.** Observed on both hosts:
+   - baseline `/swagger/v1/swagger.json` → `pageNumber`, `pageSize`, `currName`, `createdBy`,
+     `fromDate`, `toDate`;
+   - post-change → `PageNumber`, `PageSize`, `Sort`, `CurrName`, `CreatedBy`, `FromDate`,
+     `ToDate`.
+
+   `docs/kb/api/api-overview.md:107-116` documents the parameter table as `pageNumber` /
+   `pageSize` / `sort` / `currName` / `createdBy` / `fromDate` / `toDate`, and cites the
+   swagger document as "observed"; `docs/kb/decisions/ADR-002-rest-api-layer.md` §2a states
+   "`PagedQuery` carries `pageNumber` (default 1), `pageSize` (default 20, maximum 100) and
+   `sort`". The machine-readable contract and the prose contract disagree on the name of
+   every query parameter. This is not cosmetic **in this task specifically**: M2-B03 freezes
+   this contract and M2-B10 generates the TypeScript client from exactly this document, so
+   the client would emit `PageNumber`/`CurrName`. Query binding is case-insensitive, so
+   nothing breaks at runtime today — every camelCase request in the evidence above returned
+   200/400 as expected. It is a document regression, not a behaviour regression.
+   The defaults themselves are correct in the document
+   (`PageNumber` default 1; `PageSize` default 20, `minimum` 1, `maximum` 100), and the
+   response schema is the single generic `CurrencyVMPagedResult`.
+
+2. **Acceptance criterion "`toDate` remains inclusive of the entire day, verified with a
+   23:59 boundary record" is `not checkable`, therefore not met.** All three `Currency` rows
+   in the resolvable tenant database have `createdDate: null`, so no boundary row exists, and
+   the tenant `DbContext` is built by `TenantDbContextFactory.CreateDbContext()` with no
+   logger factory, so the generated SQL cannot be observed either. Indirect evidence is
+   strong — `CurrencyFilterBuilder` is byte-identical and `FilterDictionaryAdapter` hands it a
+   `yyyy-MM-dd` invariant string that its `.Date.AddDays(1).AddTicks(-1)` arithmetic consumes
+   identically — but indirect evidence is not the criterion.
+
+**Root cause of (1)** — `[FromQuery] CurrencyQuery` binds by C# property name, and
+Swashbuckle emits the property name verbatim; nothing in `PagedQuery.cs` / `CurrencyQuery.cs`
+sets a wire name. The previous controller's parameters were *named* `pageNumber` etc. in C#,
+which is why the old document was camelCase by accident rather than by policy.
+
+**Fix, for the retry** — put the wire names in the contract instead of inheriting them from
+C#: `[FromQuery(Name = "pageNumber")]` (and siblings) on `PagedQuery`/`CurrencyQuery`, or a
+Swashbuckle parameter-name convention applied once in `Contracts/`. Note the `errors`
+dictionary keys follow the same names (`errors.PageSize`, `errors.FromDate` observed), so
+whichever is chosen, ADR-002 §2a must state the casing rule **once, explicitly**, since it
+binds all 60–80 later list endpoints. For (2), the cheapest honest closure is a
+relational-provider (SQLite) test in `tests/V.SMART.Shared.Tests` that seeds a `Currency` with
+`CreatedDate` at 23:59 and asserts `toDate` = that day returns it; a human-authorised row in
+the dev tenant database would do equally well.
+
+**Next attempt routed to** — same model. No KB-091 §6.3 escalation trigger applies: the
+category is `acceptance-criterion`, the design (additive overload, explicit allow-list,
+non-reflective adapter, one generic envelope) was independently checked and is sound, and both
+defects are local to the new `Contracts/` files plus one test.
+
+---
+
+### M2-B02 · attempt 1 · diagnosis · 2026-08-20
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **A fix was
+applied** for failure 1, and the missing verification for failure 2 was performed; nothing was
+committed — the working tree is left for the implementer/reviewer.)*
+
+| Field | Value |
+|---|---|
+| Runner state | DIAGNOSING → fixed |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | acceptance-criterion (confirmed — not re-classified) |
+
+**Prior attempts for this task** — one: the validation entry immediately above. Nothing in this
+log records the camel-case wire-name fix as already tried, so this is a first retry of it, not a
+loop.
+
+**Reproduced — yes, both halves, first-hand.**
+
+*Failure 1 (the OpenAPI casing regression).* Ran the API on the branch as committed (`609500d`,
+`dotnet run --project V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-launch-profile --urls
+http://localhost:5233`, `ASPNETCORE_ENVIRONMENT=Development`) and read
+`/swagger/v1/swagger.json`:
+
+```
+"name": "CurrName" / "CreatedBy" / "FromDate" / "ToDate" / "PageNumber" / "PageSize" / "Sort"   (in: query)
+```
+
+against `docs/kb/api/api-overview.md:107-116` and `ADR-002` §2a, both of which publish
+`pageNumber` / `pageSize` / `sort` / `currName` / `createdBy` / `fromDate` / `toDate`. Exactly
+the contradiction the validator reported.
+
+*Failure 2 (`toDate` inclusivity).* Confirmed the environment blocker independently: the
+endpoint cannot even reach model binding without a resolvable tenant — every request carrying a
+locally-minted JWT returned
+`{"type":".../problems/tenant-unresolved","status":503}`, because the tenant `DbContext` is
+built during controller activation. No dev-tenant `Currency` row carries a non-null
+`CreatedDate`.
+
+**Root cause of failure 1 — a simple implementation error, one line per property.**
+`[FromQuery] CurrencyQuery` binds by **C# property name**; `PagedQuery.cs` / `CurrencyQuery.cs`
+set no wire name, and Swashbuckle emits the property name verbatim. The pre-M2-B02 controller
+was camel case *by accident* — its parameters happened to be named `pageNumber` etc. in C#. So
+this is not a design disagreement: nothing chose PascalCase, the contract simply had no name of
+its own. It matters here and not elsewhere because **M2-B03 freezes this document and M2-B10
+generates the TypeScript client from it**.
+
+**Fix applied** (only files this task created or already owns):
+
+1. `V.SMART/V.SMART.Api/Contracts/PagedQuery.cs` — `[FromQuery(Name = …)]` on `PageNumber`,
+   `PageSize`, `Sort`, sourced from new `public const string` wire-name fields
+   (`PageNumberParameter`, `PageSizeParameter`, `SortParameter`) so the attribute and the code
+   that reports errors cannot drift; `Validate` now yields the **wire** name (`sort`) rather
+   than `nameof(Sort)`.
+2. `V.SMART/V.SMART.Api/Contracts/CurrencyQuery.cs` — the same for `CurrName`, `CreatedBy`,
+   `FromDate`, `ToDate`; the `fromDate > toDate` result now carries the wire names.
+3. `tests/V.SMART.Api.Tests/PagedContractTests.cs` — a regression guard
+   (`Every_query_property_declares_its_camel_case_wire_name`, 7 cases, reflection over the
+   `[FromQuery]` attributes) plus a constants test; the two `IValidatableObject` assertions
+   updated to the wire names. The `[Range]` theory deliberately keeps the CLR property names,
+   with a comment saying why: it drives DataAnnotations directly, where member names *are*
+   property names — MVC re-keys them by the `[FromQuery]` name (observed below).
+4. `docs/kb/decisions/ADR-002-rest-api-layer.md` §2a — a new paragraph stating the casing rule
+   **once, explicitly**, since it binds all 60–80 later list endpoints, and recording why the
+   default is wrong. `docs/kb/api/api-overview.md` — the parameter table annotated as the wire
+   names, and the `errors` keys stated as the same camel-case names.
+
+**Re-validated — commands run and their actual output:**
+
+```
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental
+    6694 Warning(s)   0 Error(s)   Time Elapsed 00:01:08.15      (KB-083 baseline 6,695)
+$ dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj      -> 0 Error(s)   (Blazor host intact)
+$ dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj
+    Passed! - Failed: 0, Passed: 56, Skipped: 0, Total: 56      (was 46; +10 new)
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+    Passed! - Failed: 0, Passed: 84, Skipped: 0, Total: 84
+$ curl -s http://localhost:5236/swagger/v1/swagger.json        (rebuilt host)
+    "name": "currName" / "createdBy" / "fromDate" / "toDate" / "pageNumber" / "pageSize" / "sort"
+    pageNumber default 1; pageSize default 20, minimum 1, maximum 100
+    200 -> "$ref": "#/components/schemas/CurrencyVMPagedResult"
+```
+
+**Runtime proof that binding and the `errors` keys follow the new names.** The endpoint is
+`[Authorize]` and its controller cannot be activated without a tenant, so the 400 path is
+unreachable on this workstation through `/api/currencies`. Instead the **real `CurrencyQuery`
+type** was bound through the **real MVC binder** by a throwaway probe host outside the
+repository (`C:\temp\qprobe`, a 20-line Web project referencing `V.SMART.Api.csproj` with one
+`[FromQuery] CurrencyQuery` action; **deleted afterwards, nothing committed**):
+
+```
+?pageNumber=2&pageSize=5&sort=-currName&currName=Rup&createdBy=admin&fromDate=2026-08-01&toDate=2026-08-20
+  200 {"pageNumber":2,"pageSize":5,"sort":"-currName","currName":"Rup",...}
+?PageNumber=3&PageSize=7    200  -> PascalCase still binds; no caller breaks
+?pageSize=101       400 {"errors":{"pageSize":["pageSize must be between 1 and 100."]}}
+?pageNumber=0       400 {"errors":{"pageNumber":["pageNumber must be 1 or greater."]}}
+?fromDate=not-a-date 400 {"errors":{"fromDate":["The value 'not-a-date' is not valid for FromDate."]}}
+?sort=password      400 {"errors":{"sort":["The sort field 'password' is not sortable ... Permitted values: ..."]}}
+?fromDate=2026-08-20&toDate=2026-08-01
+                    400 {"errors":{"toDate":[...],"fromDate":["fromDate must be on or before toDate."]}}
+```
+
+All seven keys are now camel case (they were `PageSize` / `FromDate` before). Note the
+framework's *message* for a bind failure still says "not valid for **FromDate**" — the CLR
+display name. That is unchanged from before this task, is not part of the documented contract,
+and was left alone.
+
+**Failure 2 — the `toDate` criterion is now verified one level below HTTP, and the limit of that
+evidence is stated.** `tests/V.SMART.Api.Tests/PagedContractTests.cs` gains
+`ToDate_still_includes_the_whole_day_including_a_record_created_at_23_59` and
+`FromDate_still_includes_a_record_created_at_00_00_on_that_day`: a typed `DateTime? ToDate` goes
+through the real `FilterDictionaryAdapter`, and the resulting `"2026-03-04"` through the
+**untouched** `CurrencyService.CurrencyFilterBuilder` predicate (`CurrencyService.cs:200-204`),
+over five rows including 23:59, the final tick of the day, and 00:00 the next day. Rows 1/2/3/5
+are returned, row 4 is not. **This is LINQ to Objects, not T-SQL** — it proves the expression's
+semantics, not SQL Server's. It is faithful on precision: `Currency.CreatedDate` is `datetime2`
+(`V.SMART/V.SMART.Shared/Migrations/20260217110637_InitialCreate.cs:131`), whose 100 ns
+resolution represents the `AddTicks(-1)` endpoint exactly. A database round trip remains the
+stronger check and is still blocked by the two facts above — so **the criterion's residual gap
+is a round-trip gap, not an arithmetic gap.**
+
+**What was deliberately not done** — no business rule touched, no schema change, no
+`CurrencyFilterBuilder` edit (still byte-identical), no service signature change, no criterion
+reworded or weakened, nothing committed, nothing merged or pushed. `current-task.md`,
+`task-tracker.md` and `runner-state.md` were not written by this pass (orchestrator-owned); the
+only KB files edited are the two this task already owns (ADR-002, KB-040) plus this log.
+
+**Disposition** — `fixed`. Category stays `acceptance-criterion`; no KB-091 §6.3 escalation
+trigger applies. The uncommitted diff is five files: two contract sources, one test file, two KB
+documents.
+
+**Residual risk** — three items, stated rather than papered over: (i) the byte-identical
+pre/post response body was **not** re-measured by this pass (no tenant database reachable from
+this session), though the change cannot alter the response body — it renames query parameters
+and `errors` keys only, and the validator measured byte-identity at `609500d`; (ii) `toDate`
+inclusivity is proven over LINQ to Objects, not against SQL Server; (iii) the wire-name rule now
+lives in three places that must agree — the `[FromQuery]` attributes, ADR-002 §2a and KB-040 —
+of which only the first two are checked by a test.
+
+**Next attempt routed to** — no new implementer dispatch is needed for the casing defect; the
+orchestrator should have the working tree reviewed and committed onto
+`migration/M2-B02-paging-contract`, then re-validate. If the reviewer wants criterion 10 closed
+against a real database rather than against the predicate, that needs an owner-authorised row in
+the dev tenant `Currency` table, which no execution session may insert on its own.
