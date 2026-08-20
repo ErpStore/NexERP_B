@@ -107,14 +107,17 @@ literals here.
 
 ## Carried forward from `M2-B02`'s close-out
 
-- **`M2-B02` is `Needs Review`, not merged**, on `migration/M2-B02-paging-contract`
+- **`M2-B02` is `Completed` and merged** (`feec964`, 2026-08-20), from `migration/M2-B02-paging-contract`
   (`c603115`). Validated `PASS` — all eighteen acceptance criteria `MET`, including the
   `toDate` 23:59 boundary (verified one level below HTTP, through the real, untouched
   `CurrencyFilterBuilder` predicate — a real SQL Server round trip is still blocked by every
-  dev-tenant `Currency` row having a null `CreatedDate`). Full record:
+  dev-tenant `Currency` row having a null `CreatedDate`). **That limitation was independently
+  confirmed at review**, read-only against the local `SQLEXPRESS` tenant:
+  `SELECT COUNT(*), COUNT(CreatedDate) FROM Currency` → **`3, 0`** — three rows, none with a
+  `CreatedDate`. The constraint is real, not an excuse. Full record:
   [`tasks/M2-B02.md` § Execution Record (2026-08-20)](tasks/M2-B02.md#execution-record-2026-08-20)
-  and `task-tracker.md` footnote ²⁴. **`M2-B03`, `M2-B09`, `M2-C05`, `M2-C05-01` stay `Blocked`**
-  until this is reviewed and merged.
+  and `task-tracker.md` footnote ²⁴. The merge releases **`M2-B09`** to `Ready`. **`M2-B03`, `M2-C05` and `M2-C05-01` stay `Blocked`** on their *other* prerequisites — `M2-A02` and `M2-C04-02` respectively, neither of which is done
+  — not on `M2-B02` any more.
 - **A binding convention for every future `[FromQuery]` query DTO**, recorded in
   [ADR-002 §2a](decisions/ADR-002-rest-api-layer.md): `[FromQuery]` on a record binds by CLR
   property name and Swashbuckle emits it verbatim, so every bound property needs an explicit

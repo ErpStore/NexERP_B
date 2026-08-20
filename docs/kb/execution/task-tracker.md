@@ -124,12 +124,12 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Ready** | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Ready** | P1 | M2-B07 | 1 d | G2 |
-| M2-B02 | M2 | Paging / sort / filter contract | Backend | **Needs Review**²⁴ | P0 | M2-A06 | 1 wk | G2 |
+| M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Ready** | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Ready** | P1 | M2-A06 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
-| M2-B09 | M2 | Reference-data endpoints + caching | Backend | Blocked | P1 | **M2-B07**, M2-B02 | 3 d | G2 |
+| M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Ready** | P1 | **M2-B07**, M2-B02 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Ready** | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
@@ -246,7 +246,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | **5** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-C01`¹⁹, `M2-B07`²⁰, `M2-C04-01`²², `M2-A06`²³. Reconciled 2026-08-20: this row read `1` and carried a stale "also Needs Review" note listing three tasks that had since been merged. Recount is by `grep` over the M2 rows, not by adding to the previous number)* | G2 | ⬜ Not met |
+| M2 | 52 | **6** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-C01`¹⁹, `M2-B07`²⁰, `M2-C04-01`²², `M2-A06`²³, `M2-B02`²⁴. Reconciled 2026-08-20: this row read `1` and carried a stale "also Needs Review" note listing three tasks that had since been merged. Recount is by `grep` over the M2 rows, not by adding to the previous number)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -1283,7 +1283,27 @@ of the task's own required "before `UseCors`" ordering — flagged forward to **
 **Releases, once reviewed and merged:** `M2-B02` (→ `M2-B03` → `M2-B10`), `M2-B06`, `M2-B11` —
 all list `M2-A06` as a Hard prerequisite. None moves to `Ready` on `Needs Review` alone.
 
-²⁴ **M2-B02: `Needs Review` — implemented and independently validated `PASS` on
+²⁴ **M2-B02: `Completed` and merged (`feec964`, 2026-08-20) — all eighteen acceptance criteria `MET`, no waiver.**
+
+> **Third consecutive M2 task to close with nothing waived.**
+>
+> **Re-verified before merging and again on `master` after:** `dotnet build V.SMART.Web` **0 errors** — built *deliberately*, because this task touches `V.SMART.Shared`, the **live Blazor app's business layer**, not just the API; `dotnet build V.SMART.Api` **0 errors**; `dotnet test V.SMART.Api.Tests` **56 passed** (21 → +35); `dotnet test V.SMART.Shared.Tests` **84 passed**, no regression.
+>
+> **The shared-layer change is genuinely additive — checked, not taken on assertion.** `ICurrencyService` gains a 4-arg overload; the 3-arg member keeps its signature and delegates with `sort: null`. An empty term list returns `query.OrderByDescending(x => x.CurrId)` — exactly the previous ordering path — and **`CurrencyList.razor` is not in the diff**, so the live Blazor caller still binds to the 3-arg overload by named arguments. The running UI is untouched.
+>
+> **Two pieces of engineering worth keeping visible.** `ApplyOrder` appends `ThenByDescending(CurrId)` whenever the sort key is not unique — paging over a non-unique key lets SQL Server break ties differently per query, so rows silently repeat or vanish between pages; that is a correctness bug most paging implementations ship with. And **an unknown sort field throws**, deliberately opposite to `CurrencyFilterBuilder`'s silent catch-all, with the reason recorded: *"a request that silently sorts nothing while answering 200 is worse than one that fails."* The allow-list is an explicit `switch` over string literals, never reflection, so the sortable set is a reviewable compile-time fact.
+>
+> **The one stated limitation was verified, not accepted.** The record says the `toDate` 23:59 boundary could not be exercised against real SQL because every dev-tenant `Currency` row has a null `CreatedDate`. Checked directly against the local `SQLEXPRESS` tenant (read-only, integrated auth): `SELECT COUNT(*), COUNT(CreatedDate) FROM Currency` → **`3, 0`**. Three rows, none with a `CreatedDate`. **The limitation is real and was reported honestly** — the boundary was tested one level below HTTP through the untouched `CurrencyFilterBuilder` predicate instead.
+>
+> **A convention that outlives this task**, [ADR-002 §2a](../decisions/ADR-002-rest-api-layer.md): `[FromQuery]` on a record binds by CLR property name and Swashbuckle emits it verbatim, so every bound property needs an explicit `[FromQuery(Name = "camelCase")]` or the OpenAPI document — and the TypeScript client `M2-B10` generates from it — **silently drifts to PascalCase**. Binding on `M2-B03`'s controller template.
+>
+> **A pre-existing defect found in passing, recorded not fixed:** **Q-36** — `CurrencyList.razor:758-760` sets a `Status` filter key `CurrencyFilterBuilder` has no case for, so **that dropdown has been filtering nothing**. Out of scope here.
+>
+> **Releases only `M2-B09`.** `M2-B03` still needs `M2-A02` (`Blocked`); `M2-C05`/`M2-C05-01` still need `M2-C04-02`, which is `Ready` but not done.
+
+Pre-merge record follows. Branch `migration/M2-B02-paging-contract`, tip `c603115` at validation.
+
+**Original close-out text:** M2-B02: `Needs Review` — implemented and independently validated `PASS` on
 `migration/M2-B02-paging-contract` (`c603115`), 2026-08-20. Not merged; per
 [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) only the repository owner
 may set it `Completed`.**
