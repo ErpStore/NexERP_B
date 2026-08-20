@@ -39,6 +39,47 @@ resolution and caching).
 
 **It produces no code.** Every type below is a specification, not an implementation.
 
+> ## Implementation status — updated by `M2-A01-02`, 2026-08-20
+>
+> All ten types of §2 now exist under `V.SMART/V.SMART.Api/Authorization/` with the names,
+> namespaces and signatures fixed here, registered in `V.SMART/V.SMART.Api/Program.cs`
+> (`AddControllers(options => options.Filters.AddService<ScreenRightAuthorizationFilter>())`,
+> `IUserRightsProvider`/`UserRightsProvider` and the filter as scoped, and
+> `ScreenRightStartupValidator.Validate(app.Services)` immediately after `builder.Build()`).
+> Truth-table rows **T-1 … T-13** are implemented and are exercised by
+> `tests/V.SMART.Api.Tests/ScreenRightAuthorizationFilterTests.cs`;
+> D-4/D-6's startup checks by `tests/V.SMART.Api.Tests/ScreenRightStartupValidatorTests.cs`.
+> The §9 verification list is executable after all — the test project **does** now exist
+> (created by M2-A06), which supersedes this document's statement that it does not; only §9.7
+> (two tenants, one `UserId`, distinct cache entries) is untestable here, because there is no
+> cache until `M2-A01-03`.
+>
+> **Two deliberate departures, both recorded rather than silently taken.**
+>
+> 1. **D-4, one sub-condition staged to `M2-A02`.** An authenticated action on a controller
+>    carrying *no* `[RequireScreen]` at all is presently **allowed through**, at request time
+>    and at startup, instead of being refused. Enabling it in `M2-A01-02` would have made the
+>    host refuse to start over `CurrencyController`'s five existing unannotated endpoints and
+>    403'd the sixth, whereas `tasks/M2-A01-02.md` requires all six to respond exactly as
+>    before and forbids annotating any controller. The *half*-annotated directions (T-11,
+>    T-12) **are** enforced, at both request time and startup, as is D-6's catalogue check.
+>    The gap is recorded against R-03 in [KB-060](../risks/technical-debt-register.md) and is
+>    `M2-A02`'s to close, in the same change that annotates the first controller.
+> 2. **A `UserRight` row whose `Screens` navigation is `null` is dropped** during projection
+>    in `UserRightsProvider` rather than carried with a null name. `RightsHelper.cs:8` would
+>    dereference it and throw; dropping reaches the same authorization outcome (a null name
+>    can never match an ordinal comparison) without an exception. `Include` makes this
+>    unreachable in practice for rows with a valid `ScreenId`.
+>
+> Nothing else in this document was disproved by the implementation. `ApiProblems`
+> (M2-A06) supplied both bodies, so the filter constructs neither: `403` via
+> `ApiProblems.ScreenRightDenied` + `ToResult`, `401` via `ApiProblems.Create` with
+> `ProblemTypes.InvalidToken`. **The `Program.cs` line numbers throughout §6 are stale again**
+> — that file is 185 lines after this task; `AddControllers()` was at `:18` before it (`:24`
+> after), not `:27`, and
+> `UseAuthentication()`/`UseAuthorization()` are at `:181`/`:182`, not `:121`/`:122`. Re-read the
+> file rather than trusting any number in this document.
+
 > **A second reader should be able to implement `M2-A01-02` from this document alone.** If
 > you find yourself needing to re-open `RightsHelper.cs` to answer a question, that is a
 > defect in this document — record it rather than working around it.

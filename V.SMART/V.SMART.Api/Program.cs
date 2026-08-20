@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using V.SMART.Api.Auth;
+using V.SMART.Api.Authorization;
 using V.SMART.Api.Middleware;
 using V.SMART.Shared.DependencyInjection;
 using V.SMART.Shared.Services;
@@ -15,7 +16,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Throws InvalidOperationException naming the key and the remediation, never the value.
 StartupConfigurationValidator.Validate(builder.Configuration, requireJwt: true);
 
-builder.Services.AddControllers();
+// M2-A01-02 — the screen-right filter is registered GLOBALLY (KB-105 §6.2) rather than per
+// controller, so that an unannotated controller is still swept rather than silently skipped.
+// It decides only for endpoints declaring [RequireScreen] + [RequireRight]; every other
+// endpoint, including [AllowAnonymous] ones, passes through untouched. No controller declares
+// them yet — M2-A02 does that — so all six existing endpoints are unaffected by this task.
+builder.Services.AddControllers(options =>
+{
+    options.Filters.AddService<ScreenRightAuthorizationFilter>();
+});
 
 // M2-A06 — one error contract for the whole API (ADR-002 §4). Registers ProblemDetails
 // services and replaces MVC's automatic 400 body with the canonical one, so the
@@ -133,10 +142,27 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
 // identical graph with the host seams supplied.
 builder.Services.AddVSmartDomain(builder.Configuration);
 
+// M2-A01-02 — server-side screen-right authorization (ADR-004, KB-105 §6.2). Both are scoped:
+// the provider reaches IUnitOfWork, which AddVSmartDomain() registers scoped over the
+// tenant-resolved ApplicationDbContext, and the filter resolves the provider per request.
+// NO CACHE here on purpose — M2-A01-03 puts one behind IUserRightsProvider, and a cache added
+// now would make it impossible to tell a denial by rule from a denial by stale entry.
+// KB-105 §6.2 places these beside AddVSmartDomain() and notes that M2-B07's sibling
+// AddVSmartApiAuthorization() extension may later absorb them; they must never move into
+// V.SMART.Shared, where the Blazor and MAUI hosts would also receive them.
+builder.Services.AddScoped<IUserRightsProvider, UserRightsProvider>();
+builder.Services.AddScoped<ScreenRightAuthorizationFilter>();
+
 builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>();
 builder.Services.AddSingleton(new JwtTokenService(builder.Configuration));
 
 var app = builder.Build();
+
+// M2-A01-02 — a misannotated action is a property of the assembly, not of a request, so it is
+// caught here rather than after someone has been denied (KB-105 D-4/D-6). Same shape as the
+// M0-03-03 configuration check above: throw InvalidOperationException naming every offender.
+// This host cannot rely on DI validation for it — ValidateOnBuild is off (see below).
+ScreenRightStartupValidator.Validate(app.Services);
 
 if (app.Environment.IsDevelopment())
 {

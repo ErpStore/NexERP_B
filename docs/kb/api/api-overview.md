@@ -246,6 +246,17 @@ This generalises to every controller that follows this template. It is the singl
 important thing to fix before the API grows.
 See [ADR-004](../decisions/ADR-004-server-side-authorization.md).
 
+> **M2-A01-02 (2026-08-20) — the mechanism now exists; the hole above is still open.**
+> `V.SMART/V.SMART.Api/Authorization/` holds `[RequireScreen]`, `[RequireRight]`,
+> `[NoScreenRight]`, `IUserRightsProvider`/`UserRightsProvider` (no cache — M2-A01-03 adds
+> one behind that seam), `ScreenRightSet`, `ScreenCatalogue`, `ScreenRightStartupValidator`
+> and `ScreenRightAuthorizationFilter`, registered globally in `Program.cs`. **No controller
+> declares the attributes yet**, so every paragraph above still describes today's behaviour
+> exactly: the filter passes unannotated endpoints through untouched and all six existing
+> endpoints respond as before. `M2-A02` annotates `CurrencyController`; `M2-A03` proves it
+> with the permission matrix. R-03 stays open until both land.
+> Specification: [KB-105](../architecture/server-side-authorization-spec.md).
+
 ## Contract conventions established so far
 
 Worth keeping (they are already consistent):
