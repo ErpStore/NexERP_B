@@ -108,7 +108,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | **In Progress** | P0 | G0 | 1–2 wks | G2 |
 | M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
-| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Needs Review**²⁶ | P0 | M2-A01-02 | 2 d | G2 |
+| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Needs Review**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | Blocked | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
@@ -1426,7 +1426,7 @@ enforcement does not yet. Closing tasks: `M2-A02`, `M2-A03`. Once reviewed and m
 releases exactly one real dependent, `M2-A01-03` (per-request rights caching) — no other task
 lists `M2-A01-02` as a Hard prerequisite.
 
-²⁶ **M2-A01-03: `Needs Review`, not `Completed` — implemented and independently validated
+²⁷ **M2-A01-03: `Needs Review`, not `Completed` — implemented and independently validated
 `PASS` on `migration/M2-A01-03-rights-cache`, tip `0fde6fb`, 2026-08-20, attempt 2 of 4, 0
 escalations.** Not merged; per [KB-088 "Who may set
 COMPLETED"](workflow.md#who-may-set-completed) only the repository owner may set it
