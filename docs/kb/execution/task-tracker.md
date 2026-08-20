@@ -114,7 +114,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
-| M2-A07 | M2 | `GET /api/v1/me` | Backend | **Ready** | P0 | M2-A01-03 | 2 d | G2 |
+| M2-A07 | M2 | `GET /api/v1/me` | Backend | **Needs Review** *(validated `PASS`; on `migration/M2-A07-me-endpoint` `61da4bd`, unmerged)* | P0 | M2-A01-03 | 2 d | G2 |
 | M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Ready** | P0 | M2-A01-03 | 3 d | G2 |
 
 ### M2-B — API structure
@@ -141,8 +141,8 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Ready**²⁶ | P0 | G0 | 2 d | G2 |
-| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Ready**²⁶ *(re-scoped; React implementation superseded)* | P0 | M2-C00 | 3 d | G2 |
+| M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Needs Review**²⁶ *(validated `PASS`; on `migration/M2-C00-kb050-angular-rewrite` `b3c0e6e`, unmerged)* | P0 | G0 | 2 d | G2 |
+| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Blocked**²⁶ *(re-scoped for Angular; `M2-C00` is `Needs Review`, not `Completed`)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶ | P2 | M2-C00 | 0.5 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
