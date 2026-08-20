@@ -21,77 +21,80 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-B12-01` — INV-012 document-numbering + financial-year investigation
+## Active task — `M2-C00` — rewrite KB-050 frontend architecture for Angular
 
-**Task file:** [`tasks/M2-B12-01.md`](tasks/M2-B12-01.md).
+**Task file:** [`tasks/M2-C00.md`](tasks/M2-C00.md). **Status:** `Ready`, attempt 0 of 3, no branch yet.
 
-**Status:** `Ready`. Not yet started — no branch exists yet.
+### The frontend framework changed on 2026-08-20 — read this first
 
-### Why this task, now
+[**ADR-007**](../decisions/ADR-007-angular-stack.md) selects **Angular + PrimeNG** and supersedes
+`ADR-003`, which chose React. Owner decision: his background is C# and WPF with no frontend
+experience, and while the runner writes the screens, **he** reviews and maintains them.
 
-`M2-A01-02` (implement `[RequireScreen]`/`[RequireRight]`) closed this session validated
-`PASS` and moved to `Needs Review` — not `Completed`, so per
-[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) it did **not** release its
-only Hard-dependent, `M2-A01-03` (per-request rights caching), which stays `Blocked`.
+**The finding that reopened it:** ADR-003 never evaluated Angular at all — every rationale it
+recorded was a choice *within* React. It was an assumption that acquired the authority of a
+decision by being written into an ADR.
 
-Applying the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)
-against the genuinely `Ready` P0 candidates remaining once `M2-A01-02` is removed from the
-pool — `M0-01-03`, `M2-B04`, `M2-B12-01`, `M2-C04-02`, `M2-C04-03`, `M2-C10`:
+**What this means for anyone opening a frontend task:** all 26 `M2-C*`/`M2-D*` task files carry a
+**⛔ STOP banner**. They were deliberately *not* rewritten — that is ~25,000 lines of spec with
+1,300+ React references, and rewriting it against a KB-050 that does not yet describe Angular
+would just produce a second draft to throw away. **If you select a banner'd task, stop and
+report.** Re-specifying is an owner-level change, not something to infer mid-implementation.
 
-- **Step 1 (P0/P1/P2)** is a tie — all six are P0.
-- **Step 2 (most downstream unblocking that actually fires)** decides it outright.
-  `M2-B12-01`'s only dependent, `M2-B12-02`, names *only* `M2-B12-01` in `depends_on` —
-  finishing this task makes a real task `Ready`. No other candidate clears that bar:
-  `M2-C04-02`'s two dependents (`M2-C05`, `M2-C05-01`) also need `M2-B02`, which is
-  `Completed` and merged now but still requires `M2-C04-02` itself, so they stay blocked on
-  `M2-C04-02` regardless; `M2-C10`'s dependent `M2-C07` also needs `M2-C05-01`, nowhere near
-  `Ready`; `M0-01-03`, `M2-B04`, `M2-C04-03` have zero dependents in the tracker at all.
-  `M2-B12-01` wins at step 2 — no further tie-break step is needed. (Last time this file was
-  written, `M2-B12-01` tied with `M2-A01-02` at step 2 and lost the step-3 critical-path
-  tie-break; with `M2-A01-02` now closed, `M2-B12-01` is the unique step-2 winner.)
+### Why `M2-C00`, now
 
-### What this task does
+**It gates the entire `M2-C` tree — 20 tasks.** KB-050 is the primary input every one of them
+cites, and it still describes a React application. Nothing else in the frontend can be specified
+honestly until it is rewritten. No other `Ready` candidate comes close on downstream unblocking:
+`M2-B12-01` releases one task, `M0-01-03`/`M2-B04`/`M2-B09` release none.
 
-**Documentation only — no C# file changes.** Produces
-`docs/kb/modules/document-numbering.md` (**TO BE CREATED**, `doc_id: KB-100`): a complete,
-`file:line`-evidenced inventory of how V.SMART allocates document numbers (36 repository
-files, 38 raw-SQL numbering sites, the `CommonService.GenerateAutoRunningNoAsync` allocator,
-7 lock-free LINQ sites, 4 allocation-table read-modify-write methods) and a format catalogue
-of every document series' user-visible shape plus its financial-year rule. Corrects R-12
-(KB-060) — re-verification already found two of its four factual claims wrong (see the task
-file's own table) — and closes INV-012. **No database access is required or expected**; that
-is `M2-B12-02`'s job. Full detail, acceptance criteria and the fresh-session execution prompt:
-[`tasks/M2-B12-01.md`](tasks/M2-B12-01.md).
+It is **Documentation** type — no code, no build, no test run.
 
-### Read before starting
+### What it does
 
-The task file's own *Required Existing Knowledge* / source-file list is authoritative. Key
-points already established, so as not to re-derive them:
-
-- **R-12's own register text is wrong on two of four claims** — do not trust it verbatim.
-  `37/38` raw-SQL numbering statements *do* carry `WITH (UPDLOCK, ROWLOCK)`, and there is no
-  `~20` repositories, there are 36. `UPDLOCK`/`ROWLOCK` is close to decorative here (row lock,
-  not range lock; released outside an explicit transaction) — say so in plain words in the
-  new document so `M2-B12-03`'s reviewer doesn't assume the code is already protected.
-- **R-12 must stay `Inferred (high confidence)` at the end of this task** — reading code
-  proves a race is *possible*, not that one has occurred. Only `M2-B12-02`'s duplicate census
-  can upgrade or downgrade the classification. Do not do either here.
-- **Do not run INV-015** (e-Invoice/e-Way payload construction) even though document numbers
-  feed into it — record the coupling as a question, do not investigate `E_Invoice/**`. That is
-  scope creep against a Phase-4.5 concern.
-- `M2-B07` (Hard, tree-level prerequisite) is `Completed` — confirmed in the tracker. It
-  rewrites only the three `Program.cs` files, not `Repository/**` or `BusinessLayer/**`, so
-  the sequencing risk the task file names is small but the task still declares it.
+Rewrite KB-050 for Angular, starting from the section-by-section map already added to that
+document (which sections are dead, which still bind). Rewrite the stack, project structure,
+data-fetching, auth flow, permission rendering and **error handling** — that last one predates
+`M2-A06`, so the real `application/problem+json` contract in `ApiProblems.cs` is now the source.
+Keep the design constraints, the document-editor pattern, workflow commands, performance and
+accessibility sections: none was ever a React decision. Re-specify `M2-C01` for Angular in the
+same change, since it is next and its banner otherwise blocks it.
 
 ### Do not
 
-Start `M2-B12-02` (the live-DB duplicate census) or `M2-B12-03` (race-safe allocation) in this
-session. Do not investigate `E_Invoice/**`/INV-015. Do not upgrade or downgrade R-12's
-confidence rating — that is `M2-B12-02`'s call.
+Write code. Re-decide ADR-007's stack — implement it as recorded; if it is wrong, say so and stop.
+Re-specify the rest of the `M2-C` tree — only `M2-C01` is in scope. Delete the React app — that is
+the re-scoped `M2-C01`'s call.
 
 ---
 
-## Carried forward from `M2-A01-02`'s close-out
+## Waiting for your review — one unmerged branch
+
+| Task | Branch | State |
+|---|---|---|
+| **`M2-A01-03`** | `migration/M2-A01-03-rights-cache` | Validated `PASS`, `Needs Review`. Per-request rights caching, tenant-scoped TTL. **Releases `M2-A02`, `M2-A07`, `M2-A08` when merged** — the critical path runs through it |
+
+`M2-A01-03` is the highest-value merge available: it is the only thing standing between the
+current state and three released `M2-A` tasks.
+
+## Ready and unclaimed after `M2-C00`
+
+| Task | What | Est. | Note |
+|---|---|---|---|
+| `M2-B12-01` | INV-012 document numbering | 2 d | Documentation-only; releases `M2-B12-02` |
+| `M2-B09` | Reference-data endpoints + caching | 3 d | P1, released by `M2-B02` |
+| `M2-B04` | Decouple `IApprovalService` | 1 wk | Zero tracked dependents |
+| `M0-01-03` | Deployment script + rebuild runbook | 1 d | Carried M0 debt; **no longer hardware-blocked** (footnote ²¹) |
+| `M2-C01` | Angular scaffold | 3 d | Blocked on `M2-C00` |
+
+**A session may now run more than one of these.** Changed 2026-08-20: the standing rule is
+*"pick the next task that can actually be done"*, with a five-part test in
+[`CLAUDE.md`](../../../CLAUDE.md) § Standing constraints. **One task, one branch, cut from
+`master`** is unchanged, as is *never merge, never push*.
+
+---
+
+## Carried forward — still relevant (from `M2-A01-02`, merged `ed559ad`)
 
 - **`M2-A01-02` is `Completed` and merged** (`ed559ad`, 2026-08-20) — implemented on
   `migration/M2-A01-02-require-screen-right` (`9a6b3c2`), validated `PASS` on attempt 1 of 3,
@@ -133,18 +136,3 @@ confidence rating — that is `M2-B12-02`'s call.
   will hold zero rows unless `Q-28` (login never calls `SyncRightsForUserAsync` on the API
   path) is settled first. Both remain open questions for `M2-A02`, not this task.
 
-## Ready and unclaimed once `M2-B12-01` closes
-
-Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
-Listed for whoever plans the task after this one — not to be started now.
-
-| Task | What | Est. | Note |
-|---|---|---|---|
-| `M2-B12-02` | Verify unique constraints / duplicate numbers in a live tenant DB (Q-10) | 1 d | Released by this task; needs its `(table, number column, scope column)` inventory |
-| `M0-01-03` | SP deployment script + rebuild runbook | 1 d | `Needs Review`, blocked on a human-executed rebuild drill |
-| `M2-B04` | Decouple `IApprovalService` + 13 `Pages` refs | 1 wk | `Ready`, zero tracked dependents |
-| `M2-C04-02` | Form controls + validation display | 4 d | `Ready`; its dependents (`M2-C05`, `M2-C05-01`) additionally need this task itself, not `M2-B02` any more |
-| `M2-C04-03` | Modal, drawer, toast, states | 3 d | `Ready`, zero tracked dependents |
-| `M2-C10` | Decimal handling — no float money arithmetic | 2 d | `Ready`; its dependent `M2-C07` also needs `M2-C05-01`, nowhere near `Ready` |
-| `M2-B09` | Reference-data endpoints + caching | 3 d | `Ready`, P1 — released by `M2-B02`'s merge |
-| `M2-A01-02` (once merged) | releases `M2-A01-03` | — | Awaiting owner review |
