@@ -1189,6 +1189,28 @@ prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three mo
 
 ---
 
+> ### ⚠ Gap found at owner review, 2026-08-20 — the 21 new API tests never run in CI
+>
+> `tests/V.SMART.Api.Tests/` is **not in `NexGen-ERP---2025-master.sln`** and **not invoked by
+> `.github/workflows/ci.yml`**, which runs exactly one test project:
+> `dotnet test tests/V.SMART.Shared.Tests/...`. Verified, not inferred — the solution lists five
+> projects and this is not among them; the CI file's own "WHAT IS DELIBERATELY NOT HERE" comment
+> still reads *"Any test project other than `tests/V.SMART.Shared.Tests`."*
+>
+> **All 21 tests pass locally** (re-run at owner review: `Failed: 0, Passed: 21`). Nothing is
+> broken. The gap is that **nothing on a hosted runner would notice if they broke** — they can rot
+> silently, and the error contract they pin is the one every future controller inherits.
+>
+> **This was not recorded anywhere** — not in the task file, not in the execution record, not in
+> the close-out. The acceptance criteria did not ask for `.sln`/CI wiring, so the `PASS` is
+> correct and the eighteen criteria genuinely are `MET`; this is a gap in *what the task asked
+> for*, not a validation failure. `M0-12-01` set the precedent that a new test project gets wired
+> into CI in the same change that creates it.
+>
+> **Fix before merge, ideally**: add the project to the solution and a second `dotnet test` step
+> to `ci.yml`, updating that comment. Small, mechanical, and cheaper now than after three more
+> controllers depend on the contract.
+
 ²³ **M2-A06: `Needs Review` — implemented and independently validated `PASS` on
 `migration/M2-A06-problem-details` (`f69891a`), 2026-08-20. Not merged; per
 [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) only the repository owner
