@@ -14,6 +14,8 @@ source_files:
   - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/PerformaInvService.cs
   - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/ContractReviewService.cs
   - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/LabourServices/LabourInvoiceService.cs
+  - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/LabourServices/LabourDcOutgoingService.cs
+  - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/OutSourcingService/SubContractDcOutService/SubConDcOutService.cs
   - V.SMART/V.SMART.Shared/Repository/DcRunningNoRep/DcRunningNumberRepository.cs
   - V.SMART/V.SMART.Shared/Repository/InvoiceAutoRunnNo/InvoiceAutoRunningNumberRepository.cs
   - V.SMART/V.SMART.Shared/Repository/ProductionRepository/ProductionIssueWOAssyRepo/ProductionIssueAssyRepository.cs
