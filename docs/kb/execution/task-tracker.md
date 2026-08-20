@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -113,7 +113,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
-| M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Ready** | P0 | G0 | 3–5 d | G2 |
+| M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Needs Review**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | Blocked | P0 | M2-A01-03 | 2 d | G2 |
 | M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | Blocked | P0 | M2-A01-03 | 3 d | G2 |
 
@@ -246,7 +246,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | 1 *(M2-B07; also 2 `Needs Review` — M2-A01-01 gate exception¹⁸, M2-C04-01²²)* | G2 | ⬜ Not met |
+| M2 | 52 | 1 *(M2-B07; also `Needs Review` — M2-A01-01 gate exception¹⁸, M2-C04-01²², M2-A06²³. NOTE 2026-08-20: this row is known stale on `M2-C01`/`M2-C04-01`'s own Completed status — reconcile on next touch, not corrected here as out of this close-out's scope)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -1186,3 +1186,62 @@ acceptance criteria ask for is independently confirmed.
 prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three move to `Ready` on
 `Needs Review` alone, per the *Ready-task selection rule*'s "not `REVIEW`" clause; they stay
 `Blocked` until this is merged.
+
+---
+
+> ### ⚠ Gap found at owner review, 2026-08-20 — the 21 new API tests never run in CI
+>
+> `tests/V.SMART.Api.Tests/` is **not in `NexGen-ERP---2025-master.sln`** and **not invoked by
+> `.github/workflows/ci.yml`**, which runs exactly one test project:
+> `dotnet test tests/V.SMART.Shared.Tests/...`. Verified, not inferred — the solution lists five
+> projects and this is not among them; the CI file's own "WHAT IS DELIBERATELY NOT HERE" comment
+> still reads *"Any test project other than `tests/V.SMART.Shared.Tests`."*
+>
+> **All 21 tests pass locally** (re-run at owner review: `Failed: 0, Passed: 21`). Nothing is
+> broken. The gap is that **nothing on a hosted runner would notice if they broke** — they can rot
+> silently, and the error contract they pin is the one every future controller inherits.
+>
+> **This was not recorded anywhere** — not in the task file, not in the execution record, not in
+> the close-out. The acceptance criteria did not ask for `.sln`/CI wiring, so the `PASS` is
+> correct and the eighteen criteria genuinely are `MET`; this is a gap in *what the task asked
+> for*, not a validation failure. `M0-12-01` set the precedent that a new test project gets wired
+> into CI in the same change that creates it.
+>
+> **Fix before merge, ideally**: add the project to the solution and a second `dotnet test` step
+> to `ci.yml`, updating that comment. Small, mechanical, and cheaper now than after three more
+> controllers depend on the contract.
+
+²³ **M2-A06: `Needs Review` — implemented and independently validated `PASS` on
+`migration/M2-A06-problem-details` (`f69891a`), 2026-08-20. Not merged; per
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) only the repository owner
+may set it `Completed`.**
+
+All eighteen acceptance criteria independently re-checked `MET` (two — updating `M2-A02`'s
+tests, and the `M2-A03` permission harness — correctly marked *not applicable* / *not
+checkable*, since neither prerequisite has landed). `dotnet build V.SMART.Api --no-incremental`:
+**0 errors, 6,694 warnings** (baseline 6,695). `dotnet test tests/V.SMART.Api.Tests/…`: **21
+passed, 0 failed** (new project, created by this task). `dotnet test
+tests/V.SMART.Shared.Tests/…`: **84 passed, 0 failed** — no regression. `git diff --stat
+HEAD~1 HEAD -- V.SMART/V.SMART.Shared V.SMART/V.SMART.Web V.SMART/V.SMART/`: empty — protected
+trees untouched. Full record: [`tasks/M2-A06.md` § Execution Record
+(2026-08-20)](tasks/M2-A06.md#execution-record-2026-08-20).
+
+**Business-rule refusal signalling is now decided and recorded (INV-040, `Complete`):** a
+controller helper (`ProblemResults.BusinessRuleProblem`), not a domain exception, binding on
+every one of the 60–80 controllers still to come. Two new open questions were raised and
+recorded, not guessed at: **Q-34** (a refusal tuple sometimes carries 404/500 semantics that
+`409` cannot distinguish — not determinable from source) and **Q-35** (the `503`-for-
+unresolved-tenant and ignore-caller-correlation-header design choices had no prior KB
+position).
+
+**Two gaps found only during this close-out's independent validation, not reported by the
+implementer, now recorded in the repository rather than left to be rediscovered:** (1)
+`GET /swagger/index.html` (Development only) returns `200` with no `X-Correlation-Id`, because
+`UseSwagger`/`UseSwaggerUI` sit ahead of `UseErrorContract()` in `Program.cs` — no API endpoint
+is affected (`docs/kb/api/api-overview.md`); (2) `ExceptionHandlingMiddleware`'s
+`context.Response.Clear()` discards CORS headers on an error response, an inherent consequence
+of the task's own required "before `UseCors`" ordering — flagged forward to **M2-A05**
+(`docs/kb/risks/technical-debt-register.md` R-24).
+
+**Releases, once reviewed and merged:** `M2-B02` (→ `M2-B03` → `M2-B10`), `M2-B06`, `M2-B11` —
+all list `M2-A06` as a Hard prerequisite. None moves to `Ready` on `Needs Review` alone.

@@ -12,10 +12,13 @@
 # something to paste into Actions secrets. This repository is public.
 #
 # WHAT IS DELIBERATELY NOT HERE
-#   * Any test project other than tests/V.SMART.Shared.Tests. M0-12-01 created
-#     the repository's first one and wired the step below; it holds smoke and
-#     harness tests only. Real business-behaviour assertions arrive with M0-12-02
-#     (CalculationService) and M0-13 (StockManagerService).
+#   * Any test project beyond the two wired below. M0-12-01 created the first,
+#     tests/V.SMART.Shared.Tests -- since grown by M0-12-02 (CalculationService)
+#     and M0-13 (StockManagerService) into real business-behaviour assertions.
+#     M2-A06 created the second, tests/V.SMART.Api.Tests, pinning the API's
+#     ProblemDetails error contract. Every new test project gets its own step
+#     here in the change that creates it: a suite CI does not run is a suite that
+#     rots without anyone noticing.
 #   * A coverage gate -- there is nothing meaningful to measure yet, and a
 #     threshold set against near-zero coverage teaches the team to ignore it.
 #   * `-warnaserror` / `TreatWarningsAsErrors` -- the baseline is ~6,693 warnings
@@ -190,6 +193,26 @@ jobs:
           dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj `
             -v minimal -nologo `
             --logger "trx;LogFileName=V.SMART.Shared.Tests.trx" `
+            --results-directory artifacts/test-results
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Added by M2-A06, which created the repository's second test project. It
+      # pins the API's ProblemDetails error contract -- the shape every future
+      # controller inherits -- so it must run where a break is noticed, not only
+      # on whoever's workstation last ran it.
+      #
+      # A SEPARATE STEP, not a second project appended to the step above, so the
+      # job log names which suite failed without anyone opening a .trx.
+      #
+      # Same reasoning as the Shared step: no --no-restore/--no-build (the
+      # Restore step covers only V.SMART.Api and V.SMART.Web), no
+      # --no-incremental (nothing counts warnings from this log), and an explicit
+      # $LASTEXITCODE check because a PowerShell pipeline swallows it.
+      - name: Test - V.SMART.Api.Tests
+        run: |
+          dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj `
+            -v minimal -nologo `
+            --logger "trx;LogFileName=V.SMART.Api.Tests.trx" `
             --results-directory artifacts/test-results
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

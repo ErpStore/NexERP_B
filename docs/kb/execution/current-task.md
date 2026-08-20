@@ -21,130 +21,127 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-A06`, Exception middleware → `ProblemDetails` + correlation ids
+## Active task — `M2-B12-01`, INV-012 — document numbering + financial-year investigation
 
-**Task file:** [`tasks/M2-A06.md`](tasks/M2-A06.md).
+**Task file:** [`tasks/M2-B12-01.md`](tasks/M2-B12-01.md).
 
-**Status:** `Ready`. Not yet started — this file was rewritten by `M2-C04-01`'s close-out
+**Status:** `Ready`. Not yet started — this file was rewritten by `M2-A06`'s close-out
 (2026-08-20) to point here; no branch exists yet.
 
 ### Why this task, now
 
-`M2-C04-01` (design tokens, theme, light/dark) closed this session validated `PASS` and moved
-to `Needs Review` — not `Completed`, so it does not release `M2-C04-02`/`M2-C04-03`/`M2-C03`
-yet ([KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)). Per the
-[Ready-task selection rule](dependency-graph.md#ready-task-selection-rule): `M2-A06` is P0,
-its Hard prerequisite is `G0` (already passed), and among the `Ready` P0 candidates it has the
-highest downstream-unblocking count — it is a **Hard** prerequisite for `M2-B02`
-(→ `M2-B03` → `M2-B10`), `M2-B06` and `M2-B11`. It was recorded as a tied candidate with
-`M2-C04-01` while that task was still open; with `M2-C04-01` closed, `M2-A06` stands alone at
-the top of the ranking.
+`M2-A06` (exception middleware → `ProblemDetails` + correlation ids) closed this session
+validated `PASS` and moved to `Needs Review` — not `Completed`, so per
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) it does **not** release
+`M2-B02` / `M2-B06` / `M2-B11`, which all list it as a Hard prerequisite. Those stay `Blocked`.
 
-Other `Ready` P0/P1 candidates considered and ranked below it (fewer downstream unblocks, or
-off the critical path): `M2-B04` (decouple `IApprovalService`), `M2-B12-01` (numbering
-investigation), `M2-C10` (decimal handling), `M0-01-03` (rebuild drill, carried M0 debt),
-`M0-10` (R-08 audit, P1). `M2-A01-02` is nominally `Ready` but its spec (KB-105 decision D-5)
-contradicts current reality (R-40, the `UserId == 1` bypass) — see the warning this file
-carried previously, now folded into `M2-A01-02`'s own task file rather than repeated here;
-do not open it blind.
+Applying the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)
+against the four genuinely `Ready` P0 candidates (`M2-B04`, `M2-B12-01`, `M2-C10`,
+`M0-01-03`):
+
+- **Downstream unblocking is the deciding factor, and it is a real tie broken by what
+  actually moves.** `M2-B12-01` and `M2-C10` each have exactly one direct dependent in the
+  tracker (`M2-B12-02` and `M2-C07` respectively) — `M2-B04` and `M0-01-03` have none. But
+  `M2-B12-02`'s **only** Hard prerequisite is `M2-B12-01`, so finishing this task makes a real
+  task `Ready` immediately. `M2-C07` also needs `M2-C05-01`, which is nowhere close to
+  `Ready` — finishing `M2-C10` alone unblocks nothing. That breaks the tie in
+  `M2-B12-01`'s favor.
+- Neither `M2-B12-01` nor `M2-C10` sits on the stated critical path
+  ([KB-082 § Project critical path](dependency-graph.md#project-critical-path)); estimates
+  are identical (2 d each), so those tie-break steps do not distinguish them either — the
+  "makes something else Ready" reasoning above is what decided it, recorded here so a future
+  session does not have to re-derive it.
+
+`M2-B04` (P0, 1 wk, decouple `IApprovalService`) and `M0-01-03` (P0, 1 d, rebuild drill —
+genuinely `Ready` now that a local `SQLEXPRESS` instance was found, see tracker footnote ²¹)
+remain valid `Ready` candidates for whoever plans after this one; they were ranked below
+`M2-B12-01` only on the downstream-unblocking step above, not excluded for any other reason.
 
 ### What this task does
 
-Give the API one error contract. Add global exception-handling middleware emitting
-`application/problem+json` for every failure, attach a correlation id to every request and
-response, and map status codes per **ADR-002 §4** — most importantly, **a business-rule
-refusal is `409`, with the service's existing message string carried into `title` verbatim**
-(BR-SO-001 — these strings are product UX, never replaced with generic text). Closes **R-24**.
+**Documentation only — no C# file changes.** Runs **INV-012**, the scheduled-but-never-run
+investigation into how V.SMART allocates document numbers, and produces
+`docs/kb/modules/document-numbering.md` (**TO BE CREATED**, `doc_id: KB-100`). Four required
+deliverables: (1) a `file:line` call-site inventory grouped by mechanism (raw-SQL last-number
+read, lock-free LINQ read, allocation-table read-modify-write — three mechanisms already
+Confirmed on 2026-08-12, reproduce and reconcile rather than copy), (2) a format catalogue of
+every document series' user-visible string and suffix rule, (3) the financial-year rule
+including a known duplicate implementation, (4) corrections to **R-12** (technical-debt
+register) — two of its four factual claims are already known wrong (re-verified 2026-08-12:
+37 of 38 raw-SQL sites *do* carry `WITH (UPDLOCK, ROWLOCK)`, and it is 36 files / 38 sites,
+not "~20"). R-12 stays `Inferred (high confidence)` at the end of this task — only
+`M2-B12-02`'s duplicate census can upgrade it; do not upgrade or downgrade it here.
 
-Applies to the two existing controllers (`CurrencyController`, `AuthController`) and their six
-endpoints. A **deliberate breaking change**: `DELETE /api/currencies/{id}`'s refusal moves
-from `400` to `409`.
+This is the first of a three-task tree (`M2-B12-01` → `M2-B12-02` → `M2-B12-03`) that
+produces race-safe, idempotent document numbering (R-12) before the API's first
+document-create endpoint — a **Hard** prerequisite on the dependency graph
+(`M2-B12-03 → first document-create endpoint`).
 
 ### Read before starting
 
-| Doc | Why |
-|---|---|
-| `docs/kb/decisions/ADR-002-rest-api-layer.md` §4 | The status-code table this task implements |
-| `docs/kb/api/api-readiness-assessment.md` (KB-041) | Item A5 and the *Standard error contract* — the target JSON |
-| `docs/kb/api/api-overview.md` (KB-040) | Every current response shape (reuse INV-008, `Complete`) |
-| `docs/kb/business-rules/business-rule-inventory.md` (KB-030) | BR-SO-001 |
-| `docs/kb/architecture/server-side-authorization-spec.md` (KB-105) | The `403` body already defined by `M2-A01-01` — converge on it, do not invent a second shape |
-| `docs/kb/architecture/multi-tenancy.md` (KB-014) | Problem 4 — the silent tenant-resolution failure this middleware must render usefully |
-| `docs/kb/risks/technical-debt-register.md` (KB-060) | R-24 (closes here), R-19, R-20, R-23 |
-
-### Coordination constraints — read before touching `Program.cs`
-
-- **Same-file conflicts:** `M2-A05` and `M2-B01` both edit
-  `V.SMART/V.SMART.Api/Program.cs`. Neither is in flight as of this close-out, but check
-  `git branch --no-merged master` before starting — M2 runs multiple branches in parallel and
-  this has collided before (see `runner-state.md` process note).
-- **`M2-A02`'s tests assert the current (pre-this-task) error shapes deliberately.** `M2-A02`
-  is `Blocked` (not yet implemented), so there is nothing to update yet — but if it lands
-  before this task starts, its assertions must be updated in the same change as this task's
-  contract change, not left asserting the old shapes.
-- **The `403` shape must match `M2-A01-02`'s filter exactly.** `M2-A01-02` is `Ready` but not
-  implemented (and currently blocked in practice by the D-5/R-40 contradiction above). This
-  task should still converge on the `403` shape **KB-105 already specifies**, so whichever of
-  the two lands first does not have to be revisited by the other.
-
-### One bounded investigation this task must run
-
-How does the existing service layer signal a business-rule refusal? `CurrencyService` uses a
-**tuple return** (`(bool success, string message, ...)`), not an exception — confirmed at
-`CurrencyController.cs:64,77,87`. Confirm whether this convention holds more widely, decide how
-`409` gets produced (controller helper / result type / thrown domain exception), and record the
-decision — every later controller copies it. Reuse INV-008 for the response inventory; do not
-re-derive it.
+The task file's own *Required Existing Knowledge* section is authoritative
+([`tasks/M2-B12-01.md`](tasks/M2-B12-01.md#required-existing-knowledge)) — in particular
+KB-083 (prompt template, evidence format — binding on every finding this task produces),
+KB-002 (Confirmed/Inferred/Unknown), KB-003 (INV-012's own row, anti-repetition), KB-060 R-12
+(the risk being corrected), KB-004 Q-10 (the question this hands to `M2-B12-02`), and
+KB-005 §*doc_id allocation* (**KB-100+** is the range for task-produced artefacts — `grep`
+before claiming).
 
 ### Do not
 
-Rewrite `CurrencyController.cs` beyond error returns (no route change, no M2-B02 filter DTO).
-Edit any business-service message string — they are product UX. Touch
-`V.SMART/V.SMART.Shared/**`, `V.SMART.Web/**`, `V.SMART/**` MAUI host, or migrations. Reorder
-the pipeline beyond inserting the new middleware first. Fix R-19 (`UserRepository.LoginAsync`
-swallowing exceptions) — out of scope, lives in `V.SMART.Shared`, affects live Blazor. Start a
-second task after this one.
+Touch any C# file — this task writes documentation only. Run INV-015 (e-Invoice/e-Way payload
+construction) — record the coupling as a question, do not investigate `E_Invoice/**`; that is
+explicitly out of scope and scheduled for Phase 4.5. Upgrade or downgrade R-12's confidence
+rating — only `M2-B12-02`'s duplicate census can do that. Start `M2-B12-02` or any other task
+after this one.
 
 ---
 
-## Carried forward from `M2-C04-01`'s close-out
+## Carried forward from `M2-A06`'s close-out
 
-- **`M2-C04-01` is `Completed` and merged** (`56b8ae2`, 2026-08-20) — all sixteen criteria `MET`, no waiver. Validated `PASS` (branch
-  `migration/M2-C04-01-design-tokens`, tip `9f886a6`). The coverage regression that stopped
-  attempt 1 was closed **by raising coverage to 100 % branches, not by lowering the floor** —
-  `vitest.config.ts` is byte-identical to `master`. Full record:
-  [`tasks/M2-C04-01.md` § Execution Record (2026-08-20)](tasks/M2-C04-01.md#execution-record-2026-08-20)
-  and `task-tracker.md` footnote ²².
-  `M2-C04-02` and `M2-C04-03` are now **`Ready`**; `M2-C03` stays `Blocked` on `M2-C02`.
-  **Still owed at review, and not automatable:** both themes at 200 % zoom with
-  `prefers-reduced-motion` enabled — `jsdom` applies no stylesheet, so no test can cover it.
-  A review step, **not** an unmet acceptance criterion.
-- **The 12 px type scale is a settled owner decision** (Vivek, 2026-08-20): `--text-sm: 12px`
-  for table body and form inputs, `--text-base: 14px`, 30 px compact rows. Density *is* the
-  usability feature in a data-heavy ERP — rows-per-screen is what an operator entering line
-  items all day feels. `M2-C04-02`, `M2-C05-01` and `M2-C07` inherit it; do not reopen it.
-- **`UserThemePreference.IsDarkMode` is a bare `bool`, cannot represent `system`.** Recorded as
-  an INV-006 amendment and **Q-33** (owner: product + backend, needed by M3-3; next free is now **Q-34**). No entity
-  change was made. Not relevant to `M2-A06`, but recorded here so it is not re-discovered.
-- **The theme layer's byte cost is recorded** in `frontend/nexgen-web/README.md` against
-  KB-050's `< 250 KB gzip` target: entry JS 91.59 kB gzip, well inside budget.
+- **`M2-A06` is `Needs Review`**, implemented and independently validated `PASS` on
+  `migration/M2-A06-problem-details` (`f69891a`), all eighteen acceptance criteria `MET`. Not
+  merged — awaiting owner review. Full record:
+  [`tasks/M2-A06.md` § Execution Record (2026-08-20)](tasks/M2-A06.md#execution-record-2026-08-20)
+  and `task-tracker.md` footnote ²³.
+- **The API now has one error contract.** `V.SMART/V.SMART.Api/Middleware/` — global
+  exception handling, correlation ids, a single `ProblemDetails` factory
+  (`ApiProblems.cs`), registered by `UseErrorContract()` before `UseCors` in `Program.cs`.
+  `M2-B02`/`M2-B06`/`M2-B11` all build on it and stay `Blocked` until this is merged
+  (`Needs Review` does not release a Hard-dependent successor per the selection rule).
+- **INV-040 (`Complete`):** business-rule refusals are signalled by tuple return, not
+  exception — 79 delete-guard methods across 61 service files. The binding convention for
+  every future controller: a controller helper (`ProblemResults.BusinessRuleProblem`), not a
+  domain exception. Relevant to any later task writing a second controller.
+- **Two open questions raised, not guessed at:** **Q-34** (a refusal tuple sometimes carries
+  404/500 semantics that a blanket `409` mapping cannot distinguish — undecidable from
+  source) and **Q-35** (the `503`-for-unresolved-tenant and ignore-caller-correlation-header
+  design choices had no prior KB position). Neither blocks `M2-B12-01`.
+- **Two gaps found during close-out review, now recorded, not `M2-B12-01`'s concern:**
+  `/swagger/index.html` returns no `X-Correlation-Id` header (Development-only, no API
+  endpoint affected — `api-overview.md`); `ExceptionHandlingMiddleware`'s
+  `Response.Clear()` discards CORS headers on an error response, flagged forward to
+  **M2-A05** (`technical-debt-register.md` R-24).
+- **`task-tracker.md`'s M2 rollup row is known stale** on `M2-C01`/`M2-C04-01`'s own
+  `Completed` status (footnote text says `Completed` and merged; the rollup summary line still
+  counts them as `Needs Review`). Not corrected during this close-out — out of scope for a
+  session closing `M2-A06`. Whoever next touches that row should reconcile it.
 
-## Ready and unclaimed once `M2-A06` closes
+## Ready and unclaimed once `M2-B12-01` closes
 
 Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 Listed for whoever plans the task after this one — not to be started now.
 
 | Task | What | Est. | Note |
 |---|---|---|---|
-| `M2-B04` | Decouple `IApprovalService` + 13 `Pages` refs | 1 wk | Largest single extraction in M2-B |
-| `M2-B12-01` | INV-012 numbering investigation | 2 d | Investigation-only; unblocks the numbering chain |
-| `M2-B01` | API versioning → `/api/v1` | 1 d | Same-file conflict with `M2-A05` — check nothing is in flight |
-| `M2-B05` | Typed `ScreenCodes` constants (R-10) | 2 d | Feeds `M2-A01-02`'s filter |
-| `M2-C10` | Decimal handling — no float money arithmetic | 2 d | P0 correctness, blocks `M2-C07` |
+| `M2-B04` | Decouple `IApprovalService` + 13 `Pages` refs | 1 wk | Largest single extraction in M2-B; 0 direct dependents, ranked below `M2-B12-01`/`M2-C10` this round on that basis only |
+| `M2-C10` | Decimal handling — no float money arithmetic | 2 d | P0 correctness, blocks `M2-C07` — but `M2-C07` also needs `M2-C05-01` (not `Ready`), so this alone unblocks nothing yet |
+| `M0-01-03` | Deployment script + rebuild runbook | 1 d | Closes a G0 exception; a local `SQLEXPRESS` instance is confirmed available (tracker footnote ²¹) — genuinely actionable, not blocked on an unscheduled human |
+| `M2-B01` | API versioning → `/api/v1` | 1 d | P1. Same-file conflict with `M2-A05` — check nothing is in flight before opening |
+| `M2-B05` | Typed `ScreenCodes` constants (R-10) | 2 d | P1. Feeds `M2-A01-02`'s filter |
 | `M2-C11` | Archive the Angular pilot | 0.5 d | P2 housekeeping |
-| `M0-01-03` | Deployment script + rebuild runbook | 1 d | Closes a G0 exception; hardware no longer blocks it |
-| `M0-10` | R-08 compute-one/test-another guards audit | — | M0 debt carried into M2 |
-| `M2-A01-02` | `[RequireScreen]` / `[RequireRight]` | 3 d | **Do not open blind** — spec contradicts reality, see the warning above |
+| `M0-10` | R-08 compute-one/test-another guards audit | — | P1. M0 debt carried into M2 |
+| `M2-A01-02` | `[RequireScreen]` / `[RequireRight]` | 3 d | **Do not open blind** — spec contradicts reality (D-5/R-40, the `UserId == 1` bypass); see the task's own file |
 
 `M2-B12`, `M2-C04`, `M2-C05`, `M2-A01` and `M2-D02` are **parent containers** and are never
 worked directly.
@@ -155,7 +152,7 @@ G0 passed **with three exceptions**, all owner-deferred, none with a date set
 ([KB-107 §1](M0-milestone-review.md)):
 
 1. **Criterion 1 — no rebuild drill.** `M0-01-03` is `Ready` (a SQL Server instance was on
-   this workstation the whole time — see below); the drill itself has not run.
+   this workstation the whole time — see above); the drill itself has not run.
 2. **Criterion 2 — secrets still in history** (`M0-05`, `Blocked` behind `M0-04`).
 3. **Criterion 3 — production credentials unrotated, in a public repository** (R-01). `M0-04`
    is `Blocked` on an unidentified owner and now also gated on **Q-32** (the `Tenants` table
@@ -164,9 +161,10 @@ G0 passed **with three exceptions**, all owner-deferred, none with a date set
 
 ## Two standing process notes for M2
 
-- **Check `git branch --no-merged master` before allocating any KB/INV/Q id.** Six id
+- **Check `git branch --no-merged master` before allocating any KB/INV/Q id.** Several id
   collisions have already happened across parallel M2 branches — `grep`-before-claim cannot
-  see a sibling branch.
+  see a sibling branch. `docs/kb/modules/document-numbering.md` claims **KB-100** — re-`grep`
+  before writing it in case a sibling branch already took it.
 - **`master` requires pull requests**, but no required status check gates merges yet — that is
   the open half of **Q-20**. The owner holds bypass rights; prefer a PR regardless.
 
@@ -175,9 +173,11 @@ G0 passed **with three exceptions**, all owner-deferred, none with a date set
 | | |
 |---|---|
 | `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **84 passed, 0 failed** |
+| `dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` | **21 passed, 0 failed** (new project, `M2-A06`; not yet wired into CI) |
 | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental` | **0 errors, 6,694 warnings** (baseline 6,695) |
 | `frontend/nexgen-web` — `npm run typecheck && lint && test -- --run && build && coverage` | All exit 0 as of `M2-C04-01` tip `9f886a6` (2026-08-20); coverage branches **100 %** |
 | CI on `master` | green |
 
-The authoritative, continuously-updated command table is
+`M2-B12-01` writes no code and needs none of the above to run — it is a source-reading
+investigation. The authoritative, continuously-updated command table is
 [KB-083 § Verified repository commands](prompt-template.md#verified-repository-commands).

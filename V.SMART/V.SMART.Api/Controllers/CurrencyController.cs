@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using V.SMART.Api.Middleware;
 using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAccountsService;
 using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel;
 
@@ -51,7 +52,7 @@ namespace V.SMART.Api.Controllers
         {
             var vm = await _currencyService.GetByIdAsync(id);
             if (vm == null)
-                return NotFound(new { message = "Currency not found." });
+                return this.NotFoundProblem("Currency not found.");
             return Ok(vm);
         }
 
@@ -59,11 +60,11 @@ namespace V.SMART.Api.Controllers
         public async Task<ActionResult<CurrencyVM>> Create([FromBody] CurrencyVM vm)
         {
             if (!ModelState.IsValid)
-                return ValidationProblem(ModelState);
+                return this.ValidationProblemResult();
 
             var (success, message, currency) = await _currencyService.CreateAsync(vm);
             if (!success)
-                return BadRequest(new { message });
+                return this.BusinessRuleProblem(message);
 
             return CreatedAtAction(nameof(GetById), new { id = currency!.CurrId }, currency);
         }
@@ -72,11 +73,11 @@ namespace V.SMART.Api.Controllers
         public async Task<ActionResult<CurrencyVM>> Update(int id, [FromBody] CurrencyVM vm)
         {
             if (!ModelState.IsValid)
-                return ValidationProblem(ModelState);
+                return this.ValidationProblemResult();
 
             var (success, message, currency) = await _currencyService.UpdateAsync(id, vm);
             if (!success)
-                return BadRequest(new { message });
+                return this.BusinessRuleProblem(message);
 
             return Ok(currency);
         }
@@ -84,13 +85,16 @@ namespace V.SMART.Api.Controllers
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
+            // M2-A06 — ADR-002 §4: a delete guard's refusal is 409, not 400, and the service's
+            // message is carried into ProblemDetails.title VERBATIM (BR-SO-001). Deliberate
+            // breaking change: this endpoint answered 400 before this task.
             var (canDelete, message) = await _currencyService.CanDeleteCurrencyAsync(id);
             if (!canDelete)
-                return BadRequest(new { message });
+                return this.BusinessRuleProblem(message);
 
             var deleted = await _currencyService.DeleteCurrencyByCurrIdAsync(id);
             if (!deleted)
-                return NotFound(new { message = "Currency not found." });
+                return this.NotFoundProblem("Currency not found.");
 
             return NoContent();
         }

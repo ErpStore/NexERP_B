@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using V.SMART.Api.Auth;
+using V.SMART.Api.Middleware;
 using V.SMART.Shared.DependencyInjection;
 using V.SMART.Shared.Services;
 
@@ -15,6 +16,13 @@ var builder = WebApplication.CreateBuilder(args);
 StartupConfigurationValidator.Validate(builder.Configuration, requireJwt: true);
 
 builder.Services.AddControllers();
+
+// M2-A06 — one error contract for the whole API (ADR-002 §4). Registers ProblemDetails
+// services and replaces MVC's automatic 400 body with the canonical one, so the
+// [ApiController] model-state short-circuit and an explicit controller return produce the
+// identical shape.
+builder.Services.AddErrorContract();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -135,6 +143,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// M2-A06 — first in the pipeline, before UseCors, so it wraps CORS, authentication,
+// authorization and MVC: correlation id, then the global exception handler, then a
+// status-code handler that gives framework-generated bodiless failures (a 401 challenge, an
+// unmatched route's 404) the same application/problem+json shape. Do not move this below
+// UseCors — an exception thrown by the CORS middleware would escape unhandled.
+app.UseErrorContract();
 
 app.UseCors("AngularDev");
 app.UseAuthentication();

@@ -26,7 +26,7 @@ database_tables: [UserRights, Screens]
 business_rules: [BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-20
 dependencies: [ADR-004, ADR-002, KB-013, KB-030, KB-060, KB-040]
 ---
 
@@ -701,6 +701,19 @@ Per ADR-002 §4, `application/problem+json` (RFC 7807) everywhere.
   composed from the *required* screen and right, never from what was found.
 - `M2-A06` (`ProblemDetails` middleware) later owns the shared serialisation. Until it lands,
   `M2-A01-02` writes the body itself. Same shape either way; `M2-A06` must not change it.
+
+> **M2-A06 has landed (2026-08-20). The shared path now exists — use it; do not write this
+> body by hand.** The single producer is
+> `ApiProblems.ScreenRightDenied(HttpContext, screen, right)` in
+> `V.SMART/V.SMART.Api/Middleware/ApiProblems.cs`; the M2-A01-02 filter should return
+> `this.ScreenRightDeniedProblem(screen, right)` (`Middleware/ProblemResults.cs`) or, from
+> outside MVC, `ApiProblems.WriteAsync(...)`. The shape above is unchanged and is asserted
+> member-by-member by `tests/V.SMART.Api.Tests/ProblemShapeTests.cs`, including that the
+> filter path and the middleware path serialise byte-identically. The `type` base
+> `https://api.v-smart.local/problems/` from this section is now the canonical one for the
+> whole API (`Middleware/ProblemTypes.cs`), superseding KB-041's illustrative
+> `https://api.vsmart/errors/…`. `403` is deliberately the one status the M2-A06 status-code
+> handler does **not** synthesise, precisely so no second, screen-less 403 shape can appear.
 
 ### 7.2 `401` — unusable identity claim (**D-3**)
 
