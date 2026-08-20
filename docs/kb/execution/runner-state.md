@@ -38,7 +38,7 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `RUNNING` — `M2-A01-02` implemented and independently validated `PASS` on `migration/M2-A01-02-require-screen-right` (`9a6b3c2`), 2026-08-20, attempt 1 of 3, 0 escalations. **`Needs Review`, not merged** — per [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) only the repository owner may set it `Completed`; no owner instruction to merge has been given in this session. Its only Hard-dependent, `M2-A01-03`, therefore stays `Blocked`. `M2-B12-01` selected as the next task. |
+| **Status** | `STOPPED` — no run is live. **`M2-A01-02` is `Completed` and merged** (`ed559ad`, owner-instructed 2026-08-20) after validating `PASS` on `migration/M2-A01-02-require-screen-right` (`9a6b3c2`), attempt 1 of 3, 0 escalations. **`M2-A01-03` is now `Ready`**; `M2-A02`, `M2-A03`, `M2-A04`, `M2-A07`, `M2-A08` remain `Blocked` behind it. `M2-B12-01` is the pointer in `current-task.md`, selected before that merge — **`M2-A01-03` was not in the candidate pool at the time, so re-apply the [selection rule](dependency-graph.md#ready-task-selection-rule) rather than inherit it.** |
 | **Stop reason** | n/a — run live. |
 | **Run started** | 2026-08-19 (spans the 2026-08-19→2026-08-20 autonomous run through `M2-B02`, `M2-A01-02`, and now into `M2-B12-01`). |
 | **Last transition** | 2026-08-20 — `M2-A01-02` close-out recorded (task file execution record, `task-tracker.md` footnote ²⁵, KB-105/KB-040/KB-060/INV-037 documentation updates); `M2-B12-01` selected per the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) and written into `current-task.md`. Not yet started — no branch exists yet. |
