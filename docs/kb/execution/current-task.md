@@ -93,17 +93,30 @@ confidence rating — that is `M2-B12-02`'s call.
 
 ## Carried forward from `M2-A01-02`'s close-out
 
-- **`M2-A01-02` is `Needs Review`, not `Completed`** — implemented on
+- **`M2-A01-02` is `Completed` and merged** (`ed559ad`, 2026-08-20) — implemented on
   `migration/M2-A01-02-require-screen-right` (`9a6b3c2`), validated `PASS` on attempt 1 of 3,
-  0 escalations. Not merged. Full record:
+  0 escalations. **The D-5/R-40 contradiction was verified as genuinely not-hit at review**, not
+  taken on report: `grep` of `V.SMART.Api/Authorization/` for `UserId == 1` / `IsAdmin` /
+  `Administrator` / `bypass` / `.Role` returns **zero matches**, and KB-105's D-5 still reads
+  *"No `Administrator` bypass. None. Anywhere."* verbatim — the spec was extended, not softened.
+  Full record:
   [`tasks/M2-A01-02.md` § Execution Record (2026-08-20)](tasks/M2-A01-02.md#execution-record-2026-08-20)
-  and `task-tracker.md` footnote ²⁵. Its release of `M2-A01-03` (and transitively `M2-A02`,
-  `M2-A03`, `M2-A04`, `M2-A07`, `M2-A08`) waits on human review and merge.
+  and `task-tracker.md` footnote ²⁵. **`M2-A01-03` is now `Ready`.** `M2-A02`,
+  `M2-A03`, `M2-A04`, `M2-A07` and `M2-A08` remain `Blocked` behind it.
 - **`V.SMART/V.SMART.Api/Authorization/` now exists**, all ten types KB-105 §2 specifies, with
   `Right`, `[RequireScreen]`, `[RequireRight]`, `[NoScreenRight]`, `IUserRightsProvider` (no
   cache), `ScreenRightAuthorizationFilter`, `ScreenRightSet`, `ScreenCatalogue`, and
   `ScreenRightStartupValidator`, registered in `Program.cs`. **No controller is annotated** —
   `M2-A02`'s job. R-03 (KB-060) stays open with that noted.
+- **⚠ THE FILTER IS OPT-IN, NOT DENY-BY-DEFAULT — `M2-A02` must close this.** `D-4` is only
+  partly implemented: an authenticated action on a controller carrying **no** `[RequireScreen]`
+  at all is **allowed through**, at request time and at startup. The reasoning is sound —
+  enforcing it now would have made the host refuse to start over `CurrencyController`'s five
+  unannotated endpoints, which this task was forbidden to change — and the *half*-annotated
+  directions (T-11, T-12) **are** enforced, as is D-6's catalogue check. But the gap is the
+  opposite of what "deny by default" implies, so it is stated here rather than left in a
+  footnote: **today, an unannotated controller is unprotected.** Tracked against R-03 (KB-060);
+  `M2-A02` closes it in the same change that annotates the first controller.
 - **A latent, deployment-conditional DI-eagerness finding**, not a regression today, recorded
   for `M2-A02` to watch: the globally registered filter constructs `IUserRightsProvider` (and
   therefore the tenant `DbContext`) via DI on every request reaching MVC's pipeline, even on

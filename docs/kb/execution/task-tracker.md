@@ -107,8 +107,8 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 |---|---|---|---|---|---|---|---|---|
 | M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | **In Progress** | P0 | G0 | 1–2 wks | G2 |
 | M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
-| M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Needs Review**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
-| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | Blocked | P0 | M2-A01-02 | 2 d | G2 |
+| M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
+| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Ready** | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | Blocked | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
@@ -246,7 +246,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | **6** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-C01`¹⁹, `M2-B07`²⁰, `M2-C04-01`²², `M2-A06`²³, `M2-B02`²⁴. Reconciled 2026-08-20: this row read `1` and carried a stale "also Needs Review" note listing three tasks that had since been merged. Recount is by `grep` over the M2 rows, not by adding to the previous number)* | G2 | ⬜ Not met |
+| M2 | 52 | **7** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-C01`¹⁹, `M2-B07`²⁰, `M2-C04-01`²², `M2-A06`²³, `M2-B02`²⁴, `M2-A01-02`²⁵. Reconciled 2026-08-20: this row read `1` and carried a stale "also Needs Review" note listing three tasks that had since been merged. Recount is by `grep` over the M2 rows, not by adding to the previous number)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -1347,7 +1347,33 @@ returns `400` instead of being silently discarded by the old `string?` re-parse.
 **Releases, once reviewed and merged:** `M2-B03` (→ `M2-B10`), `M2-B09`, `M2-C05`, `M2-C05-01` —
 all list `M2-B02` as a Hard prerequisite. None moves to `Ready` on `Needs Review` alone.
 
-²⁵ **M2-A01-02: `Needs Review` — implemented and independently validated `PASS` on
+²⁵ **M2-A01-02: `Completed` and merged (`ed559ad`, 2026-08-20) — all acceptance criteria `MET`, no waiver.**
+
+> **Fourth consecutive M2 task to close with nothing waived.** Re-verified before merging and again on `master` after: `dotnet build V.SMART.Api` **0 errors**; `dotnet test V.SMART.Api.Tests` **104 passed** (56 → +48); `dotnet test V.SMART.Shared.Tests` **84 passed**. Scope: `V.SMART.Api` only — no `Shared`, no Web, no MAUI, no `bin/`/`obj/`, **and no controller annotated**, which the task forbids.
+>
+> ### The D-5 / R-40 contradiction was not resolved by guessing
+>
+> This was the whole risk of the task, so it was checked directly rather than taken from the report — a plausible-looking compromise here would have baked an **undeclared superuser into the new API's security model**, and it would have read as reasonable in a diff.
+>
+> - `grep` of `V.SMART.Api/Authorization/` for `UserId == 1`, `IsAdmin`, `Administrator`, `superuser`, `bypass`, `.Role` → **zero matches**.
+> - **KB-105's D-5 still reads *"No `Administrator` bypass. None. Anywhere."* verbatim.** The spec *was* touched, but **additively** — an implementation-status block recording two deliberate departures, which also corrects its own stale `Program.cs` line numbers. D-5 was **not** softened to fit the code.
+> - `T13_an_Administrator_with_no_row_is_denied` pins it: an identity carrying a `Role=Administrator` claim against an empty rights set is denied.
+>
+> **Why it did not fire — which matters more than that it didn't.** R-40's bypass lives in `Login.razor`'s **login** path, not in `RightsHelper` or the rights check. The filter reads `UserRight` rows and nothing else, so an administrator with no rows is denied, correctly. **The contradiction was never this task's to hit.** It stays live for **`M2-A02`**, and sharper there: an API-only administrator holds **zero rows**, because `AuthController.Login` never calls `SyncRightsForUserAsync` (**Q-28**). Implement `M2-A02` before settling Q-28 and the administrator authenticates into an empty UI.
+>
+> ### One security-relevant departure — recorded, not hidden
+>
+> **D-4 is only partly implemented.** An authenticated action on a controller carrying **no** `[RequireScreen]` at all is presently **allowed through** rather than refused, at request time *and* at startup. The reasoning is sound — enforcing it now would make the host refuse to start over `CurrencyController`'s five unannotated endpoints, and this task requires all six to behave exactly as before — and the half-annotated directions (T-11, T-12) **are** enforced, as is D-6's catalogue check.
+>
+> **But until `M2-A02` closes it, the filter is opt-in, not deny-by-default at the controller level** — the opposite of what "deny by default" implies. Tracked against **R-03** ([KB-060](../risks/technical-debt-register.md)). This belongs in front of whoever writes `M2-A02`, not in a footnote nobody re-reads.
+>
+> **Also latent and deployment-conditional:** the globally registered filter constructs `IUserRightsProvider` — and therefore the tenant `DbContext` — via DI on **every** request reaching MVC, including unannotated actions.
+>
+> **Releases `M2-A01-03` only** (per-request rights caching). `M2-A02` and everything behind it wait on that.
+
+Pre-merge record follows. Branch `migration/M2-A01-02-require-screen-right`, tip `9a6b3c2` at validation.
+
+**Original close-out text:** M2-A01-02: `Needs Review` — implemented and independently validated `PASS` on
 `migration/M2-A01-02-require-screen-right` (`9a6b3c2`), 2026-08-20, attempt 1 of 3, 0
 escalations. Not merged; per [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)
 only the repository owner may set it `Completed`.**
