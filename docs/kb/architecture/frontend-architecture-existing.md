@@ -22,7 +22,7 @@ dependencies: [KB-010, KB-013]
 
 # Existing UI Architecture (As-Is)
 
-> This document describes **what exists**. The proposed React architecture is in
+> This document describes **what exists**. The proposed Angular architecture is in
 > [`frontend-new/react-architecture.md`](../frontend-new/react-architecture.md).
 
 ## Stack
@@ -168,7 +168,7 @@ complexity in [`frontend-new/feature-mapping.md`](../frontend-new/feature-mappin
 
 ## Shared components (22, `Components/`)
 
-| Component | Purpose | React equivalent |
+| Component | Purpose | Angular equivalent |
 |---|---|---|
 | `BsModal.razor` | confirm dialog, optional reason textbox | `<ConfirmDialog reasonRequired>` |
 | `DetailsModal.razor` | generic picker grid over `List<Dictionary<string,object>>` + column/field/hidden lists, multi-select callback | `<RecordPickerDialog>` — **highest-value component to rebuild first** |
@@ -251,6 +251,18 @@ concepts by mirroring `CurrencyController`.
 - Its `LoginResponse` shape (`token, username, userId, tenantId, role`) is the de-facto
   contract already implemented server-side.
 
-**Value not to retain:** none of the code. The user's decision is React; the Angular
-project should be archived, not converted. Its `dist/` and `.angular/cache/` are committed
-build output and should be removed from the repo (risk R-14).
+**Value to retain — reversed on 2026-08-20.** This section previously read *"none of the code.
+The user's decision is React; the Angular project should be archived, not converted."*
+[ADR-007](../decisions/ADR-007-angular-stack.md) **reversed that**: Angular is the decision, and
+the pilot's auth service, route guard and HTTP interceptor become the starting point rather than
+landfill. `M2-C11` changed from *archive* to *adopt*.
+
+Three qualifications, all still true and none softened by the reversal:
+
+- **The pilot is Angular 19.2; the target is 22.x** — three majors apart. ADR-007 recommends
+  `ng new` on 22 with the ~500 lines of auth wiring ported across, rather than three chained
+  `ng update` migrations to preserve scaffolding the CLI regenerates for free.
+- **Its `localStorage` JWT is XSS-exposed and must not be copied.** Token storage is `M2-C02`'s
+  decision, against ADR-004.
+- **Its `dist/` and `.angular/cache/` are committed build output** and should still be removed
+  (risk R-14). Adopting the pilot's *code* does not mean adopting its *repository hygiene*.

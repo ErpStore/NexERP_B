@@ -133,7 +133,7 @@ Use this table before searching the repository.
 | What endpoints must be built, contract conventions, error shape | KB-041, ADR-002 |
 | Frontend stack, state, data fetching, permission rendering, DocumentEditor | KB-050, **ADR-007** (ADR-003 is superseded — do not implement from it) |
 | Colours, typography, components, layouts, accessibility | KB-051 |
-| Which React screen replaces which Blazor screen, and how hard | KB-052 |
+| Which Angular screen replaces which Blazor screen, and how hard | KB-052 |
 | Old route → new route | KB-053 |
 | Risks, defects, severity, what to fix first | KB-060 |
 | Timeline, phases, sequencing, rollback | KB-070 |
