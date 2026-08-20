@@ -908,7 +908,7 @@ existed. The rights entries set `Size = 1` regardless, so a cap can be imposed l
 `SizeLimit` on the shared cache once every consumer sets `Size`, or moving the rights entries to a
 provider-owned `MemoryCache`) with no change to `UserRightsProvider`. Residual exposure: the cache
 holds one `ScreenRightSet` per *(tenant, user)* seen in the last 60 seconds — bounded by
-concurrent users per minute, not by anything configured. Recorded as **R-21** in
+concurrent users per minute, not by anything configured. Recorded as **R-41** in
 [KB-060](../risks/technical-debt-register.md). **Inferred** (documented `SizeLimit` semantics),
 not measured.
 
