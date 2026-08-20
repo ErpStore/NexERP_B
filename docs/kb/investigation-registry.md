@@ -441,6 +441,38 @@ Last verified:  2026-08-19
   <6.1.0`, which is a second argument for honouring ADR-003's TypeScript 5 pin rather than
   taking `typescript@latest` (7.0.2).
 
+### INV-040 amendment (2026-08-20, M2-C00) — the shipped error contract, read from source for the frontend
+
+`M2-C00` re-read `V.SMART/V.SMART.Api/Middleware/ApiProblems.cs` and `ProblemTypes.cs` end to end
+so that KB-050's frontend error-handling section could be written against the **shipped** contract
+rather than against ADR-002's table alone. No new investigation id: this is the same subject as
+INV-040, seen from the client side. **All Confirmed, 2026-08-20:**
+
+- `ApiProblems` is *"the one place that builds every error body this API returns"*
+  (`ApiProblems.cs:7-13`); media type `application/problem+json` (`:16`); every body carries
+  `traceId` (`:43`, plus `:86` for the `403` and `:131` for the `400`) and `instance` = request path
+  (`:40`).
+- 409 business-rule refusal carries the service's message into `title` **verbatim — not reworded,
+  prefixed or truncated** (`:47-53`). 403 is a frozen shape whose `detail` is composed from the
+  *required* screen and right only, with `screen`/`right` extensions (`:66-88`). 400 validation is
+  an `errors` dictionary keyed by field with the `DataAnnotations` messages verbatim (`:117-133`).
+  401 is deliberately uninformative (`:59-64`); 404 minimal (`:55-57`); 500 carries `traceId` and a
+  constant title only, in **every** environment (`:104-115`); tenant-unresolved never leaks a
+  connection string or host name (`:90-102`).
+- `type` values are stable identifier URIs under `https://api.v-smart.local/problems/`
+  (`ProblemTypes.cs:17-41`), **not** dereferenceable URLs — so a client must branch on `type`,
+  never on `title`. Recorded in [KB-050](frontend-new/react-architecture.md) §*Error handling*.
+
+**INV-021 re-verification (2026-08-20, M2-C00), pilot facts only — no re-derivation of its file
+inventory.** Confirmed still true: `localStorage` JWT (`frontend/vsmart-erp/src/app/core/auth/auth.service.ts:29-35,60-61,66-72`);
+`http://localhost:5144` hardcoded in **both** `src/environments/environment.ts:1-5` and
+`environment.prod.ts:1-4`, i.e. the production build points at localhost; all four routed
+components imported eagerly (`src/app/app.routes.ts:3-6`); Karma + Jasmine still in `package.json`.
+**Negative result (Confirmed):** the pilot contains **no** permission gating of any kind — no
+permission service, no rights directive, and its only guard checks authentication alone
+(`src/app/core/auth/auth.guard.ts:11-20`). The 152 × 5 matrix has to be built from nothing in
+`M2-C02`; there is no pilot code to adopt for it.
+
 ## Partial
 
 | ID | Topic | Status | Gap | Doc |
