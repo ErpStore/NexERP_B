@@ -1063,6 +1063,23 @@ only the API host, is missing.
 host; the comment in `Program.cs` says so at the site. `ValidateScopes` was deliberately left
 at the framework default, so captive-dependency detection is unaffected.
 
+### R-41 — The API's screen-rights cache has no entry cap
+**Confirmed (M2-A01-03, 2026-08-20)** for the code; **Inferred** for the exposure.
+`V.SMART/V.SMART.Api/Program.cs` registers the shared `IMemoryCache` via `AddMemoryCache()`
+with **no** `MemoryCacheOptions.SizeLimit`, so the screen-rights entries
+(`screenrights:v1:{tenantId}:{userId}`, one `ScreenRightSet` each) are bounded only by the
+60-second TTL and the number of distinct *(tenant, user)* pairs making authorized requests
+within it. [KB-105](../architecture/server-side-authorization-spec.md) §8.2 asked for a
+configurable cap.
+**Why it was left off.** `SizeLimit` is cache-wide: once set, *every* consumer of this
+singleton must populate `MemoryCacheEntryOptions.Size` or `Set` throws
+`InvalidOperationException` at runtime. Imposing that on all future API code to bound one
+consumer was judged the worse trade. `UserRightsProvider` sets `Size = 1` on its entries anyway,
+so nothing has to change there when a cap is added.
+**Action.** Either set `SizeLimit` once every consumer in the host sets `Size`, or give
+`UserRightsProvider` its own `MemoryCache` instance with a configured limit. Neither is urgent:
+a value is ≤152 small records and lives at most 60 seconds.
+
 ### R-27 — Hardcoded developer-machine values in the MAUI project
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in
 `V.SMART.csproj`.

@@ -257,6 +257,16 @@ See [ADR-004](../decisions/ADR-004-server-side-authorization.md).
 > with the permission matrix. R-03 stays open until both land.
 > Specification: [KB-105](../architecture/server-side-authorization-spec.md).
 
+> **M2-A01-03 (2026-08-20) — rights are resolved per request, never carried in the JWT.**
+> `UserRightsProvider` now reads through a singleton `IMemoryCache` keyed
+> `screenrights:v1:{tenantId}:{userId}` with an **absolute** TTL from
+> `Authorization:RightsCacheSeconds` (default 60 s; `0` disables the cache; above 300 fails
+> startup). The token still carries only `Name`, `UserId`, `TenantId` and `Role` — ADR-004 §2
+> forbids rights in the JWT, and `JwtTokenService` is unchanged. Because all five `UserRight`
+> write sites run in the Blazor host, a permission change takes effect in the API within the
+> TTL rather than immediately (KB-105 §8.6, Q-29). Still no controller is annotated, so all six
+> endpoints respond exactly as described above.
+
 ## Contract conventions established so far
 
 Worth keeping (they are already consistent):
