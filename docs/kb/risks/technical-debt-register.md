@@ -280,6 +280,31 @@ with no screen-right check.
 `UserRight` rows. Blocks any production API rollout.
 **Action.** [ADR-004](../decisions/ADR-004-server-side-authorization.md). Must land before
 the second controller is written.
+**Update 2026-08-20 (M2-A01-02) — the mechanism landed; the risk stays OPEN.**
+`V.SMART/V.SMART.Api/Authorization/` now contains `[RequireScreen]`, `[RequireRight]`,
+`[NoScreenRight]`, the `IUserRightsProvider` seam and `ScreenRightAuthorizationFilter`,
+registered globally in `Program.cs`, plus `ScreenRightStartupValidator` for the KB-105 D-4/D-6
+misannotation checks. **No controller declares the attributes**, so nothing is enforced yet
+and every endpoint remains as exposed as this entry describes. Closing tasks: **M2-A02**
+(annotate `CurrencyController`) and **M2-A03** (permission-matrix suite).
+One sub-condition of KB-105 D-4 is deliberately not yet enabled and is M2-A02's to switch on:
+an authenticated action on a controller carrying *no* `[RequireScreen]` at all is presently
+allowed through rather than refused, because refusing it — in the startup form, refusing to
+start the host — would have broken the API's six existing unannotated endpoints in the same
+change that introduced the mechanism. Until M2-A02 flips it, a controller added without
+annotations is silently unprotected, which is the R-03 failure mode itself.
+**Close-out addendum, 2026-08-20 (independent validation, not the implementer's own finding):**
+the globally registered `ScreenRightAuthorizationFilter` constructs `IUserRightsProvider` (and
+therefore `IUnitOfWork` → `UnitOfWork.cs:488` → `TenantDbContextFactory.GetCurrentTenant()`) via
+DI on **every** request that reaches MVC's filter pipeline, including unannotated actions where
+the filter's own short-circuit means it never calls `GetAsync`. Not a regression today —
+`UseAuthorization()` middleware rejects a tokenless caller before MVC builds the filter
+pipeline (verified live: `401`, not a DI-construction `503`), and `AuthController.Login`
+already constructs `IUnitOfWork` in its own constructor. Becomes relevant once `M2-A02`
+annotates a real controller and an authenticated request's tenant is unresolvable: the tenant
+`DbContext` then resolves one filter-pipeline step earlier than before this task. A lazy
+provider injection (e.g. `Func<IUserRightsProvider>`) removes it if `M2-A02`'s validation
+surfaces it as an actual problem — recorded here so it is not rediscovered as a mystery.
 
 ### R-38 — Account-level login gates are enforced only in Blazor `@code`; the API bypasses all of them
 **Confirmed, added 2026-08-12.** R-03 established that *authorization* (screen rights) is
