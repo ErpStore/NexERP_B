@@ -49,13 +49,35 @@ namespace V.SMART.Shared.Repository.MasterRepository.AdminRepository
         }
 
 
+        // M2-A08 (Q-05 / R-16): the QrExpiryDate predicate belongs HERE, in the query.
+        //
+        // Before this change the query filtered QrToken, IsQrEnabled and IsActive but NOT
+        // QrExpiryDate, so it returned expired users and correctness depended on the caller
+        // remembering to check. Both Blazor callers do — QrLogin.razor:50-56 ("QR Code Expired")
+        // and Login.razor:422-429 ("QR Expired") — and they keep their checks; a redundant check
+        // is not a bug and this task does not touch those files. Any THIRD caller (an API
+        // endpoint, a background job, a mobile client) got a valid User for an expired token.
+        //
+        // Behaviour-preserving for both existing callers: they already rejected exactly what this
+        // predicate now excludes. Verified there is no third caller — GetUserByQrToken has exactly
+        // two call sites, Login.razor:404 and QrLogin.razor:34.
+        //
+        // The comparison mirrors the callers' test, "QrExpiryDate.HasValue && QrExpiryDate.Value <
+        // DateTime.Now", including DateTime.Now (server-local, time-of-day significant) rather
+        // than DateTime.Today. A NULL QrExpiryDate is NOT an expired one and still returns the
+        // user, exactly as the callers' HasValue guard does.
         public async Task<User?> GetUserByQrToken(Guid token)
         {
+            // Evaluated once, in the client, so the predicate is a parameter rather than a
+            // GETDATE() re-evaluated per row.
+            var now = DateTime.Now;
+
             return await _db.Users
                                  .Where(x =>
                                     x.QrToken == token &&
                                     x.IsQrEnabled &&
-                                    x.IsActive)
+                                    x.IsActive &&
+                                    (x.QrExpiryDate == null || x.QrExpiryDate.Value >= now))
                                  .FirstOrDefaultAsync();
         }
 

@@ -52,6 +52,22 @@ namespace V.SMART.Api.Middleware
         public static ProblemDetails BusinessRuleRefusal(HttpContext context, string message)
             => Create(context, StatusCodes.Status409Conflict, ProblemTypes.BusinessRule, message);
 
+        /// <summary>
+        /// <b>403 — an account gate refused an otherwise-valid credential</b> (M2-A08).
+        /// <para>
+        /// <c>title</c> carries the <c>Login.razor</c> message <b>verbatim</b>, for the same reason
+        /// <see cref="BusinessRuleRefusal"/> does: it is product UX written by the domain team
+        /// (ADR-002 §4). <c>type</c> is what makes the refusals distinguishable from each other and
+        /// from the 401 that bad credentials get — see <see cref="ProblemTypes.TrialExpired"/>.
+        /// </para>
+        /// <para>
+        /// 403 rather than 401 because the credential <i>was</i> accepted: re-prompting for a
+        /// password, which is what a 401 tells a client to do, cannot resolve any of these.
+        /// </para>
+        /// </summary>
+        public static ProblemDetails AccountGateRefused(HttpContext context, string type, string title)
+            => Create(context, StatusCodes.Status403Forbidden, type, title);
+
         /// <summary>404 — minimal, per ADR-002 §4.</summary>
         public static ProblemDetails NotFound(HttpContext context, string message)
             => Create(context, StatusCodes.Status404NotFound, ProblemTypes.NotFound, message);

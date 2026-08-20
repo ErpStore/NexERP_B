@@ -29,6 +29,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      M2-A08 — the row-scope tests need a real EF Core provider, not a LINQ-to-objects
+      IQueryable: the whole claim being tested is that the scope predicate is composed into the
+      query rather than applied after materialisation. Version 9.0.5 matches
+      tests/V.SMART.Shared.Tests exactly; mixing versions across the reference boundary is the
+      classic source of MethodNotFoundException at test time.
+
+      InMemory rather than Sqlite, for the reason INV-031 recorded (KB-003): Sqlite cannot create
+      this model at all — nine [Column(TypeName = "nvarchar(max)")] attributes emit SQL-Server-only
+      column types. The consequence, stated so no test here over-claims: InMemory does not
+      translate LINQ to SQL, so these tests prove the predicate is part of the query and filters
+      correctly; they do NOT prove it renders as a SQL IN clause. That needs a real SQL Server,
+      which no test in this repository has yet.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />

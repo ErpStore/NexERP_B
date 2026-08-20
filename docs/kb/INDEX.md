@@ -4,7 +4,7 @@ title: Knowledge Base Index and RAG Strategy
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-18
+last_verified: 2026-08-20
 ---
 
 # Knowledge Base Index and RAG Strategy
@@ -61,6 +61,7 @@ last_verified: 2026-08-18
 | KB-103 | [Stored-Procedure Drift Across Tenant Databases (Q-14)](architecture/stored-procedure-drift.md) | as-is | partial | mixed | 2026-08-17 |
 | KB-107 | [Milestone Review — M0 Stabilise (Gate G0)](execution/M0-milestone-review.md) | execution | active | — | 2026-08-19 |
 | KB-105 | [Server-Side Screen-Right Authorization — Implementation Spec](architecture/server-side-authorization-spec.md) | **proposal** | complete | — | 2026-08-18 |
+| KB-108 | [Row-Level Scoping and Account Gates (INV-028, Q-05…Q-08)](architecture/row-scope-and-account-gates.md) | architecture | complete | confirmed | 2026-08-20 |
 
 ## doc_id allocation
 
@@ -102,13 +103,13 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-087 | **Claimed 2026-08-17 by M0-07** — [ci-pipeline.md](execution/ci-pipeline.md) | allocated |
 | KB-088 – KB-090 | **Claimed 2026-08-16** — [workflow.md](execution/workflow.md), [current-task.md](execution/current-task.md), [task-template.md](execution/task-template.md) | allocated |
 | KB-091 – KB-093 | **Claimed 2026-08-16** — [autonomous-runner.md](execution/autonomous-runner.md), [failure-log.md](execution/failure-log.md), [runner-state.md](execution/runner-state.md) | allocated |
-| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11), KB-105 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **Next free: KB-108**, or KB-114+ — KB-107 claimed 2026-08-19 by the M0 milestone review; `M0-06`'s unmerged branch still claims `KB-104`, which must become `KB-106` before it merges (its id is also cited in an `ApplicationDbContext.cs` source comment) — but `M0-06`'s unmerged branch still claims `KB-104`, which must become `KB-106` before it merges (its id is also cited in an `ApplicationDbContext.cs` source comment) |
+| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11), KB-105 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **KB-108 claimed 2026-08-20 by M2-A08** ([row-scope-and-account-gates.md](architecture/row-scope-and-account-gates.md)). **Next free: KB-109**, or KB-114+ — KB-107 claimed 2026-08-19 by the M0 milestone review; `M0-06`'s unmerged branch still claims `KB-104`, which must become `KB-106` before it merges (its id is also cited in an `ApplicationDbContext.cs` source comment) — but `M0-06`'s unmerged branch still claims `KB-104`, which must become `KB-106` before it merges (its id is also cited in an `ApplicationDbContext.cs` source comment) |
 | ADR-nnn | Architecture decisions | ADR-001…ADR-005 and **ADR-007** (Angular stack, 2026-08-20, supersedes ADR-003). **ADR-006 is RESERVED by `M0-11`** for `ADR-006-fifo-under-issue.md` and must not be reused — ADR-007 skipped it deliberately, having checked `M0-11.md:185` first. **Next free: ADR-008** |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-040 (030–033 reserved; **INV-036** claimed 2026-08-19 by M0-13; **INV-037** by M2-A01-01, renumbered from 035 on merge; **INV-039** by M2-B07 (merged `ffbb1dd`); **INV-040** by M2-A06 (merged `76eca5d`) — *corrected 2026-08-20: this row previously credited INV-040 to M2-B07 as well, which was wrong. M2-B07 claimed INV-039 only. The registry was right and this row was not; M2-A06 read the registry, so no collision resulted*). **Next free: INV-042** — INV-041 claimed 2026-08-20 by M2-B02 (sort delivery to services with hardcoded ordering). |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
 | R-nn | Risks | through R-37 |
-| Q-nn | Open questions | through Q-29, **with a gap**: Q-20 (M0-07), Q-21 (M0-12-01 close-out), Q-22 (M0-12-01 push authority), Q-23/Q-24 (M0-12-02), **Q-27/Q-28/Q-29 (M2-A01-01, renumbered from 22–24 on merge)**. **`Q-25` and `Q-26` are claimed by `M0-06`'s unmerged branch — do not reuse them.** **Next free: Q-37** — Q-36 claimed 2026-08-20 by M2-B02 (the `CurrencyList.razor` `Status` filter key has no builder case, so that dropdown filters nothing). Previously — Q-34 and Q-35 claimed 2026-08-20 by M2-A06 (refusal-tuple 404/500 semantics; the 503-for-unresolved-tenant and ignore-caller-header design choices). Previously — Q-30 claimed by M2-C01, Q-31 by M2-B07, Q-32 by the M0 milestone-review correction, Q-33 by M2-C04-01 (`UserThemePreference.IsDarkMode` cannot represent `system`). |
+| Q-nn | Open questions | through Q-29, **with a gap**: Q-20 (M0-07), Q-21 (M0-12-01 close-out), Q-22 (M0-12-01 push authority), Q-23/Q-24 (M0-12-02), **Q-27/Q-28/Q-29 (M2-A01-01, renumbered from 22–24 on merge)**. **`Q-25` and `Q-26` are claimed by `M0-06`'s unmerged branch — do not reuse them.** **Next free: Q-39** — Q-37 and Q-38 claimed 2026-08-20 by M2-A08 (the trial gate desktop exemption; the device gate and login-path ownership). Previously — Q-36 claimed 2026-08-20 by M2-B02 (the `CurrencyList.razor` `Status` filter key has no builder case, so that dropdown filters nothing). Previously — Q-34 and Q-35 claimed 2026-08-20 by M2-A06 (refusal-tuple 404/500 semantics; the 503-for-unresolved-tenant and ignore-caller-header design choices). Previously — Q-30 claimed by M2-C01, Q-31 by M2-B07, Q-32 by the M0 milestone-review correction, Q-33 by M2-C04-01 (`UserThemePreference.IsDarkMode` cannot represent `system`). |
 
 A task that produces a durable document allocates the next free **KB-1xx** id, adds its row
 to the registry above, and records the id in the task's *Documentation Updates* section.
@@ -161,6 +162,8 @@ Use this table before searching the repository.
 | **How is `[RequireScreen]`/`[RequireRight]` meant to behave** — the deny truth table, screen-name matching, duplicate rows, the `403`/`401` bodies, the rights cache key and TTL | **KB-105** |
 | Which exact screen-name strings may a controller declare? (the 152 seeded names) | KB-105 § Appendix A |
 | Does an `Administrator` bypass screen rights? | KB-105 § D-5 — **no**, and why |
+| **Which rows may a user see** — `User.StateCodesCsv`, why it scopes `Leads` and nothing else, and the API mechanism | **KB-108** |
+| Why an API login can fail with `403` rather than `401` (expired trial, device, platform) | **KB-108** §4, [KB-040](api/api-overview.md) |
 
 ## RAG strategy
 

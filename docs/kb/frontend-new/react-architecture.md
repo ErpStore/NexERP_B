@@ -347,3 +347,25 @@ themes, no colour-only status encoding. Details in
 | e-Invoice / e-Way Bill | `E_Invoice/` helpers |
 | Document numbering | repositories + running-number tables |
 | All validation of record | services + `DataAnnotations` (Zod mirrors it for UX only) |
+
+## Row scope and account gates — three client consequences (M2-A08, 2026-08-20)
+
+Recorded here so the frontend tasks build against them. Framework-neutral: **ADR-007** selects
+Angular and supersedes ADR-003's React, so read "the SPA client" throughout. Evidence:
+[KB-108](../architecture/row-scope-and-account-gates.md).
+
+1. **Render each account-gate refusal distinctly** (the login screen, M2-C02). An expired trial
+   is `403` with `type: https://api.v-smart.local/problems/trial-expired` and the message
+   `"Your trial period has expired. Please contact Administrator."` verbatim — **not** the
+   `401` that bad credentials get. A user locked out by an expired trial needs "contact your
+   administrator", not "check your password". Branch on `type`, never on the status alone.
+2. **A scoped list must explain an empty result** (M2-C05/M2-C09). A user with no configured
+   state codes legitimately sees **zero** rows and a `200` — that is the ERP's fail-closed
+   behaviour, preserved deliberately. Without an empty state that says *why*, it reads as a bug
+   and generates a support ticket every time. Say "no records in your assigned regions —
+   contact your administrator if this looks wrong", not "no data".
+3. **Scope is never a client-side filter.** The client may *display* the caller's scope for
+   explanation (from `/me`, if it is exposed there); it must never *apply* it. ADR-004's
+   presentation-only rule covers row scope exactly as it covers screen rights: the server is
+   authoritative, and a client filter over a server response that already leaked the rows is
+   not a control at all.

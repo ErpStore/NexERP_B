@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Moq;
 using V.SMART.Api.Controllers;
 using V.SMART.Api.Middleware;
@@ -73,7 +74,14 @@ namespace V.SMART.Api.Tests
             var tenantProvider = new Mock<ITenantProvider>();
             tenantProvider.Setup(p => p.GetCurrentTenant()).Returns(tenant!);
 
-            return new AuthController(unitOfWork.Object, null!, tenantProvider.Object)
+            // M2-A08 added the IConfiguration parameter (the trial gate reads Login.razor:224's
+            // "AppEnvironment" key). An empty configuration means HostIsDesktop is false, which is
+            // what a web-hosted API is.
+            return new AuthController(
+                unitOfWork.Object,
+                null!,
+                tenantProvider.Object,
+                new ConfigurationBuilder().Build())
             {
                 ControllerContext = new ControllerContext
                 {

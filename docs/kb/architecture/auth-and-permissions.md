@@ -19,7 +19,7 @@ database_tables: [Users, UserRights, UserAuthority, Screens, ApprovalHistory]
 business_rules: [BR-AUTH-001, BR-AUTH-002, BR-AUTH-003, BR-APPR-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-12
+last_verified: 2026-08-20
 dependencies: [KB-010, KB-012]
 ---
 
@@ -29,6 +29,11 @@ dependencies: [KB-010, KB-012]
 
 The system layers three unrelated concepts. All three must be reproduced in the new
 frontend + API.
+
+> **Three is not the whole picture (added 2026-08-20, M2-A08).** Two further concerns exist that
+> none of these three covers: **row-level scope** (which *rows* of an entity a user may see) and
+> the **account gates** (QR expiry, trial expiry, device binding). Both live in Razor `@code`,
+> not in a service. See §5 and [KB-108](row-scope-and-account-gates.md).
 
 | # | Mechanism | Granularity | Storage | Enforced where |
 |---|---|---|---|---|
@@ -220,9 +225,40 @@ plus `/userLevelAuthorization` for maintaining `UserAuthority`.
 | Grid column visibility | `UserColumnPreference { UserName, ScreenName, ColumnJson }` | Serialised `List<ColumnPreferenceVM>`; default column set derived by reflection over the type carrying `[ScreenMapping("<name>")]` (`BaseUserRightsComponent.GetColumnsByScreen`) |
 | Theme | `UserThemePreference` + `ThemeStateService` | light/dark |
 | Misc preferences | `UserPreference` | |
-| Row-level data scoping | `User.StateCodesCsv` → `StateCodes` `List<int>` | **Inferred:** restricts visible customers/vendors by state. Enforcement point not yet traced — Q-08 |
+| Row-level data scoping | `User.StateCodesCsv` → `StateCodes` `List<int>` | **Corrected 2026-08-20 (INV-028, M2-A08).** The earlier `Inferred` claim — "restricts visible customers/vendors by state" — is **wrong**: it scopes **`Leads` only**, in `LeadService.GetAllLoadLeadsAsync` (`LeadService.cs:128-152`), and no customer or vendor query references it. See §5 and [KB-108](row-scope-and-account-gates.md). |
 | Feature flags on the user | `IsViewOnly`, `HideManualJobOrderButton`, `LevelAuthorization` | UI-level gates |
 
+
+## 5. Row scope and account gates — the fourth concern (M2-A08, 2026-08-20)
+
+Full evidence: **[KB-108](row-scope-and-account-gates.md)**. Summarised here because the three
+mechanisms above do not cover either of these, and a reader of this document would otherwise
+assume they did.
+
+**Row scope** is a *second authorization axis*. A user who legitimately holds `CanView` on the
+Leads screen passes every check in §2 while reading another region's rows. It exists in exactly
+one place — `LeadService.GetAllLoadLeadsAsync` (`LeadService.cs:128-152`), on `Leads` — it is
+**opt-in** (the unscoped sibling `GetAllLeadsAsync` has four call sites to its one), it filters
+in memory, and it **fails closed**: a blank `StateCodesCsv` yields zero rows. `UserId == 1` is
+exempt (`LeadsList.razor:470-484`). **Confirmed.**
+
+**Account gates** are not in any service either. All three live in Razor `@code`:
+
+| Gate | Where | Carve-outs |
+|---|---|---|
+| Trial / expiry | `Login.razor:271-275` | `!IsDesktop` (the *host*, `:224`), `UserId > 1`, `TrialDays > 0` |
+| Device binding | `Login.razor:277-322` | `UserId > 1 && (IsMobile \|\| IsDesktop)`; identity is **client-asserted**; trust-on-first-use |
+| QR expiry | `QrLogin.razor:50-56`, `Login.razor:422-429` | the query did not filter it — fixed by M2-A08 |
+
+`User.IsViewOnly` (`User.cs:66`) is **not** a request-time gate: `UserService.cs:442`
+materialises a view-only user into per-screen `UserRight` rows at create time, so it rides on
+the §2 mechanism with no extra work. **Confirmed.**
+
+**What the API does now.** The trial gate is enforced on `POST /api/auth/login` with all three
+carve-outs verbatim; `GetUserByQrToken` excludes expired tokens; row scope has a mechanism
+(`V.SMART.Api/Authorization/RowScope*`, applied **at the query**, with a startup validator that
+refuses to boot an undeclared scoped endpoint) but no production caller yet, because no Leads
+endpoint exists. The **device gate is deliberately not enforced** — see Q-38.
 ## Summary: what the new API must implement
 
 | Requirement | Source of truth | Priority |
@@ -233,7 +269,7 @@ plus `/userLevelAuthorization` for maintaining `UserAuthority`.
 | Return the user's full right set at login so the UI can render | `GetUserRightsWithScreensAsync` | P0 |
 | Refresh tokens + revocation | new | P1 |
 | Approval authority checks server-side | `UserAuthority` | P1 |
-| Row-level state scoping | `User.StateCodesCsv` (Q-08) | P1 |
-| QR login endpoint incl. **expiry enforcement** | `GetUserByQrToken` (Q-05) | P2 |
+| Row-level state scoping | `User.StateCodesCsv` — **`Leads` only** (Q-08, INV-028) | **Mechanism landed 2026-08-20 (M2-A08); no scoped endpoint exists yet** |
+| QR login endpoint incl. **expiry enforcement** | `GetUserByQrToken` (Q-05) | **Query fixed 2026-08-20 (M2-A08)**; the endpoint itself is still P2 |
 | Per-user column preferences | `UserColumnPreference` | P2 |
-| Trial/expiry licensing gate | Q-06 | P2 |
+| Trial/expiry licensing gate | Q-06 | **Enforced on `POST /api/auth/login` 2026-08-20 (M2-A08)** |
