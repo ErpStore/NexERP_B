@@ -21,119 +21,113 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-C00` — rewrite KB-050 frontend architecture for Angular
+## Active task — `M2-A07` — `GET /api/v1/me` (user, tenant, role, full rights)
 
-**Task file:** [`tasks/M2-C00.md`](tasks/M2-C00.md). **Status:** `Ready`, attempt 0 of 3, no branch yet.
+**Task file:** [`tasks/M2-A07.md`](tasks/M2-A07.md). **Status:** `Ready`, not yet started, no
+branch yet. Type **Backend**, priority **P0**, estimate **2 d**, gate **G2**.
 
-### The frontend framework changed on 2026-08-20 — read this first
+### Why this task, now
 
-[**ADR-007**](../decisions/ADR-007-angular-stack.md) selects **Angular + PrimeNG** and supersedes
-`ADR-003`, which chose React. Owner decision: his background is C# and WPF with no frontend
-experience, and while the runner writes the screens, **he** reviews and maintains them.
+`M2-C00` (rewrite KB-050 for Angular) closed 2026-08-20: implemented across 3 attempts,
+**independently validated `PASS`**, status `Needs Review` — done and correct, but **not merged**,
+so it does not yet release `M2-C01` or anything else downstream. Full record:
+[`tasks/M2-C00.md` § Validation close-out](tasks/M2-C00.md#validation-close-out-2026-08-20).
 
-**The finding that reopened it:** ADR-003 never evaluated Angular at all — every rationale it
-recorded was a choice *within* React. It was an assumption that acquired the authority of a
-decision by being written into an ADR.
+`M2-A01-03` (tenant-scoped rights cache) **merged** to `master` at `edcf126`, genuinely
+releasing `M2-A02` (gated on `Q-28`), `M2-A07` and `M2-A08`.
 
-**What this means for anyone opening a frontend task:** all 26 `M2-C*`/`M2-D*` task files carry a
-**⛔ STOP banner**. They were deliberately *not* rewritten — that is ~25,000 lines of spec with
-1,300+ React references, and rewriting it against a KB-050 that does not yet describe Angular
-would just produce a second draft to throw away. **If you select a banner'd task, stop and
-report.** Re-specifying is an owner-level change, not something to infer mid-implementation.
+Candidates for this selection, per the
+[Ready-task selection rule](dependency-graph.md#ready-task-selection-rule): `M2-A07`, `M2-A08`,
+`M2-B12-01`, `M2-B09`, `M2-B04`, `M0-01-03` (`M2-A02` excluded — `Q-28` is an unanswered
+Information dependency; `M2-C01` excluded — its Hard prerequisite `M2-C00` is `Needs Review`,
+not `Completed`, despite the tracker's re-scope note having anticipated it as `Ready`).
 
-### Why `M2-C00`, now
-
-**It gates the entire `M2-C` tree — 20 tasks.** KB-050 is the primary input every one of them
-cites, and it still describes a React application. Nothing else in the frontend can be specified
-honestly until it is rewritten. No other `Ready` candidate comes close on downstream unblocking:
-`M2-B12-01` releases one task, `M0-01-03`/`M2-B04`/`M2-B09` release none.
-
-It is **Documentation** type — no code, no build, no test run.
+By downstream-unblocking count, `M2-A07` (releases `M2-C02`) and `M2-B12-01` (releases
+`M2-B12-02`) tie at 1 dependent each — both P0, both 2 d, neither named on the stated critical
+path. **Genuinely tied and independent** per selection-rule step 4; either could run without
+conflicting with the other. **Selected: `M2-A07`**, continuing the M2-A auth/rights thread
+`M2-A01-03` just closed. If a second session has capacity, `M2-B12-01` (INV-012 document
+numbering, Investigation type, zero frontend/backend overlap) is an equally valid parallel pick.
 
 ### What it does
 
-Rewrite KB-050 for Angular, starting from the section-by-section map already added to that
-document (which sections are dead, which still bind). Rewrite the stack, project structure,
-data-fetching, auth flow, permission rendering and **error handling** — that last one predates
-`M2-A06`, so the real `application/problem+json` contract in `ApiProblems.cs` is now the source.
-Keep the design constraints, the document-editor pattern, workflow commands, performance and
-accessibility sections: none was ever a React decision. Re-specify `M2-C01` for Angular in the
-same change, since it is next and its banner otherwise blocks it.
+Add a bootstrap endpoint returning the authenticated caller's identity, tenant, role and
+**complete screen-rights map** (the 152 × 5 matrix), so the SPA client can render a
+permission-correct navigation and gate its controls **client-side, as a UX affordance only** —
+the server re-checks independently on every request per ADR-004 §3; this endpoint does not
+relax the `M2-A01` filter.
+
+Read rights through the **same** `IUserRightsProvider` `M2-A01-02`/`M2-A01-03` built — two
+independent readers would eventually disagree. `M2-A03`'s exempt allow-list must name this
+endpoint explicitly (it needs authentication but no screen right). Decide and record whether it
+ships at `/api/v1/me` (first versioned route) or `/api/me` pending `M2-B01`. Full detail,
+dependencies and open sub-decisions (the `role` reconciliation across `UserRole`/`NavMenu`'s
+stray `ERPAdmin`) are in the task file.
+
+### Read this before touching the task file — it has not been re-specified for Angular
+
+`M2-A07` is **Backend**, not one of the 26 `M2-C*`/`M2-D*` files carrying a STOP banner, and its
+core work — a server-side endpoint — is framework-neutral. But the task file's prose still says
+**"React client"**, **"React sidebar"**, and cites `docs/kb/frontend-new/react-architecture.md`
+by its old identity in several places (`:49`, `:57`, `:74`, `:106`, `:121`, `:215`, `:253-259`,
+`:346`, `:519`, `:558`, `:704`, `:801`). That file **is** KB-050 — same `doc_id`, same filename,
+now rewritten for Angular by `M2-C00`. Read every "React" in `M2-A07.md` as "the SPA client
+(Angular per ADR-007)" and every citation into `react-architecture.md` as pointing at the
+**current** (Angular) content, not a React one. **Do not** treat this as licence to rewrite the
+task file wholesale — that is a re-specification this task was never asked to do; note the
+substitution and proceed. If anything in KB-050 as rewritten actually contradicts what `M2-A07`
+assumes about the response shape, record it as a new open question rather than guessing.
 
 ### Do not
 
-Write code. Re-decide ADR-007's stack — implement it as recorded; if it is wrong, say so and stop.
-Re-specify the rest of the `M2-C` tree — only `M2-C01` is in scope. Delete the React app — that is
-the re-scoped `M2-C01`'s call.
+Write React/TypeScript code — this is a backend-only endpoint. Weaken the `M2-A01` filter or
+treat this endpoint as authoritative for permissions — it is presentation-only (ADR-004 §3).
+Re-specify `M2-A07.md`'s React prose beyond substituting "the SPA client" for "React client" in
+your own reasoning; a full rewrite is out of scope unless the owner asks for it.
 
 ---
 
-## Nothing awaits review — all validated work is merged
+## Nothing else awaits review from the merged side
 
-`M2-A01-03` (tenant-scoped rights cache) was merged 2026-08-20. **`M2-A02`, `M2-A07` and
-`M2-A08` are released** as a result.
+`M2-A01-03` (tenant-scoped per-request rights cache) is `Completed` and merged (`edcf126`,
+2026-08-20). It releases `M2-A02` (still gated on `Q-28` — an API-only administrator holds zero
+`UserRight` rows because `AuthController.Login` never calls `SyncRightsForUserAsync`), `M2-A07`
+(this task), and `M2-A08`.
 
-**`M2-A02` must settle `Q-28` before it starts.** An API-only administrator holds **zero**
-`UserRight` rows, because `AuthController.Login` never calls `SyncRightsForUserAsync`.
-Annotate `CurrencyController` before that is answered and the administrator authenticates
-successfully into an empty UI — the R-40 failure mode, moved to the API side.
+`M2-C00` (KB-050 Angular rewrite) is validated `PASS` but sits `Needs Review`, unmerged, on
+`migration/M2-C00-kb050-angular-rewrite`. It is ready for the repository owner to review and
+merge. Once merged, `M2-C01` becomes a genuine `Ready` candidate.
 
-## Ready and unclaimed after `M2-C00`
+## Ready and unclaimed, for a session with parallel capacity
 
 | Task | What | Est. | Note |
 |---|---|---|---|
-| `M2-B12-01` | INV-012 document numbering | 2 d | Documentation-only; releases `M2-B12-02` |
-| `M2-B09` | Reference-data endpoints + caching | 3 d | P1, released by `M2-B02` |
+| `M2-A08` | Row-level scoping + account gates (Q-05…Q-08) | 3 d | P0, released by `M2-A01-03` |
+| `M2-B12-01` | INV-012 document numbering | 2 d | Documentation-only; releases `M2-B12-02`; tied with `M2-A07` on the selection rule |
+| `M2-B09` | Reference-data endpoints + caching | 3 d | P1, released by `M2-B07`/`M2-B02` |
 | `M2-B04` | Decouple `IApprovalService` | 1 wk | Zero tracked dependents |
-| `M0-01-03` | Deployment script + rebuild runbook | 1 d | Carried M0 debt; **no longer hardware-blocked** (footnote ²¹) |
-| `M2-C01` | Angular scaffold | 3 d | Blocked on `M2-C00` |
+| `M0-01-03` | Deployment script + rebuild runbook | 1 d | Carried M0 debt; no longer hardware-blocked |
 
-**A session may now run more than one of these.** Changed 2026-08-20: the standing rule is
-*"pick the next task that can actually be done"*, with a five-part test in
-[`CLAUDE.md`](../../../CLAUDE.md) § Standing constraints. **One task, one branch, cut from
-`master`** is unchanged, as is *never merge, never push*.
+**A session may run more than one of these** (standing rule since 2026-08-20, `CLAUDE.md` §
+Standing constraints) — but **one task, one branch, cut from `master`**, and **never merge,
+never push** are unchanged.
 
 ---
 
-## Carried forward — still relevant (from `M2-A01-02`, merged `ed559ad`)
+## Carried forward — still relevant (from `M2-A01-03`, merged `edcf126`)
 
-- **`M2-A01-02` is `Completed` and merged** (`ed559ad`, 2026-08-20) — implemented on
-  `migration/M2-A01-02-require-screen-right` (`9a6b3c2`), validated `PASS` on attempt 1 of 3,
-  0 escalations. **The D-5/R-40 contradiction was verified as genuinely not-hit at review**, not
-  taken on report: `grep` of `V.SMART.Api/Authorization/` for `UserId == 1` / `IsAdmin` /
-  `Administrator` / `bypass` / `.Role` returns **zero matches**, and KB-105's D-5 still reads
-  *"No `Administrator` bypass. None. Anywhere."* verbatim — the spec was extended, not softened.
-  Full record:
-  [`tasks/M2-A01-02.md` § Execution Record (2026-08-20)](tasks/M2-A01-02.md#execution-record-2026-08-20)
-  and `task-tracker.md` footnote ²⁵. **`M2-A01-03` is now `Ready`.** `M2-A02`,
-  `M2-A03`, `M2-A04`, `M2-A07` and `M2-A08` remain `Blocked` behind it.
-- **`V.SMART/V.SMART.Api/Authorization/` now exists**, all ten types KB-105 §2 specifies, with
-  `Right`, `[RequireScreen]`, `[RequireRight]`, `[NoScreenRight]`, `IUserRightsProvider` (no
-  cache), `ScreenRightAuthorizationFilter`, `ScreenRightSet`, `ScreenCatalogue`, and
-  `ScreenRightStartupValidator`, registered in `Program.cs`. **No controller is annotated** —
-  `M2-A02`'s job. R-03 (KB-060) stays open with that noted.
-- **⚠ THE FILTER IS OPT-IN, NOT DENY-BY-DEFAULT — `M2-A02` must close this.** `D-4` is only
-  partly implemented: an authenticated action on a controller carrying **no** `[RequireScreen]`
-  at all is **allowed through**, at request time and at startup. The reasoning is sound —
-  enforcing it now would have made the host refuse to start over `CurrencyController`'s five
-  unannotated endpoints, which this task was forbidden to change — and the *half*-annotated
-  directions (T-11, T-12) **are** enforced, as is D-6's catalogue check. But the gap is the
-  opposite of what "deny by default" implies, so it is stated here rather than left in a
-  footnote: **today, an unannotated controller is unprotected.** Tracked against R-03 (KB-060);
-  `M2-A02` closes it in the same change that annotates the first controller.
-- **A latent, deployment-conditional DI-eagerness finding**, not a regression today, recorded
-  for `M2-A02` to watch: the globally registered filter constructs `IUserRightsProvider` (and
-  therefore the tenant `DbContext`) via DI on every request reaching MVC's pipeline, even on
-  unannotated actions. See `KB-060` R-03 close-out addendum and `task-tracker.md` footnote
-  ²⁵ for the detail and why it is safe today.
-- **Q-27** (duplicate `(UserId, ScreenId)` `UserRight` rows in a live tenant database) remains
-  **Unknown** — `INV-037`'s amendment confirms the 152-screen catalogue matches exactly, but
-  the duplicate-row question was not queried in this session's reachable dev tenant.
-- **R-40 / D-5 contradiction** (`UserId == 1` auto-granted all 152 rights by
-  `Login.razor:345-349`, vs. KB-105 D-5 "no Administrator bypass") was **not hit** by
-  `M2-A01-02` — the filter correctly denies a `UserId == 1` caller with zero `UserRight` rows
-  (`T13` in the filter's test suite), because the bypass lives in the Blazor login path, not
-  in `RightsHelper`/the new filter. Still unresolved for `M2-A02`: an API-only administrator
-  will hold zero rows unless `Q-28` (login never calls `SyncRightsForUserAsync` on the API
-  path) is settled first. Both remain open questions for `M2-A02`, not this task.
-
+- **`V.SMART/V.SMART.Api/Authorization/IUserRightsProvider`** now caches per tenant+user
+  (`screenrights:v1:{tenantId}:{userId}`, TTL from `Authorization:RightsCacheSeconds`, default
+  60 s absolute, explicit `Invalidate(tenantId, userId)`, zero-TTL bypass for `M2-A03`'s
+  harness). `M2-A07` must read through this same provider, not a second query path.
+- **`Q-28` (open):** an API-only administrator authenticated via `AuthController.Login` holds
+  **zero** `UserRight` rows, because that path never calls `SyncRightsForUserAsync`. Blocks
+  `M2-A02`, not `M2-A07` directly — but `M2-A07`'s response for such a caller will legitimately
+  show an empty rights map until `Q-28` is settled; do not treat that as this task's bug.
+- **`Q-37` (open):** what `M2-C11` is for now that ADR-007 inverted it (archive vs. adopt the
+  Angular pilot). Does not block `M2-A07`.
+- **R-42** (KB-060): `file:line` citations into prose documents rot silently when the cited
+  document is edited — observed twice now, most recently in `M2-C00`. `M2-A07`'s stale "React"
+  prose (above) is the same failure mode one level up: a *word*, not just a citation, going
+  stale when the underlying document's framework changed. Grep the target document before
+  trusting an old citation's surrounding words, not just its line range.
