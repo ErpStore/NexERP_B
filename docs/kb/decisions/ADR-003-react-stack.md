@@ -2,7 +2,7 @@
 doc_id: ADR-003
 title: React frontend stack selection
 module: decisions
-status: accepted
+status: superseded
 confidence: n/a
 last_verified: 2026-08-12
 dependencies: [KB-015, KB-050, KB-051]
@@ -10,7 +10,45 @@ dependencies: [KB-015, KB-050, KB-051]
 
 # ADR-003 — React frontend stack
 
-**Status:** Accepted · **Date:** 2026-08-12
+**Status:** ~~Accepted~~ **SUPERSEDED by [ADR-007](ADR-007-angular-stack.md), 2026-08-20** · **Date:** 2026-08-12
+
+> ## Superseded — read this before using anything below
+>
+> **The framework choice in this document is no longer in force.** [ADR-007](ADR-007-angular-stack.md)
+> selects **Angular + PrimeNG**. Nothing below should be implemented as written.
+>
+> **Why it was reopened, recorded because it is the more useful half of the lesson:** read for its
+> reasoning, **this document never evaluated Angular at all.** Every rationale it records is a
+> choice *within* React — Vite over Next.js, TanStack Query over Redux, Mantine over MUI/Ant/shadcn.
+> Angular appears twice: a note about the pilot's XSS-exposed `localStorage` JWT, and *"the Angular
+> pilot is archived, not converted."*
+>
+> So "React over Angular" was never a decision with reasons attached. It was an **assumption that
+> acquired the authority of a decision by being written into an ADR** — an `Inferred` claim
+> presented as `Confirmed`, which [KB-002](../source-of-truth-rules.md) exists to prevent.
+>
+> The decisive fact it never weighed: **the maintainer's background is C# and WPF, not frontend.**
+> The runner writes the screens; he reviews and maintains them. Angular's component-plus-service
+> shape, constructor DI and typed Reactive Forms map onto MVVM and XAML; React's hooks model does
+> not.
+>
+> **What is still true and still worth reading here:**
+>
+> - The **Context** section below — ~140 screens, ~65 dense document editors, keyboard-first
+>   operators, all state is server state. ADR-007 restates none of it and depends on it.
+> - **Server-authoritative everything**, the **generated OpenAPI client**, **CSS-variable design
+>   tokens**, **decimal.js**, and **one component library, never mixed** (R-22). None were React
+>   decisions; all carry forward unchanged.
+> - The **headless-table rationale** is sound engineering and was **deliberately reversed** by
+>   ADR-007 — not because it is wrong, but because "own the grid internals" is right for a team with
+>   deep frontend skill and wrong for a single maintainer new to it. See ADR-007 § *PrimeNG over
+>   building headless*.
+>
+> **What was actually built against this ADR, and kept as history:** `M2-C01` (React scaffold,
+> merged `12f172f`) and `M2-C04-01` (design tokens, merged `56b8ae2`). Both were real, both were
+> verified, both are superseded. `tokens.css` survives the switch nearly verbatim — it is plain CSS
+> custom properties, carrying the eight WCAG contrast corrections and the 12 px type-scale decision
+> with it. This document is **not** rewritten to pretend that history went differently.
 
 ## Context
 

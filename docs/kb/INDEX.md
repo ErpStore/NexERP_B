@@ -53,9 +53,10 @@ last_verified: 2026-08-18
 | KB-093 | [Autonomous Runner State](execution/runner-state.md) | execution | active | — | 2026-08-16 |
 | ADR-001 | [Preserve the existing backend](decisions/ADR-001-keep-existing-backend.md) | decision | accepted | — | 2026-08-12 |
 | ADR-002 | [REST API layer & conventions](decisions/ADR-002-rest-api-layer.md) | decision | accepted | — | 2026-08-12 |
-| ADR-003 | [React stack](decisions/ADR-003-react-stack.md) | decision | accepted | — | 2026-08-12 |
+| ADR-003 | [React stack](decisions/ADR-003-react-stack.md) | decision | **superseded by ADR-007** | — | 2026-08-12 |
 | ADR-004 | [Server-side authorization](decisions/ADR-004-server-side-authorization.md) | decision | accepted (**P0**) | — | 2026-08-12 |
 | ADR-005 | [Reporting & printing](decisions/ADR-005-reporting-and-printing.md) | decision | accepted | — | 2026-08-12 |
+| ADR-007 | [Angular stack](decisions/ADR-007-angular-stack.md) | decision | **accepted** — supersedes ADR-003 | — | 2026-08-20 |
 | KB-102 | [Stored-Procedure Inventory Reconciliation](architecture/stored-procedure-inventory.md) | as-is | complete | confirmed | 2026-08-13 |
 | KB-103 | [Stored-Procedure Drift Across Tenant Databases (Q-14)](architecture/stored-procedure-drift.md) | as-is | partial | mixed | 2026-08-17 |
 | KB-107 | [Milestone Review — M0 Stabilise (Gate G0)](execution/M0-milestone-review.md) | execution | active | — | 2026-08-19 |
@@ -102,7 +103,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-088 – KB-090 | **Claimed 2026-08-16** — [workflow.md](execution/workflow.md), [current-task.md](execution/current-task.md), [task-template.md](execution/task-template.md) | allocated |
 | KB-091 – KB-093 | **Claimed 2026-08-16** — [autonomous-runner.md](execution/autonomous-runner.md), [failure-log.md](execution/failure-log.md), [runner-state.md](execution/runner-state.md) | allocated |
 | **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** KB-100/101 (M2-B12-01/02), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–113 (M2-B08…B11), KB-105 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **Next free: KB-108**, or KB-114+ — KB-107 claimed 2026-08-19 by the M0 milestone review; `M0-06`'s unmerged branch still claims `KB-104`, which must become `KB-106` before it merges (its id is also cited in an `ApplicationDbContext.cs` source comment) — but `M0-06`'s unmerged branch still claims `KB-104`, which must become `KB-106` before it merges (its id is also cited in an `ApplicationDbContext.cs` source comment) |
-| ADR-nnn | Architecture decisions | through ADR-005 |
+| ADR-nnn | Architecture decisions | ADR-001…ADR-005 and **ADR-007** (Angular stack, 2026-08-20, supersedes ADR-003). **ADR-006 is RESERVED by `M0-11`** for `ADR-006-fifo-under-issue.md` and must not be reused — ADR-007 skipped it deliberately, having checked `M0-11.md:185` first. **Next free: ADR-008** |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-040 (030–033 reserved; **INV-036** claimed 2026-08-19 by M0-13; **INV-037** by M2-A01-01, renumbered from 035 on merge; **INV-039** by M2-B07 (merged `ffbb1dd`); **INV-040** by M2-A06 (merged `76eca5d`) — *corrected 2026-08-20: this row previously credited INV-040 to M2-B07 as well, which was wrong. M2-B07 claimed INV-039 only. The registry was right and this row was not; M2-A06 read the registry, so no collision resulted*). **Next free: INV-042** — INV-041 claimed 2026-08-20 by M2-B02 (sort delivery to services with hardcoded ordering). |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
@@ -130,7 +131,7 @@ Use this table before searching the repository.
 | A specific business rule and its evidence | KB-030 |
 | What endpoints exist today | KB-040 |
 | What endpoints must be built, contract conventions, error shape | KB-041, ADR-002 |
-| React stack, state, data fetching, permission rendering, DocumentEditor | KB-050, ADR-003 |
+| Frontend stack, state, data fetching, permission rendering, DocumentEditor | KB-050, **ADR-007** (ADR-003 is superseded — do not implement from it) |
 | Colours, typography, components, layouts, accessibility | KB-051 |
 | Which React screen replaces which Blazor screen, and how hard | KB-052 |
 | Old route → new route | KB-053 |
