@@ -96,7 +96,7 @@ rather than by module.
 |---|---|---|---|
 | **A** | **Raw-SQL last-number read** | `FromSqlRaw` / `Database.SqlQuery<string>` issuing `SELECT TOP 1 … FROM <T> WITH (UPDLOCK, ROWLOCK) WHERE Suffix = {0} ORDER BY TRY_CAST(<col> AS INT) DESC`, then `+1` in C# | **38** sites in **36** repository files |
 | **B** | **Lock-free LINQ last-number read** | `OrderByDescending(…).Select(…).FirstOrDefaultAsync()`, then `+1` or a regex increment in C#. No hint of any kind | **6** methods (2 repositories, 3 services) |
-| **C** | **Allocation-table read-modify-write** | Read a row from `DcRunningNumbers` / `InvoiceAutoRunningNumbers`, mutate `LastNumber`, `SaveAsync()`. Plain EF, no hint | 4 methods in `CommonService` + inline copies in 4 document services |
+| **C** | **Allocation-table read-modify-write** | Read a row from `DcRunningNumbers` / `InvoiceAutoRunningNumbers`, mutate `LastNumber`, `SaveAsync()`. Plain EF, no hint | 4 methods in `CommonService` + inline copies in **6** document services (§3.3) |
 
 **Confirmed.** All three are live simultaneously. Mechanism C is the *newer* one: the DC and
 invoice families migrated from A to C and left their A methods behind as dead code (§3.4).
