@@ -135,7 +135,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | B2 | **Extract `@code` business logic into services** — ~184k LOC to triage; the real number needing extraction is far smaller, but must be assessed per screen | **the dominant cost; per-module** |
 | B3 | **File upload/download endpoints** — replace `IBrowserFile` and local-path `IFileOpener` | 1 wk |
 | B4 | **Report endpoints** — `GET /api/reports/…` → `application/pdf`; Excel export/import endpoints | 1 wk |
-| B5 | **Permission bootstrap endpoint** — `GET /api/me` returning user, tenant, role, and the full `UserRight` set so Angular can render correctly | 2 days |
+| B5 | ~~**Permission bootstrap endpoint** — returning user, tenant, role and the full `UserRight` set so the SPA can render correctly~~ — **DELIVERED by M2-A07 (2026-08-20)** as `GET /api/v1/me`. Note the URL: this row used to name `/api/me`, while ADR-004 §3, KB-105 and KB-080 §9 all said `/api/v1/me`; the endpoint ships at the latter and this row was the outlier. Contract in [KB-040](api-overview.md) | 2 days |
 | B6 | **Reference-data endpoints** — GST rates, screen catalogue, UOM, states, currencies, terms | 3 days |
 | B7 | **Typed screen-code constants** replacing the magic integers passed to `IStockManagerService` | 2 days |
 | B8 | **Approval endpoints** enforcing `UserAuthority` server-side | 1 wk |

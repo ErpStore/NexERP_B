@@ -13,13 +13,15 @@ source_files:
   - V.SMART/V.SMART.Shared/Data/Enum/UserRole.cs
   - V.SMART/V.SMART.Api/Auth/JwtTokenService.cs
   - V.SMART/V.SMART.Api/Controllers/AuthController.cs
+  - V.SMART/V.SMART.Api/Controllers/MeController.cs
+  - V.SMART/V.SMART.Api/Authorization/IUserRightsProvider.cs
 entities: [User, UserRight, UserAuthority, Screens, ApprovalHistory]
-api_endpoints: ["POST /api/auth/login"]
+api_endpoints: ["POST /api/auth/login", "GET /api/v1/me"]
 database_tables: [Users, UserRights, UserAuthority, Screens, ApprovalHistory]
 business_rules: [BR-AUTH-001, BR-AUTH-002, BR-AUTH-003, BR-APPR-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-12
+last_verified: 2026-08-20
 dependencies: [KB-010, KB-012]
 ---
 
@@ -230,7 +232,7 @@ plus `/userLevelAuthorization` for maintaining `UserAuthority`.
 | Password verification via `PasswordHasher<User>` | keep `UserRepository.LoginAsync` unchanged | — (done) |
 | `IsActive` gate | BR-AUTH-001 | — (done) |
 | **Server-side screen-right enforcement on every endpoint** | `UserRight` × `Screens` | **P0 — blocker** |
-| Return the user's full right set at login so the UI can render | `GetUserRightsWithScreensAsync` | P0 |
+| ~~Return the user's full right set at login so the UI can render~~ — **DELIVERED by M2-A07 (2026-08-20)**: `GET /api/v1/me` returns the caller's identity, tenant, role and complete rights map, read through the **same** `IUserRightsProvider` the M2-A01 filter enforces with. **Presentation only** (ADR-004 §3) — it does not relax that filter. Contract: [KB-040](../api/api-overview.md) | `GetUserRightsWithScreensAsync`, via `IUserRightsProvider` | P0 |
 | Refresh tokens + revocation | new | P1 |
 | Approval authority checks server-side | `UserAuthority` | P1 |
 | Row-level state scoping | `User.StateCodesCsv` (Q-08) | P1 |

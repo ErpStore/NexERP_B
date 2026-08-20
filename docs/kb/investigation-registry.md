@@ -38,6 +38,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-039 | DI composition drift across `V.SMART.Api/Program.cs`, `V.SMART.Web/Program.cs`, `V.SMART/MauiProgram.cs`, ahead of `M2-B07` | Complete | All three composition roots read line-by-line 2026-08-19 (task file's own line numbers found stale — shifted by `M0-03-02`/`M0-03-03`): `V.SMART.Api/Program.cs` (125 lines, registers only `ICurrencyService`, no `IRepository<>`); `V.SMART.Web/Program.cs` (660 lines); `V.SMART/MauiProgram.cs` (652 lines, no call to `StartupConfigurationValidator` unlike the other two hosts) | **Drift is ~5x the task file's estimate**: 16 domain registrations diverge between Web and MAUI, not 3 — 8 services (`IContractReviewService`, `IRouteCardService`, `IRouteCardRepository`, `IRouteCardSubRepository`, `IProductionReturnAssyRepository`, `IProductionReturnAssySubRepository`, `IProductionSCNAssyRepository`, `IProductionSCNAssySubRepository`) are registered in MAUI's `MauiProgram.cs` but were missing from `V.SMART.Web/Program.cs`, so `/contractReviewMasterList` and `/routeCardList` and siblings threw a DI resolution error in the Blazor host (reachability of those routes in production not independently confirmed — Unknown). `IFileOpener`'s lifetime already diverges by host (Singleton in MAUI `:274`, Scoped in Web `:267`) — a pre-existing inconsistency (R-26), not something a shared composition root can silently resolve without a decision. `MasterDbContext` is registered in Api and Web via plain `AddDbContext` but **not** in MAUI, which instead reads `ConnectionStrings__MasterDb` from the environment first (M0-03-02 pattern, `MauiAppBuilder.Configuration` has no env-var provider by default). Host-coupled `V.SMART.Shared` services that a plain `AddVSmartDomain()` cannot safely resolve in the API without a decision: `IPathProvider`, `IFileOpener`, `IFileUploadService` (each host supplies its own implementation) — `ReportService`, `IUserService`, `IGSTITCService`, `IUserThemePreferenceService` transitively depend on one of these and stay unresolvable in `V.SMART.Api` even after this task, which is expected, not a defect. Authorization DI is explicitly out of scope per [KB-105 §6.2](architecture/server-side-authorization-spec.md) — it belongs in a sibling `AddVSmartApiAuthorization()` in the API host, never inside `AddVSmartDomain()`. **CORRECTIONS (Confirmed, `M2-B07` attempt 2, 2026-08-19 — the first pass above was measured by eye; this pass normalised and set-differenced every registration call in both files):** (1) **The MAUI-only set is 6, not 8.** `IContractReviewService` and `IRouteCardService` are registered in the Blazor host as well — `V.SMART/V.SMART.Web/Program.cs:467` and `:518` — and are merely *duplicated* inside `MauiProgram.cs` (`:364,474` and `:521,523`), which is what made them look one-sided. The dependent claim that `/contractReviewMasterList` and `/routeCardList` threw a DI error in Blazor is therefore **unsupported**; Q-31's premise was corrected accordingly. (2) **The drift is symmetric and the first pass saw only one side:** 7 registrations were Web-only and missing from MAUI — `IAssemblyDefLabourService`, `IEstimateService`, `IJobOrderRepository`, `IJobOrderSubRepository`, `ILabourTrackRepository`, `IPrPoRatingService`, `IToolCribServices`. 13 domain registrations diverge in total, not 16. (3) **Exact counts:** Web 242 matched lines → 240 distinct → 239 real (`:253` is commented out); MAUI 243 → 239 distinct; union 249. (4) **The host-coupled list is 6, not 4:** add `ICompanyService` (`CompanyService.cs:27` — `IFileUploadService` *and* a bare `HttpClient`) and `IItemService` (`ItemService.cs:35` — `IFileUploadService`). (5) **Two seams the first pass missed entirely**, both found by running `ValidateOnBuild`: `AuthenticationStateProvider` (taken by `CurrentUserService`, registered per-host in all three, including the API at `Program.cs:89`) and `IHttpClientFactory` (taken by `BankService`, `PaymentsService`, `ReceiptsService`, `AdvaceAdjustmentService`; supplied only by `AddHttpClient()`, which Web had and the API did not). (6) **`IExcelTemplateService` is domain, not host UI** despite sitting among the UI registrations in both former roots — `ExcelTemplateService.cs:27-32` takes only `IUnitOfWork`, `ICommonService`, `CurrentUserService`, `ILoggingService`, and 7 business services inject it. It was moved into `AddVSmartDomain()`. **Negative result:** with `IPathProvider`, `IFileUploadService`, `IFileOpener`, `IJSRuntime`, a bare `HttpClient`, `AuthenticationStateProvider` and `AddHttpClient()` supplied, the *entire* 249-registration graph passes `BuildServiceProvider(validateScopes: true, validateOnBuild: true)` — there is no other hole. | [KB-060 R-26](risks/technical-debt-register.md), [KB-105 §6.2](architecture/server-side-authorization-spec.md), `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs` | 2026-08-19 |
 | INV-040 | How the service layer signals a business-rule refusal, and how the API maps it to `409` | Complete | `V.SMART.Api/Controllers/CurrencyController.cs:64,77,87`; `BusinessLayer/**` swept for refusal shapes: `CanDelete*Async` (79 implementation methods across 61 service files, e.g. `CurrencyService.cs:188`, `SalaryService.cs:206`, `StaffLoanService.cs:233`, `AttendanceService.cs:102`), `CanItemCancel*` (10, e.g. `PuchPoService.cs:151`, `PurchaseGRNService.cs:1064`, `MaterialReqService.cs:825`, `LabourGRNService.cs:1709`, `PurchaseQuoteService.cs:1134`), `ValidateDeleteAsync` (3: `SubConGRNService.cs:1454`, `ProductionReturnAssyService.cs:460`, `ProductionReturnCompService.cs:797`), `ServiceResult` (1, nested in `StoreService.cs:304-313`, used by `UpsertStoreAsync` at `:173`); `ICurrencyService.cs:14-15`; `CurrencyService.cs:77,85,110,114,120,123,129,153,188-211`; `throw new *Exception` counted across `BusinessLayer/**` | **Refusals are signalled by TUPLE RETURN, not by exception.** The pervasive form is the two-element delete guard `(bool CanDelete, string Message)` — **79 methods / 61 files**, spanning HR, Inventory, Master, Labour, Production and Outsourcing — plus three near-identical variants (`(bool CanItemCancel, string Message)` ×10, `(bool IsValid, string Message)` ×3, one nested `ServiceResult`). A returned value is invisible to middleware, so **the controller must do the mapping**. **Decision (M2-A06, binding on all 60–80 future controllers): a controller helper**, `ProblemResults.BusinessRuleProblem(message)` in `V.SMART/V.SMART.Api/Middleware/ProblemResults.cs` — *not* a domain exception type, because `V.SMART.Shared` is live under Blazor Server and must not change, and because exceptions are not a trustworthy refusal channel there (below). The boolean is the signal; the message is passed through untouched (BR-SO-001). **NEGATIVE RESULTS:** (1) the three-element create/update tuple `(bool Success, string Message, T? Entity)` is **unique to `CurrencyService`** (`ICurrencyService.cs:14-15`), added by `b8beb0d` for the API — sibling master interfaces (`ICostCenterService`, `IExpenseService`, `IIncomeService`) expose **no** Create/Update at all, so M2-B03's template must generalise the *delete-guard* tuple, not this one; (2) no `CanDelete…` method returns a bare `Task<bool>`; (3) there is **no domain-exception base type or marker interface** anywhere in `BusinessLayer/**`; (4) grepped `X-Correlation-Id`/`CorrelationId`/`TraceIdentifier` across `docs/`, `V.SMART.Api` and `tests/` before this task — two documentation hits, **zero implementation**. **TRAP for anyone copying the mapping:** `InvalidOperationException` is thrown 1,107 times in `BusinessLayer/**` and carries *both* meanings — a business refusal (`StockManagerService.cs:210` "No available stock to issue.") and an infrastructure fault rethrown from a `catch` (`StockManagerService.cs:345` "Failed to retrieve stock details.") — so no exception→status rule is safe; M2-A06 maps every escaping exception to `500`. Equally, the refusal tuple itself carries non-refusal meanings in two confirmed places (`CurrencyService.cs:197` not-found; `CurrencyService.cs:208-211` a caught fault) → **Q-34** | [KB-040 § Error contract](api/api-overview.md#error-contract-m2-a06), BR-SO-001, `V.SMART/V.SMART.Api/Middleware/ProblemResults.cs` | 2026-08-20 |
 | INV-041 | How does `sort` reach a business service whose ordering is hardcoded, without rewriting 134 services? | Complete | `SearchWithDynamicFilterAsync` declared **134** times with `Task<` across `V.SMART/V.SMART.Shared/BusinessLayer/` (re-measured 2026-08-20, matches the 2026-08-12 count); **67** `public static class *FilterBuilder` across `V.SMART.Shared/`; `CurrencyService.cs:34-100` (search), `:206` (`_ => query`), `:180-209` (`CurrencyFilterBuilder`), `:279` (`OrderByDescending(x => x.CurrId)`), `:80-81` (`Skip`/`Take`); `CurrencyList.razor:344-348` (the only production caller, named arguments), `:111,130,136` (QuickGrid sorting one page), `:758-760` (the `Status` filter key), `Data/Master/Accounts_Module/Currency.cs:9-29` | **No service anywhere takes a sort parameter** (grepped `BusinessLayer/` for `sort`/`sortBy`/`sortColumn`/`orderBy` service parameters — **0 hits**); ordering is hardcoded per service. **Decision (M2-B02, recorded as [ADR-002 §2a](decisions/ADR-002-rest-api-layer.md)): an additive 4-argument overload** `SearchWithDynamicFilterAsync(int, int, Dictionary<string, object>?, string? sort)`, with the 3-argument member delegating to it — compiler-checked, and the only production call site uses 3 named arguments so it is untouched. The 133 other sites convert per module (KB-080 §10 step 06), not in one sweep. **Passing sort through the filter dictionary was rejected** because every `*FilterBuilder.ApplyFilter` ends in `_ => query` (`CurrencyService.cs:206`), so an unrecognised key is silently ignored and the request answers 200 while sorting nothing. **That failure mode is already live in production:** `CurrencyList.razor:760` sets a `Status` filter key that `CurrencyFilterBuilder` has no case for and the `Currency` entity has no column for, so that dropdown filters nothing, silently (→ Q-36). **Sorting in the controller after materialisation was rejected** because `Skip`/`Take` run first (`:80-81`), so it sorts one page — the wrong rows. **NEGATIVE RESULTS:** (1) the 134 declarations are signature-uniform — a scan for a 4th parameter after `filters` returns nothing, so one overload shape fits all; (2) `frontend/nexgen-web/src` has no `PagedResult`/`totalCount`/`pageNumber` — no existing client constrains the shape; (3) an unused, unreferenced `PagedResult<T>` already exists at `V.SMART.Shared/ViewModels/RejectionMasterVM.cs:33-40` (with `TotalPages`) — a namespace-collision hazard, not the API type; (4) **there was no legacy server-side sort to preserve** — `CurrencyList.razor:111` binds QuickGrid to `CurrencyVMs.AsQueryable()`, i.e. it sorts the current page only, so server-side sort is an improvement, not a regression risk | [ADR-002 §2a](decisions/ADR-002-rest-api-layer.md), [KB-011 § Business service conventions](architecture/backend-architecture.md#business-service-conventions-observed-consistent), [KB-040](api/api-overview.md) | 2026-08-20 |
+| INV-042 | What `role` means in `GET /api/v1/me`, and which `User`/`UserAuthority` data belongs in the bootstrap response | Complete | `V.SMART/V.SMART.Api/Auth/JwtTokenService.cs:29-35`; `V.SMART/V.SMART.Api/Controllers/AuthController.cs:32-37,60-67`; `V.SMART/V.SMART.Shared/Services/CurrentUserService.cs:68-75`; `V.SMART/V.SMART.Shared/Data/Enum/UserRole.cs:3-7`; `V.SMART/V.SMART.Shared/Layout/NavMenu.razor:36,148,462-464`; `V.SMART/V.SMART.Shared/Pages/Home.razor:240`; `V.SMART/V.SMART.Shared/Data/Master/Admin_Module/User.cs:34,36,66,68,75,124`; `V.SMART/V.SMART.Api/Authorization/ScreenRightSet.cs:4-10,46-61` | Role is the **JWT `ClaimTypes.Role` claim**, not a `User` row read and never `CurrentUserService.GetUserRoleAsync()` (R-18). `ERPAdmin` (R-31) is not propagated. `UserAuthority` and all four `User` UI flags are **deferred**. Full findings below | 2026-08-20 |
 
 **M0-07 amendment to INV-023 (2026-08-17) — CI now exists in the repository, but has never
 run.** `.github/workflows/ci.yml` runs hygiene guard → restore → build → analyzer warning gate
@@ -103,6 +104,89 @@ Last verified:  2026-08-19
 independent. A user switching theme in React sees no change in Blazor, and vice versa. That is
 documented in `frontend/nexgen-web/README.md` and in `src/shared/theme/README.md` so it is read
 as expected behaviour rather than discovered as a bug.
+
+### INV-042 — `role` in `GET /api/v1/me`, and what else belongs in the bootstrap response
+
+Produced by **M2-A07**, 2026-08-20. Every citation below was re-read in the working tree on
+that date, not carried from the task file.
+
+**Finding 1 — role is sourced from the JWT `ClaimTypes.Role` claim, not from the `User` row,
+and never from `CurrentUserService.GetUserRoleAsync()`.**
+`JwtTokenService.cs:34` mints `new Claim(ClaimTypes.Role, user.Role?.ToString() ?? string.Empty)`
+and `AuthController.cs:67` returns **the identical expression** in `LoginResponse`, so claim and
+row are the same value for the life of a token; reading the claim keeps `/me` and `/auth/login`
+from disagreeing and costs no query. `CurrentUserService.cs:68-75` reads claim type `"role"`
+while both providers write `ClaimTypes.Role`, so it always returns `""` (R-18) — it is not
+called, and `MeController` takes no dependency that could reach it.
+*Business rule:* BR-AUTH-002. *Confidence:* **Confirmed**. *Last verified:* 2026-08-20.
+
+**Finding 2 — `ERPAdmin` is a dead string and is not propagated (R-31).** `UserRole.cs:3-7`
+has exactly `Administrator` and `User`. `git grep -n ERPAdmin -- V.SMART` returns exactly three
+hits — `NavMenu.razor:36`, `NavMenu.razor:148`, `Pages/Home.razor:240` — all
+`<AuthorizeView Roles="Administrator,ERPAdmin,User">`. Because that list also names both real
+enum members, the gate is effectively *"any authenticated user with a role"*, and `ERPAdmin`
+changes nothing. The API model carries the role as an opaque string, so the name cannot enter it.
+*Confidence:* **Confirmed**. *Last verified:* 2026-08-20.
+
+**Finding 3 — `UserAuthority` is deferred to M3-4.** It is twelve `(bool, string level)` pairs
+on one row (`Data/Master/Admin_Module/UserAuthority.cs`), navigated from `User.cs:124`. ADR-004
+§4 enforces it **inside** the approval endpoints, the approval module is M3-4, no M2 consumer
+references it, and KB-050's permission contract has no slot for it. Including it in `/me` would
+publish approval policy to every client for no consumer.
+*Confidence:* **Inferred** (from the absence of any M2 consumer). *Last verified:* 2026-08-20.
+
+**Finding 4 — none of the four `User` UI flags belongs in `/me`, and two of the assumptions
+about them in circulation are wrong.**
+- `IsViewOnly` (`User.cs:66`) is **not** a runtime gate. At user creation it *materialises* a
+  `UserRight` row for every screen with `CanView = true` and everything else false
+  (`UserService.cs:442-467`); its only other reads are the admin screens that display or edit the
+  field itself — `UserRights_Pages/UserRights.razor:288-292`, `Identity_Pages/UserList.razor:185-188,441`,
+  `Identity_Pages/RegisterUpsert.razor:94-113`. Its effect is therefore already fully present in the rights map.
+- `IsProductionBased` (`User.cs:75`) does **not** on its own "collapse the menu to a
+  shop-floor view". The gate is `ShowProductionMenu = IsQrLogin && IsProductionUser`
+  (`NavMenu.razor:462-464`), reached through `UserService.IsProductionLogEnabledAsync`
+  (`UserService.cs:60-70`) from `Login.razor:432` / `QrLogin.razor:59`. **The API has no
+  QR-login path at all**, so the flag alone changes nothing today.
+- `HideManualJobOrderButton` (`User.cs:68`) is read only by
+  `JobOrderService.IsManualyJobOrderHiden` (`JobOrderService.cs:1349-1359`), single caller
+  `JobOrderUpsert_pages.razor:1253` — one button on one M3 screen.
+- `LevelAuthorization` (`User.cs:36`) is an approval-authority input (`UserAuthorityservice.cs:178`).
+*Confidence:* **Confirmed** for each citation; **Inferred** for the conclusion that none is
+needed by the M2 client. *Last verified:* 2026-08-20.
+
+**Finding 5 (negative result, and it matters) — the Blazor sidebar is not permission-filtered
+at all.** Grepping `NavMenu.razor` (888 lines) for `UserRight`, `RightsHelper`, `CanView` or
+`IsHide` returns **zero** hits. Its only authorization is the two `AuthorizeView` role gates
+(`:36`, `:148`) and `ShowProductionMenu` (`:462-464`). `IsHide` is consumed **per page**, via
+`RightsHelper.IsHidden` (`RightsHelper.cs:19-20`) through `BaseUserRightsComponent.cs:27`.
+*Consequence:* M2-C03's permission-filtered sidebar has **no legacy behaviour to preserve** —
+it is new behaviour built on this endpoint, so "port `NavMenu`" is the wrong instruction.
+*Confidence:* **Confirmed**. *Last verified:* 2026-08-20.
+
+**Finding 6 — the provider seam cannot carry `ScreenCode` or `IsPrintRequired`, so `/me` does
+not.** `ScreenRightSet.cs:4-10` defines `ScreenRightEntry(ScreenName, CanView, CanCreate,
+CanEdit, CanDelete, IsHide)` and nothing else; `UserRightsProvider.cs:116-122` projects exactly
+those six values and drops any row whose `Screens` navigation is null (`:110-114`). `Screens`
+does carry `Id`, `ScreenCode` and `IsPrintRequired`, but they never reach the seam. Since
+M2-A07 must read through this seam and must not modify `V.SMART.Api/Authorization/**`, both
+fields are omitted — which matches KB-050's client contract, written before this endpoint
+existed and asking for exactly the five booleans. A future task needing `IsPrintRequired` should
+extend `ScreenRightEntry` (one change, both readers) rather than adding a second query path.
+*Confidence:* **Confirmed**. *Last verified:* 2026-08-20.
+
+**Finding 7 — absent rows are omitted, and duplicates collapse first-match-wins.**
+`UserRightsRepository.cs:22-28` returns only `r.UserId == userId` with no `OrderBy`, and
+`RightsHelper.cs:7-20` reads `...FirstOrDefault(...)?.CanX ?? false` five times, which
+`ScreenRightSet.Has` (`ScreenRightSet.cs:46-61`) reproduces including the `?? false`.
+Deny-by-default is therefore already the semantic, so materialising 152 all-`false` rows would
+add no information at triple the payload. Keying the response by `ScreenName` dissolves the
+ordering question; the duplicate question it does not dissolve is answered by keeping the
+**first** entry (`Dictionary.TryAdd`), which is the row the filter's `FirstOrDefault` decides
+on. Q-27 (do duplicates exist in a live tenant?) remains **Unknown** and is unaffected by this:
+whatever the answer, the map and the filter now agree.
+*Business rule:* BR-AUTH-002. *Confidence:* **Confirmed**. *Last verified:* 2026-08-20.
+
+---
 
 ### INV-031 — Test-harness feasibility: hosting `ApplicationDbContext` in a test process
 
@@ -497,7 +581,8 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 | **INV-035, INV-038** | **reserved for `M0-06`, not yet claimed — do not reuse** | M0-06 | Reserved (unmerged branch `migration/M0-06-remove-default-admin`) |
 | INV-040 | Business-rule refusal signalling across the service layer, and how a `409` is produced | M2-A06 | **Claimed and complete 2026-08-20 — moved to the Completed table above** |
 | INV-041 | Sort delivery to services whose ordering is hardcoded | M2-B02 | **Claimed and complete 2026-08-20 — moved to the Completed table above** |
-| **INV-042 +** | **next free** | — | — |
+| INV-042 | What `role` means in `GET /api/v1/me`, and which user data belongs in the bootstrap response | M2-A07 | **Claimed and complete 2026-08-20 — moved to the Completed table above** |
+| **INV-043 +** | **next free** | — | — |
 
 Before claiming an id: `grep -rn "INV-0[0-9][0-9]" docs/` across **both** `docs/kb/` and
 `docs/kb/execution/tasks/`, then add the row here in the same change that uses it. Never
