@@ -1031,7 +1031,17 @@ on `ADR-006`. See [KB-080 § Exit Gate — G0](README.md#exit-gate--g0).
 
 ¹⁹ **M2-C01: `Completed` and merged (`12f172f`, 2026-08-19) — 14 of 15 acceptance criteria met, the 15th WAIVED.**
 
-> **Read the waiver as a waiver.** Criterion 10's second half — *"the `frontend` job ... is green on the branch"* — was **never satisfied**. It needs a push, which an execution session may not make. Waived by the owner on the `M0-07` (`d79e1a4`) and `M0-12-02` (`a83f1e2`) precedent. Everything locally verifiable was independently re-run before merging: `typecheck`, `lint --max-warnings=0`, `test`, `build` all exit 0; entry chunk **289.69 kB / 90.90 kB gzipped**; `git status` clean after a build; `dotnet test` still **79 passed**. Scope confirmed: no `node_modules/`, `dist/`, `playwright-report/` or `test-results/` committed; `package-lock.json` committed; `frontend/vsmart-erp/` untouched; exactly one component library (`@mantine/core`); the pre-existing CI job intact.
+> ### ✅ The waived half is now SATISFIED — 2026-08-20, on `master`
+>
+> `master` was pushed `20be92f..e63716e` (41 commits) and the workflow ran **green**, owner-confirmed. That was the **first hosted execution** of the `frontend` job: 150 Vitest tests *and* the `branches: 100` coverage gate, on a runner rather than a workstation.
+>
+> **Read what changed, precisely.** The criterion said *"green on the **branch**"*; what is now proven is *"green on **`master`**, after merge"*. That is the same guarantee arriving later, not the original criterion being met — an execution session still cannot produce a hosted run, so the waiver was correct when it was taken. It is retired by evidence, not withdrawn as a mistake.
+>
+> Retired alongside it: `M2-A06`'s *"not verified, and not verifiable from an execution session — that the new CI step is green on a hosted runner."* `Test - V.SMART.Api.Tests` ran green on the same push, its first execution anywhere but this workstation.
+>
+> **Still open, and unaffected:** **Q-20**'s remaining half. CI running green is not CI *gating* merges — there is still no required status check, and this very push reported `Bypassed rule violations … Changes must be made through a pull request`. Green CI that nothing enforces is a smoke alarm with the battery out.
+
+> **Read the waiver as a waiver.** Criterion 10's second half — *"the `frontend` job ... is green on the branch"* — was **never satisfied at the time**. It needs a push, which an execution session may not make. Waived by the owner on the `M0-07` (`d79e1a4`) and `M0-12-02` (`a83f1e2`) precedent. Everything locally verifiable was independently re-run before merging: `typecheck`, `lint --max-warnings=0`, `test`, `build` all exit 0; entry chunk **289.69 kB / 90.90 kB gzipped**; `git status` clean after a build; `dotnet test` still **79 passed**. Scope confirmed: no `node_modules/`, `dist/`, `playwright-report/` or `test-results/` committed; `package-lock.json` committed; `frontend/vsmart-erp/` untouched; exactly one component library (`@mantine/core`); the pre-existing CI job intact.
 
 **Footnote renumbered from ¹⁸ to ¹⁹ on merge** — ¹⁸ had just been assigned to `M2-A01-01`, and this branch was cut before that landed. The same cross-branch allocation defect as the six-id KB/INV/Q collision; see [INDEX.md](../INDEX.md) § doc_id allocation.
 
@@ -1220,8 +1230,7 @@ prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three mo
 > `frontend-e2e` jobs intact, both `Test` steps present and in order. A hand-indented step that
 > fails to parse would break the entire workflow.
 >
-> **Still not verified, and not verifiable from an execution session:** that the new step is green
-> on a hosted runner. That needs a push — the same wall as `M0-07`, `M0-12-02` and `M2-C01`.
+> **✅ Now verified, 2026-08-20.** `master` pushed `20be92f..e63716e` and the workflow ran **green**, owner-confirmed. `Test - V.SMART.Api.Tests` executed on a hosted runner for the first time and passed. The step is real, not merely well-formed.
 
 ²³ **M2-A06: `Completed` and merged (`76eca5d`, 2026-08-20) — all eighteen acceptance criteria `MET`, no waiver.**
 

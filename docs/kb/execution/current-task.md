@@ -30,10 +30,20 @@ dependencies: [KB-081, KB-082, KB-088, KB-107]
 
 ### Why this task, now
 
+> **Updated 2026-08-20, after this section was written.** `M2-A06` has since been reviewed by the
+> owner, merged (`76eca5d`) and set `Completed`, so `M2-B02`, `M2-B06` and `M2-B11` are **now
+> `Ready`** — the reasoning below, which assumed they stayed `Blocked`, no longer holds on that
+> point. **`M2-B12-01` remains a defensible selection** (it still makes `M2-B12-02` `Ready`
+> immediately, which is what decided it), but it is no longer the *only* live candidate:
+> **`M2-B02`** is P0 and unblocks `M2-B03` → `M2-B10`, which is a longer downstream chain.
+> A session opening this file should re-apply the selection rule rather than inherit the
+> conclusion below.
+
 `M2-A06` (exception middleware → `ProblemDetails` + correlation ids) closed this session
 validated `PASS` and moved to `Needs Review` — not `Completed`, so per
-[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) it does **not** release
-`M2-B02` / `M2-B06` / `M2-B11`, which all list it as a Hard prerequisite. Those stay `Blocked`.
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) it did **not**, *at the time
+this was written*, release `M2-B02` / `M2-B06` / `M2-B11`, which all list it as a Hard
+prerequisite. Those were `Blocked` then and are `Ready` now.
 
 Applying the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)
 against the four genuinely `Ready` P0 candidates (`M2-B04`, `M2-B12-01`, `M2-C10`,
@@ -172,10 +182,11 @@ G0 passed **with three exceptions**, all owner-deferred, none with a date set
 | | |
 |---|---|
 | `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **84 passed, 0 failed** |
-| `dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` | **21 passed, 0 failed** (new project, `M2-A06`; not yet wired into CI) |
+| `dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` | **21 passed, 0 failed** (`M2-A06`; wired into the `.sln` and `ci.yml` at review, `a499989`, and **green on a hosted runner** since 2026-08-20) |
 | `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental` | **0 errors, 6,694 warnings** (baseline 6,695) |
 | `frontend/nexgen-web` — `npm run typecheck && lint && test -- --run && build && coverage` | All exit 0 as of `M2-C04-01` tip `9f886a6` (2026-08-20); coverage branches **100 %** |
-| CI on `master` | green |
+| CI on `master` | **green**, owner-confirmed 2026-08-20 at `e63716e` — and for the first time this means *all three* suites: `V.SMART.Shared.Tests` (84), `V.SMART.Api.Tests` (21) and the frontend Vitest run (150) **plus its `branches: 100` coverage gate**, all on a hosted runner. `V.SMART.Api.Tests` and the frontend job had never executed anywhere but this workstation before that push |
+| **CI does not gate merges** | Still true, and it is the open half of **Q-20**. The `e63716e` push reported `Bypassed rule violations … Changes must be made through a pull request` and succeeded only on the owner's bypass rights. **Green CI that nothing enforces is a smoke alarm with the battery out** |
 
 `M2-B12-01` writes no code and needs none of the above to run — it is a source-reading
 investigation. The authoritative, continuously-updated command table is
