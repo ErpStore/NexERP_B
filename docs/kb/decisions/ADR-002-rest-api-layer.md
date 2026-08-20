@@ -77,6 +77,25 @@ M2-B03, and it is derivable client-side. (An unrelated, unreferenced
   (pre-M2-B02 `CurrencyController.cs:30`). It now takes the contract-wide default of 20. Callers
   that send `pageSize` explicitly are unaffected.
 
+**Query-parameter names are camel case, and every property declares its own.** The wire names
+are `pageNumber`, `pageSize`, `sort` and the resource's filters (`currName`, `createdBy`,
+`fromDate`, `toDate`) — the same casing as the JSON response body and as the `sort` field names
+above. This is **not** free: `[FromQuery]` on a record binds by *C# property name* and
+Swashbuckle emits that name verbatim, so without an explicit `[FromQuery(Name = "…")]` on each
+property the OpenAPI document advertises `PageNumber`/`CurrName` while this document and KB-040
+say `pageNumber`/`currName`, and M2-B10 generates its TypeScript client from the document. Every
+property on `PagedQuery` and on each `…Query` therefore carries `[FromQuery(Name = …)]`, sourced
+from a `const` (`PagedQuery.PageNumberParameter` and siblings) so the attribute and the code that
+reports errors cannot drift apart. For the same reason, `IValidatableObject` member names are the
+**wire** names, not `nameof(Property)`: a member name becomes the `errors` dictionary key
+verbatim, and a binding failure on the same field is keyed by its `[FromQuery]` name — using
+`nameof` keys one field two ways depending on which check rejected it. Binding itself stays
+case-insensitive, so a caller sending `PageSize` is still accepted. Guarded by
+`tests/V.SMART.Api.Tests/PagedContractTests.cs`
+(`Every_query_property_declares_its_camel_case_wire_name`); observed in
+`/swagger/v1/swagger.json` on 2026-08-20 as `currName, createdBy, fromDate, toDate, pageNumber,
+pageSize, sort`.
+
 **Sort syntax.** A comma-separated list of camel-case field names, `-` prefixed for descending:
 `sort=-createdDate,currName`. One parameter, survives URL encoding, and is the form generated
 clients expect. Terms apply in the order written. **Absent `sort` means the service's existing

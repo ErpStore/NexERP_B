@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc;
 
 namespace V.SMART.Api.Contracts
 {
@@ -20,9 +21,27 @@ namespace V.SMART.Api.Contracts
     /// <c>/swagger/v1/swagger.json</c>: a C# property initialiser is invisible to the schema
     /// generator, and M2-B10's generated TypeScript client reads the defaults from the
     /// document, not from this file.</para>
+    ///
+    /// <para><b>Every property carries an explicit <c>[FromQuery(Name = …)]</c> wire name.</b>
+    /// Without one, the binder and Swashbuckle both take the <em>C# property name</em>, so the
+    /// OpenAPI document would advertise <c>PageNumber</c>/<c>PageSize</c>/<c>Sort</c> while
+    /// ADR-002 §2a, KB-040 and the JSON response body all use camel case — and M2-B10 generates
+    /// its TypeScript client from that document. The names below are the contract; the C#
+    /// property names are an implementation detail. Binding stays case-insensitive, so callers
+    /// sending either casing continue to work.</para>
     /// </summary>
     public abstract record PagedQuery : IValidatableObject
     {
+        /// <summary>The wire name of <see cref="PageNumber"/> — the query parameter and the
+        /// <c>errors</c> dictionary key.</summary>
+        public const string PageNumberParameter = "pageNumber";
+
+        /// <summary>The wire name of <see cref="PageSize"/>.</summary>
+        public const string PageSizeParameter = "pageSize";
+
+        /// <summary>The wire name of <see cref="Sort"/>.</summary>
+        public const string SortParameter = "sort";
+
         /// <summary>The documented default page size, in effect when the caller omits <c>pageSize</c>.</summary>
         public const int DefaultPageSize = 20;
 
@@ -35,12 +54,14 @@ namespace V.SMART.Api.Contracts
         /// </summary>
         public const int MaxPageSize = 100;
 
-        /// <summary>1-based page index. Default 1.</summary>
+        /// <summary>1-based page index. Default 1. Wire name <c>pageNumber</c>.</summary>
+        [FromQuery(Name = PageNumberParameter)]
         [Range(1, int.MaxValue, ErrorMessage = "pageNumber must be 1 or greater.")]
         [DefaultValue(1)]
         public int PageNumber { get; init; } = 1;
 
-        /// <summary>Rows per page. Default 20, maximum 100.</summary>
+        /// <summary>Rows per page. Default 20, maximum 100. Wire name <c>pageSize</c>.</summary>
+        [FromQuery(Name = PageSizeParameter)]
         [Range(1, MaxPageSize, ErrorMessage = "pageSize must be between 1 and 100.")]
         [DefaultValue(DefaultPageSize)]
         public int PageSize { get; init; } = DefaultPageSize;
@@ -49,8 +70,9 @@ namespace V.SMART.Api.Contracts
         /// Comma-separated sort fields, <c>-</c> prefix for descending — e.g.
         /// <c>-createdDate,currName</c>. Omit it to keep the resource's existing default ordering.
         /// Validated against <see cref="SortableFields"/>; an unknown field is a 400 that lists
-        /// the permitted values.
+        /// the permitted values. Wire name <c>sort</c>.
         /// </summary>
+        [FromQuery(Name = SortParameter)]
         public string? Sort { get; init; }
 
         /// <summary>
@@ -62,11 +84,17 @@ namespace V.SMART.Api.Contracts
         /// <summary>
         /// Cross-property validation. Overriders must call <c>base.Validate</c> so the sort
         /// allow-list stays enforced.
+        ///
+        /// <para>Member names are the <b>wire</b> names, not <c>nameof</c> of the C# property:
+        /// an <see cref="IValidatableObject"/> member name becomes the <c>errors</c> dictionary
+        /// key verbatim, and a binding failure on the same field is keyed by its
+        /// <c>[FromQuery(Name = …)]</c>. Using <c>nameof</c> here would key one field two ways
+        /// depending on which check rejected it.</para>
         /// </summary>
         public virtual IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
             if (!SortSpecification.TryParse(Sort, SortableFields, out _, out var error))
-                yield return new ValidationResult(error, new[] { nameof(Sort) });
+                yield return new ValidationResult(error, new[] { SortParameter });
         }
 
         /// <summary>

@@ -6,6 +6,8 @@ using V.SMART.Api.Contracts;
 using V.SMART.Api.Controllers;
 using V.SMART.Api.Middleware;
 using V.SMART.Api.Tests.Infrastructure;
+using V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsService;
+using V.SMART.Shared.Data.Master.Accounts;
 using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel;
 using Xunit;
 
@@ -124,6 +126,120 @@ namespace V.SMART.Api.Tests
             Assert.Equal("2026-03-04", filters["ToDate"]);
         }
 
+        // ------------------------------------------------------------------ wire names
+
+        /// <summary>
+        /// Every bound property must declare its own camel-case wire name. Without
+        /// <c>[FromQuery(Name = …)]</c> the binder and Swashbuckle both fall back to the CLR
+        /// property name, so <c>/swagger/v1/swagger.json</c> advertises <c>PageNumber</c> while
+        /// ADR-002 §2a, KB-040 and the JSON response body all say <c>pageNumber</c> — and M2-B10
+        /// generates its TypeScript client from that document. This test is the regression guard
+        /// for exactly that drift.
+        /// </summary>
+        [Theory]
+        [InlineData(nameof(CurrencyQuery.PageNumber), "pageNumber")]
+        [InlineData(nameof(CurrencyQuery.PageSize), "pageSize")]
+        [InlineData(nameof(CurrencyQuery.Sort), "sort")]
+        [InlineData(nameof(CurrencyQuery.CurrName), "currName")]
+        [InlineData(nameof(CurrencyQuery.CreatedBy), "createdBy")]
+        [InlineData(nameof(CurrencyQuery.FromDate), "fromDate")]
+        [InlineData(nameof(CurrencyQuery.ToDate), "toDate")]
+        public void Every_query_property_declares_its_camel_case_wire_name(string property, string wireName)
+        {
+            var attribute = typeof(CurrencyQuery)
+                .GetProperty(property)!
+                .GetCustomAttributes(typeof(FromQueryAttribute), inherit: true)
+                .Cast<FromQueryAttribute>()
+                .SingleOrDefault();
+
+            Assert.NotNull(attribute);
+            Assert.Equal(wireName, attribute!.Name);
+        }
+
+        [Fact]
+        public void The_wire_name_constants_are_the_names_the_documentation_publishes()
+        {
+            Assert.Equal("pageNumber", PagedQuery.PageNumberParameter);
+            Assert.Equal("pageSize", PagedQuery.PageSizeParameter);
+            Assert.Equal("sort", PagedQuery.SortParameter);
+            Assert.Equal("currName", CurrencyQuery.CurrNameParameter);
+            Assert.Equal("createdBy", CurrencyQuery.CreatedByParameter);
+            Assert.Equal("fromDate", CurrencyQuery.FromDateParameter);
+            Assert.Equal("toDate", CurrencyQuery.ToDateParameter);
+        }
+
+        // ------------------------------------------------- toDate end-of-day boundary (M2-B02)
+
+        /// <summary>
+        /// The acceptance criterion "<c>toDate</c> remains inclusive of the entire day, verified
+        /// with a 23:59 boundary record". The typed <c>DateTime? ToDate</c> is put through the
+        /// real adapter and the resulting dictionary value through the <b>untouched</b>
+        /// <c>CurrencyService.CurrencyFilterBuilder</c> predicate
+        /// (<c>CurrencyService.cs:200-204</c>, <c>CreatedDate &lt;= toDate.Date.AddDays(1).AddTicks(-1)</c>),
+        /// so what is asserted is the composed path this task introduced, not a re-implementation
+        /// of the arithmetic.
+        ///
+        /// <para><b>Scope of the evidence, stated so it is not over-read.</b> The predicate is
+        /// evaluated here by LINQ to Objects, not translated to T-SQL, so this proves the
+        /// expression's semantics and not SQL Server's. It is faithful on precision:
+        /// <c>Currency.CreatedDate</c> is <c>datetime2</c>
+        /// (<c>Migrations/20260217110637_InitialCreate.cs:131</c>), whose 100 ns resolution
+        /// represents the <c>AddTicks(-1)</c> endpoint exactly. A round trip through a real
+        /// database is still the stronger check and remains ungated by any row in the dev tenant
+        /// (every <c>Currency</c> row there has a null <c>CreatedDate</c>).</para>
+        /// </summary>
+        [Fact]
+        public void ToDate_still_includes_the_whole_day_including_a_record_created_at_23_59()
+        {
+            var day = new DateTime(2026, 3, 4);
+
+            var rows = new[]
+            {
+                new Currency { CurrId = 1, CreatedDate = day },                                   // 00:00 that day
+                new Currency { CurrId = 2, CreatedDate = day.AddHours(23).AddMinutes(59) },        // 23:59 boundary record
+                new Currency { CurrId = 3, CreatedDate = day.AddDays(1).AddTicks(-1) },           // last tick of that day
+                new Currency { CurrId = 4, CreatedDate = day.AddDays(1) },                        // 00:00 the next day
+                new Currency { CurrId = 5, CreatedDate = day.AddDays(-1).AddHours(23).AddMinutes(59) }
+            }.AsQueryable();
+
+            // A time component on the query value must not narrow the day — the builder applies
+            // .Date to it, and the adapter only ever hands over yyyy-MM-dd.
+            var filters = FilterDictionaryAdapter.ForCurrency(new CurrencyQuery { ToDate = day.AddHours(10) });
+            Assert.Equal("2026-03-04", filters!["ToDate"]);
+
+            var filtered = CurrencyService.CurrencyFilterBuilder
+                .ApplyFilter(rows, "ToDate", filters["ToDate"])
+                .OrderBy(c => c.CurrId)
+                .Select(c => c.CurrId)
+                .ToArray();
+
+            Assert.Equal(new[] { 1, 2, 3, 5 }, filtered);
+        }
+
+        [Fact]
+        public void FromDate_still_includes_a_record_created_at_00_00_on_that_day()
+        {
+            var day = new DateTime(2026, 3, 4);
+
+            var rows = new[]
+            {
+                new Currency { CurrId = 1, CreatedDate = day.AddTicks(-1) },                // 23:59:59.9999999 the day before
+                new Currency { CurrId = 2, CreatedDate = day },                             // 00:00 boundary record
+                new Currency { CurrId = 3, CreatedDate = day.AddHours(23).AddMinutes(59) }
+            }.AsQueryable();
+
+            var filters = FilterDictionaryAdapter.ForCurrency(new CurrencyQuery { FromDate = day.AddHours(18) });
+            Assert.Equal("2026-03-04", filters!["FromDate"]);
+
+            var filtered = CurrencyService.CurrencyFilterBuilder
+                .ApplyFilter(rows, "FromDate", filters["FromDate"])
+                .OrderBy(c => c.CurrId)
+                .Select(c => c.CurrId)
+                .ToArray();
+
+            Assert.Equal(new[] { 2, 3 }, filtered);
+        }
+
         // ------------------------------------------------------------------ response shape
 
         [Fact]
@@ -146,6 +262,9 @@ namespace V.SMART.Api.Tests
 
         // ------------------------------------------------------------------ validation metadata
 
+        // These member names are the CLR property names because this test drives DataAnnotations
+        // directly. In the MVC pipeline the same [Range] failure is keyed by the property's
+        // [FromQuery(Name = …)] wire name instead — camel case, matching the OpenAPI parameter.
         [Theory]
         [InlineData(0, PagedQuery.DefaultPageSize, "PageNumber")]
         [InlineData(-1, PagedQuery.DefaultPageSize, "PageNumber")]
@@ -169,7 +288,9 @@ namespace V.SMART.Api.Tests
         {
             var error = Assert.Single(Validate(new CurrencyQuery { Sort = "password" }));
 
-            Assert.Contains("Sort", error.MemberNames);
+            // The wire name, not nameof(Sort): an IValidatableObject member name becomes the
+            // errors-dictionary key verbatim, and it must match the OpenAPI parameter name.
+            Assert.Contains(PagedQuery.SortParameter, error.MemberNames);
             Assert.Contains("currName", error.ErrorMessage);
         }
 
@@ -182,8 +303,8 @@ namespace V.SMART.Api.Tests
                 ToDate = new DateTime(2026, 5, 1)
             }));
 
-            Assert.Contains("FromDate", error.MemberNames);
-            Assert.Contains("ToDate", error.MemberNames);
+            Assert.Contains(CurrencyQuery.FromDateParameter, error.MemberNames);
+            Assert.Contains(CurrencyQuery.ToDateParameter, error.MemberNames);
         }
 
         [Fact]

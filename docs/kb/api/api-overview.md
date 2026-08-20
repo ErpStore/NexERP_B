@@ -126,7 +126,15 @@ request (see [multi-tenancy](../architecture/multi-tenancy.md) problem 1). *(The
 The OpenAPI document names it `CurrencyVMPagedResult` (observed in `/swagger/v1/swagger.json`,
 2026-08-20). `totalCount` is the **filtered, unpaged** count.
 
-**Errors.** 400 `application/problem+json` with an `errors` dictionary keyed by field for:
+The parameter names above are the **wire** names and are what `/swagger/v1/swagger.json`
+advertises (re-observed 2026-08-20 after the casing fix: `currName`, `createdBy`, `fromDate`,
+`toDate`, `pageNumber`, `pageSize`, `sort`). Each is pinned by an explicit
+`[FromQuery(Name = …)]` on the query record — see the ADR-002 §2a paragraph
+*"Query-parameter names are camel case"* for why the default (the C# property name) is wrong
+here. Binding stays case-insensitive, so `PageSize` is still accepted.
+
+**Errors.** 400 `application/problem+json` with an `errors` dictionary keyed by field —
+the same camel-case names as the parameters (`errors.pageSize`, `errors.fromDate`) — for:
 `pageNumber < 1`, `pageSize` outside 1–100, an unparseable `fromDate`/`toDate`,
 `fromDate > toDate`, and a `sort` field that is unknown or repeated. 401 when unauthenticated.
 

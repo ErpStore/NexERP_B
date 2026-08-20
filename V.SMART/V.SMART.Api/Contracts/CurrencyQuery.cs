@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc;
 
 namespace V.SMART.Api.Contracts
 {
@@ -19,6 +20,20 @@ namespace V.SMART.Api.Contracts
     /// </summary>
     public sealed record CurrencyQuery : PagedQuery
     {
+        /// <summary>The wire name of <see cref="CurrName"/> — the query parameter and the
+        /// <c>errors</c> dictionary key. See <see cref="PagedQuery"/> for why the wire names are
+        /// declared explicitly rather than inherited from the C# property names.</summary>
+        public const string CurrNameParameter = "currName";
+
+        /// <summary>The wire name of <see cref="CreatedBy"/>.</summary>
+        public const string CreatedByParameter = "createdBy";
+
+        /// <summary>The wire name of <see cref="FromDate"/>.</summary>
+        public const string FromDateParameter = "fromDate";
+
+        /// <summary>The wire name of <see cref="ToDate"/>.</summary>
+        public const string ToDateParameter = "toDate";
+
         /// <summary>
         /// Sortable fields for this resource, derived from what the list screen actually shows:
         /// the five grid columns (<c>CurrencyList.razor:119-145</c> — CurrId, CurrName, CurrSub,
@@ -35,16 +50,22 @@ namespace V.SMART.Api.Contracts
         /// <inheritdoc />
         protected override IReadOnlyList<string> SortableFields => Sortable;
 
-        /// <summary>Case-insensitive contains match on the currency name.</summary>
+        /// <summary>Case-insensitive contains match on the currency name. Wire name <c>currName</c>.</summary>
+        [FromQuery(Name = CurrNameParameter)]
         public string? CurrName { get; init; }
 
-        /// <summary>Case-insensitive contains match on the creating user.</summary>
+        /// <summary>Case-insensitive contains match on the creating user. Wire name <c>createdBy</c>.</summary>
+        [FromQuery(Name = CreatedByParameter)]
         public string? CreatedBy { get; init; }
 
-        /// <summary>Inclusive lower bound on <c>CreatedDate</c>, applied at the start of the day.</summary>
+        /// <summary>Inclusive lower bound on <c>CreatedDate</c>, applied at the start of the day.
+        /// Wire name <c>fromDate</c>.</summary>
+        [FromQuery(Name = FromDateParameter)]
         public DateTime? FromDate { get; init; }
 
-        /// <summary>Inclusive upper bound on <c>CreatedDate</c>, applied at the end of the day.</summary>
+        /// <summary>Inclusive upper bound on <c>CreatedDate</c>, applied at the end of the day.
+        /// Wire name <c>toDate</c>.</summary>
+        [FromQuery(Name = ToDateParameter)]
         public DateTime? ToDate { get; init; }
 
         /// <inheritdoc />
@@ -57,7 +78,7 @@ namespace V.SMART.Api.Contracts
             {
                 yield return new ValidationResult(
                     "fromDate must be on or before toDate.",
-                    new[] { nameof(FromDate), nameof(ToDate) });
+                    new[] { FromDateParameter, ToDateParameter });
             }
         }
     }
