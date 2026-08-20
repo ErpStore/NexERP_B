@@ -947,6 +947,17 @@ the service's message verbatim in `title`; a `500` carries `traceId` only. The c
 is covered by `tests/V.SMART.Api.Tests/` (21 tests, all passing 2026-08-20).
 **Still open, deliberately:** *request logging*. Correlation ids are emitted, but they go to
 `ILogger` with the default console provider only — a real sink is **R-23** / M2-B11.
+**New finding, observed 2026-08-20 during close-out review (not reported by the implementer):**
+`ExceptionHandlingMiddleware.cs` calls `context.Response.Clear()` before writing the
+`problem+json` body, which discards any CORS headers already added by the inner `UseCors`
+middleware. A cross-origin browser client hitting an unhandled exception or an unresolved
+tenant (`500`/`503`) therefore sees a CORS failure in the browser console rather than the
+`problem+json` body — the response is correct on the wire, but unusable from a browser without
+the CORS headers. This is an inherent consequence of registering the error handler *before*
+`UseCors`, which is what this task's own spec required, so it is not a defect against M2-A06's
+scope — but **M2-A05** (real CORS) must account for it, e.g. by re-adding the CORS headers
+inside the exception handler itself, or by special-casing preflight/origin echoing before
+`Response.Clear()`.
 
 ### R-25 — Business logic executed in Razor with direct `SaveAsync`
 **Confirmed.** 91 `SaveAsync` call sites inside `Pages/`.

@@ -178,10 +178,16 @@ every endpoint is `application/problem+json`. Success responses are untouched.
 - **`type`** is a stable URI under `https://api.v-smart.local/problems/`
   (`V.SMART/V.SMART.Api/Middleware/ProblemTypes.cs`). KB-041's illustrative
   `https://api.vsmart/errors/…` is superseded by it.
-- **`traceId`** is `Activity.Current?.Id ?? HttpContext.TraceIdentifier` and is returned on
-  **every** response — success included — in the `X-Correlation-Id` header. The header and the
-  body's `traceId` are the same value. **A caller-supplied `X-Correlation-Id` is ignored**; the
-  id is always generated server-side.
+- **`traceId`** is `Activity.Current?.Id ?? HttpContext.TraceIdentifier` and is returned in the
+  `X-Correlation-Id` header on every response that passes through `UseErrorContract()` (all
+  controller and error paths, success included) — the header and the body's `traceId` are the
+  same value. **A caller-supplied `X-Correlation-Id` is ignored**; the id is always generated
+  server-side. **One gap, observed 2026-08-20 during M2-A06's close-out review:**
+  `GET /swagger/index.html` (Development only) returns `200` with **no** `X-Correlation-Id`,
+  because `UseSwagger`/`UseSwaggerUI` are registered ahead of `UseErrorContract()` in
+  `Program.cs`. No API endpoint is affected; whoever next reorders the pipeline (M2-A05,
+  M2-B01) should move Swagger registration after the error contract rather than assume the
+  header is unconditional.
 - **How a `409` is produced.** The services signal a refusal by *returning* a tuple, not by
   throwing, so middleware cannot see it. The controller maps it, via the
   `ProblemResults.BusinessRuleProblem(message)` extension
