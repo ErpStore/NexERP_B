@@ -146,9 +146,9 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready** | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Needs Review**²² | P0 | M2-C01 | 3 d | G2 |
-| M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked | P0 | M2-C04-01 | 4 d | G2 |
-| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked | P0 | M2-C04-01 | 3 d | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**²² | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-02 | M2 | — form controls + validation display | Frontend | **Ready** | P0 | M2-C04-01 | 4 d | G2 |
+| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Ready** | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
@@ -1135,8 +1135,21 @@ its connection string in plaintext with `sa` credentials — **Q-32**, which mus
 before `M0-04`'s rotation is executed, or rotation will break every tenant row that embeds the
 password.
 
-²² **M2-C04-01: `Needs Review` 2026-08-20 — validated `PASS`, awaiting owner review and merge.**
-Branch `migration/M2-C04-01-design-tokens`, tip `9f886a6`. Not merged, not pushed.
+²² **M2-C04-01: `Completed` and merged (`56b8ae2`, 2026-08-20) — all sixteen acceptance criteria `MET`, no waiver.**
+
+> **The first M2 task to close with nothing waived.** `M2-C01` and `M2-B07` each carried an unmet criterion an execution session structurally could not reach. This one did not.
+>
+> **Re-verified independently before merging, and again on `master` after:** `npm run coverage` **150 passed, branches 100 %**, exit 0; `typecheck`, `lint`, `build` all exit 0; entry bundle **91.59 kB gzip** against KB-050's `< 250 kB` budget; `dotnet test` **84 passed** — unchanged, and it could not have moved, since no file under `V.SMART/` or `tests/` is in the diff.
+>
+> **The coverage regression was fixed by raising coverage, not by lowering the floor.** Attempt 1 added ~700 partly-covered lines under a `branches: 100` threshold and broke `npm run coverage` (exit 0 → 1). `vitest.config.ts` is **byte-identical to `master`** — verified, not assumed — and its own comment reads *"Thresholds are set to the MEASURED starting value (M2-C01), so the number can only ever be raised. Do not lower these."* Part of the fix **deleted** branches rather than testing them: `ThemeToggle`'s arrow-key ring indexed a tuple with a computed number, which under `noUncheckedIndexedAccess` forced two guards the type system already makes unreachable. Unreachable branches cannot be covered, only ignored.
+>
+> **Eight KB-051 colours were raised, not shipped as specified.** They failed WCAG at the values KB-051 gave: `--border` light **1.18:1**, `--text-disabled` light **2.26:1**, `--success`/`--warning` **4.38:1**, and a `--focus-ring` specified as a *40 % wash* that cannot reach 3:1 against any light background (WCAG 2.2 §2.4.11 requires it to). **The thresholds were never lowered to fit the palette.** The validator re-derived this from scratch with its own WCAG implementation — 110 pairs, 0 failing, both themes.
+>
+> **The 12 px workhorse type scale is an owner decision, not a default.** `--text-sm: 12px` (table body, form inputs), `--text-base: 14px`, 30 px compact rows — confirmed by Vivek 2026-08-20, weighed explicitly against the "more user-friendly than the reference ERPs" goal and kept. **The reasoning, so it is not re-litigated:** density *is* the usability feature in a data-heavy ERP; rows-per-screen is what an operator entering line items all day actually feels, and larger type costs visible rows on the highest-frequency task in the system. `M2-C04-02`, `M2-C05-01` and `M2-C07` inherit this scale and should not reopen it.
+>
+> **Still owed at review, and genuinely not automatable:** both themes at **200 % zoom with `prefers-reduced-motion` enabled**. `jsdom` applies no stylesheet, so no test can cover it. This is a review step, **not an unmet acceptance criterion** — recorded here so it is not mistaken for one, and not silently dropped either.
+
+Pre-merge record follows. Branch `migration/M2-C04-01-design-tokens`, tip `9f886a6` at validation.
 
 **History, for context.** Attempt 1 (`cdb147a`, 2026-08-19) implemented the full token/theme
 layer under `frontend/nexgen-web/src/shared/theme/` and passed all sixteen acceptance criteria

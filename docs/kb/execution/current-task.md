@@ -109,15 +109,22 @@ second task after this one.
 
 ## Carried forward from `M2-C04-01`'s close-out
 
-- **`M2-C04-01` is `Needs Review`, not `Completed`.** Validated `PASS` on 2026-08-20 (branch
-  `migration/M2-C04-01-design-tokens`, tip `9f886a6`) — all sixteen acceptance criteria `MET`,
-  the coverage regression that stopped attempt 1 closed honestly (branches 100 %, floor
-  untouched). One manual step is still owed at review: both themes at 200 % zoom, with
-  `prefers-reduced-motion` enabled — not automatable, `jsdom` applies no stylesheet. Full
-  record: [`tasks/M2-C04-01.md` § Execution Record (2026-08-20)](tasks/M2-C04-01.md#execution-record-2026-08-20).
-  `M2-C04-02`, `M2-C04-03` and `M2-C03` stay `Blocked` until this is reviewed and merged.
+- **`M2-C04-01` is `Completed` and merged** (`56b8ae2`, 2026-08-20) — all sixteen criteria `MET`, no waiver. Validated `PASS` (branch
+  `migration/M2-C04-01-design-tokens`, tip `9f886a6`). The coverage regression that stopped
+  attempt 1 was closed **by raising coverage to 100 % branches, not by lowering the floor** —
+  `vitest.config.ts` is byte-identical to `master`. Full record:
+  [`tasks/M2-C04-01.md` § Execution Record (2026-08-20)](tasks/M2-C04-01.md#execution-record-2026-08-20)
+  and `task-tracker.md` footnote ²².
+  `M2-C04-02` and `M2-C04-03` are now **`Ready`**; `M2-C03` stays `Blocked` on `M2-C02`.
+  **Still owed at review, and not automatable:** both themes at 200 % zoom with
+  `prefers-reduced-motion` enabled — `jsdom` applies no stylesheet, so no test can cover it.
+  A review step, **not** an unmet acceptance criterion.
+- **The 12 px type scale is a settled owner decision** (Vivek, 2026-08-20): `--text-sm: 12px`
+  for table body and form inputs, `--text-base: 14px`, 30 px compact rows. Density *is* the
+  usability feature in a data-heavy ERP — rows-per-screen is what an operator entering line
+  items all day feels. `M2-C04-02`, `M2-C05-01` and `M2-C07` inherit it; do not reopen it.
 - **`UserThemePreference.IsDarkMode` is a bare `bool`, cannot represent `system`.** Recorded as
-  an INV-006 amendment and **Q-33** (owner: product + backend, needed by M3-3). No entity
+  an INV-006 amendment and **Q-33** (owner: product + backend, needed by M3-3; next free is now **Q-34**). No entity
   change was made. Not relevant to `M2-A06`, but recorded here so it is not re-discovered.
 - **The theme layer's byte cost is recorded** in `frontend/nexgen-web/README.md` against
   KB-050's `< 250 KB gzip` target: entry JS 91.59 kB gzip, well inside budget.
