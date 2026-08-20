@@ -100,16 +100,40 @@ request (see [multi-tenancy](../architecture/multi-tenancy.md) problem 1). *(The
 
 `CurrencyController.GetAll` · `[Authorize]`
 
-**Query parameters.** `pageNumber` (default 1), `pageSize` (default 10), `currName`,
-`createdBy`, `fromDate`, `toDate` — the last four are packed into a
-`Dictionary<string, object>` and passed to `SearchWithDynamicFilterAsync`.
+> **Rewritten by M2-B02 (2026-08-20)** to the paged list contract — ADR-002 §2 and its
+> [§2a addendum](../decisions/ADR-002-rest-api-layer.md). This is the **reference
+> implementation**: every future list endpoint copies it. The route prefix is still
+> `api/currencies`; M2-B01 moves it to `/api/v1`.
+
+**Query parameters** — one bound `CurrencyQuery` record, not six loose parameters.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `pageNumber` | int | **1** | 1-based; `< 1` → 400 |
+| `pageSize` | int | **20** | max **100**; outside that → 400. **Changed:** this endpoint defaulted to 10 before M2-B02 |
+| `sort` | string | — | comma-separated, `-` prefix descending, e.g. `-createdDate,currName`. Absent → today's `OrderByDescending(CurrId)` |
+| `currName` | string | — | case-insensitive contains |
+| `createdBy` | string | — | case-insensitive contains |
+| `fromDate` | **date-time** | — | `CreatedDate >= fromDate.Date`. **Was `string?`** |
+| `toDate` | **date-time** | — | `CreatedDate <=` end of that day (inclusive). **Was `string?`** |
+
+**Sortable fields** (unknown → 400 listing these): `currId`, `currName`, `currSub`, `symbol`,
+`isSystemDefined`, `createdBy`, `createdDate`.
 
 **Response 200.** `{ "items": CurrencyVM[], "totalCount": int, "pageNumber": int, "pageSize": int }`
+— unchanged on the wire. The type is now the shared generic
+`V.SMART.Api.Contracts.PagedResult<T>`; the controller-local `PagedCurrencyResponse` is gone.
+The OpenAPI document names it `CurrencyVMPagedResult` (observed in `/swagger/v1/swagger.json`,
+2026-08-20). `totalCount` is the **filtered, unpaged** count.
 
-**Business logic.** `ICurrencyService.SearchWithDynamicFilterAsync(pageNumber, pageSize, filters)`.
+**Errors.** 400 `application/problem+json` with an `errors` dictionary keyed by field for:
+`pageNumber < 1`, `pageSize` outside 1–100, an unparseable `fromDate`/`toDate`,
+`fromDate > toDate`, and a `sort` field that is unknown or repeated. 401 when unauthenticated.
 
-**Note.** `fromDate`/`toDate` are passed as **strings** into an untyped dictionary — the
-service parses them. Weak typing at the boundary; worth fixing in the convention.
+**Business logic.** `ICurrencyService.SearchWithDynamicFilterAsync(pageNumber, pageSize, filters, sort)`
+— an **additive** overload added by M2-B02; the three-argument member is unchanged and delegates
+to it with `sort: null`. The typed query is mapped to the service's `Dictionary<string, object>`
+by `V.SMART.Api.Contracts.FilterDictionaryAdapter`; that dictionary never appears on the wire.
 
 ---
 

@@ -139,8 +139,19 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | B6 | **Reference-data endpoints** — GST rates, screen catalogue, UOM, states, currencies, terms | 3 days |
 | B7 | **Typed screen-code constants** replacing the magic integers passed to `IStockManagerService` | 2 days |
 | B8 | **Approval endpoints** enforcing `UserAuthority` server-side | 1 wk |
-| B9 | **Server-side sort/filter/paging contract** consistent across all list endpoints | 1 wk |
+| B9 | **Server-side sort/filter/paging contract** consistent across all list endpoints | 1 wk — **contract delivered by M2-B02 (2026-08-20); rollout ongoing.** See below |
 | B10 | **OpenAPI → TypeScript client generation** in CI | 3 days |
+
+**B9 status (M2-B02, 2026-08-20).** The contract itself is delivered and proven on one endpoint:
+`PagedResult<T>`, `PagedQuery`, a per-resource typed query record, `SortSpecification` (syntax +
+allow-list) and `FilterDictionaryAdapter` in `V.SMART/V.SMART.Api/Contracts/`, applied to
+`GET api/currencies`. The rules — sort syntax, `pageSize` maximum 100, allow-list, 400 conditions
+— are in [ADR-002 §2a](../decisions/ADR-002-rest-api-layer.md). **"Consistent across all list
+endpoints" is not yet true**: `SearchWithDynamicFilterAsync` is declared 134 times across
+`V.SMART.Shared/BusinessLayer/` and exactly one of them (`CurrencyService`) has the sort-aware
+overload. The remaining 133 convert inside their own module's migration wave
+([KB-080 §10](../execution/README.md#10-module-migration-task-pattern), step 06), never in one
+sweep. Read B9 as *contract done, rollout ~1/134*.
 
 ### P2 — hardening
 

@@ -22,9 +22,21 @@ namespace V.SMART.Api.Tests.Infrastructure
         public (bool CanDelete, string Message) CanDeleteResult { get; set; } = (true, "ok");
         public bool DeleteResult { get; set; } = true;
 
+        /// <summary>The arguments of the last <c>SearchWithDynamicFilterAsync</c> call (M2-B02).</summary>
+        public (int PageNumber, int PageSize, Dictionary<string, object>? Filters, string? Sort) LastSearch { get; private set; }
+
         public Task<(List<CurrencyVM> currencyVMs, int TotalCount)> SearchWithDynamicFilterAsync(
             int pageNumber, int pageSize, Dictionary<string, object>? filters)
-            => Task.FromResult((SearchResult.Items, SearchResult.TotalCount));
+            => SearchWithDynamicFilterAsync(pageNumber, pageSize, filters, sort: null);
+
+        // M2-B02 added this overload to ICurrencyService. The fake records what the controller
+        // passed so the paging/filter/sort contract can be asserted without a database.
+        public Task<(List<CurrencyVM> currencyVMs, int TotalCount)> SearchWithDynamicFilterAsync(
+            int pageNumber, int pageSize, Dictionary<string, object>? filters, string? sort)
+        {
+            LastSearch = (pageNumber, pageSize, filters, sort);
+            return Task.FromResult((SearchResult.Items, SearchResult.TotalCount));
+        }
 
         public Task<CurrencyVM?> GetByIdAsync(int currId) => Task.FromResult(GetByIdResult);
 

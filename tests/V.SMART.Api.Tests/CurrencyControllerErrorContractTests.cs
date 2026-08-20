@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using V.SMART.Api.Contracts;
 using V.SMART.Api.Controllers;
 using V.SMART.Api.Middleware;
 using V.SMART.Api.Tests.Infrastructure;
@@ -158,8 +159,11 @@ namespace V.SMART.Api.Tests
                 DeleteResult = true
             };
 
-            var list = Assert.IsType<OkObjectResult>((await Controller(service).GetAll()).Result);
-            var paged = Assert.IsType<CurrencyController.PagedCurrencyResponse>(list.Value);
+            // M2-B02 replaced the controller-local paged-response record with the shared
+            // PagedResult<T>. The JSON is unchanged — the four property names were already
+            // ADR-002 §2's — so this remains a success-shape regression, not a new assertion.
+            var list = Assert.IsType<OkObjectResult>((await Controller(service).GetAll(new CurrencyQuery())).Result);
+            var paged = Assert.IsType<PagedResult<CurrencyVM>>(list.Value);
             Assert.Equal(1, paged.TotalCount);
             Assert.Same(currency, Assert.Single(paged.Items));
 

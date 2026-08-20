@@ -16,7 +16,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-010, KB-013]
 ---
 
@@ -98,6 +98,25 @@ Sampled across `MfgPoService`, `StockManagerService`, `SCNGenService`, `Currency
 This regularity is the single most useful property of the codebase for the migration: a
 REST controller template can be generated per service with very little per-service
 thought. See [`api/api-readiness-assessment.md`](../api/api-readiness-assessment.md).
+
+**The dictionary stays in the service; the controller takes a typed DTO (M2-B02, 2026-08-20,
+Confirmed).** `SearchWithDynamicFilterAsync` is declared **134 times** across
+`V.SMART.Shared/BusinessLayer/` with that identical three-parameter signature, consumed by **67**
+nested `*FilterBuilder` classes — and **no** service takes a sort parameter; ordering is hardcoded
+per service (`CurrencyService.cs:279`, `OrderByDescending(x => x.CurrId)`). The API does **not**
+change that. A per-resource typed query record binds at the controller and
+`V.SMART.Api.Contracts.FilterDictionaryAdapter` maps it — explicitly, never by reflection — onto
+the dictionary the service already takes, so the service is untouched and the dictionary never
+appears on the wire (ADR-002 §2a).
+
+Sort is the one thing the dictionary cannot carry: every `*FilterBuilder.ApplyFilter` ends in
+`_ => query` (`CurrencyService.cs:206`), so an unrecognised key is silently discarded and the
+request would answer 200 while sorting nothing. It is therefore delivered as an **additive
+overload** — `SearchWithDynamicFilterAsync(int, int, Dictionary<string, object>?, string? sort)`
+— with the existing member delegating to it. `CurrencyService` is so far the only one of the 134
+that has it; the rest convert inside their own module's wave. When adding it to a service, pair
+the existing `*FilterBuilder` with a `*SortBuilder` whose field `switch` is an explicit allow-list
+and which **throws** on an unknown field (`CurrencyService.cs:227-322` is the reference).
 
 ## The calculation engine — the crown jewel
 
