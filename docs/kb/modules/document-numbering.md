@@ -225,7 +225,24 @@ Both are read and written with **plain EF and no lock hint at all**.
 | `LabourServices/LabourDcOutgoingService.cs` | **compensating decrement** on delete | 596-609 | `DcRunningNumbers` |
 | `LabourServices/LabourDcOutgoingService.cs` | **compensating decrement** on delete, **extra `> 1` guard** | 5177-5190 | `DcRunningNumbers` |
 | `OutSourcingService/SubContractDcOutService/SubConDcOutService.cs` | **compensating decrement** on delete | 222-235 | `DcRunningNumbers` |
-| `OutSourcingService/SubContractDcOutService/SubConDcOutService.cs` | **compensating decrement** on delete | 1583-1596 | `DcRunningNumbers` |
+| `OutSourcingService/SubContractDcOutService/SubConDcOutService.cs` | **compensating decrement** on delete, **extra `> 1` guard** | 1583-1596 | `DcRunningNumbers` |
+
+*Confirmed (completeness check, 2026-08-20 attempt 2).* The table above is the **whole** write
+census: `grep -rn "DcRunningNumbers\|InvoiceAutoRunningNumbers" BusinessLayer/ --include=*.cs`
+filtered to `GetQueryable|CreateAsync|UpdateAsync` returns 26 lines, and every one falls inside
+a row above. Two related call sites complete the picture and remove an apparent contradiction
+with §3.4:
+
+- `SubConDcOutService.cs:921` — `entity.DcNo = await _commonService.GenerateAutoRunningNoAsync("SUBCONDCOUT", entity.Suffix);`,
+  directly under the commented-out Mechanism A call at `:920`. This is the SUBCONDCOUT
+  allocation site §3.4 implies but does not name.
+- `LabourDcOutgoingService.cs:2715` — the `else if (labourDcVM.IsManualDcNo ?? true)` that opens
+  the inline write at `:2717-2738`, directly under the commented-out Mechanism A call at
+  `:2708`.
+
+*Confirmed negative result:* SUBCONDCOUT has **no** manual-branch inline write — the only
+`DcRunningNumbers` writes in `SubConDcOutService.cs` are the two decrements at `:234` and
+`:1595`. So the manual-number hazard in (c) below does **not** apply to that series.
 
 *Confirmed.* The two allocation-table repositories are **empty shells** — constructor only,
 no methods: `Repository/DcRunningNoRep/DcRunningNumberRepository.cs:15-29` and
@@ -255,12 +272,28 @@ census above missed `LabourDcOutgoingService.cs:596-609` and `:5177-5190` (both
 delete** — the behaviour is universal to Mechanism C, not a quirk of four services. The task
 file names only the first site, and so does R-12.
 
-**Seven of the eight are byte-identical; one is not.** `LabourDcOutgoingService.cs:5186`
-guards `if (runningRow.LastNumber == oldDcNo && runningRow.LastNumber > 1)`. The other seven
-omit the `> 1` clause and will therefore write `LastNumber = 0` when the first document of a
-financial year is deleted. Whether a stored `0` is handled correctly on the next allocation is
-**Unknown**: the allocator's initialiser is `1` (`CommonService.cs:1860`), and no branch
-expects to read `0` back. Raised with the other M2-B12-02 questions in §10.
+**Six of the eight are unguarded; two carry an extra `> 1` clause.** *Confirmed 2026-08-20
+(guard census corrected on attempt 2; the first correction said seven and one).* Reproducible
+command and its full output:
+
+```
+$ grep -rn "runningRow.LastNumber ==" V.SMART/V.SMART.Shared/BusinessLayer/ --include=*.cs
+LabourServices/LabourDcOutgoingService.cs:605:   if (runningRow.LastNumber == oldDcNo)
+LabourServices/LabourDcOutgoingService.cs:5186:  if (runningRow.LastNumber == oldDcNo && runningRow.LastNumber > 1)
+LabourServices/LabourInvoiceService.cs:645:      if (runningRow.LastNumber == oldInvNo)
+OutSourcingService/SubContractDcOutService/SubConDcOutService.cs:231:   if (runningRow.LastNumber == oldDcNo)
+OutSourcingService/SubContractDcOutService/SubConDcOutService.cs:1592:  if (runningRow.LastNumber == oldDcNo && runningRow.LastNumber > 1)
+SalesService/ExpInvService.cs:256:               if (runningRow.LastNumber == oldExpInvNo)
+SalesService/MfgDcService.cs:377:                if (runningRow.LastNumber == oldDcNo )
+SalesService/MfgInvService.cs:982:               if (runningRow.LastNumber == oldInvNo )
+```
+
+`LabourDcOutgoingService.cs:5186` **and** `SubConDcOutService.cs:1592` are identical lines and
+both guard `&& runningRow.LastNumber > 1`. The other **six** omit the clause and will therefore
+write `LastNumber = 0` when the first document of a financial year is deleted. Whether a stored
+`0` is handled correctly on the next allocation is **Unknown**: the allocator's initialiser is
+`1` (`CommonService.cs:1860`), and no branch expects to read `0` back. Raised with the other
+M2-B12-02 questions in §10.
 
 **This rules out a plain `CREATE SEQUENCE`**, which cannot be decremented. Flagged for
 [`M2-B12-03`](../execution/tasks/M2-B12-03.md) as a hard constraint on the remedy — and the
@@ -760,7 +793,7 @@ so a query written as `WHERE Suffix = '2025-26'` returns nothing. The `Payments`
 | **Q-37** *(new)* | Do document numbers cross into e-Invoice / e-Way payloads in a **shape-sensitive** way? | The coupling is Confirmed — `EWayDatabaseService.cs:216,227,239,251` matches records by `DcNo + Suffix` / `InvNo + Suffix`. Whether a downstream government API *parses* that shape is INV-015's question (Scheduled, Phase 4.5), and this task is **forbidden** from running it. Recorded, not investigated. |
 | **Q-38** *(new)* | Is the "separate series" branch that omits the `+1` (`CommonService.cs:1883-1894`, `:2119-2128`) intended design or a duplicate-number defect? | The source states the behaviour, not the intent. Needs the owner, or M2-B12-02's duplicate census correlated against `Company.BookTypeDc`. |
 | **Q-39** *(new)* | Can a tenant database hold **more than one `Company` row**? | If so, the unscoped `Companies…FirstOrDefaultAsync()` discriminator reads (`CommonService.cs:1855-1858`, `:2088-2091`) return an arbitrary company's setting. One `COUNT(*)` in M2-B12-02 settles it. |
-| **Q-40** *(new)* | When the **first** document of a financial year is deleted, seven of the eight decrement blocks write `LastNumber = 0`. Is `0` handled correctly, and is the eighth block's extra `> 1` guard the intended behaviour or the accident? | Only `LabourDcOutgoingService.cs:5186` guards `&& runningRow.LastNumber > 1`; the other seven omit it (§3.3(b)). Which is correct is not recoverable from source. Owner decision, or M2-B12-02 finding stored `LastNumber = 0` rows. **M2-B12-03 must not normalise the eight without answering it.** |
+| **Q-40** *(new; guard census corrected on attempt 2)* | When the **first** document of a financial year is deleted, **six** of the eight decrement blocks write `LastNumber = 0`. Is `0` handled correctly, and is the other **two** blocks' extra `> 1` guard the intended behaviour or the accident? | Exactly two guard `&& runningRow.LastNumber > 1` — `LabourDcOutgoingService.cs:5186` and `SubConDcOutService.cs:1592`, identical lines; the other six omit it (§3.3(b)). Which is correct is not recoverable from source. Owner decision, or M2-B12-02 finding stored `LastNumber = 0` rows. **M2-B12-03 must not normalise the eight without answering it.** |
 
 Additional **Unknown**s are recorded in §4.5 rather than as separate questions, because they
 are all resolved by the same M2-B12-02 census: `Company.BookTypeDc` / `BookTypeInvoice`

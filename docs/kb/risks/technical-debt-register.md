@@ -742,9 +742,11 @@ correction below.
 >   `:5177-5190`, `SubConDcOutService.cs:222-235` and `:1583-1596`,
 >   `MfgInvService.cs:982-985`, `ExpInvService.cs:256-259` and
 >   `LabourInvoiceService.cs:645-648`. **Every auto-allocated document type decrements on
->   delete**, so the constraint binds the whole remedy, not four services. Seven blocks are
->   byte-identical; `LabourDcOutgoingService.cs:5186` alone adds a `&& LastNumber > 1` guard,
->   so the other seven can write `LastNumber = 0` — see **Q-40**.
+>   delete**, so the constraint binds the whole remedy, not four services. **Guard census
+>   corrected 2026-08-20 (M2-B12-01 attempt 2, Confirmed): TWO of the eight carry the
+>   `&& runningRow.LastNumber > 1` guard, not one** — `LabourDcOutgoingService.cs:5186` and
+>   `SubConDcOutService.cs:1592`, which are identical lines. The other **six** omit it and
+>   can write `LastNumber = 0` — see **Q-40**.
 > - `MfgDcService.IsDuplicateDcNoAsync:771-790` scopes uniqueness **by `CustId`**, so an
 >   unqualified `(DcNo, Suffix)` unique index would reject data the application currently
 >   accepts. **Corrected 2026-08-20:** the census is **81 `IsDuplicate*Async` occurrences

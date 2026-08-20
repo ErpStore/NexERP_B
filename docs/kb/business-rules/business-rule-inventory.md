@@ -492,9 +492,14 @@ Full treatment in [KB-100](../modules/document-numbering.md) §3.3 and §8.
   read. **Confirmed.** The suffix is computed in Razor `@code` in **53 files** and passed into
   the services, so it must be extracted server-side before any Angular document screen.
 - **Gap-avoiding decrement on delete.** When the deleted document held the current high-water
-  mark, `LastNumber` is decremented — `MfgDcService.cs:368-382`, `MfgInvService.cs:982-985`,
-  `ExpInvService.cs:256-259`, `LabourInvoiceService.cs:645-648`. **Confirmed. This rules out a
-  plain `CREATE SEQUENCE`.**
+  mark, `LastNumber` is decremented. **Eight blocks in six services** — `MfgDcService.cs:368-382`,
+  `MfgInvService.cs:973-986`, `ExpInvService.cs:247-259`, `LabourInvoiceService.cs:636-648`,
+  `LabourDcOutgoingService.cs:596-609` and `:5177-5190`, `SubConDcOutService.cs:222-235` and
+  `:1583-1596` — so **every auto-allocated document type decrements**. Two of the eight
+  (`LabourDcOutgoingService.cs:5186`, `SubConDcOutService.cs:1592`) additionally require
+  `LastNumber > 1`; the other six can write `LastNumber = 0` (**Q-40**, intent Unknown).
+  **Confirmed. This rules out a plain `CREATE SEQUENCE`.** *(Census corrected 2026-08-20 by
+  M2-B12-01 attempt 2 — this entry previously named only the first four sites.)*
 - **Manual entry sets the mark, and can lower it.** `MfgDcService.cs:815-841` writes the
   user-typed number to `LastNumber` unconditionally, defaulting to the manual path when
   `IsManualDcNo` is null (`:815`). **Confirmed.**
