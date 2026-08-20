@@ -147,7 +147,7 @@ Ordered algorithm (Confirmed, `CalculationService.cs:12-114`):
 Permitted GST rates are enumerated in `Utility_Constants/CommonConstants.cs`
 (`IGSTRates` 0–28%, `GSTRates` = half rates for CGST/SGST).
 
-**Preserve verbatim.** Do not reimplement this in TypeScript. The React client may compute
+**Preserve verbatim.** Do not reimplement this in TypeScript. The Angular client may compute
 an optimistic preview, but the server value must always win. See
 [`decisions/ADR-003-react-stack.md`](../decisions/ADR-003-react-stack.md).
 
@@ -176,7 +176,7 @@ Flow (Confirmed):
 `srinuenggind.bhargavisofttech.co.in`, `sharadaelectrou1.bhargavisofttech.co.in`.
 
 **Consequence:** reports render directly from the database, bypassing the service layer
-entirely. A React frontend needs only an endpoint returning the PDF bytes. **Nothing about
+entirely. An Angular frontend needs only an endpoint returning the PDF bytes. **Nothing about
 reporting needs to be rebuilt.**
 
 ### 2. List/analysis reports — stored procedures

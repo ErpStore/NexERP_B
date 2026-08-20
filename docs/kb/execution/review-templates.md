@@ -111,7 +111,7 @@ Last verified:   YYYY-MM-DD
 - [ ] Every acceptance criterion is objectively met, not merely asserted.
 - [ ] Verification commands were actually run, with output.
 - [ ] No secret, connection string or credential added anywhere.
-- [ ] No business logic added to React; no business service rewritten.
+- [ ] No business logic added to the Angular app; no business service rewritten.
 - [ ] No database schema change unless the task authorised one.
 - [ ] Claims are classified Confirmed / Inferred / Unknown, with `file:line` evidence.
 - [ ] Documentation and the investigation registry are updated, with `last_verified` bumped.
@@ -220,7 +220,7 @@ human step the task's *Completion Conditions* names — normally the merge
 
 ### Project
 
-Gate G6 passes: all tenants on React for all modules; one full financial period with zero
+Gate G6 passes: all tenants on Angular for all modules; one full financial period with zero
 module-level fallbacks; a rollback drill executed successfully in production; Blazor routes
 retired and the decommissioning decision recorded as a new ADR.
 

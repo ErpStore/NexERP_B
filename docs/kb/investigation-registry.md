@@ -391,6 +391,15 @@ Last verified:  2026-08-20
 Consequence, and it must not be softened: **the 60-second TTL is the only staleness bound
 that exists** (KB-105 §8.4, §8.6; F-7; Q-29).
 
+> **Context note, 2026-08-20:** the npm-registry measurements in this amendment (Vite 8,
+> `@mantine/core` 9.5.1, react-router 8.3.0 …) were **true when measured** and are kept as
+> measurements. **They are no longer the plan** — [ADR-007](decisions/ADR-007-angular-stack.md)
+> replaced React with Angular + PrimeNG. What still transfers is the *method*, which is why the
+> block is worth keeping: `npm create <tool>@latest` emits whatever is current, and pinning a
+> stack means measuring the registry rather than trusting a task file written days earlier. The
+> `.gitignore` findings below are framework-independent and still hold — note `**/.angular/`
+> was already covered, which now matters more than it did.
+
 **M2-C01 amendment to INV-029 (2026-08-19) — the post-M0 `.gitignore` / `.github/workflows/`
 state, and the repository's first React project.** M2-C01's task file was written on
 2026-08-12 and asserts that `.github/workflows/` is empty and that `.gitignore` ignores only

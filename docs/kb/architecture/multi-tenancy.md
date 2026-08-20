@@ -82,7 +82,7 @@ falling back to `{reportRoot}/default/{file}.frx` (`ReportService.Generate_Repor
 **Two different per-tenant path conventions coexist** (`CompanyName` vs `Hostname`) — a
 consistency wrinkle to normalise when file handling moves to HTTP.
 
-## Problems for a React SPA
+## Problems for an Angular SPA
 
 | # | Problem | Detail |
 |---|---|---|

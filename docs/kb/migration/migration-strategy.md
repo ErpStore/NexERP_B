@@ -17,11 +17,11 @@ dependencies: [KB-020, KB-041, KB-050, KB-052, KB-060]
 
 ## Guiding principles
 
-1. **Strangler-fig, not big bang.** The Blazor app stays in production until the React app
+1. **Strangler-fig, not big bang.** The Blazor app stays in production until the Angular app
    reaches parity per module. Both run against the same database and the same services.
 2. **The backend is extended, never rewritten.** New controllers over existing services.
 3. **Extract before you rebuild.** Business logic comes out of `@code` into services
-   *first*, verified against the running Blazor app, *then* the React screen is built.
+   *first*, verified against the running Blazor app, *then* the Angular screen is built.
 4. **Server is authoritative.** Calculations, validation, permissions, numbering.
 5. **Migrate along the dependency graph.** Masters → transactional documents → reports.
 6. **Every module ships behind a per-tenant, per-module feature flag.**
@@ -86,7 +86,7 @@ of implementation.
 
 | Task | Est. |
 |---|---|
-| Vite + React 19 + TS strict, ESLint/Prettier, Vitest, Playwright, CI | 3 d |
+| Angular 22 CLI + TS strict, ESLint/Prettier, Jest-or-Vitest + Angular Testing Library, Playwright, CI | 3 d |
 | App shell: header, sidebar (permission-filtered), breadcrumbs, ⌘K palette, theme | 1.5 wks |
 | Auth: login, refresh, guards, permission store, `PermissionGate` | 1 wk |
 | Design-system primitives (see [`design-system.md`](../frontend-new/design-system.md)) | 2 wks |
@@ -96,7 +96,7 @@ of implementation.
 | **`DocumentEditor`** shell (header + lines + totals + commands) | 2 wks |
 | Report framework (`ReportPage` from a declarative definition) | 1 wk |
 
-**Exit criteria (vertical slice).** Currency and Customer Master fully working in React —
+**Exit criteria (vertical slice).** Currency and Customer Master fully working in Angular —
 login, tenant, permission-gated CRUD, server paging, validation, error contract, Excel
 export — with the Blazor app untouched and still live.
 
@@ -105,7 +105,7 @@ export — with the Blazor app untouched and still live.
 ## Phase 3 — Core modules (12–16 weeks)
 
 Order follows the dependency graph. Each module: extract `@code` logic → build controllers
-→ build React screens → parity test → feature-flag on for a pilot tenant.
+→ build Angular screens → parity test → feature-flag on for a pilot tenant.
 
 | Wave | Modules | Why here | Est. |
 |---|---|---|---|
@@ -118,7 +118,7 @@ Order follows the dependency graph. Each module: extract `@code` logic → build
 | 3.7 | Dashboard | | 1.5 wks |
 
 **Exit criteria.** A pilot tenant runs masters, the sales pipeline through Sales Order,
-approvals, and core reports entirely in React.
+approvals, and core reports entirely in Angular.
 
 ---
 
@@ -151,7 +151,7 @@ Testing is **not** a terminal phase; only the hardening sweep is.
 | Component tests (RTL) for design-system primitives | Phase 2 |
 | E2E (Playwright) for each module's critical path | with each module |
 | **Permission matrix testing** — every endpoint × every right combination, automated | Phase 2 onward, mandatory gate |
-| **Parity testing** — same input through Blazor and React, compare persisted rows and totals | per module |
+| **Parity testing** — same input through Blazor and Angular, compare persisted rows and totals | per module |
 | Performance: 10k-row grids, 200-line documents, concurrent document creation (R-12) | Phase 5 |
 | Security: pen test focused on tenant isolation, IDOR on `{id}` routes, JWT handling, XSS | Phase 5 |
 | Accessibility: axe in CI + manual keyboard pass per screen | continuous |
@@ -163,12 +163,12 @@ Testing is **not** a terminal phase; only the hardening sweep is.
 
 | Step | Detail |
 |---|---|
-| Deployment topology | React static build on CDN/nginx; API containerised; Blazor app retained; per-tenant subdomain routing preserved |
+| Deployment topology | Angular static build on CDN/nginx; API containerised; Blazor app retained; per-tenant subdomain routing preserved |
 | Monitoring | Structured logs (replacing R-23), APM traces, error tracking, uptime checks, per-tenant dashboards |
 | Rollout | Per-tenant, per-module feature flags. Pilot tenant first (smallest by volume), then staged |
 | Rollback | Flags flip back to Blazor per module within minutes. Both UIs share one database, so **no data migration and no rollback data problem** — the decisive advantage of the strangler approach |
 | User migration | No credential migration: same `Users` table, same hashes. Per-role training, side-by-side period, in-app guided tour |
-| Legacy decommissioning | Only after ≥ 1 full financial period with zero fallbacks on a module. Retire Blazor routes module by module; retire the MAUI app **only** once the responsive/shop-floor React screens are proven (Q-11) |
+| Legacy decommissioning | Only after ≥ 1 full financial period with zero fallbacks on a module. Retire Blazor routes module by module; retire the MAUI app **only** once the responsive/shop-floor Angular screens are proven (Q-11) |
 
 ---
 

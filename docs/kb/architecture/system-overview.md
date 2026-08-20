@@ -50,7 +50,7 @@ There is no reference between the three hosts.
 ┌───────▼────────┐   ┌──────────▼─────────┐   ┌──────────▼──────────┐
 │  V.SMART.Web   │   │      V.SMART       │   │    V.SMART.Api      │
 │  Blazor Server │   │  MAUI Blazor Hybrid│   │  REST (JWT), ~10%   │
-│  SignalR circuit│  │  local WebView     │   │  → future React SPA │
+│  SignalR circuit│  │  local WebView     │   │  → future Angular SPA │
 └───────┬────────┘   └──────────┬─────────┘   └──────────┬──────────┘
         └───────────────────────┴────────────────────────┘
                                 │

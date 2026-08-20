@@ -321,7 +321,7 @@ gates that the API does not:
 | **Device binding** (Q-07) | `Login.razor:277-322` | Only when `UserId > 1 && (IsMobile \|\| IsDesktop)`; trust-on-first-use; **device identity is client-asserted** via `deviceHelper.getDeviceId`/`isMobile`. `UserService.UpdateUserDeviceAsync:713-757` only **records** — it never compares, never refuses, and never writes `IsMobile`/`IsDesktop`. It calls `IJSRuntime` directly, so it **cannot run inside an API request at all** |
 | **QR token expiry** (Q-05, R-16) | `QrLogin.razor:50-56`, `Login.razor:422-429` | Enforced *post-query*, in **two duplicated copies**. `UserRepository.GetUserByQrToken:52-60` still **returns expired users**, so correctness depends entirely on which caller checks |
 
-**Impact.** Every React login bypasses three live gates. Trial enforcement, device binding
+**Impact.** Every SPA login bypasses three live gates. Trial enforcement, device binding
 and QR expiry silently cease to exist the moment the SPA becomes the front door — and
 because two of the three are client-asserted or duplicated in the UI, they cannot simply be
 lifted as-is.
@@ -559,7 +559,7 @@ quantity balancing, cancellation, short-close, and cascade rules all live in the
 every "Very High" complexity rating in the feature map.
 **Action.** Per-module triage into three buckets — presentation (discard), data loading
 (becomes API calls), business logic (extract to service). Extraction happens **before** the
-corresponding React screen is built, and is validated against the still-running Blazor app.
+corresponding Angular screen is built, and is validated against the still-running Blazor app.
 
 ### R-07 — FIFO stock issue silently under-allocates
 **Confirmed.** `StockManagerService.cs:209-233` (re-verified 2026-08-12; previously cited as
@@ -921,7 +921,7 @@ alongside `V.SMART.Shared.*`, and one `V.SMARTV.Shared.…` (a typo namespace).
 ### R-22 — Two overlapping design systems in the UI
 **Confirmed.** MudBlazor 8 and Bootstrap 5 CSS both loaded and both used.
 **Impact.** Visual inconsistency; part of why the product looks dated.
-**Action.** Resolved by construction in the React rewrite — one library only.
+**Action.** Resolved by construction in the SPA rewrite — one library only.
 
 ### R-23 — Flat-file logging with no aggregation, and an unsanitised path
 **Confirmed.** `FileLoggingService` writes flat text files under `App_Data/Logs/`.
@@ -1134,7 +1134,7 @@ them.
 | R-31 | Dead role `"ERPAdmin"` in `AuthorizeView` but absent from `UserRole` | `NavMenu.razor` vs `Data/Enum/UserRole.cs` |
 | R-32 | Large blocks of commented-out code (e.g. `ReportExecutor.cs:47-80`) | multiple files |
 | R-33 | `Underconstruction.razor` shipped in the component set | `Components/` |
-| R-34 | Angular pilot will become dead code once React starts | `frontend/vsmart-erp/` |
+| R-34 | ~~Angular pilot will become dead code once React starts~~ — **REVERSED by ADR-007 (2026-08-20): the pilot becomes the baseline.** The live risk is now the opposite: `frontend/nexgen-web/` (React) is the dead code, removed by the re-scoped `M2-C01` | `frontend/vsmart-erp/`, `frontend/nexgen-web/` |
 | R-35 | Two per-tenant path conventions (`CompanyName` vs `Hostname`) | `TenantProvider` vs `ReportService` |
 | R-36 | Inconsistent route casing (`/MfgPO/create` vs `/mfgPO/details`) | `Pages/` |
 | R-37 | `docs/ARCHITECTURE.md` is an unfinished template with `[TODO: ANALYZE]` markers presented as documentation | `docs/` |

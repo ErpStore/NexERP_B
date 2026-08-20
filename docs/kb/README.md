@@ -11,7 +11,7 @@ last_verified: 2026-08-12
 # V.SMART / NexGen ERP — Repository Knowledge Base
 
 This is the **persistent source of truth** for how the existing ERP works and how the new
-React frontend will be built. It exists so that the same parts of the repository are not
+Angular frontend will be built. It exists so that the same parts of the repository are not
 investigated twice.
 
 ## Executing the migration
@@ -56,7 +56,7 @@ See [`source-of-truth-rules.md`](source-of-truth-rules.md). Summary:
 | Existing modules | [`modules/`](modules/) | **As-is** ERP module inventory |
 | Existing business rules | [`business-rules/`](business-rules/) | **As-is** rules with file:line evidence |
 | Existing + planned API | [`api/`](api/) | Current controllers, readiness gap |
-| Proposed frontend | [`frontend-new/`](frontend-new/) | **To-be** React stack, design system, page map |
+| Proposed frontend | [`frontend-new/`](frontend-new/) | **To-be** Angular stack, design system, page map |
 | Risks | [`risks/`](risks/) | Technical debt register, severity-classified |
 | Plan | [`migration/`](migration/) | Phased migration strategy |
 | Decisions | [`decisions/`](decisions/) | ADRs |

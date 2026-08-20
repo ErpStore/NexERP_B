@@ -183,6 +183,6 @@ before load increases from an SPA. Risk R-13.
 
 ## What must be preserved from the data layer
 
-Everything. **No schema change is proposed.** The React migration is additive: new HTTP
+Everything. **No schema change is proposed.** The Angular migration is additive: new HTTP
 controllers over the same services over the same schema. Any schema change must be its own
 ADR with a stated reason.

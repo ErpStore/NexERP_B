@@ -69,7 +69,7 @@ banker's rounding. `RoundOff` is **signed** — `rounded − preRound` at `:104`
 negative whenever the total rounds down. When round-off is disabled, `RoundOff` is set to
 `0` and `GrandTotal` is the unrounded value (`:109-110`).
 
-This is the contract the React client (M2-C10) and the future
+This is the contract the Angular client (M2-C10) and the future
 `POST /api/documents/calculate` endpoint must honour: an implementation that rounded to
 currency precision at any intermediate step would produce different money. Pinned by
 `S18_NoIntermediateRounding_FullDecimalPrecisionSurvivesToTheGrandTotal`, which shows five
@@ -88,7 +88,7 @@ re-verified again 2026-08-19 by M0-12-02, unchanged);
 **Confidence.** Confirmed.
 **Disposition.** **Preserve verbatim — do not port to TypeScript.**
 **Migration note.** Expose as a `POST /api/documents/calculate` preview endpoint. The
-React client may render an optimistic local estimate for responsiveness, but the server
+Angular client may render an optimistic local estimate for responsiveness, but the server
 result is authoritative and must overwrite it before save.
 
 **Pinned by executable tests (M0-12-02, 2026-08-19).** Every step of the algorithm above is
@@ -125,7 +125,7 @@ CGST/SGST use the half-rate list `0, 0.05, 0.125, 0.5, 0.75, 1.5, 2.5, 3, 3.75, 
 
 **Confidence.** Confirmed.
 **Disposition.** Preserve.
-**Migration note.** Serve as a reference-data endpoint so the React select cannot drift
+**Migration note.** Serve as a reference-data endpoint so the Angular select cannot drift
 from the server list. Note `GetIGST`/`GetGST` return `0` (via `FirstOrDefault`) for an
 unlisted rate rather than raising — silently coercing an invalid rate to zero tax. Worth
 tightening; see risk R-15.
@@ -262,7 +262,7 @@ BR-SO-002, fixed by M0-09.
 **Confidence.** Confirmed.
 **Disposition.** Preserve.
 **Migration note.** The returned `Message` strings are product UX — surface them verbatim
-in the React error toast. Do not replace with generic "Cannot delete".
+in the Angular error toast. Do not replace with generic "Cannot delete".
 Pinned by `tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`, which
 asserts four of the guard messages byte-for-byte plus the permissive missing-order path
 (`MfgPoService.cs:474-475`).
@@ -333,7 +333,7 @@ the mandatory-reason enforcement live in the Razor page*, not in the service.
 **Migration note.** This is the archetype of the extraction problem. The API needs
 `POST /api/sales-orders/{id}/cancel { reason }` and
 `POST /api/sales-orders/{id}/lines/{lineId}/cancel { reason }` that perform the *whole*
-sequence server-side. Do not reimplement the sequence in React.
+sequence server-side. Do not reimplement the sequence in Angular.
 
 ---
 

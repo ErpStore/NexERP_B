@@ -23,7 +23,7 @@ dependencies: [KB-011, KB-013, KB-014, KB-040]
 
 ## The question
 
-> Can the existing backend support a new React frontend without modification?
+> Can the existing backend support a new Angular frontend without modification?
 
 **No — but the required work is additive, and no business logic needs rewriting.**
 
@@ -135,7 +135,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | B2 | **Extract `@code` business logic into services** — ~184k LOC to triage; the real number needing extraction is far smaller, but must be assessed per screen | **the dominant cost; per-module** |
 | B3 | **File upload/download endpoints** — replace `IBrowserFile` and local-path `IFileOpener` | 1 wk |
 | B4 | **Report endpoints** — `GET /api/reports/…` → `application/pdf`; Excel export/import endpoints | 1 wk |
-| B5 | **Permission bootstrap endpoint** — `GET /api/me` returning user, tenant, role, and the full `UserRight` set so React can render correctly | 2 days |
+| B5 | **Permission bootstrap endpoint** — `GET /api/me` returning user, tenant, role, and the full `UserRight` set so Angular can render correctly | 2 days |
 | B6 | **Reference-data endpoints** — GST rates, screen catalogue, UOM, states, currencies, terms | 3 days |
 | B7 | **Typed screen-code constants** replacing the magic integers passed to `IStockManagerService` | 2 days |
 | B8 | **Approval endpoints** enforcing `UserAuthority` server-side | 1 wk |

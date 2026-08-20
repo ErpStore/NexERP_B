@@ -124,14 +124,14 @@ business service or repository performs any permission check** (verified by grep
 `BusinessLayer/`, `Repository/`, `Services/` — the only `CanDelete` matches there are
 referential-integrity checks, not authorization).
 
-A React SPA calling a REST API makes the client untrusted. **Server-side authorization
+An Angular SPA calling a REST API makes the client untrusted. **Server-side authorization
 must be added before any module is exposed over HTTP**, otherwise every endpoint is
 effectively public to any authenticated user. See
 [`decisions/ADR-004-server-side-authorization.md`](decisions/ADR-004-server-side-authorization.md).
 
 ## Verdict on the central question
 
-> *Can the existing backend support a new React frontend without modification?*
+> *Can the existing backend support a new Angular frontend without modification?*
 
 **No — but it needs additions, not a rewrite.** The domain layer stays. What must be built:
 
@@ -163,7 +163,7 @@ effectively public to any authenticated user. See
 
 ## Recommended next step
 
-Do **not** start React feature work yet. Phase 2 begins with: server-side authorization
+Do **not** start Angular feature work yet. Phase 2 begins with: server-side authorization
 design, an API contract convention, and a vertical slice (Customer Master) proving the
-controller → service → React path end-to-end. See
+controller → service → Angular path end-to-end. See
 [`migration/migration-strategy.md`](migration/migration-strategy.md).

@@ -1,6 +1,6 @@
 ---
 doc_id: KB-053
-title: Page Map — Existing Routes and Proposed React Routes
+title: Page Map — Existing Routes and Proposed Angular Routes
 module: frontend-new
 source_files:
   - V.SMART/V.SMART.Shared/Pages/
