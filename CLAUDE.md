@@ -13,7 +13,7 @@ temporary execution context.** Nothing you need should ever have to be pasted in
 ```
 Read CLAUDE.md and docs/kb/execution/current-task.md.
 Execute the current task according to the repository's migration workflow.
-Do not start the next task.
+When it closes, pick the next task that can actually be done.
 ```
 
 That prompt is complete. The procedure it refers to is
@@ -135,8 +135,22 @@ objectively met and its required validation actually run. Definitions and transi
 ## Standing constraints — non-negotiable
 
 - **Stay inside the current task's scope.** No opportunistic refactoring of unrelated code.
-- **Do not start the next task.** One task, one session. This is what makes each unit
-  independently reviewable and revertible.
+- **When a task closes, pick the next task that can actually be done** — changed 2026-08-20 from
+  *"do not start the next task"* by owner instruction. **One task, one branch** still holds: each
+  task gets its own branch cut fresh from `master`, so every unit stays independently reviewable
+  and revertible. What changed is only that a session need not stop after one.
+  **"Can actually be done" is a test with five parts, all required:**
+  1. every Hard prerequisite is `Completed` **and merged to `master`** — `Needs Review` does not
+     count, because its code is not on `master` for the next branch to build on;
+  2. it is not a `Product Decision` task — those are owner-only and never self-selectable
+     ([KB-091 §8](docs/kb/execution/autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks));
+  3. it is not blocked on an unanswered question in
+     [`open-questions.md`](docs/kb/open-questions.md);
+  4. its task file is **not** marked superseded or stale — a ⛔ banner means **stop and report**,
+     never infer the missing specification;
+  5. no sibling branch is already open on the same files.
+  **Still absolute: never merge and never push** without an explicit in-conversation instruction.
+  Picking up more work only ever produces more branches for review.
 - Do not rewrite an existing business service wholesale to "clean it up".
 - Do not reimplement ERP business logic in Angular/TypeScript — call the API.
 - Do not change the database schema unless the task explicitly authorises it.

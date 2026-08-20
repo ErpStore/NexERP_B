@@ -39,7 +39,17 @@ const REPO = 'C:\\Kumar\\NexGen-ERP---2025-master\\NexGen-ERP---2025-master'
 
 // --- configuration (override per run via the `args` object) ----------------
 const cfg = {
-  maxTasks: 1,                 // tasks per run; 1 preserves "one task, one session"
+  maxTasks: 5,                 // tasks per run. Was 1 ("one task, one session") until
+                               // 2026-08-20, when the owner asked the runner to continue.
+                               // 5 is a SAFETY BOUND, not a target: the run also stops on
+                               // no-ready-task or budgetReserve, whichever comes first.
+                               // Each task still gets its own branch FROM MASTER, and
+                               // allowMerge/allowPush stay false -- continuing produces more
+                               // branches awaiting review, never anything on master.
+                               // NOTE: a task closes as `Needs Review`, so its dependents are
+                               // NOT selectable. Consecutive tasks are therefore INDEPENDENT
+                               // ones; a dependency chain still advances only via a human merge.
+                               // That is deliberate (owner decision 2026-08-20), not a bug.
   maxRetries: 2,               // 2 retries = up to 3 implementation attempts
   escalateAfterFailures: 2,    // the 2nd FAIL on a task forces the escalation model
   maxEscalations: 1,           // one escalation per task, then BLOCKED

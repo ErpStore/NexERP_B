@@ -52,7 +52,7 @@ execution context**:
 
 ```
 NEW session → "Read CLAUDE.md and docs/kb/execution/current-task.md.
-               Execute the current task. Do not start the next task."
+               Execute the current task. When it closes, pick the next task that can actually be done."
    → it executes ONLY that task → test → review the diff → commit
    → it updates KB-081 and rewrites current-task.md for the next task → STOP
    → ANOTHER new session repeats, with nothing pasted in

@@ -81,7 +81,7 @@ The whole prompt is:
 ```
 Read CLAUDE.md and docs/kb/execution/current-task.md.
 Execute the current task according to the repository's migration workflow.
-Do not start the next task.
+When it closes, pick the next task that can actually be done — see CLAUDE.md § Standing constraints for the five-part test.
 ```
 
 Nothing else is pasted. Ever.
@@ -113,8 +113,27 @@ Nothing else is pasted. Ever.
 15. **Report** with the standard final report ([KB-084](review-templates.md)).
 16. **Stop.**
 
-**Do not automatically implement the next task.** One task, one session. This is what makes
-each unit independently reviewable and independently revertible.
+**Then pick the next task that can actually be done** — changed 2026-08-20 by owner instruction
+from *"do not automatically implement the next task."*
+
+**One task, one branch** is what actually delivered independent reviewability and revertibility,
+and it is unchanged: the next task is cut as its own branch **from `master`**, never stacked on
+the branch just finished. A session may now run several tasks; each still arrives as a separate,
+separately reviewable branch.
+
+**"Can actually be done" — all five, no exceptions:**
+
+1. Every Hard prerequisite is `Completed` **and merged to `master`**. `Needs Review` does not
+   count: its code is not on `master`, so a branch cut from `master` would not contain it.
+   *This is the condition that stops a dependency chain from running unattended — by design.*
+2. Not a `Product Decision` task ([KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)).
+3. Not blocked on an unanswered question in [`open-questions.md`](../open-questions.md).
+4. Its task file is **not** marked superseded or stale. A ⛔ banner means **stop and report** —
+   never infer the missing specification.
+5. No sibling branch is already open on the same files (`git branch --no-merged master`).
+
+**Unchanged and absolute: never merge, never push** without an explicit in-conversation
+instruction. Continuing produces more branches awaiting review, never anything on `master`.
 
 ### Context discipline
 
@@ -275,7 +294,7 @@ Then write it into `current-task.md` and **stop**.
 ## 8. Task boundaries
 
 - Stay within the task's scope. No opportunistic refactoring of unrelated code.
-- Do not start the next task.
+- When this task closes, pick the next task that can actually be done (CLAUDE.md § Standing constraints). Never merge or push.
 - Do not change an architecture decision without recording it.
 - Do not invent business rules.
 - If a requirement is unclear, record it in `open-questions.md` rather than guessing.

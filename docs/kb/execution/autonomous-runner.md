@@ -82,9 +82,20 @@ The one configuration block. Change it here; nothing else reads a hard-coded val
 ```yaml
 runner:
   # How many tasks one autonomous run may complete before stopping.
-  # 1 preserves the repository's standing "one task, one session" constraint.
-  max_tasks_per_run: 1
-  continue_on_complete: false      # true only when explicitly started in continuous mode
+  # Was 1 until 2026-08-20, preserving the then-standing "one task, one session"
+  # constraint. The owner replaced that with "pick the next task that can actually
+  # be done"; see CLAUDE.md § Standing constraints for the five-part test.
+  # 5 is a SAFETY BOUND, not a target -- the run also stops on no-ready-task or
+  # budget_reserve, whichever comes first.
+  max_tasks_per_run: 5
+  continue_on_complete: true       # each task still gets its own branch FROM MASTER;
+                                   # allow_merge/allow_push stay false, so continuing
+                                   # produces more branches to review, never anything
+                                   # on master.
+                                   # A finished task is `Needs Review`, so its dependents
+                                   # are NOT selectable -- consecutive tasks are
+                                   # INDEPENDENT, and a dependency chain still advances
+                                   # only through a human merge. Deliberate, not a defect.
 
   # Retry budget for a task whose validation FAILED.
   max_retries: 2                   # 2 retries = up to 3 implementation attempts total

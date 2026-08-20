@@ -38,7 +38,7 @@ before writing the final report; each item is a place where knowledge is otherwi
 - [ ] **No document updated that did not actually change.** Documentation noise costs every
       future session real context.
 
-Then write the Task Handoff below, and **stop** — do not start the next task.
+Then write the Task Handoff below. **The handoff is written before anything else starts** — a session continuing to another task writes this first, so a reviewer can read the finished task without the next one already in flight against it. *(Updated 2026-08-20: this was "stop — do not start the next task".)*
 
 ## Task Handoff
 

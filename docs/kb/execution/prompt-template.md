@@ -26,7 +26,7 @@ The whole prompt for a fresh session is:
 ```text
 Read CLAUDE.md and docs/kb/execution/current-task.md.
 Execute the current task according to the repository's migration workflow.
-Do not start the next task.
+When it closes, pick the next task that can actually be done — see CLAUDE.md § Standing constraints for the five-part test.
 ```
 
 Nothing is pasted. No previous prompt, no conversation history, no architecture recap. If a
@@ -84,8 +84,8 @@ These are binding on whoever writes or regenerates a **task file**
    investigation completes — because the *Business Rules* section is that investigation's
    output. Writing them earlier would mean inventing rules, which violates rule 4 and the
    project's core constraint. See [KB-080 §11](README.md#11-m3--core-modules).
-6. **One task per file. One session per task.** The instruction forbidding the next task is
-   not decoration — it is what makes each unit independently reviewable and reversible.
+6. **One task per file. One task, one branch.** *(Updated 2026-08-20: a session may now run several tasks; each still gets its own branch from `master`.)* Branch-per-task is what
+   makes each unit independently reviewable and reversible — not the one-session limit that preceded it.
 7. **Regenerate, don't patch.** If a task's scope changes, regenerate the whole file and bump
    `last_verified`. Half-edited files drift from the task they describe.
 8. **Reference, never duplicate.** A task file that restates a business rule, an ADR or an
@@ -240,7 +240,7 @@ CONSTRAINTS
 - Preserve existing API behaviour wherever practical.
 - The server remains authoritative for validation, calculations,
   permissions and document numbering.
-- Do not start another task after completing this one.
+- When this task closes, pick the next task that can actually be done (CLAUDE.md § Standing constraints defines the test). Never merge or push.
 <task-specific constraints>
 
 EXECUTION PROCEDURE
@@ -297,7 +297,7 @@ When finished, report:
 
 IMPORTANT:
 EXECUTE ONLY THIS TASK.
-DO NOT START THE NEXT TASK.
+WHEN THIS TASK CLOSES, PICK THE NEXT TASK THAT CAN ACTUALLY BE DONE — prerequisites Completed AND MERGED, not a Product Decision, not blocked on an open question, task file not marked superseded, no sibling branch on the same files. NEVER MERGE OR PUSH.
 ============================================================
 ```
 
