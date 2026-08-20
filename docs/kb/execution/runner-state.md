@@ -38,7 +38,7 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `STOPPED` — `M2-A06` closed at task boundary (`Needs Review`, validated `PASS`); no branch cut yet for the next task, `M2-B12-01`. |
+| **Status** | `STOPPED` — **`M2-A06` is `Completed` and merged** (`76eca5d`, owner-instructed 2026-08-20) after validating `PASS`, and `master` was pushed at `e63716e` with **CI green** — the first hosted run of `V.SMART.Api.Tests` and the frontend suite. That merge released **`M2-B02`, `M2-B06` and `M2-B11`** to `Ready`, so `current-task.md`'s pointer at `M2-B12-01` was chosen against a candidate set that has since grown: **re-apply the [selection rule](dependency-graph.md#ready-task-selection-rule) rather than inherit it** — `M2-B02` is P0 and unblocks a longer chain (`M2-B03` → `M2-B10`). No branch is cut for any of them. |
 | **Stop reason** | Clean task-boundary stop. `M2-A06`'s validation, documentation and close-out are complete and committed; the next dependency-ready task (`M2-B12-01`) has been selected and written into `current-task.md` but not started, per this project's "one task, one session" rule. |
 | **Run started** | 2026-08-19 (spans the 2026-08-19→2026-08-20 autonomous run through this task boundary). |
 | **Last transition** | 2026-08-20 — `M2-A06` closed out: `Needs Review`, validated `PASS` on attempt 1 of 3, 0 escalations, `scopeOk: true`. `task-tracker.md`, `tasks/M2-A06.md` (Execution Record) and `current-task.md` updated; `current-task.md` now points to `M2-B12-01`. Working tree at close-out: `migration/M2-A06-problem-details` tip `f69891a`, only `runner-state.md` dirty (this file). |
