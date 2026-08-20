@@ -115,7 +115,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Needs Review** *(validated `PASS`; on `migration/M2-A07-me-endpoint` `61da4bd`, unmerged)* | P0 | M2-A01-03 | 2 d | G2 |
-| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Ready** | P0 | M2-A01-03 | 3 d | G2 |
+| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Needs Review**²⁸ *(validated `PASS`; on `migration/M2-A08-row-scope-and-account-gates` `0706263`, unmerged)* | P0 | M2-A01-03 | 3 d | G2 |
 
 ### M2-B — API structure
 
@@ -1146,6 +1146,15 @@ its connection string in plaintext with `sa` credentials — **Q-32**, which mus
 before `M0-04`'s rotation is executed, or rotation will break every tenant row that embeds the
 password.
 
+**Not selected as the next task during the `M2-A08` close-out (2026-08-20), despite being
+`Ready`.** "Runnable" is a hardware fact; the task file's own Implementation Step 7 is a
+policy instruction independent of hardware — *"Hand the drill to a human. You cannot execute
+it"* — and that line was not reopened by this footnote. Treated per
+[dependency-graph.md § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)
+step 1, bullet 4 as blocked on an unscheduled human step; `M2-B04` was selected instead. If the
+owner wants an AI session to run the drill against the now-confirmed local SQL Server Express
+instance, say so explicitly and this task file's Step 7 should be amended accordingly.
+
 ²² **M2-C04-01: `Completed` and merged (`56b8ae2`, 2026-08-20) — all sixteen acceptance criteria `MET`, no waiver.**
 
 > **The first M2 task to close with nothing waived.** `M2-C01` and `M2-B07` each carried an unmet criterion an execution session structurally could not reach. This one did not.
@@ -1502,3 +1511,52 @@ five" with the re-grep evidence attached.
 genuinely `Completed`, not `Needs Review`
 ([KB-082](dependency-graph.md#ready-task-selection-rule) step 1). They remain `Blocked` until
 this branch is reviewed and merged.
+
+²⁸ **M2-A08: `Needs Review`, not `Completed` — implemented and independently validated `PASS`**
+on `migration/M2-A08-row-scope-and-account-gates`, tip `0706263`, 2026-08-20, attempt 1 of 3,
+0 escalations. Not merged; per [KB-088 "Who may set
+COMPLETED"](workflow.md#who-may-set-completed) only the repository owner may set it
+`Completed`.
+
+Every acceptance criterion independently re-checked `MET`, including the two the implementer
+had already ticked correctly: **row scope applied at the query, not the call site**
+(`RowScopeQueryExtensions.ApplyRowScope`, exactly one entry point, no unscoped sibling
+reproduced) and **`GetUserByQrToken` excludes expired tokens while still returning a null-expiry
+user**, proven by `tests/V.SMART.Shared.Tests/Repositories/UserRepositoryQrTokenTests.cs`.
+`dotnet build V.SMART.Api`: **0 errors, 6,695 warnings** (baseline). `dotnet test
+tests/V.SMART.Api.Tests`: **174 passed, 0 failed**. `dotnet test tests/V.SMART.Shared.Tests`:
+**88 passed, 0 failed**. `git diff --stat -- V.SMART/V.SMART.Shared/Pages/
+V.SMART/V.SMART.Shared/BusinessLayer/`: no output, the task's hard stop. The only
+`V.SMART.Shared/` change is the one `GetUserByQrToken` query (`UserRepository.cs`,
++23/-1). No EF migration; `JwtTokenService.cs` untouched.
+
+**Trial gate enforced on the API login path**, all three `Login.razor:271` carve-outs ported
+verbatim and annotated (`!IsDesktop`, `UserId > 1`, `TrialDays > 0`), refusal messages
+byte-for-byte identical, as a distinguishable `403` — not a generic `401`. **Device gate
+deliberately deferred**: the evaluator is written and tested (`AccountGates.DeviceGate`) but
+not wired in, because the task's assumed counterparty, `M2-A04`, is itself `Blocked` with no
+other task owning `POST /api/auth/login`. Recorded as **Q-38**; the trial gate's `!IsDesktop`
+exemption (deliberate or an oversight — undeterminable from source) is **Q-37**.
+
+**Q-08 corrected, not merely answered**: `StateCodesCsv` scopes nothing for customers or
+vendors anywhere in the codebase — confirmed by a fresh negative grep, independently
+reproduced by the validator. The only real scope is `LeadService.GetAllLoadLeadsAsync`, which
+is opt-in against an unscoped sibling with **four** call sites, filters in memory, and two
+previously undocumented leaks were found and recorded: a `UserId == 1` carve-out
+(`LeadsList.razor:470-484`) and a paging total computed from the unscoped query
+(`LeadsList.razor:396-401`).
+
+Two items reported as observations, not failures: the "empty scope → `200`" criterion is
+provable only at the query/`PagedResult` level — no scoped endpoint exists yet, by design of
+this task's scope; and `RowScopeStartupValidatorTests.The_APIs_own_actions_all_pass_today`
+exercises stub action descriptors, not the API's live action table.
+
+**Releases `M2-D01`** once merged — `dependency-graph.md:145` marks this a Hard edge, since an
+unscoped list endpoint on real `StateCodesCsv` data would leak rows. Also informs `M2-B03`'s
+controller template and `M2-B08`'s report/print endpoints on how to apply row scope, per KB-108
+§5.3. Does not release any of them yet — `Needs Review` is not `Completed`
+([KB-082](dependency-graph.md#ready-task-selection-rule) step 1).
+
+Full record: [`tasks/M2-A08.md` § Execution Record (2026-08-20) — validation
+close-out](tasks/M2-A08.md#execution-record-2026-08-20--validation-close-out). Output artefact:
+[KB-108](../architecture/row-scope-and-account-gates.md).
