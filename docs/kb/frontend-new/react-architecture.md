@@ -69,7 +69,7 @@ ADR-007 ever disagree, ADR-007 wins and this document is the one that is wrong.
 | Concern | Choice |
 |---|---|
 | Framework | **Angular**, standalone components, `strict` TypeScript |
-| Exact major version | **Verified at scaffold time on the workstation**, as `M2-C01` did for Node. The pilot is on 19.2; do not assume, run `ng version` and record it |
+| Exact major version | **Angular 22.x** — owner decision *"use the latest Angular version"*, 2026-08-20 |
 | Build | **Angular CLI** (esbuild) |
 | Routing | **Angular Router**, functional guards |
 | Server state | **Typed Angular services over `HttpClient`**, explicit refetch |
@@ -86,14 +86,22 @@ ADR-007 ever disagree, ADR-007 wins and this document is the one that is wrong.
 | Testing | **Jest or Vitest + Angular Testing Library + Playwright** |
 
 The *"see below"* in the **Tables** row is ADR-007's own forward reference to its
-§*Key rationales* (`ADR-007-angular-stack.md:117-125`) — **not** a pointer into this document. It
+§*Key rationales* (`ADR-007-angular-stack.md:144-152`) — **not** a pointer into this document. It
 is copied verbatim rather than resolved so the two tables stay byte-comparable; read it there.
+
+**"Angular 22.x" is the major, not a patch pin.** ADR-007 measured `@angular/core` 22.1.3,
+`@angular/cli` 22.1.5 and `primeng` 22.1.0 against the npm registry on 2026-08-20
+(`ADR-007-angular-stack.md:105-117`) and deliberately records the **major** only, because pinning a
+patch guarantees the document is wrong within weeks. `M2-C01` runs `ng version` and records the
+exact patch it installs. **The pilot at `frontend/vsmart-erp/` is three majors behind at 19.2**, so
+"adopt the pilot" is not "adopt as-is" — ADR-007 recommends scaffolding fresh on 22 and porting its
+9 components, and leaves the call to `M2-C11` (`ADR-007-angular-stack.md:119-130`).
 
 Three things ADR-007 records as **carried over unchanged**, repeated here only because tasks cite
 this document for them: server-authoritative validation / calculation / permissions / document
 numbering; the OpenAPI-generated API client; and the CSS-variable design tokens of
 [KB-051](design-system.md), including the eight WCAG contrast corrections and the 12 px workhorse
-type scale (`ADR-007-angular-stack.md:137-142`).
+type scale (`ADR-007-angular-stack.md:164-169`).
 
 ### Framework-agnostic choices ADR-007 does not decide
 
@@ -169,9 +177,9 @@ Rules, each of which the pilot either already honours or is the counter-example 
   and its page and component folders. Validators are generated from OpenAPI, not hand-written.
 
 > **`frontend/nexgen-web/` still exists on disk** — the React scaffold built by the pre-ADR-007
-> `M2-C01` and discarded by ADR-007 (`ADR-007-angular-stack.md:166-169`). **Whether it is deleted
+> `M2-C01` and discarded by ADR-007 (`ADR-007-angular-stack.md:194-195`). **Whether it is deleted
 > or left dormant is the re-scoped `M2-C01`'s decision, not this document's**
-> (`ADR-007-angular-stack.md:195-197`). Nothing in this document is realised by that tree; the
+> (`ADR-007-angular-stack.md:223-225`). Nothing in this document is realised by that tree; the
 > "realised at `frontend/nexgen-web/`" reconciliation note and the design-token extension note that
 > stood in this section described React artefacts and were removed with the rest of the React text.
 
@@ -202,7 +210,7 @@ The Angular shapes are the pilot's, and as shapes they are right: a `CanActivate
 **This document does not decide where the token lives, and no later task may treat any storage
 mechanism as settled by reading this section.** The decision belongs to **`M2-C02`**, taken against
 [ADR-004](../decisions/ADR-004-server-side-authorization.md) and recorded there — ADR-007 assigns it
-explicitly (`ADR-007-angular-stack.md:151-153`: *"`M2-C02` decides the token storage model … and
+explicitly (`ADR-007-angular-stack.md:178-180`: *"`M2-C02` decides the token storage model … and
 must not copy the pilot's approach by default"*).
 
 The binding constraints on that decision:
@@ -223,7 +231,7 @@ Until `M2-C02` records its decision this is an **Unknown**, not an omission.
 `frontend/vsmart-erp/src/environments/environment.prod.ts:1-4` **both** hardcode
 `apiBaseUrl: 'http://localhost:5144'` — confirmed identical, i.e. **the pilot's production build
 points at localhost**. ADR-007 names this *"a defect to remove, not a pattern to keep"*
-(`ADR-007-angular-stack.md:155-157`).
+(`ADR-007-angular-stack.md:182-184`).
 
 The replacement rule: the API base URL is **configuration, not source**, and a missing value fails
 loudly at startup rather than silently defaulting to a developer's machine. The scaffold task owns
@@ -404,7 +412,7 @@ WCAG 2.2 AA as the standard: full keyboard operation of grids and pickers, visib
 labelled form controls, `aria-live` for toasts and async results, 4.5:1 contrast in both
 themes, no colour-only status encoding. Details in [`design-system.md`](design-system.md), whose
 eight contrast corrections and type scale carry over to Angular unchanged
-(`ADR-007-angular-stack.md:140-142`).
+(`ADR-007-angular-stack.md:167-169`).
 
 ## What is deliberately *not* rebuilt in the SPA
 
@@ -428,9 +436,10 @@ eight contrast corrections and type scale carry over to Angular unchanged
 
 `frontend/vsmart-erp/` is an Angular 19.2 + PrimeNG 19.1 pilot (`frontend/vsmart-erp/package.json`:
 `@angular/core ^19.2.0`, `@angular/cli ^19.2.27`, `primeng ^19.1.4`, `typescript ~5.7.2`). ADR-007
-adopts it as the baseline and `M2-C11` inherits it. It holds 9 components across `core/auth`,
-`features/auth/login`, `features/currency` (list, form, service, models) and `layout/shell` — the
-full file inventory is **INV-021** and is not repeated here.
+adopts it as the baseline and `M2-C11` inherits it — as **patterns to port onto Angular 22**,
+not a tree to adopt at 19.2 (`ADR-007-angular-stack.md:119-130`). It holds 9 components across
+`core/auth`, `features/auth/login`, `features/currency` (list, form, service, models) and
+`layout/shell` — the full file inventory is **INV-021** and is not repeated here.
 
 **Gets it right — adopt as-is:**
 

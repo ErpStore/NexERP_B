@@ -1138,6 +1138,7 @@ them.
 | R-35 | Two per-tenant path conventions (`CompanyName` vs `Hostname`) | `TenantProvider` vs `ReportService` |
 | R-36 | Inconsistent route casing (`/MfgPO/create` vs `/mfgPO/details`) | `Pages/` |
 | R-37 | `docs/ARCHITECTURE.md` is an unfinished template with `[TODO: ANALYZE]` markers presented as documentation | `docs/` |
+| R-42 | **`file:line` citations into KB/ADR *documents* rot silently when the cited document is edited.** Editing a source file usually breaks a citation visibly (the quoted code is gone); inserting 28 lines into an ADR shifts every later citation into plausible-looking but wrong text, and nothing fails. Observed twice: the M0-09 validator correcting a `:1119` citation (see R-14 note), and **M2-C00, where `be818b9` grew `ADR-007-angular-stack.md` from 197 to 225 lines and silently invalidated 7 of 8 ADR-007 citations in KB-050 and 4 of 6 in `M2-C01.md`** — all re-anchored 2026-08-20. Citations into code are load-bearing and stay; citations into prose documents should prefer a `§heading` anchor, and any task editing an ADR should grep for `<adr-filename>:[0-9]` first | `docs/kb/**` |
 
 ---
 
