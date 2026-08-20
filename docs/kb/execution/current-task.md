@@ -21,84 +21,83 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-A08` — row-level scoping + account gates (Q-05…Q-08)
+## Active task — `M2-B12-01` — INV-012: document numbering + financial-year investigation
 
-**Task file:** [`tasks/M2-A08.md`](tasks/M2-A08.md). **Status:** `Ready` in KB-081, `Not
-Started` (attempt 0 of 3), no branch yet. **The runner itself is `STOPPED`** (owner
-`/migration-stop`, fulfilled 2026-08-20 at the `M2-B12-01` boundary) — this task is the next
-dependency-ready candidate, written here for whoever resumes the run; it has **not** been
-dispatched. See [`runner-state.md`](runner-state.md) (KB-093).
+**Task file:** [`tasks/M2-B12-01.md`](tasks/M2-B12-01.md). **Status:** `Blocked` — escalation
+budget exhausted, awaiting a decision from the repository owner, **Vivek**. This is *not* an
+"an attempt in progress" state to resume automatically ([KB-088 §7](workflow.md)'s resume
+test); it is a stop condition
+([KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)) that requires a
+human before any further automated work happens on this branch.
 
-### Why `M2-A08`, now
+**Deliberately left pointing here, not advanced to the next candidate.** A prior session on
+this same branch prematurely closed this task out as `Needs Review` (validated `PASS`) and
+rewrote this file to point at `M2-A08` next (commit `cba467c`). A *subsequent* validation pass
+— on the same branch, after that close-out — caught a real defect the `PASS` had missed. This
+close-out corrects that: the true state is `Blocked`, and this file is rewritten back to
+`M2-B12-01` so a human or a later run resumes the actual open item rather than restarting
+`M2-A08`'s investigation against a stale premise.
 
-Hard prerequisite `M2-A01-03` is `Completed` and merged (`ed559ad`), so `M2-A08` is genuinely
-`Ready`. Candidates considered and excluded: `M2-C00`/`M2-A07`/`M2-B12-01` (validated `PASS`
-but `Needs Review`, unmerged — a Hard prerequisite must be `Completed`, not `Needs Review`,
-CLAUDE.md § Standing constraints); `M2-C01`/`M2-A03`/`M2-B12-02` (`Blocked`); `M2-A02` (`Ready`
-but gated on unanswered **Q-28**); `M0-01-03` (`Ready` in KB-081 but its remaining work is an
-owner-only, human-executed rebuild drill its own task file forbids an AI session from
-performing). Among the remaining P0 candidates, `M2-A08` ranks first: it is a recorded
-**Hard** dependency of `M2-D01` ([`dependency-graph.md:145`](dependency-graph.md)), the vertical
-slice — no other `Ready` P0 candidate (`M2-B04`) has a tracked dependent.
+### Run State — what actually happened, most recent first
 
-**It gates the vertical slice `M2-D01`.** It closes four open questions — Q-05, Q-06, Q-07,
-Q-08 — three of which are enforced today **only inside Blazor `@code`**, and the API
-reproduces none of them.
+1. **`FAIL`**, tip `fa4a2ad`. Acceptance criterion *"INV-012 is Complete in KB-003 with
+   evidence rows in the KB-083 format"* failed: `investigation-registry.md:54` still read
+   *"inline in four document services"* under `Confidence: Confirmed`, while
+   `grep -rn "LastNumber" V.SMART/V.SMART.Shared/BusinessLayer/` shows **six** —
+   `MfgDcService`, `MfgInvService`, `ExpInvService`, `LabourInvoiceService`,
+   `LabourDcOutgoingService`, `SubConDcOutService`. The three commits between `58e7bee` and
+   `fa4a2ad` had corrected this exact undercount in KB-100, KB-060 and KB-030 but never
+   opened KB-003 — the one document the sweep missed.
+2. **Escalated** — this branch's second `FAIL`, crossing `escalate_after_failures: 2`.
+   `max_escalations: 1` for this task; this is the only escalation it gets.
+3. **Diagnosed and fixed**, committed as `8a54f96` — `investigation-registry.md` corrected to
+   six named services with widened evidence and `source_files`, plus the same stale count
+   fixed a second time in `document-numbering.md:99` (KB-100 §2's taxonomy row).
+4. **Stopped, not re-validated.** The escalation budget (`max_escalations: 1`) is now fully
+   spent, so the orchestrator stopped rather than spend the task's last attempt slot on an
+   unsupervised re-validation of an unreviewed fix. **Attempts used: 2 of 3. Escalations used:
+   1 of 1.**
 
-### What it does
+Full detail: [`tasks/M2-B12-01.md` § Execution Record (2026-08-20) — Session Close-out:
+STOPPED, escalation budget exhausted](tasks/M2-B12-01.md#execution-record-2026-08-20--session-close-out-stopped-escalation-budget-exhausted),
+`task-tracker.md` footnote ²⁸, and `failure-log.md`'s entries for this branch.
 
-Three things, in order — do not skip to the third:
+### Decision needed from the repository owner (Vivek) — one of
 
-1. **Investigate** — produce `file:line` evidence for all four gates (QR expiry, trial/device
-   expiry, row-level `StateCodesCsv` scoping), classify each Confirmed/Inferred/Unknown per
-   KB-002, record negative results explicitly. **Q-05 and Q-06 are already answered** in
-   [`open-questions.md`](../open-questions.md) (`QrExpiryDate` checked post-query in two
-   duplicated Razor copies, not the query; `TrialDays`/`ExpiryDate` enforced only in
-   `Login.razor:271-275` with three carve-outs, and `GetUserTrialAsync` is dead code) — verify
-   those citations still hold before relying on them; the task file itself is dated
-   2026-08-12 and is a hypothesis, not fact (CLAUDE.md § Authority order). Q-07/Q-08 are open.
-2. **Decide, then enforce server-side** — implement in the API whatever the investigation
-   proves is real: row filtering and account-level gates. Screen-right enforcement is
-   `M2-A01`'s job, already done; this task covers what `[RequireScreen]`/`[RequireRight]`
-   does not.
-3. **Test** — including negative tests proving a scoped caller cannot see out-of-scope rows,
-   and that each account gate refuses at the point it is supposed to refuse.
+- **A** — review `8a54f96` directly (one commit, four files) and merge if it holds up; does
+  not require a fresh automated validation.
+- **B** — authorize a reset attempt/escalation budget for this task so the orchestrator can
+  re-validate `8a54f96` under normal flow.
+- **C** — send it back for another implementation pass if a further defect turns up on
+  inspection.
 
-**Where a gate turns out never to have been enforced, switching it on is a product decision,
-not an engineering one** — surface it with evidence and a named owner rather than silently
-enabling it. A gate that *is* enforced today must be ported with its carve-outs exactly.
+**Until one of these happens, do not self-select `M2-B12-01` again** — it is not `Ready`, it
+is `Blocked` pending a human decision. `M2-B12-02`'s Hard prerequisite remains unmet either
+way (`Needs Review` and `Blocked` both fail
+[KB-082 step 1](dependency-graph.md#ready-task-selection-rule)), so it stays correctly
+`Blocked` too.
 
-### Coordinate, do not guess
+### Branch
 
-`M2-A04` (login, not yet started) owns `POST /api/v1/auth/login` — the trial and device gates
-belong on that path; decide which task lands them and record it. `M2-A06`'s error shapes
-govern the status code a scope/gate refusal returns. Full dependency table:
-[`tasks/M2-A08.md` § Dependencies](tasks/M2-A08.md).
-
-### Carried forward from `M2-B12-01` (document numbering, closed `Needs Review`)
-
-Not directly relevant to `M2-A08`'s scope, but live in the repository for whichever task picks
-it up next: [`docs/kb/modules/document-numbering.md`](../modules/document-numbering.md)
-(KB-100, new) and Q-37/Q-38/Q-39/Q-40 in `open-questions.md`. `M2-B12-02` (verify unique
-constraints in a live DB) stays `Blocked` until `M2-B12-01` is reviewed and merged.
+`migration/M2-B12-01-inv-012-numbering`, tip `8a54f96`. **Not merged, not pushed.**
+`docs/` only in the diff — no `V.SMART/` path touched by any commit on this branch.
 
 ---
 
-## Nothing else awaits review beyond what is already recorded
+## Also awaiting owner merge — unaffected by the above
 
-`M2-C00` (`migration/M2-C00-kb050-angular-rewrite`, `b3c0e6e`), `M2-A07`
-(`migration/M2-A07-me-endpoint`, `61da4bd`) and now `M2-B12-01`
-(`migration/M2-B12-01-inv-012-numbering`, `8a54f96`) are all validated `PASS` and awaiting
-owner merge. **`M2-A02` must settle `Q-28` before it starts.** An API-only administrator holds
-**zero** `UserRight` rows, because `AuthController.Login` never calls
-`SyncRightsForUserAsync`. Annotate `CurrencyController` before that is answered and the
-administrator authenticates successfully into an empty UI — the R-40 failure mode, moved to
-the API side.
+`M2-C00` (`migration/M2-C00-kb050-angular-rewrite`, `b3c0e6e`) and `M2-A07`
+(`migration/M2-A07-me-endpoint`, `61da4bd`) are validated `PASS` and unmerged. **`M2-A02` must
+settle `Q-28` before it starts.** An API-only administrator holds **zero** `UserRight` rows,
+because `AuthController.Login` never calls `SyncRightsForUserAsync`. Annotate
+`CurrencyController` before that is answered and the administrator authenticates successfully
+into an empty UI — the R-40 failure mode, moved to the API side.
 
-## Ready and unclaimed after `M2-A08`
+## Ready and unclaimed, once a human unblocks `M2-B12-01` (or in parallel, on a fresh branch)
 
 | Task | What | Est. | Note |
 |---|---|---|---|
+| `M2-A08` | Row-level scoping + account gates (Q-05…Q-08) | — | P0, Hard dependency of `M2-D01`; was queued next by the superseded close-out — still genuinely `Ready`, just no longer *this* file's active task |
 | `M2-B04` | Decouple `IApprovalService` | 1 wk | P0, zero tracked dependents |
 | `M2-B01` | API versioning → `/api/v1` | 1 d | P1 |
 | `M2-B05` | Typed `ScreenCodes` constants (R-10) | 2 d | P1 |

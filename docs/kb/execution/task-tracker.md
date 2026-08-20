@@ -133,7 +133,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Ready** | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Needs Review**²⁸ *(validated `PASS`; on `migration/M2-B12-01-inv-012-numbering` `8a54f96`, unmerged)* | P0 | M2-B07 | 2 d | G2 |
+| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁸ *(escalation budget exhausted; awaiting owner Vivek's decision; on `migration/M2-B12-01-inv-012-numbering` `8a54f96`, unmerged)* | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
@@ -1503,22 +1503,44 @@ genuinely `Completed`, not `Needs Review`
 ([KB-082](dependency-graph.md#ready-task-selection-rule) step 1). They remain `Blocked` until
 this branch is reviewed and merged.
 
-²⁸ **M2-B12-01: `Ready` → `Needs Review` 2026-08-20 — validated `PASS`, unmerged.** Implemented
-on `migration/M2-B12-01-inv-012-numbering` (tip `8a54f96`) across six commits, all tagged
-`M2-B12-01`. Produced [`docs/kb/modules/document-numbering.md`](../modules/document-numbering.md)
-(KB-100, new, 845 lines, all ten required sections) and corrected R-12 (KB-060), Q-10 (KB-004),
+²⁸ **M2-B12-01: `Needs Review` → `Blocked` 2026-08-20 — escalation budget exhausted, awaiting
+owner Vivek's decision.** This corrects an earlier reading of this footnote that reported a
+`Needs Review`/validated-`PASS` status: that `PASS` (at tip `58e7bee`) was genuine for what it
+checked, but a **later** validation pass on the same branch caught a real defect it had not
+been asked to re-check — the true final state is `Blocked`, not `Needs Review`.
+
+Implemented on `migration/M2-B12-01-inv-012-numbering` (tip `8a54f96`) across seven commits,
+all tagged `M2-B12-01`. Produced
+[`docs/kb/modules/document-numbering.md`](../modules/document-numbering.md) (KB-100, new, 845
+lines, all ten required sections) and corrected R-12 (KB-060), Q-10 (KB-004),
 `BR-DOC-001`…`BR-DOC-010` (KB-030), and moved INV-012 to `Complete` in KB-003, adding
-Q-37/Q-38/Q-39/Q-40. Validator re-ran all eighteen acceptance criteria `MET`, re-ran the
-38-row Mechanism A citation sweep by script (zero mismatches), re-ran the six-pattern
-negative-result grep (0 in source; 485/15 only inside `bin/`/`obj/`), and confirmed
-`dotnet build V.SMART.Api --no-incremental` at the 6,694-warning baseline with 0 new warnings.
-`git diff --stat master...HEAD` touches 7 files, all under `docs/kb/` — no source, no schema,
-no test project run (INV-023, correctly not run). One diagnosis-and-fix round preceded the
-`PASS`: an earlier commit claimed **Q-40** in `open-questions.md` without updating KB-005's
-id-allocation row, leaving it reading `Next free: Q-40` — fixed in `58e7bee`, no source file
-touched. Two non-blocking, sub-acceptance-criterion citation-drift defects remain for a future
-touch of the artefact — see [`tasks/M2-B12-01.md` § Execution Record (2026-08-20) — Validation
-and Session Close-out](tasks/M2-B12-01.md#execution-record-2026-08-20--validation-and-session-close-out).
-**Releases `M2-B12-02` only once this branch is reviewed and merged** — `Needs Review` does
-not satisfy a Hard prerequisite ([KB-082](dependency-graph.md#ready-task-selection-rule) step 1).
+Q-37/Q-38/Q-39/Q-40. **The `PASS` this footnote previously reported at tip `58e7bee` is not
+corroborated by `failure-log.md`** — that same tip's own recorded validation there returned
+`FAIL`, and no other validation of `58e7bee` exists in this repository. Treating it as an error
+by the session that wrote it, not as a real result a later `FAIL` superseded:
+
+- **`FAIL`** at tip `58e7bee`/`fa4a2ad` — INV-012's KB-003 evidence block still read *"inline in
+  four document services"* (`Confidence: Confirmed`) where source (`grep -rn "LastNumber"
+  V.SMART/V.SMART.Shared/BusinessLayer/`) shows **six** — `MfgDcService`, `MfgInvService`,
+  `ExpInvService`, `LabourInvoiceService`, `LabourDcOutgoingService`, `SubConDcOutService`. The
+  commits before that tip had corrected this same undercount in KB-100, KB-060 and KB-030 but
+  never opened KB-003 — the fifth document carrying the stale count.
+- **Escalated** (second recorded `FAIL` on this branch crosses `escalate_after_failures: 2`).
+  Diagnosed and fixed as `8a54f96` — KB-003's evidence block, `source_files` and Unknowns
+  corrected, plus a second live instance of the same stale count in KB-100 §2's taxonomy row
+  (line 99).
+- **Not yet re-validated.** `max_escalations: 1` is now fully spent for this task, so the
+  orchestrator stopped rather than spend its last attempt on an unsupervised re-validation.
+  **Attempts used: 2 of 3. Escalations: 1 of 1.**
+
+Full history: [`tasks/M2-B12-01.md` § Execution Record (2026-08-20) — Session Close-out:
+STOPPED, escalation budget exhausted](tasks/M2-B12-01.md#execution-record-2026-08-20--session-close-out-stopped-escalation-budget-exhausted),
+and `failure-log.md`'s entries for this branch.
+
+**Blocked on a human, not on another task.** Owner **Vivek** (repository owner) needs to
+either (A) review `8a54f96` directly and merge if it holds up, without requiring a fresh
+automated validation, (B) authorize a reset attempt/escalation budget so the orchestrator can
+re-validate under normal flow, or (C) send it back for another pass. Until one of these
+happens, **`M2-B12-02` stays correctly `Blocked`** — neither `Needs Review` nor `Blocked`
+satisfies a Hard prerequisite ([KB-082](dependency-graph.md#ready-task-selection-rule) step 1).
 Not merged, not pushed.

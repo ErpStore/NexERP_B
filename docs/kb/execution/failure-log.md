@@ -2546,3 +2546,711 @@ model. No specification change is needed. One thing the orchestrator should carr
 independently of this task: `tasks/M2-A01-03.md:262-267`'s "no test project exists" is false
 and will mislead the next task that inherits it — every remaining M2 task file written before
 2026-08-20 carries the same stale INV-023 sentence.
+
+---
+
+### M2-B12-01 · attempt 1 · validation · 2026-08-20
+
+| Field | Value |
+|---|---|
+| Runner state | validated FAIL |
+| Model in use | opus (independent validator) |
+| Validator verdict | **FAIL** |
+| Failure category | business-rule |
+
+**Branch / commit** — `migration/M2-B12-01-inv-012-numbering`, `5e2ff15`. 7 files, +1125/-24,
+all under `docs/`. `git status --porcelain -- V.SMART/` is empty: **no source file was
+touched**, as the task requires.
+
+**What is genuinely met, verified first-hand — do not re-do it on the retry.**
+
+- `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` gave **6695 Warning(s), 0 Error(s)**,
+  Time Elapsed 00:01:33.03. Exactly the KB-083 baseline. `dotnet test` not run (INV-023).
+- All four mandated counts reproduced by the validator: TOP 1 = **38 occurrences / 36 files**
+  (two files carry two each: `ProductionIssueAssyRepository.cs`,
+  `LabourDcOutgoingRepository.cs`); UPDLOCK = **37**; HOLDLOCK / sp_getapplock /
+  IsolationLevel / Serializable over source = **0** (485 unfiltered, all bin/ and obj/ —
+  KB-100 section 1 records that correction to the task file's own command, and it is right);
+  CREATE SEQUENCE / HasSequence = **0** (15 unfiltered, same cause); IsUnique in
+  `ApplicationDbContext.cs` = **3** (`:582`, `:595`, `:618`).
+- About 20 citations opened and confirmed against source, including
+  `FinancialYearHelper.cs:11-17`; `CommonService.cs:1849-1851`, `:1855-1858`, `:1883-1907`,
+  `:1928-1944`, `:1955`, `:1957-1961`, `:2119-2143`, `:2164-2177`; `MfgDcService.cs:368-382`,
+  `:771-790`, `:802`, `:812`, `:815-841`, `:844`, `:848`; `UnitOfWork.cs:798-801`;
+  `DebitNoteRepository.cs:32` (comment text verbatim); `MfgPoService.cs:1623-1660` (fail-open
+  catch returning the literal SO-0001 at `:1656-1659`); `ContractReviewService.cs:785` (the
+  extra slash); `ToolCribReturnRepository.cs:38,45`; and ten Mechanism A decl/SQL line pairs.
+  **Every one resolved.**
+- Independently reproduced: financialYear in `CommonService.cs` returns exactly `:1851` and
+  `:1971`, both assignments (the dead-code finding holds); GetFinancialYearSuffix = **77
+  occurrences / 63 files / 53 .razor**; GetLastReqNoAsync = zero references; GetLastDcNoAsync
+  outside `Repository/` = six references, **all commented out**, at exactly the cited lines;
+  GetNextOANumberAsync callers = only `ContractReviewCheckListUpsert.razor:927` and
+  `MfgPOUpsert.razor:3940`, so PerformaInvService's copy is dead as claimed.
+- R-12 classification is **still Inferred (high confidence)**
+  (`technical-debt-register.md:692`) — not upgraded. INV-012 is Complete with five
+  KB-083-format evidence blocks. KB-100 is in both INDEX tables (`INDEX.md:60`, `:106`).
+  Q-10 corrected and still open; Q-37/38/39 raised.
+
+**What failed — the decrement-on-delete census is wrong, and the undercount was written into
+KB-060 as Confirmed.**
+
+`docs/kb/modules/document-numbering.md` section 3.3(b) states, labelled *Confirmed*: "The same
+shape exists at `MfgInvService.cs:982-985`, `ExpInvService.cs:256-259` and
+`LabourInvoiceService.cs:645-648` — **four sites, not one**".
+`technical-debt-register.md` repeats it: "**Widened 2026-08-20 (M2-B12-01, Confirmed): there
+are FOUR such sites, not one**".
+
+Validator census, grep over `BusinessLayer/`, output quoted:
+
+```
+LabourServices/LabourDcOutgoingService.cs:607:   runningRow.LastNumber = (oldDcNo - 1);
+LabourServices/LabourDcOutgoingService.cs:5188:  runningRow.LastNumber = (oldDcNo - 1);
+LabourServices/LabourInvoiceService.cs:647:      runningRow.LastNumber = (oldInvNo - 1);
+OutSourcingService/SubContractDcOutService/SubConDcOutService.cs:233:   runningRow.LastNumber = (oldDcNo - 1);
+OutSourcingService/SubContractDcOutService/SubConDcOutService.cs:1594:  runningRow.LastNumber = (oldDcNo - 1);
+SalesService/ExpInvService.cs:258:               runningRow.LastNumber = (oldExpInvNo - 1);
+SalesService/MfgDcService.cs:379:                runningRow.LastNumber = (oldDcNo - 1);
+SalesService/MfgInvService.cs:984:               runningRow.LastNumber = (oldInvNo - 1);
+```
+
+**Eight sites in six services, not four in four.** The two missing services are exactly the two
+whose Mechanism C inline writes section 3.3 also omits — `LabourDcOutgoingService.cs:2715-2740`
+(DcType LABOURDCOUTGOING, read-modify-write of DcRunningNumbers) and
+`SubConDcOutService.cs:921` (GenerateAutoRunningNoAsync for SUBCONDCOUT) — while section 3.4
+of the same document cites `LabourDcOutgoingService.cs:2708` and `SubConDcOutService.cs:920`
+as the commented-out Mechanism A calls those very lines replaced. The document therefore
+contradicts itself, and its Mechanism C census ("inline copies in 4 document services") is
+short by two whole document families.
+
+**Why this is business-rule and not a typo.** The gap-avoiding decrement is the constraint that
+rules out a DB sequence, and KB-100 section 8 lists it as remedy constraint 1. Sized at four
+sites, M2-B12-03 restores gap avoidance for MFGDC / MFGINV / EXPINV / LABINV and **silently
+drops it for LABOURDCOUTGOING and SUBCONDCOUT** — a behaviour change on statutory document
+numbering, arrived at by trusting a Confirmed label. This task exists precisely because R-12's
+earlier counts were undercounts; the correction reproduced the same failure mode.
+
+**Second, related gap the same census exposes (validator-Confirmed).** Six of the eight sites
+guard only on `runningRow.LastNumber == oldDcNo`; two — `LabourDcOutgoingService.cs:5186` and
+`SubConDcOutService.cs:1592` — also require `LastNumber > 1`. So six of them write
+`LastNumber = 0` when the first document of a financial year is deleted, and no allocator
+branch expects to read 0 (`CommonService.cs:1860` initialises to 1). The artefact records none
+of this.
+
+**Process observation the orchestrator must act on before merging — a live concurrent writer.**
+`docs/kb/modules/document-numbering.md` changed **four times during this validation session**,
+all uncommitted, all after `5e2ff15` was written at 21:21:12:
+
+| Observed | State |
+|---|---|
+| 21:21:38 | 102 lines — truncated at section 2, frontmatter listing only BR-DOC-001..009 |
+| 21:27:41 | 791 lines — a different full draft, +687/-682 against HEAD, still claiming nine BR-DOC ids against KB-030's committed ten |
+| 21:28:59 | restored byte-identical to HEAD, working tree clean |
+| 21:30:44 | +28/-3 against HEAD — the eight-site decrement correction described above |
+
+Some session other than this validator is still editing the task's primary deliverable. The
+branch tip is therefore **not** what is on disk, the on-disk content has twice contradicted the
+committed KB-030 on business-rule ids, and **the branch must not be merged until the
+orchestrator confirms no second session is live on M2-B12-01**. The retry should begin by
+deciding which draft is the deliverable and committing exactly one.
+
+**Not a blocker, recorded so the retry does not have to rediscover it.** The task file's *Why
+This Task Exists* table says 7 lock-free LINQ sites while its own Mechanism B table lists 6 and
+KB-100 documents 6; that 7-versus-6 is left unreconciled by the artefact. And
+`task-tracker.md:136` still reads Ready — a deviation the implementer declared deliberately
+(the orchestrator owns KB-081), not an oversight.
+
+**Disposition** — not fixed. No prior M2-B12-01 entry exists in this log; this is attempt 1 and
+not a loop.
+
+**Next attempt routed to** — re-implementation on the same branch: correct section 3.3(b) and
+the KB-060 R-12 amendment to eight sites in six services, add the two missing Mechanism C
+inline writes to sections 3.3 and 9, record the guard asymmetry and the LastNumber = 0
+question, then re-check the remaining "N sites" claims in the artefact by the same method — the
+two that failed were both censuses stated as Confirmed without a reproducible command beside
+them. Everything listed under *What is genuinely met* above was verified first-hand by the
+validator and does not need re-doing.
+
+**Addendum, same session, 21:34 — the branch tip moved twice while this validation ran, and
+the in-flight fix repeats the error at smaller scale.** After the observations above, the
+concurrent session committed `cf79721` ("@M2-B12-01: Widen the gap-avoiding decrement census
+from four sites to eight"), which corrects section 3.3(b) and the R-12 amendment to eight
+blocks in six services — the defect this entry reports. Three things remain wrong, so the FAIL
+stands against the new tip as well:
+
+1. **The guard census in `cf79721` is off by one, again stated as Confirmed.** KB-100 section
+   3.3(b), the KB-060 amendment and the new **Q-40** all say "seven of the eight are
+   byte-identical" and that "only `LabourDcOutgoingService.cs:5186`" carries the
+   `&& runningRow.LastNumber > 1` guard. Validator read of source, both lines quoted verbatim:
+   `LabourDcOutgoingService.cs:5186` and
+   `OutSourcingService/SubContractDcOutService/SubConDcOutService.cs:1592` are **identical**,
+   both `if (runningRow.LastNumber == oldDcNo && runningRow.LastNumber > 1)`. It is **six
+   unguarded and two guarded**, not seven and one. Q-40 must be re-worded before it is acted
+   on.
+2. `cf79721`'s commit subject begins `@M2-B12-01:`, which does not match the
+   `<TASK-ID>: <imperative summary>` convention in CLAUDE.md.
+3. The branch was never in a steady state to review: tip `5e2ff15` at 21:21, four uncommitted
+   rewrites of the deliverable between 21:21 and 21:34, tip `cf79721` at 21:34, with
+   `open-questions.md` and `technical-debt-register.md` also modified uncommitted in between.
+   Validation was performed against `5e2ff15` and re-checked against `cf79721`.
+
+---
+
+### M2-B12-01 · attempt 1 · diagnosis · 2026-08-20
+
+| Field | Value |
+|---|---|
+| Runner state | diagnosed, **fixed** |
+| Model in use | opus (diagnostician) |
+| Validator's category | business-rule |
+| Diagnostician's category | **legacy-behaviour**, resolvable from source — see below |
+
+**Prior attempts checked first.** The only prior entry for this task is the validation entry
+immediately above (attempt 1, plus its 21:34 addendum). The fix applied here — correcting the
+*guard* census from "seven and one" to "six and two" — is **not** recorded there as tried; the
+addendum names it as the outstanding defect and says "Q-40 must be re-worded before it is acted
+on". This is a first attempt at that correction, not a loop.
+
+**Reproduced.** Branch `migration/M2-B12-01-inv-012-numbering`, tip `f69c023`, working tree
+clean apart from `failure-log.md` / `runner-state.md`, so the deliverable on disk **is** the
+tip — the concurrent-writer condition the validator reported has ended.
+
+```
+$ grep -rn "LastNumber = (old" V.SMART/V.SMART.Shared/BusinessLayer/ --include=*.cs
+  → 8 lines: LabourDcOutgoingService.cs:607, :5188; LabourInvoiceService.cs:647;
+    SubConDcOutService.cs:233, :1594; ExpInvService.cs:258; MfgDcService.cs:379;
+    MfgInvService.cs:984
+
+$ grep -rn "runningRow.LastNumber ==" V.SMART/V.SMART.Shared/BusinessLayer/ --include=*.cs
+  → 8 lines. Exactly TWO carry "&& runningRow.LastNumber > 1":
+    LabourDcOutgoingService.cs:5186 and SubConDcOutService.cs:1592 — identical text.
+    Six are unguarded: :605, :645, :231, :256, :377, :982.
+```
+
+The site census at the tip (eight blocks in six services) is therefore **correct**; the guard
+census at the tip was **wrong**, exactly as the validator's addendum said. Confirmed present in
+the artefact before the fix at `document-numbering.md:226-228` (table label on one row only),
+`:258-263` (prose), `:763` (Q-40 mirror), `technical-debt-register.md:745-747`, and
+`open-questions.md:45` (Q-40) — all labelled **Confirmed**.
+
+**Root cause.** Mis-described legacy behaviour in a documentation deliverable: the guard-clause
+census was written from a scan that stopped at the first `&& LastNumber > 1` match instead of
+enumerating all eight. The same failure mode as the four-versus-eight site undercount — a count
+asserted *Confirmed* without a reproducible command recorded beside it. No ERP code enforces
+anything here, so this is **not** a business-rule change; it is a legacy-behaviour description,
+and CLAUDE.md's escalation carve-out applies because the correct behaviour is confirmable from
+source at `file:line` **right now** (both guard lines quoted verbatim above).
+
+**Third instance the validator did not catch — KB-030 still held the four-site undercount.**
+`business-rule-inventory.md:494-497` still read "`MfgDcService.cs:368-382`,
+`MfgInvService.cs:982-985`, `ExpInvService.cs:256-259`, `LabourInvoiceService.cs:645-648`.
+**Confirmed.**" — the pre-`f69c023` list. `f69c023` corrected KB-100 and KB-060 but not KB-030.
+Since KB-030 is the business-rule inventory that M2-B12-02/03 read, it is fixed here too.
+
+**Fix applied** (docs only, all four files already in the task's authorised change set):
+
+| File | Change |
+|---|---|
+| `docs/kb/modules/document-numbering.md` | §3.3 table `:228` — SubConDcOutService `1583-1596` row now carries the **extra `> 1` guard** label. §3.3(b) — the "seven/one" paragraph replaced by a **six/two** statement that embeds the grep command **and its full eight-line output**, so the next reader can re-run it. Q-40 mirror at §10 re-worded. §3.3 gains a completeness check (the 26-line write census, every line inside an existing row), the two Mechanism C call sites `SubConDcOutService.cs:921` and `LabourDcOutgoingService.cs:2715` that §3.4 implied but did not name, and the Confirmed **negative result** that SUBCONDCOUT has no manual-branch inline write (so hazard (c) does not apply to it) |
+| `docs/kb/risks/technical-debt-register.md` | R-12 guard sub-claim corrected to two guarded / six unguarded. Classification untouched — still `Inferred (high confidence)` at `:692` |
+| `docs/kb/open-questions.md` | Q-40 premise corrected to six/two; the "would change behaviour in seven places" tail re-worded to "six places or two, depending which shape is chosen". Q-40 **stays open** — intent remains Unknown and is not guessed |
+| `docs/kb/business-rules/business-rule-inventory.md` | The gap-avoiding-decrement bullet widened from four sites to eight in six services, with the guard asymmetry and the Q-40 pointer |
+
+**Re-validated.** `git status --porcelain -- V.SMART/` → empty (no source file touched). Working
+diff = 6 files, all under `docs/`. Both greps above re-run against the edited text; every
+`file:line` newly written was opened and confirmed (`MfgInvService.cs:973`,
+`ExpInvService.cs:247`, `LabourInvoiceService.cs:636`, `LabourDcOutgoingService.cs:596` and
+`:2715`, `SubConDcOutService.cs:222`, `:921`). `dotnet build` **not** re-run: no source file
+changed, so the validator's observed 6695 Warning(s) / 0 Error(s) still stands unaltered.
+`dotnet test` not run (INV-023 / task prohibition).
+
+**Not fixed here, left for the orchestrator.**
+
+1. The task file's *Why This Task Exists* table says **7** lock-free LINQ sites where its own
+   Mechanism B table and KB-100 §3.2 say **6**. Still unreconciled. Editing the task file's
+   rationale is not this fix's scope.
+2. `cf79721`'s malformed `@M2-B12-01:` subject is already history; `f69c023` is the live tip and
+   its subject is well-formed. Nothing to do unless the branch is rewritten.
+3. `task-tracker.md:136` still reads `Ready`. Orchestrator-owned.
+4. The concurrent-writer hazard: the tree is steady **now** (only the log files are dirty), but
+   the orchestrator should still confirm no second session is live before merging.
+
+**Residual risk.** The two censuses that failed were both counts stated as *Confirmed* without a
+command recorded beside them. Every count in KB-100 that a validator has **not** independently
+reproduced carries the same risk. This fix records the command and its output inline for the
+decrement census only; the other counts in the artefact were reproduced first-hand by the
+validator (listed under *What is genuinely met* in the entry above) and are not re-derived here.
+
+**Disposition** — fixed, ready for re-validation of the same branch. Re-validation should target
+the guard census, KB-030's bullet, and §3.3's new completeness paragraph.
+
+---
+
+## M2-B12-01 — attempt 3 (re-validation of `be27a61`) — **FAIL (regression)** — 2026-08-20
+
+**Branch** `migration/M2-B12-01-inv-012-numbering`, tip `be27a61` at the time of validation.
+Independent validator; nothing below is taken from the implementer's account.
+
+### What the guard-census fix got right — re-verified first-hand
+
+```
+$ git grep -n "LastNumber > 1" -- V.SMART/
+V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/LabourServices/LabourDcOutgoingService.cs:5186
+V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/OutSourcingService/SubContractDcOutService/SubConDcOutService.cs:1592
+```
+
+Two guarded, six unguarded — the attempt-2 correction is **correct**, and it is now consistent
+across `document-numbering.md:275-297`, `technical-debt-register.md:745-749`,
+`open-questions.md:45` (Q-40) and `business-rule-inventory.md:494-500`. The eight-block /
+six-service site census is also correct (`git grep -nE "LastNumber\s*=\s*\(?old.*- 1"` → 8 hits
+in 6 files). All sixteen acceptance criteria in `M2-B12-01.md` were checked one at a time and
+each is met on the artefact's own terms; every count was reproduced first-hand
+(38/36 `TOP 1`, 37 `UPDLOCK`, 0 `HOLDLOCK|sp_getapplock|IsolationLevel|Serializable`,
+0 `CREATE SEQUENCE|HasSequence`, 77/63 `GetFinancialYearSuffix`, 81/59 `IsDuplicate*Async`,
+3 `IsUnique` at `:582/:595/:618`), and all ten `BR-DOC` branch conditions were read against
+`CommonService.cs:1883-1907`, `:1928-1944`, `:2119-2143`, `:2164-2177` — including the
+**inverted** `BookTypeInvoice` values, which are correctly recorded. Build re-run by the
+validator: `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → **6695 Warning(s),
+0 Error(s)**, 00:01:26. `git diff --stat master..HEAD` → 7 files, all under `docs/`, no
+`V.SMART/` path, no schema change, no TypeScript.
+
+### Why it still fails — a regression the branch introduced into KB-005's id ledger
+
+```
+$ git show master:docs/kb/INDEX.md | grep -o "Next free: Q-[0-9]*"
+Next free: Q-37
+$ grep -o "Next free: Q-[0-9]*" docs/kb/INDEX.md        # branch tip
+Next free: Q-40
+$ grep -c "^| \*\*Q-40\*\*" docs/kb/open-questions.md   # same branch claims Q-40
+1
+```
+
+Commit `5e2ff15` updated the `Q-nn` allocation row correctly (Q-37/38/39 claimed, next free
+Q-40). Commit `f69c023` then claimed **Q-40** in `open-questions.md:45` and did **not** update
+the row. At the branch tip `INDEX.md:112` therefore states something that is **false**, in the
+one document KB-005 designates as the anti-collision mechanism ("`grep` is mandatory before
+claiming an id"). On `master` that row was true. The next task to consult it will claim Q-40 a
+second time — the exact failure mode the ledger exists to prevent, and one this branch's own
+notes flag as a known hazard.
+
+Second, smaller instance of the same drift: `document-numbering.md:841` (*Related documents*)
+still lists "Q-10, Q-37, Q-38, Q-39" and omits **Q-40**, which §10.1 of the same document
+raises. The artefact is internally inconsistent about its own outputs.
+
+### Third: the branch was not stable during validation
+
+Three commits are on the branch and `be27a61` landed **while this validation was running**
+(the tree went from 2 dirty files to 6 to 2 to 3 under the validator). At the end of the run
+`docs/kb/modules/document-numbering.md` was dirty again with a further **uncommitted**
+frontmatter edit (two `source_files` entries added). A concurrent writer is live on the same
+files. Nothing can be certified as the deliverable while the deliverable is moving, and the
+orchestrator must confirm no second session is open before re-validating or merging.
+
+### Category — `regression`, deliberately not `business-rule` or `architecture`
+
+No ERP behaviour is described wrongly at the tip; the two census errors from attempts 1 and 2
+are fixed and I re-derived both from source. What is wrong is a statement the diff made false
+in a file it edited. That is a `regression`, and the remedy is three lines, so it retries with
+the same model rather than escalating.
+
+### Remedy for the next attempt
+
+1. `docs/kb/INDEX.md:112` — change `**Next free: Q-40**` to `**Next free: Q-41**` and record
+   Q-40 as claimed 2026-08-20 by M2-B12-01 alongside Q-37/38/39.
+2. `docs/kb/modules/document-numbering.md:841` — add Q-40 to the *Related documents* list.
+3. Commit the dangling `source_files` frontmatter edit (or discard it), and confirm
+   `git status --porcelain` is clean of task files before handing back.
+4. Do **not** re-derive anything else in KB-100 — the substance was independently reproduced
+   by this validator and is sound.
+
+**Not fixed, not blocking, still owed by the orchestrator:** the task file's own *Verification
+Commands* use plain `grep` over `V.SMART/`, which returns **485** and **15** rather than zero
+because `bin/` and `obj/` are included (`grep -rn --exclude-dir=bin --exclude-dir=obj` → 0, and
+`git grep --untracked` → 0, which is what the artefact correctly records). And the task file's
+*Why This Task Exists* still says **7** lock-free LINQ sites where its own Mechanism B table and
+KB-100 §3.2 say **6**.
+
+---
+
+### M2-B12-01 · attempt 3 · diagnosis · 2026-08-20
+
+| Field | Value |
+|---|---|
+| Runner state | diagnosed, **fixed** |
+| Model in use | opus (diagnostician) |
+| Validator's category | regression |
+| Diagnostician's category | **implementation-error** (documentation bookkeeping omission) |
+
+**Prior attempts checked first.** This log holds three prior M2-B12-01 entries: attempt-1
+validation (four-vs-eight site census), attempt-1 diagnosis (guard census seven-vs-two, fixed),
+and attempt-3 validation (the entry immediately above). The fix applied here — updating the
+KB-005 `Q-nn` allocation row to `Next free: Q-41` and adding Q-40 to KB-100's *Related
+documents* — appears in this log **only as the remedy the attempt-3 validator prescribed**, never
+as a fix already tried. **Not a loop.**
+
+**Reproduced, first-hand.**
+
+```
+$ git show master:docs/kb/INDEX.md | grep -o "Next free: Q-[0-9]*"   → Next free: Q-37   (true on master)
+$ grep -o "Next free: Q-[0-9]*" docs/kb/INDEX.md                     → Next free: Q-40   (false at tip)
+$ grep -o '\*\*Q-[0-9]*\*\*' docs/kb/open-questions.md | ... | tail -1 → **Q-40**  (claimed at open-questions.md:45)
+$ sed -n '841p' docs/kb/modules/document-numbering.md
+  - [KB-004](../open-questions.md) — Q-10, Q-37, Q-38, Q-39.        (Q-40 raised at :798, omitted here)
+```
+
+Both defects are exactly as reported. I also checked every branch in the repository for a
+competing claim — `for b in $(git branch ...); do git show $b:docs/kb/open-questions.md | grep -c 'Q-4[0-9]'`
+→ **only** `migration/M2-B12-01-inv-012-numbering` returns non-zero. So Q-40 is unambiguously
+this task's, and `Q-41` is genuinely the next free id; no renumbering is owed on merge.
+
+**Branch stability — the concurrent-writer condition has ended.** At diagnosis the branch carried
+a fourth commit, `fa4a2ad` ("List the two decrement-census services in KB-100 `source_files`"),
+which is the uncommitted frontmatter edit the validator saw dangling — now committed, 2 lines,
+docs only, well-formed subject. `git status --porcelain` showed **only** `failure-log.md` and
+`runner-state.md` dirty (both orchestrator-owned) before I touched anything, and the same two
+after. The deliverable on disk **is** the tip.
+
+**Root cause.** A documentation bookkeeping omission, not a defect in the ERP or in the
+investigation's substance: commit `f69c023` claimed `Q-40` in `open-questions.md` while fixing the
+guard census, and did not update the one row in KB-005 that tracks id allocation. Classified
+**implementation-error** rather than `business-rule` or `legacy-behaviour` — nothing about how the
+ERP numbers documents is misstated at the tip; the attempt-1 and attempt-2 census errors are
+fixed and the attempt-3 validator re-derived both from source independently. What was wrong is a
+statement the diff made false in a file it edited.
+
+**Fix applied** (docs only; all three files already inside the branch's existing change set):
+
+| File | Change |
+|---|---|
+| `docs/kb/INDEX.md:112` | `**Next free: Q-40**` → `**Next free: Q-41**`, and the claim list widened to `Q-37/Q-38/Q-39/Q-40 claimed 2026-08-20 by M2-B12-01`, with a one-line summary of what Q-40 asks (whether the `LastNumber = 0` written by the six unguarded gap-avoiding decrement blocks is handled) |
+| `docs/kb/modules/document-numbering.md:841` | *Related documents* now reads `Q-10, Q-37, Q-38, Q-39, Q-40`, matching §10.1 of the same file |
+| `docs/kb/execution/tasks/M2-B12-01.md:638-641` | The close-out summary had the same drift — it listed `Q-37/Q-38/Q-39` and described KB-100 as "~600 lines". Corrected to include Q-40 and to the actual **845** lines (`wc -l`) |
+
+Nothing else in KB-100 was re-derived, per the attempt-3 validator's instruction 4: the substance
+was independently reproduced by that validator and is sound.
+
+**Committed as `58e7bee`** — "M2-B12-01: Record Q-40 as claimed in the KB-005 id ledger". Note for
+the orchestrator: the commit was first written with a stray leading `@` in the subject (the same
+shell-quoting slip that produced `cf79721`'s malformed `@M2-B12-01:` on attempt 1) and was
+**amended in place before anything left the machine**; `git log -1 --format=%s` now returns a
+well-formed `M2-B12-01: …`. Nothing merged, nothing pushed.
+
+**Re-validated, commands and observed output.**
+
+```
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj
+    6695 Warning(s) / 0 Error(s) / Time Elapsed 00:02:12.04     ← exactly the KB-083 baseline
+$ git status --porcelain -- V.SMART/                            → empty (no source file touched)
+$ grep -o "Next free: Q-[0-9]*" docs/kb/INDEX.md                → Next free: Q-41
+$ max **Q-nn** in open-questions.md                             → 40      (ledger and claims agree)
+$ sed -n '841p' docs/kb/modules/document-numbering.md           → "… Q-10, Q-37, Q-38, Q-39, Q-40."
+$ git diff --name-only master..HEAD                             → 7 files, all under docs/
+$ git status --porcelain                                        → only failure-log.md, runner-state.md
+```
+
+`dotnet test` **not** run — no test project exists until M0-12-01 (INV-023), and this task
+prohibits it.
+
+**Still owed by the orchestrator, unchanged from the attempt-3 entry — not fixed here.**
+
+1. The task file's *Why This Task Exists* says **7** lock-free LINQ sites where its own Mechanism
+   B table and KB-100 §3.2 say **6**. Editing the task's rationale is outside this fix's scope.
+2. The task file's *Verification Commands* use plain `grep` over `V.SMART/` and so return 485 / 15
+   instead of 0, because `bin/` and `obj/` are counted. KB-100 §1 records the corrected command;
+   the task file does not.
+3. `task-tracker.md:136` still reads `Ready`. Orchestrator-owned (KB-081).
+4. Merge readiness: confirm no second session is live on this branch before merging. It was
+   steady throughout this diagnosis.
+
+**Residual risk.** The three attempts on this task all failed on the same class of defect — a
+statement asserted without the command that would confirm it beside it. The two censuses and now
+the id ledger were each caught by a validator rather than by the writer. Every *other* count in
+KB-100 was reproduced first-hand by the attempt-3 validator (listed in that entry) and by the
+attempt-1 validator, so the artefact's numbers are now well covered; the residual exposure is the
+cross-document consistency of the **task file** and KB-081, neither of which this fix owns.
+
+**Disposition** — fixed, ready for re-validation of the same branch at tip `58e7bee`.
+Re-validation should target only the three edited lines and the branch's stability; the artefact's
+substance has been independently verified twice and does not need re-deriving.
+
+---
+
+## M2-B12-01 — attempt 4 (retry of the guard-census fix), **VALIDATION FAILED** — 2026-08-20
+
+**Branch** `migration/M2-B12-01-inv-012-numbering`, validated at tip **`58e7bee`**. Independent
+validator; nothing in the implementer's report was accepted on its face.
+
+**Verdict: FAIL — category `acceptance-criterion`.** One criterion, one line. Fifteen of the
+sixteen acceptance criteria are objectively met against evidence observed first-hand in this
+session, the build reproduces the baseline exactly, both test suites pass, and the diff is clean
+and in scope. The single defect is a `Confidence: Confirmed` count in KB-003 that the source
+contradicts — the **same defect class** that failed the earlier attempts, surviving in the one
+document the correction sweep never opened.
+
+**What failed.** `docs/kb/investigation-registry.md:54`, inside INV-012's closing evidence block
+(`Confidence: Confirmed`, `:60`):
+
+```
+                inline in four document services.
+```
+
+Re-derived from source in this session:
+
+```
+$ grep -rn "LastNumber" V.SMART/V.SMART.Shared/BusinessLayer/ --include=*.cs
+  -> inline allocation-table read-modify-write appears in SIX services:
+     MfgDcService (379, 827/836)          MfgInvService (452/461, 984)
+     ExpInvService (258, 1210/1219)       LabourInvoiceService (274/283, 647)
+     LabourDcOutgoingService (607, 2727/2736, 4533/4542, 5188)
+     SubConDcOutService (233, 1594)
+```
+
+Six, not four (five if one counts only the manual-branch inline *writes*). KB-100 §3.3, KB-060
+R-12 and KB-004 Q-40 all now say **eight blocks in six services**; KB-003 alone still carries the
+pre-correction "four", labelled Confirmed. Per [KB-002](../source-of-truth-rules.md) `:18`,
+*Confirmed* means "traced directly in current source code" — and `:67`, "a *Confirmed* rating is a
+claim that someone traced it; this one had not been traced."
+
+**Why it survived — the diagnosis, so the next attempt does not repeat it.**
+`git log master..HEAD -- docs/kb/investigation-registry.md` returns **only `5e2ff15`**, the
+original commit. The three correction commits touched KB-100/KB-004/KB-060 (`f69c023`),
+KB-030/KB-100/KB-004/KB-060 (`be27a61`) and KB-100 (`fa4a2ad`). The implementer's own report
+states the census "is now stated correctly … in all four documents: KB-100 §3.3(b), KB-060 R-12,
+KB-004 Q-40, KB-030" — **KB-003 is the fifth document, and it was never enumerated.** It matters
+more than its size: KB-003 is the anti-repetition registry that CLAUDE.md instructs future
+sessions to *reuse without re-deriving*, so the undercount propagates by design into M2-B12-03's
+remedy scoping.
+
+**Fix.** One line. Change `inline in four document services` to `inline in six document services`
+at `docs/kb/investigation-registry.md:54`, and re-read the other four evidence blocks in the same
+sweep for any other figure predating `f69c023`. Do **not** re-derive the artefact.
+
+**Criteria checked: 16 of 16; 15 met, 1 failed.** Artefact exists as KB-100 with full frontmatter;
+all ten *Target Result* sections present (`grep "^## "` -> 1…10); §9 handoff table complete with
+the unique-constraint and duplicate-check columns filled on every row; all 38 Mechanism A sites
+tabulated (decl/SQL lines spot-checked at MfgDcRepository 29/33, LabourDcOutgoingRepository 26/31
+and 59/63, ProductionIssueAssyRepository 49/75 — all resolve); Mechanisms B and C first-class,
+including `CommonService.cs:1845-1963` and `:2078-2201`; the UPDLOCK-is-not-protection statement
+present with the `DebitNoteRepository.cs:32` comment quoted verbatim and confirmed in source;
+negative results recorded and independently reproduced (zero matches for all six patterns); format
+catalogue with worked examples and Unknowns marked; both financial-year implementations recorded
+with the boundary-agreement and shape-divergence statements; `BookTypeDc` branches registered as
+BR-DOC-001…005 (plus 006…010 for the `BookTypeInvoice` discriminator the task file missed) in
+KB-030 with evidence lines that resolve; the gap-avoiding decrement recorded and flagged as a hard
+constraint on M2-B12-03; the null-on-failure behaviour recorded (`CommonService.cs:1957-1961`,
+read and confirmed); R-12 corrected with classification still `Inferred (high confidence)`; KB-100
+registered in both KB-005 tables; diff under `docs/` only.
+
+**Commands re-run in this session, with observed output.**
+
+```
+$ git grep --untracked -ic "TOP 1" -- V.SMART/V.SMART.Shared/Repository/  -> 38 occ / 36 files
+$ git grep --untracked -c  "UPDLOCK" -- V.SMART/V.SMART.Shared/           -> 37
+$ git grep --untracked -nE "HOLDLOCK|sp_getapplock|IsolationLevel|Serializable" -- V.SMART/  -> exit 1, zero
+$ git grep --untracked -nE "CREATE SEQUENCE|HasSequence" -- V.SMART/      -> exit 1, zero
+$ git grep --untracked -n  "IsUnique" -- .../ApplicationDbContext.cs      -> :582, :595, :618
+$ git grep --untracked -c  "IsDuplicate.*Async" -- V.SMART/               -> 81 occ / 59 files
+$ git grep --untracked -c  "GetFinancialYearSuffix" -- V.SMART/           -> 77 occ / 63 files
+$ grep -rn "runningRow.LastNumber ==" .../BusinessLayer/ --include=*.cs   -> 8 blocks; exactly 2
+      guard "&& runningRow.LastNumber > 1" (LabourDcOutgoingService.cs:5186, SubConDcOutService.cs:1592)
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj -> 6695 Warning(s), 0 Error(s), 00:02:11.36
+$ dotnet test tests/V.SMART.Api.Tests/...csproj       -> Passed! 117 passed, 0 failed
+$ dotnet test tests/V.SMART.Shared.Tests/...csproj    -> Passed!  84 passed, 0 failed
+$ git diff --stat master HEAD                         -> 7 files, all under docs/, 0 under V.SMART/
+$ git status --porcelain                              -> only failure-log.md, runner-state.md
+```
+
+The guard census, the dead-code census (`GetLastDcNoAsync` / `GetLastInvNoAsync` /
+`GetLastExpInvNoAsync` / `GetLastLabInvoiceNoAsync` callers all commented out; `GetLastReqNoAsync`
+has none of any kind) and the byte-identity of `MfgPoService.cs:1699-1727` against
+`PerformaInvService.cs:1072-1100` (`diff` -> no output) were each reproduced first-hand and are
+sound.
+
+**Note on `dotnet test` — the task file's prohibition is stale.** M2-B12-01 §*Testing* says "no
+test project exists (INV-023) — do not run `dotnet test`". Two now exist and are in
+[KB-083](prompt-template.md#verified-repository-commands): `tests/V.SMART.Shared.Tests` and
+`tests/V.SMART.Api.Tests`. Both were run here as a regression check and both pass. The task file's
+*Testing* and *Verification Commands* sections should be corrected by whoever owns it — not by
+this task, whose diff must stay documentary.
+
+**Concurrency hazard — observed, not hypothetical.** The branch tip **moved during this
+validation**, `fa4a2ad` -> `58e7bee`, between two of my commands; `git reflog` also shows a
+malformed `@` commit at `b4024f7` amended into `58e7bee`. A second session is or was live on this
+branch. Every finding above was re-confirmed at `58e7bee` after the move, and `58e7bee` altered no
+acceptance criterion (its task-file edit touches only the Execution Record). The orchestrator must
+still confirm the branch is quiet before merging.
+
+**Not checkable in this session.** Nothing that any acceptance criterion depends on. The Unknowns
+KB-100 hands to M2-B12-02 (stored `Company.BookTypeDc` / `BookTypeInvoice` values,
+`PoType.SeriesNo`, `Staff.DepartmentCode`, whether any `TCReturnNo` embeds a suffix, whether the
+contract-review double slash is real in stored data) all require a live tenant database and are
+correctly *recorded as Unknown rather than guessed* — that is the specified behaviour, not a gap.
+
+**Disposition** — return to the implementer for a **one-line** fix at
+`docs/kb/investigation-registry.md:54`. The artefact's substance is now independently verified
+across four validation passes and must not be re-derived.
+
+---
+
+### M2-B12-01 · attempt 4 · diagnosis · 2026-08-20
+
+*(Diagnosis pass over the attempt-4 validator's `FAIL` immediately above, written by the
+debugger per [KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where).
+**Fix applied; no source file touched.** Commit `8a54f96`.)*
+
+| Field | Value |
+|---|---|
+| Runner state | diagnosed, **fixed** |
+| Model in use | opus (diagnosis) |
+| Validator's category | acceptance-criterion |
+| Diagnostician's category | **implementation-error** (documentation census omission) |
+
+**Prior attempts checked first.** Four prior M2-B12-01 entries exist in this log: attempt-1
+validation (four-vs-eight *decrement site* census), attempt-1 diagnosis (guard census
+seven-vs-two, fixed), attempt-3 validation + diagnosis (KB-005 `Q-nn` ledger, fixed), and the
+attempt-4 validation above. The fix applied here — correcting `investigation-registry.md:54`
+from "four" to "six document services" — appears in this log **only as the remedy the attempt-4
+validator prescribed** ("Fix. One line."), never as a fix already tried.
+`git log master..HEAD -- docs/kb/investigation-registry.md` returns only `5e2ff15`, confirming
+no earlier attempt touched the file. **Not a loop.**
+
+**Reproduced, first-hand, before changing anything.**
+
+```
+$ grep -rn "DcRunningNumbers\|InvoiceAutoRunningNumbers" \
+      V.SMART/V.SMART.Shared/BusinessLayer/ --include=*.cs \
+  | grep -E "GetQueryable|CreateAsync|UpdateAsync"
+  -> 26 lines: CommonService.cs:1924,1943,1948,2160,2179,2184 (6)
+     MfgDcService.cs:380,832,837                    MfgInvService.cs:457,462,985
+     ExpInvService.cs:259,1215,1220                 LabourInvoiceService.cs:279,284,648
+     LabourDcOutgoingService.cs:608,2732,2737,4538,4543,5189
+     SubConDcOutService.cs:234,1595
+  -> CommonService plus exactly SIX document services.
+
+$ sed -n '54p' docs/kb/investigation-registry.md   (before the fix)
+                inline in four document services.
+$ sed -n '60p' docs/kb/investigation-registry.md   ->  Confidence:     Confirmed
+```
+
+All twenty service-side line numbers were opened individually and each is an
+`_unitOfWork.{Dc,InvoiceAuto}RunningNumbers.{Create,Update}Async(...)` call. The claim is
+therefore false as written, under a `Confirmed` label — [KB-002](../source-of-truth-rules.md)
+`:18` reserves *Confirmed* for what has been traced in current source.
+
+**Root cause.** A documentation census omission — not a defect in the ERP, and not a legacy
+behaviour anyone still has to determine. The four-to-eight/six correction sweep of attempts 1-2
+updated KB-100 §3.3, KB-060 R-12, KB-004 Q-40 and KB-030, and the implementer's own report
+enumerated exactly those four documents. **KB-003 was the fifth document and was never opened.**
+It matters more than its size because CLAUDE.md instructs future sessions to reuse a `Complete`
+investigation *without re-deriving it*, so the undercount would have propagated into M2-B12-03's
+remedy scoping — the remedy would have restored gap avoidance for four series and silently
+dropped it for LABOURDCOUTGOING and SUBCONDCOUT.
+
+**A second live instance of the same stale count, which the attempt-4 validator did not name.**
+Sweeping `docs/` for the pre-correction phrasing found `document-numbering.md:99` — the §2
+mechanism-taxonomy table — still reading "4 methods in `CommonService` + inline copies in **4**
+document services", two paragraphs above a bold **Confirmed**. This is the *same sentence* the
+attempt-1 validator quoted ("its Mechanism C census … is short by two whole document families");
+the correction landed in §3.3 and never in §2. Left unfixed it would have failed the next
+validation exactly as KB-003 failed this one, so it is corrected in the same commit.
+
+**Fix applied** (docs only; both files already inside the branch's existing change set):
+
+| File | Change |
+|---|---|
+| `docs/kb/investigation-registry.md:54-58` | `inline in four document services` → `inline in six document services`, naming all six, with a note that the block first said four and what the undercount missed |
+| `docs/kb/investigation-registry.md:63-71` | `Evidence:` extended with the twenty service-side `path:line` write sites (all opened and confirmed), in KB-083 `path:line-range` form rather than as prose |
+| `docs/kb/investigation-registry.md:41` | INV-012 `source_files` widened — it omitted `LabourDcOutgoingService.cs` and `SubConDcOutService.cs`, the same two services. Mirrors what `fa4a2ad` did for KB-100's frontmatter |
+| `docs/kb/investigation-registry.md:143-147` | INV-012 *Unknowns* listed Q-10/37/38/39 and omitted **Q-40** — the identical drift the attempt-3 validator caught at `document-numbering.md:841`. Q-40 added, with its premise (`LastNumber = 0` from the six unguarded decrements; the allocator initialises to `1`) |
+| `docs/kb/modules/document-numbering.md:99` | §2 taxonomy row `inline copies in 4 document services` → `inline copies in **6** document services (§3.3)` |
+
+The other four INV-012 evidence blocks were re-read in the same sweep for any figure predating
+`f69c023`, as the attempt-4 validator instructed: block 1's "38 sites / 36 files" and "three
+services" (Mechanism B is 6 methods = 2 repositories + 3 services, KB-100 §3.2), block 2's
+"37 of 38 UPDLOCK", block 3's six zero-match negative results and block 4's three `IsUnique`
+calls are all consistent with KB-100 and with the counts two validators reproduced first-hand.
+**Nothing else in the artefact was re-derived**, per that instruction.
+
+**Re-validated, commands and observed output.**
+
+```
+$ grep -rn "DcRunningNumbers\|InvoiceAutoRunningNumbers" .../BusinessLayer/ --include=*.cs \
+    | grep -E "GetQueryable|CreateAsync|UpdateAsync"       -> 26 lines / 6 services (above)
+$ each of the 20 service lines printed with sed -n '<n>p'  -> all 20 are RunningNumbers writes
+$ grep -rn "four document services|inline copies in 4" docs/  -> only failure-log.md (history)
+$ git status --porcelain -- V.SMART/                       -> empty (no source file touched)
+$ git diff --stat master..HEAD -> 7 files, all under docs/, 1213 insertions / 24 deletions
+$ git diff --name-only master..HEAD | grep -c "^V.SMART/"  -> 0
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj      -> 2 Warning(s) / 0 Error(s),
+      00:00:04.78 — an INCREMENTAL build; nothing recompiled, because no source changed. The
+      6,695 baseline is the attempt-4 validator's non-incremental measurement and is unaffected
+      by a docs-only diff; it is NOT re-claimed here as re-observed.
+$ dotnet test — not run. No source changed, so it can only reproduce the validator's 117 + 84
+      green. (Its own note stands: the task file's "do not run dotnet test" prohibition is
+      stale and belongs to whoever owns that file.)
+```
+
+**Committed as `8a54f96`** — "M2-B12-01: Correct the Mechanism C service census in KB-003 and
+KB-100 §2". Well-formed subject, docs only. Nothing merged, nothing pushed.
+
+**Branch stability.** `git status --porcelain` showed only `failure-log.md` and
+`runner-state.md` (both orchestrator-owned) before and after this pass; the tip was `58e7bee`
+throughout and is now `8a54f96`. The concurrent-writer condition the attempt-3 and attempt-4
+validators observed did **not** recur during this pass, but the orchestrator should still
+confirm no second session is live before merging.
+
+**Still owed by the orchestrator — not fixed here, unchanged from the previous two entries.**
+
+1. `tasks/M2-B12-01.md` *Why This Task Exists* says **7** lock-free LINQ sites where its own
+   Mechanism B table and KB-100 §3.2 say **6**.
+2. `tasks/M2-B12-01.md` *Verification Commands* use plain `grep` over `V.SMART/`, returning
+   485 / 15 instead of 0 because `bin/` and `obj/` are counted; KB-100 §1 records the corrected
+   command, the task file does not.
+3. `tasks/M2-B12-01.md` *Testing* still says "no test project exists — do not run `dotnet test`".
+   Two projects now exist and are in KB-083.
+4. `task-tracker.md:136` still reads `Ready`.
+
+**Residual risk.** All five failures on this task are one defect class — a count asserted
+*Confirmed* without the command that would confirm it recorded beside it — and each was caught
+by a validator rather than by the writer. This pass swept `docs/` for the specific stale
+phrasing and found the two instances above, but a phrase-based sweep cannot prove a
+*semantically* restated undercount is absent elsewhere. The counts that carry the most weight
+(38/36 Mechanism A sites, 6 Mechanism B methods, 8 decrement blocks in 6 services, 2 guarded /
+6 unguarded, 3 `IsUnique`, the six zero-match negatives) have each now been reproduced
+first-hand by at least two independent passes.
+
+**Disposition** — `fixed`, ready for re-validation of the same branch at tip `8a54f96`.
+Re-validation should target `investigation-registry.md:41,54-71,143-147` and
+`document-numbering.md:99` only; the artefact's substance has been independently verified
+across four passes and must not be re-derived.
+
+---
+
+### M2-B12-01 · session close-out · 2026-08-20 — STOPPED, escalation budget exhausted
+
+**Disposition** — no further automated action on this branch. `8a54f96` (above) is committed,
+docs only, `git diff --stat master..HEAD` shows 7 files under `docs/kb/` only. It has **not**
+been re-validated: this task's escalation budget (`max_escalations: 1`) is fully spent
+(attempt-4's `FAIL` above was the escalation trigger), and attempts used stand at **2 of 3**
+per the orchestrator's own bookkeeping. Rather than spend the remaining attempt on an
+unsupervised re-validation of a fix diagnosed by the same escalated pass that produced it, the
+orchestrator stops here and hands the branch to the repository owner, **Vivek**, for one of:
+review-and-merge directly, authorize a budget reset for a fresh validation pass, or send it
+back for another implementation round.
+
+**Also corrected as part of this close-out, unrelated to the fix itself:** a separate, earlier
+in-flight session had already appended a "Validation and Session Close-out" record to
+`tasks/M2-B12-01.md` reporting a **`PASS`** at tip `58e7bee` and had advanced
+`task-tracker.md`/`current-task.md` accordingly (commit `cba467c`). That `PASS` does not match
+this log's own attempt-4 entry, which validated the *same* tip `58e7bee` and returned **`FAIL`**
+on the six-vs-four census. The `cba467c` close-out's `PASS` claim is not corroborated by
+anything in this file and is treated as erroneous, not as a second, later, better validation —
+this file has no record of any validation run between attempt-4's `FAIL` and `8a54f96`'s
+commit that could have produced a genuine `PASS`. `tasks/M2-B12-01.md`, `task-tracker.md` and
+`current-task.md` have been corrected in this same close-out pass to the honest state:
+`Blocked`, not `Needs Review`/`PASS`. See `tasks/M2-B12-01.md` § Execution Record (2026-08-20)
+— Session Close-out: STOPPED, escalation budget exhausted, for the full correction.
+
+No file under `V.SMART/` was read or written in this close-out pass; no build or test command
+was re-run (nothing to verify — no source changed since attempt-4's build/test run, recorded
+above).
