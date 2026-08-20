@@ -113,7 +113,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
-| M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Needs Review**²³ | P0 | G0 | 3–5 d | G2 |
+| M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | Blocked | P0 | M2-A01-03 | 2 d | G2 |
 | M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | Blocked | P0 | M2-A01-03 | 3 d | G2 |
 
@@ -124,14 +124,14 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Ready** | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Ready** | P1 | M2-B07 | 1 d | G2 |
-| M2-B02 | M2 | Paging / sort / filter contract | Backend | Blocked | P0 | M2-A06 | 1 wk | G2 |
+| M2-B02 | M2 | Paging / sort / filter contract | Backend | **Ready** | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Ready** | P1 | M2-B07 | 2 d | G2 |
-| M2-B06 | M2 | File upload / download endpoints | Backend | Blocked | P1 | M2-A06 | 1 wk | G2 |
+| M2-B06 | M2 | File upload / download endpoints | Backend | **Ready** | P1 | M2-A06 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | Blocked | P1 | **M2-B07**, M2-B02 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
-| M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | Blocked | P2 | M2-A06 | 3 d | G2 |
+| M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Ready** | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Ready** | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
@@ -246,7 +246,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | 1 *(M2-B07; also `Needs Review` — M2-A01-01 gate exception¹⁸, M2-C04-01²², M2-A06²³. NOTE 2026-08-20: this row is known stale on `M2-C01`/`M2-C04-01`'s own Completed status — reconcile on next touch, not corrected here as out of this close-out's scope)* | G2 | ⬜ Not met |
+| M2 | 52 | **5** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-C01`¹⁹, `M2-B07`²⁰, `M2-C04-01`²², `M2-A06`²³. Reconciled 2026-08-20: this row read `1` and carried a stale "also Needs Review" note listing three tasks that had since been merged. Recount is by `grep` over the M2 rows, not by adding to the previous number)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -1207,11 +1207,39 @@ prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three mo
 > for*, not a validation failure. `M0-12-01` set the precedent that a new test project gets wired
 > into CI in the same change that creates it.
 >
-> **Fix before merge, ideally**: add the project to the solution and a second `dotnet test` step
-> to `ci.yml`, updating that comment. Small, mechanical, and cheaper now than after three more
-> controllers depend on the contract.
+> **✅ FIXED BEFORE MERGE**, on owner instruction (*"wire it into CI then merge"*), commit
+> `a499989`. `tests/V.SMART.Api.Tests/` is now in the solution (`dotnet sln list` → six projects)
+> and has its own `Test - V.SMART.Api.Tests` step in `ci.yml`'s `build` job — a **separate** step,
+> so the job log names which suite failed without anyone opening a `.trx`. The
+> "WHAT IS DELIBERATELY NOT HERE" comment was rewritten: it asserted no test project other than
+> Shared exists, which the merge made false. It now states the standing rule — **every new test
+> project gets its own step in the change that creates it**, because a suite CI does not run is a
+> suite that rots without anyone noticing.
+>
+> `ci.yml` was parsed with a real YAML parser, not eyeballed: `build` / `frontend` /
+> `frontend-e2e` jobs intact, both `Test` steps present and in order. A hand-indented step that
+> fails to parse would break the entire workflow.
+>
+> **Still not verified, and not verifiable from an execution session:** that the new step is green
+> on a hosted runner. That needs a push — the same wall as `M0-07`, `M0-12-02` and `M2-C01`.
 
-²³ **M2-A06: `Needs Review` — implemented and independently validated `PASS` on
+²³ **M2-A06: `Completed` and merged (`76eca5d`, 2026-08-20) — all eighteen acceptance criteria `MET`, no waiver.**
+
+> **Re-verified before merging and again on `master` after:** `dotnet build V.SMART.Api` **0 errors / 6,694 warnings** (baseline 6,695); `dotnet test V.SMART.Api.Tests` **21 passed**; `dotnet test V.SMART.Shared.Tests` **84 passed**, no regression.
+>
+> **BR-SO-001 was honoured** — the one thing here that could have destroyed behaviour while reading as an improvement in a diff. `ApiProblems.BusinessRuleRefusal` carries the service's own message into `title` **verbatim**: *"not reworded, not prefixed, not truncated. Those strings are product UX written by the domain team."*
+>
+> **The validator probed the running host rather than trusting the build.** It started the API with a throwaway JWT secret and an unreachable `MasterDb` and confirmed over HTTP: `application/problem+json` with matching `X-Correlation-Id`/`traceId` on 401, 404, 503 and a CORS preflight 204; **no connection string** in the unresolved-tenant body (R-01); a caller-supplied correlation header ignored. The implementer had explicitly reported *not* doing this — the validator did not take that as settled.
+>
+> **A deliberate breaking change ships here:** `DELETE /api/currencies/{id}`'s refusal moves **`400` → `409`** per ADR-002 §4. Intended, and the only contract change in the diff.
+>
+> **Two defects flagged forward rather than quietly fixed:** `ExceptionHandlingMiddleware`'s `Response.Clear()` discards CORS headers on error responses (→ **`M2-A05`**, R-24), and `/swagger/index.html` returns no correlation header (Development-only, no API endpoint affected).
+>
+> **INV-040 `Complete`:** business-rule refusals are signalled by **tuple return, not exception** — 79 delete-guard methods across 61 service files. The binding convention for every later controller is a controller helper (`ProblemResults.BusinessRuleProblem`), **not** a domain exception.
+
+Pre-merge record follows. Branch `migration/M2-A06-problem-details`, tip `f69891a` at validation.
+
+**Original close-out text:** M2-A06: `Needs Review` — implemented and independently validated `PASS` on
 `migration/M2-A06-problem-details` (`f69891a`), 2026-08-20. Not merged; per
 [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) only the repository owner
 may set it `Completed`.**

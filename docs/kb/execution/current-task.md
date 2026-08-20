@@ -99,16 +99,16 @@ after this one.
 
 ## Carried forward from `M2-A06`'s close-out
 
-- **`M2-A06` is `Needs Review`**, implemented and independently validated `PASS` on
-  `migration/M2-A06-problem-details` (`f69891a`), all eighteen acceptance criteria `MET`. Not
-  merged — awaiting owner review. Full record:
+- **`M2-A06` is `Completed` and merged** (`76eca5d`, 2026-08-20), independently validated `PASS` on
+  `migration/M2-A06-problem-details` (`f69891a`), all eighteen acceptance criteria `MET`. Its 21 tests were wired into the `.sln` and `ci.yml` at review (`a499989`) before the
+  merge — they ran nowhere but a workstation until then. Full record:
   [`tasks/M2-A06.md` § Execution Record (2026-08-20)](tasks/M2-A06.md#execution-record-2026-08-20)
   and `task-tracker.md` footnote ²³.
 - **The API now has one error contract.** `V.SMART/V.SMART.Api/Middleware/` — global
   exception handling, correlation ids, a single `ProblemDetails` factory
   (`ApiProblems.cs`), registered by `UseErrorContract()` before `UseCors` in `Program.cs`.
-  `M2-B02`/`M2-B06`/`M2-B11` all build on it and stay `Blocked` until this is merged
-  (`Needs Review` does not release a Hard-dependent successor per the selection rule).
+  **`M2-B02`, `M2-B06` and `M2-B11` are now `Ready`**, released by the merge
+  (a `Needs Review` predecessor would not have released them; a merged `Completed` one does).
 - **INV-040 (`Complete`):** business-rule refusals are signalled by tuple return, not
   exception — 79 delete-guard methods across 61 service files. The binding convention for
   every future controller: a controller helper (`ProblemResults.BusinessRuleProblem`), not a
@@ -122,10 +122,9 @@ after this one.
   endpoint affected — `api-overview.md`); `ExceptionHandlingMiddleware`'s
   `Response.Clear()` discards CORS headers on an error response, flagged forward to
   **M2-A05** (`technical-debt-register.md` R-24).
-- **`task-tracker.md`'s M2 rollup row is known stale** on `M2-C01`/`M2-C04-01`'s own
-  `Completed` status (footnote text says `Completed` and merged; the rollup summary line still
-  counts them as `Needs Review`). Not corrected during this close-out — out of scope for a
-  session closing `M2-A06`. Whoever next touches that row should reconcile it.
+- ~~**`task-tracker.md`'s M2 rollup row is known stale**~~ — **reconciled 2026-08-20** during this merge's bookkeeping: the row read `1` and now reads **5**, recounted by `grep` over the M2 rows rather than by incrementing. It was stale on `M2-C01`/`M2-C04-01`'s own
+  `Completed` status. The close-out correctly declined to fix it as out of its own scope and
+  flagged it forward instead — which is why it got fixed rather than forgotten.
 
 ## Ready and unclaimed once `M2-B12-01` closes
 
