@@ -349,6 +349,48 @@ screen names diffs **identical** against the live `Screens` seed at
 typos. Q-27 (duplicate `(UserId, ScreenId)` rows in a live tenant database) remains
 **Unknown** — the dev tenant reachable in that session was not queried for it.
 
+**M2-A01-03 amendment to INV-037 (2026-08-20) — the `UserRight` write-site enumeration,
+re-verified for cache invalidation.** Re-run against current code rather than trusted:
+`git grep --untracked -n "UserRights\." -- V.SMART` returns exactly **six write statements
+across five sites**, unchanged from 2026-08-18.
+
+```yaml
+Finding:        5 call sites write UserRight rows (6 statements). 0 run in the API process
+                and are invalidated explicitly; 5 run only in the Blazor host
+                (V.SMART.Web) and are bounded by the cache TTL alone.
+                IUserRightsProvider.Invalidate(tenantId, userId) exists and is correct, but
+                has NO caller that can ever fire today — it is infrastructure for a future
+                API-side writer.
+Evidence:       V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/MasterService/AdminService/UserRightService.cs:77   (CreateRangeAsync, in SyncRightsForUserAsync:32; sole caller Pages/Master_Module_pages/Identity_Pages/Login.razor:348 — Blazor)
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/MasterService/AdminService/UserService.cs:464       (CreateAsync — Blazor)
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/MasterService/HRMasterService/EmployeeService.cs:191 (DeleteAsync — Blazor)
+                V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Employee_Pages/EmployeeUpsert.razor:921                  (DeleteAsync — Blazor)
+                V.SMART/V.SMART.Shared/Pages/Master_Module_pages/UserRights_Pages/UserRights.razor:446, :462              (UpdateAsync / CreateAsync — Blazor)
+Business rule:  BR-AUTH-002
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+**Negative results, all Confirmed, all recorded so no future session repeats them:**
+
+- **No `UserRight` write exists anywhere in `V.SMART.Api`.**
+  `git grep --untracked -n "UserRightService\|IUserRightService\|EmployeeService\|UserService" -- V.SMART/V.SMART.Api`
+  matches only prose in comments (`Auth/ApiAuthStateProvider.cs:8`;
+  `Authorization/ScreenRightAuthorizationFilter.cs:74,75,165`; `Program.cs:132`). This is why
+  the invalidation count above is 0, not a wiring omission.
+- **No `UserRight` write bypasses the repository.**
+  `git grep --untracked -n "Set<UserRight>\|UserRight>(" -- V.SMART` (excluding `Migrations/`)
+  returns only the `DbSet` (`Data/ApplicationDbContext.cs:148`), the navigation property
+  (`Data/Master/Admin_Module/User.cs:123`), the AutoMapper profile
+  (`Mappings/MasterMapping/AdminProfile/UserRightsMapping.cs:24`) and the read
+  (`Repository/MasterRepository/Admins/UserRightsRepository.cs:24`).
+- **No stored procedure touches `UserRight`.** `grep -ril userright` across
+  `db/stored-procedures` and `Existing Store Procedures` returns nothing — there is no
+  out-of-band SQL writer that would evade both the inventory and any invalidation.
+
+Consequence, and it must not be softened: **the 60-second TTL is the only staleness bound
+that exists** (KB-105 §8.4, §8.6; F-7; Q-29).
+
 **M2-C01 amendment to INV-029 (2026-08-19) — the post-M0 `.gitignore` / `.github/workflows/`
 state, and the repository's first React project.** M2-C01's task file was written on
 2026-08-12 and asserts that `.github/workflows/` is empty and that `.gitignore` ignores only

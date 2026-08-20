@@ -108,14 +108,14 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | **In Progress** | P0 | G0 | 1–2 wks | G2 |
 | M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
-| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Ready** | P0 | M2-A01-02 | 2 d | G2 |
-| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | Blocked | P0 | M2-A01-03 | 1 d | G2 |
+| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
+| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Ready** (gated on **Q-28** — see footnote ²⁷) | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
-| M2-A07 | M2 | `GET /api/v1/me` | Backend | Blocked | P0 | M2-A01-03 | 2 d | G2 |
-| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | Blocked | P0 | M2-A01-03 | 3 d | G2 |
+| M2-A07 | M2 | `GET /api/v1/me` | Backend | **Ready** | P0 | M2-A01-03 | 2 d | G2 |
+| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Ready** | P0 | M2-A01-03 | 3 d | G2 |
 
 ### M2-B — API structure
 
@@ -247,7 +247,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 53 | **5** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-A01-02`²⁵, `M2-A06`²³, `M2-B07`²⁰, `M2-B02`²⁴ — **all five are backend**. Was 7 until 2026-08-20: `M2-C01`¹⁹ and `M2-C04-01`²² were `Completed` in React and are **superseded** by [ADR-007](../decisions/ADR-007-angular-stack.md), footnote ²⁶. Total rises 52 → 53 with the new `M2-C00`. Recount is by `grep` over the M2 rows, never by adjusting the previous number)* | G2 | ⬜ Not met |
+| M2 | 53 | **6** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-A01-02`²⁵, `M2-A01-03`²⁷, `M2-A06`²³, `M2-B07`²⁰, `M2-B02`²⁴ — **all six are backend**. Was 7 until 2026-08-20: `M2-C01`¹⁹ and `M2-C04-01`²² were `Completed` in React and are **superseded** by [ADR-007](../decisions/ADR-007-angular-stack.md), footnote ²⁶. Total rises 52 → 53 with the new `M2-C00`. Recount is by `grep` over the M2 rows, never by adjusting the previous number)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -1457,3 +1457,48 @@ lists `M2-A01-02` as a Hard prerequisite.
 > ### Cost, stated plainly
 >
 > Two merged tasks discarded and ~12 specs to re-derive: **1–2 weeks of real waste.** No backend work is affected — **all five remaining `Completed` M2 tasks are backend**, framework-neutral by design, which is the property that made this switch affordable at all. Deferring it would not have made it cheaper: `M2-C05`/`C07`/`C08` are 6–7 weeks by ADR-003's own estimate and all still ahead.
+²⁷ **M2-A01-03: `Completed` and merged (2026-08-20) — all acceptance criteria `MET`, no waiver.** 
+
+> **The cache key is tenant-scoped**, which was the one way this task could have introduced a cross-tenant data leak: `screenrights:v1:{tenantId}:{userId}`, with the hazard named in the code — *"two tenants can both have `UserId = 1` and a tenant-blind key would serve one tenant's rights to another."* Under database-per-tenant (KB-014) that is the whole risk, and it is closed. **Fail-closed on a missing tenant:** the filter resolves `tenantId` via `TryGetPositiveIntClaim` and **denies** when the claim is absent or unusable — it does not default to `0`. **No negative caching:** a throwing rights query writes nothing and propagates to the `M2-A06` handler, so a database fault can never be recorded as "no rights" (KB-105 §7.3). **The TTL cap is enforced in code:** default 60 s, max 300 s, `0` disables and restores exact `M2-A01-02` behaviour — the cap exists because the Blazor and API hosts are separate processes, so a `UserRight` write in Blazor cannot invalidate the API's in-process cache; only TTL expiry catches it. Verified before merging: `dotnet build V.SMART.Api` **0 errors**; `V.SMART.Api.Tests` **117 passed** (104 → +13); `V.SMART.Shared.Tests` **84 passed**.
+>
+> **Releases `M2-A02`, `M2-A07`, `M2-A08`. `M2-A02` is gated on Q-28** — an API-only administrator holds **zero** `UserRight` rows because `AuthController.Login` never calls `SyncRightsForUserAsync`. Annotating a controller before that is settled produces an administrator who authenticates into an empty UI.
+>
+> **Footnote renumbered ²⁶ → ²⁷ on merge** (`569c9e6`) — `master` had claimed ²⁶ for the ADR-007 Angular re-scope an hour earlier. Sixth cross-branch id collision.
+
+Pre-merge record follows.
+
+**Original close-out text:** M2-A01-03: `Needs Review`, not `Completed` — implemented and independently validated
+`PASS` on `migration/M2-A01-03-rights-cache`, tip `0fde6fb`, 2026-08-20, attempt 2 of 3, 0
+escalations.** Not merged; per [KB-088 "Who may set
+COMPLETED"](workflow.md#who-may-set-completed) only the repository owner may set it
+`Completed`.
+
+All eighteen acceptance criteria independently re-checked `MET`. `dotnet build V.SMART.Api
+--no-incremental`: **0 errors, 6,694 warnings** (baseline). `dotnet test
+tests/V.SMART.Api.Tests`: **117 passed, 0 failed** (104 → +13, the new
+`UserRightsCacheTests.cs`). `dotnet test tests/V.SMART.Shared.Tests`: **84 passed, 0 failed** —
+no regression. `git diff --stat master...HEAD`: 13 files, +630/-27; nothing under
+`V.SMART.Shared/`, `V.SMART.Web/`, `V.SMART/V.SMART/`, no migration, no secret touched.
+
+**Attempt 1 regressed the test suite and was repaired in attempt 2.** `a78c51e` added the
+non-default `Invalidate(int, int)` member to `IUserRightsProvider` without updating the two
+test stand-ins in `ScreenRightAuthorizationFilterTests.cs`, so that project stopped compiling
+(`CS0535` × 2) and 104 previously-green tests ran zero. `0fde6fb` implemented `Invalidate` on
+both stand-ins (no default interface implementation, deliberately, so a future real provider
+cannot silently skip eviction) and added the 13 cache tests. Re-validated clean; see
+[`tasks/M2-A01-03.md` § Execution Record
+(2026-08-20)](tasks/M2-A01-03.md#execution-record-2026-08-20) for the full record.
+
+**One deliberate departure from KB-105 §8.2:** no `SizeLimit` cap on the shared
+`IMemoryCache` — recorded as **R-41** ([KB-060](../risks/technical-debt-register.md)), not a
+wiring gap.
+
+**Corrected a stale KB-105 sentence found during re-verification**, not introduced by this
+task: §7.4 read "three of the five `UserRight` write sites are in the Blazor host",
+contradicting its own §8.4 table, F-7 and Q-29, all of which say five. Fixed to "five of
+five" with the re-grep evidence attached.
+
+**Does not release `M2-A02`, `M2-A07` or `M2-A08` yet** — their Hard prerequisite must be
+genuinely `Completed`, not `Needs Review`
+([KB-082](dependency-graph.md#ready-task-selection-rule) step 1). They remain `Blocked` until
+this branch is reviewed and merged.

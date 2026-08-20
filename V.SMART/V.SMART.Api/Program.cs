@@ -145,11 +145,28 @@ builder.Services.AddVSmartDomain(builder.Configuration);
 // M2-A01-02 — server-side screen-right authorization (ADR-004, KB-105 §6.2). Both are scoped:
 // the provider reaches IUnitOfWork, which AddVSmartDomain() registers scoped over the
 // tenant-resolved ApplicationDbContext, and the filter resolves the provider per request.
-// NO CACHE here on purpose — M2-A01-03 puts one behind IUserRightsProvider, and a cache added
-// now would make it impossible to tell a denial by rule from a denial by stale entry.
 // KB-105 §6.2 places these beside AddVSmartDomain() and notes that M2-B07's sibling
 // AddVSmartApiAuthorization() extension may later absorb them; they must never move into
 // V.SMART.Shared, where the Blazor and MAUI hosts would also receive them.
+//
+// M2-A01-03 — the provider now resolves through a memory cache (KB-105 §8). The cache itself is
+// the framework singleton: it has to outlive the request to be a cache at all, while the provider
+// stays scoped because IUnitOfWork is. A scoped consumer of a singleton is not a captive
+// dependency; the reverse would be.
+//
+// No SizeLimit is set on this shared cache, and that is deliberate. Setting one obliges EVERY
+// future IMemoryCache consumer in this host to set MemoryCacheEntryOptions.Size or Set() throws at
+// runtime — a trap exported to code that has no idea this task exists. The rights entries set
+// Size = 1 anyway, so a cap can be imposed later without touching the provider. KB-105 §8.2.
+builder.Services.AddMemoryCache();
+
+// TTL is resolved and validated HERE, before builder.Build(), rather than through the options
+// pattern: ValidateOnBuild is off in this host (see the block above), so a lazy IValidateOptions
+// failure would surface on the first authorized request instead of at startup. KB-105 §8.4
+// consequence 2 requires a TTL above 300 s to fail startup — it is the only guard against someone
+// "reducing database load" by widening the window in which a revoked right still works.
+builder.Services.AddSingleton(UserRightsCacheOptions.FromConfiguration(builder.Configuration));
+
 builder.Services.AddScoped<IUserRightsProvider, UserRightsProvider>();
 builder.Services.AddScoped<ScreenRightAuthorizationFilter>();
 

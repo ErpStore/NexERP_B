@@ -68,14 +68,15 @@ the re-scoped `M2-C01`'s call.
 
 ---
 
-## Waiting for your review — one unmerged branch
+## Nothing awaits review — all validated work is merged
 
-| Task | Branch | State |
-|---|---|---|
-| **`M2-A01-03`** | `migration/M2-A01-03-rights-cache` | Validated `PASS`, `Needs Review`. Per-request rights caching, tenant-scoped TTL. **Releases `M2-A02`, `M2-A07`, `M2-A08` when merged** — the critical path runs through it |
+`M2-A01-03` (tenant-scoped rights cache) was merged 2026-08-20. **`M2-A02`, `M2-A07` and
+`M2-A08` are released** as a result.
 
-`M2-A01-03` is the highest-value merge available: it is the only thing standing between the
-current state and three released `M2-A` tasks.
+**`M2-A02` must settle `Q-28` before it starts.** An API-only administrator holds **zero**
+`UserRight` rows, because `AuthController.Login` never calls `SyncRightsForUserAsync`.
+Annotate `CurrencyController` before that is answered and the administrator authenticates
+successfully into an empty UI — the R-40 failure mode, moved to the API side.
 
 ## Ready and unclaimed after `M2-C00`
 

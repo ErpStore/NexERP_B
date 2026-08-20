@@ -441,12 +441,24 @@ namespace V.SMART.Api.Tests
                 LastUserId = userId;
                 return Task.FromResult(_rights);
             }
+
+            /// <summary>
+            /// Present because <c>IUserRightsProvider</c> declares it (M2-A01-03). The filter never
+            /// evicts — it only reads — so a no-op here is the faithful stand-in, and
+            /// <see cref="InvalidateCalls"/> is asserted nowhere except to prove that.
+            /// </summary>
+            public void Invalidate(int tenantId, int userId) => InvalidateCalls++;
+
+            public int InvalidateCalls { get; private set; }
         }
 
         private sealed class ThrowingUserRightsProvider : IUserRightsProvider
         {
             public Task<ScreenRightSet> GetAsync(int tenantId, int userId, CancellationToken ct)
                 => throw new InvalidOperationException("rights query failed");
+
+            public void Invalidate(int tenantId, int userId)
+                => throw new InvalidOperationException("Invalidate must not be called by the filter.");
         }
     }
 }

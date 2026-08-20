@@ -20,6 +20,9 @@ source_files:
   - V.SMART/V.SMART.Api/Auth/JwtTokenService.cs
   - V.SMART/V.SMART.Api/Controllers/AuthController.cs
   - V.SMART/V.SMART.Api/Controllers/CurrencyController.cs
+  - V.SMART/V.SMART.Api/Authorization/IUserRightsProvider.cs
+  - V.SMART/V.SMART.Api/Authorization/UserRightsProvider.cs
+  - V.SMART/V.SMART.Api/Authorization/UserRightsCacheOptions.cs
 entities: [UserRight, Screens, User]
 api_endpoints: []
 database_tables: [UserRights, Screens]
@@ -610,9 +613,15 @@ since all four cases collapse to the same `?? false`.
 Specified in full in **§8**. Summary of the decision: key
 `"screenrights:v1:{tenantId}:{userId}"`, 60-second **absolute** expiration, value a
 `ScreenRightSet`, explicit invalidation on API-side writes — of which there are currently
-none. The finding that shapes it: **three of the five `UserRight` write sites are in the
+none. The finding that shapes it: **all five of the `UserRight` write sites are in the
 Blazor host, a different process**, so an in-process cache in the API cannot be invalidated
-by them and the TTL is the only real staleness bound.
+by any of them and the TTL is the only real staleness bound.
+
+> Corrected by `M2-A01-03` (2026-08-20): this paragraph previously read "three of the five",
+> contradicting §8.4's table, the F-7 row and Q-29, all of which say five. Re-verified against
+> current code — `git grep --untracked -n "UserRights\."  -- V.SMART` returns exactly six write
+> statements across the five sites §8.4 lists, and none of them is in `V.SMART.Api`.
+> **Confirmed.**
 
 ---
 
@@ -870,6 +879,50 @@ Consequences, which `M2-A01-03` must implement and not soften:
 The negative authorization decision is never cached — only the rights *set* is. Caching
 `(screen, right) → denied` would multiply the invalidation surface by 152 × 4 for no
 measurable gain over a ≤152-entry in-memory scan (**D-1**, justification 3).
+
+### 8.6 As implemented by `M2-A01-03` (2026-08-20)
+
+§§8.1–8.5 are a proposal; this subsection is an **as-is** record of the code that now exists in
+`V.SMART.Api`. Where they differ, this subsection governs "what the code does" and §§8.1–8.5
+still state why.
+
+| Aspect | As implemented | Where |
+|---|---|---|
+| Key | `screenrights:v1:{tenantId}:{userId}` — tenant first, exactly §8.1 | `V.SMART/V.SMART.Api/Authorization/UserRightsProvider.cs` — `KeyPrefix` + `CacheKey(tenantId, userId)` |
+| Store | The framework singleton `IMemoryCache`, registered by `builder.Services.AddMemoryCache()` | `V.SMART/V.SMART.Api/Program.cs`, beside the authorization registrations |
+| Expiration | `AbsoluteExpirationRelativeToNow` — **absolute**, never sliding | `UserRightsProvider.GetAsync` |
+| TTL | `Authorization:RightsCacheSeconds`, default **60**, present in `appsettings.json` | `UserRightsCacheOptions.TtlSecondsConfigurationKey` / `DefaultTtlSeconds` |
+| Startup guard | A value above **300** — or negative, or non-numeric — throws `InvalidOperationException` naming the key, **before `builder.Build()`** | `UserRightsCacheOptions.FromConfiguration`, called from `Program.cs` |
+| Value | `ScreenRightSet`, the detached projection §8.3 requires, cached by reference exactly as the uncached path produced it — no `OrderBy`, no `Distinct`, no re-projection | `UserRightsProvider.LoadAsync` |
+| Eviction | `IUserRightsProvider.Invalidate(int tenantId, int userId)` — §8.4 consequence 1 | `V.SMART/V.SMART.Api/Authorization/IUserRightsProvider.cs` |
+| Bypass | `Authorization:RightsCacheSeconds = 0` disables caching entirely: every call resolves from the database | `UserRightsCacheOptions.IsEnabled`; the early return in `GetAsync` |
+| Negative caching | None. The `Set` runs only after a successful `await`, so a throwing query leaves no entry and the exception propagates to the `M2-A06` handler (§7.3) | `UserRightsProvider.GetAsync` |
+| Lifetimes | Cache **singleton**, provider and filter **scoped** — §6.2's table | `Program.cs` |
+
+**Where the implementation departs from §8.2, and why.** §8.2 asks for a configurable entry cap.
+It is **not** implemented, deliberately: the only way to cap a `MemoryCache` is
+`MemoryCacheOptions.SizeLimit`, and setting it on the shared singleton obliges *every* future
+`IMemoryCache` consumer in this host to populate `MemoryCacheEntryOptions.Size` or `Set` throws
+`InvalidOperationException` at runtime — a trap exported to code with no reason to know this task
+existed. The rights entries set `Size = 1` regardless, so a cap can be imposed later (a
+`SizeLimit` on the shared cache once every consumer sets `Size`, or moving the rights entries to a
+provider-owned `MemoryCache`) with no change to `UserRightsProvider`. Residual exposure: the cache
+holds one `ScreenRightSet` per *(tenant, user)* seen in the last 60 seconds — bounded by
+concurrent users per minute, not by anything configured. Recorded as **R-41** in
+[KB-060](../risks/technical-debt-register.md). **Inferred** (documented `SizeLimit` semantics),
+not measured.
+
+**Two concurrent misses on the same key both query.** There is no per-key lock: holding a lock
+across an `await` on a scoped provider is a worse hazard than a duplicated read, and the second
+write simply replaces an identical value. It cannot produce a wrong decision — both callers get a
+set built from the same query. **Inferred** from the code shape.
+
+**The cross-process limitation, restated as product behaviour.** Every one of the five
+`UserRight` write sites (§8.4) runs in `V.SMART.Web`. `Invalidate` therefore has, today, **no
+caller that can ever fire**. An administrator who revokes a right through `UserRights.razor` sees
+it take effect in the API within **at most 60 seconds** — the TTL, and nothing else, is the bound.
+Whether the product accepts that is **Q-29**, still open: a decision for the owner, not one that
+source code can answer.
 
 ---
 
