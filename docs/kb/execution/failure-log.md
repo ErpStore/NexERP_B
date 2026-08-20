@@ -2321,3 +2321,228 @@ orchestrator should have the working tree reviewed and committed onto
 `migration/M2-B02-paging-contract`, then re-validate. If the reviewer wants criterion 10 closed
 against a real database rather than against the predicate, that needs an owner-authorised row in
 the dev tenant `Currency` table, which no execution session may insert on its own.
+
+---
+
+### M2-A01-03 · attempt 1 · validation · 2026-08-20
+
+| Field | Value |
+|---|---|
+| Runner state | validated FAIL |
+| Model in use | opus (independent validator) |
+| Validator verdict | **FAIL** |
+| Failure category | regression |
+
+**Branch / commit** — `migration/M2-A01-03-rights-cache`, `a78c51e`. 10 files, +340/-26.
+Working tree carries only the orchestrator's uncommitted `current-task.md` /
+`runner-state.md` edits.
+
+**What is genuinely met, verified first-hand this session — do not re-do it on the retry.**
+
+- `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → **0 Error(s), 6695 Warning(s)**,
+  1m11s. Exactly the KB-083 baseline; no new warnings.
+- Cache design is correct as specified. Key `screenrights:v1:{tenantId}:{userId}` with the
+  tenant first (`V.SMART/V.SMART.Api/Authorization/UserRightsProvider.cs:32,50-53`);
+  `AbsoluteExpirationRelativeToNow`, never sliding (`:82-86`); TTL from
+  `Authorization:RightsCacheSeconds`, default 60, `0` disables, `>300`/negative/non-numeric
+  throws `InvalidOperationException` before `builder.Build()`
+  (`Authorization/UserRightsCacheOptions.cs:14-77`; `Program.cs` singleton registration);
+  `appsettings.json` gains exactly a 3-line `Authorization` section and nothing else.
+- No negative caching: `_cache.Set` runs only after a successful `await`
+  (`UserRightsProvider.cs:74-86`), so a throwing query leaves no entry.
+- The cached value is the `ScreenRightSet` the uncached path produced, cached by reference —
+  no `OrderBy`, `Distinct`, `GroupBy` or re-projection (`UserRightsProvider.cs:99-126`,
+  byte-identical to M2-A01-02's body). `ScreenRightSet` is immutable and `Has()` is a pure
+  read (`Authorization/ScreenRightSet.cs:26-70`), so sharing one instance across concurrent
+  requests through a singleton cache introduces no data race.
+- **Write-site enumeration independently re-derived, not trusted.**
+  `git grep -n "UserRights\." -- V.SMART | grep -Ei "CreateAsync|CreateRangeAsync|UpdateAsync|DeleteAsync"`
+  returns exactly six statements across five sites — `UserRightService.cs:77`,
+  `UserService.cs:464`, `EmployeeService.cs:191`, `EmployeeUpsert.razor:921`,
+  `UserRights.razor:446` and `:462` — all under `V.SMART.Shared`, none in `V.SMART.Api`, and
+  `git grep "IUserService\|IEmployeeService\|IUserRightService" -- V.SMART/V.SMART.Api`
+  matches only a comment at `Program.cs:132`. So "invoked from every in-process write site"
+  is vacuously satisfied and the INV-037 amendment's count of 5/0/5 is accurate.
+- Scope is clean: `git diff HEAD~1 HEAD --stat` for `V.SMART/V.SMART.Shared`,
+  `V.SMART/V.SMART.Web`, `V.SMART/V.SMART/`, `V.SMART/V.SMART.Api/Auth/JwtTokenService.cs`,
+  `V.SMART/V.SMART.Api/Controllers` and `V.SMART/V.SMART.Shared/Migrations` is **empty** in
+  every case. No connection string or `Jwt:Secret` touched. No controller annotated
+  (`git grep "RequireScreen\|RequireRight" -- V.SMART/V.SMART.Api/Controllers` → no hits).
+- `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` → **84 passed / 0
+  failed**. Unaffected.
+
+**What failed.**
+
+**The API test project no longer compiles, and 104 previously-green tests now run zero.**
+`IUserRightsProvider` gained a non-default member `void Invalidate(int tenantId, int userId)`
+(`V.SMART/V.SMART.Api/Authorization/IUserRightsProvider.cs:23-33`). The two stand-in
+implementations M2-A01-02 wrote were not updated:
+
+```
+dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj
+
+tests\V.SMART.Api.Tests\ScreenRightAuthorizationFilterTests.cs(425,55): error CS0535:
+  'ScreenRightAuthorizationFilterTests.StubUserRightsProvider' does not implement interface
+  member 'IUserRightsProvider.Invalidate(int, int)'
+tests\V.SMART.Api.Tests\ScreenRightAuthorizationFilterTests.cs(446,59): error CS0535:
+  'ScreenRightAuthorizationFilterTests.ThrowingUserRightsProvider' does not implement
+  interface member 'IUserRightsProvider.Invalidate(int, int)'
+```
+
+`git show a78c51e --name-status` touches no file under `tests/`, so the break is caused by
+this commit alone. KB-083's *Verified repository commands* table records this exact command
+at **104 tests discovered, 104 passed, 0 failed** on `migration/M2-A01-02-require-screen-right`
+on 2026-08-20 — the immediately preceding state.
+
+**The root cause is a stale premise the implementer did not re-verify.** `tasks/M2-A01-03.md`
+§ Testing says "No test project exists in the solution (INV-023, Confirmed) … Do **not** list
+`dotnet test` as a verification command for this task." That was true when the task file was
+written on 2026-08-12; it is false now — `tests/V.SMART.Shared.Tests` (M0-12-01) and
+`tests/V.SMART.Api.Tests` (M2-A06) are both tracked, and `dotnet test
+tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` is a **verified** command in KB-083. The
+implementer's own report states "NO RUNTIME VERIFICATION OF ANY KIND. There is no test project
+(INV-023)" — an inherited hypothesis repeated as fact, which CLAUDE.md's *Authority order*
+forbids. Had the suite been run, the break would have been visible in twenty seconds.
+
+**Secondary defect — a documentation cross-reference that points at the wrong risk.**
+`docs/kb/architecture/server-side-authorization-spec.md:911` says the missing entry cap is
+"Recorded as **R-21** in KB-060". R-21 in `docs/kb/risks/technical-debt-register.md:915` is
+*"Incomplete `IQSMART` → `V.SMART` rename"*. The entry this task actually added is **R-41**
+(`technical-debt-register.md`, the `+### R-41` hunk). One-character-class fix, but it sends a
+future reader to an unrelated risk.
+
+**Not checkable this session, and named so no one reads them as passes.** That a warm entry is
+actually returned within the TTL, that the entry actually expires at 60 s, and that
+`RightsCacheSeconds = 301` actually aborts startup are all reasoned from the source, not
+observed — no host was started and no tenant database was reached. What would verify them:
+unit tests in `tests/V.SMART.Api.Tests` asserting (a) two `GetAsync` calls inside one TTL
+window produce one `IUnitOfWork.UserRights` call, (b) `UserRightsCacheOptions.FromConfiguration`
+throws for `301`, `-1` and `"abc"`, (c) `(tenant 1, user 1)` and `(tenant 2, user 1)` resolve
+to different entries. All three are cheap and need no database — the same suite the retry has
+to repair anyway.
+
+**Disposition** — `open`. Category `regression`, deliberately: this is not a design fault
+(the cache design matches KB-105 §8 point for point) and it is not a business-rule or
+architecture failure, so KB-091 §6.3 escalation does **not** apply. It is retryable by the
+same model.
+
+**Next attempt should** — (1) add `public void Invalidate(int tenantId, int userId) { }` to
+both stubs in `tests/V.SMART.Api.Tests/ScreenRightAuthorizationFilterTests.cs:425,446` (or
+give the interface member a default implementation, which is the weaker choice — it would let
+a future real provider silently skip eviction); (2) add the three cache tests listed above so
+the caching behaviour has some executed evidence behind it; (3) fix the `R-21` → `R-41`
+reference at `server-side-authorization-spec.md:911`; (4) run **both** suites and quote the
+counts. Do not re-derive the write-site enumeration or re-measure the build — both are
+recorded above as verified.
+
+---
+
+### M2-A01-03 · attempt 1 · diagnosis · 2026-08-20
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **A fix was
+applied**; it touches `tests/` and two KB documents only, and no file under `V.SMART/`.)*
+
+| Field | Value |
+|---|---|
+| Runner state | FIXED — ready for re-validation |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | regression (confirmed — not re-classified) |
+
+**Reproduced** — yes, first-hand, on `migration/M2-A01-03-rights-cache`, HEAD `a78c51e`,
+before touching anything:
+
+```
+$ dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj
+  V.SMART.Api -> ...\V.SMART.Api\bin\Debug\net9.0\V.SMART.Api.dll
+tests\V.SMART.Api.Tests\ScreenRightAuthorizationFilterTests.cs(425,55): error CS0535:
+  'ScreenRightAuthorizationFilterTests.StubUserRightsProvider' does not implement interface
+  member 'IUserRightsProvider.Invalidate(int, int)'
+tests\V.SMART.Api.Tests\ScreenRightAuthorizationFilterTests.cs(446,59): error CS0535:
+  'ScreenRightAuthorizationFilterTests.ThrowingUserRightsProvider' does not implement
+  interface member 'IUserRightsProvider.Invalidate(int, int)'
+```
+
+Zero tests executed. The API project itself builds — the break is confined to the test
+project, and `V.SMART.Api.dll` is produced immediately before the two errors.
+
+**Root cause** — a **simple implementation error**, exactly as the validator classified it:
+`a78c51e` added the non-default member `void Invalidate(int tenantId, int userId)` to
+`V.SMART/V.SMART.Api/Authorization/IUserRightsProvider.cs:33` and did not update the two
+stand-in implementers M2-A01-02 wrote at
+`tests/V.SMART.Api.Tests/ScreenRightAuthorizationFilterTests.cs:425` and `:446`. The
+*proximate* reason the implementer did not see it is the stale premise at
+`tasks/M2-A01-03.md:262-267` ("No test project exists in the solution (INV-023, Confirmed) …
+Do **not** list `dotnet test` as a verification command"), true when the task file was written
+on 2026-08-12 and false since M0-12-01 and M2-A06 landed. Under CLAUDE.md's *Authority order*
+the source tree outranks the task file, and `git ls-files tests` returns 27 files.
+
+**Not a business-rule, architecture or legacy-behaviour failure**, and checked rather than
+assumed: the cache design matches KB-105 §8 point for point, `ScreenRightSet.Has`
+(`V.SMART/V.SMART.Api/Authorization/ScreenRightSet.cs:46-61`) still mirrors
+`RightsHelper.cs:7-20` including the `?? false` and the `_ => false`, and the cached value is
+the object `LoadAsync` produced with no re-ordering
+(`UserRightsProvider.cs:99-126`). KB-091 §6.3 therefore does not fire.
+
+**Fix applied — three changes, none of them in production code.**
+
+1. `tests/V.SMART.Api.Tests/ScreenRightAuthorizationFilterTests.cs` — both stand-ins now
+   implement the member. `StubUserRightsProvider.Invalidate` counts calls; the filter only
+   reads rights, so `ThrowingUserRightsProvider.Invalidate` **throws** — if a future change
+   makes the filter evict, that must fail loudly rather than pass silently. A default
+   interface implementation was deliberately **not** used: it would let a future real provider
+   skip eviction without a compiler error, which is the failure this very break caught.
+2. `tests/V.SMART.Api.Tests/UserRightsCacheTests.cs` — **new**, 13 tests, no database and no
+   host (Moq `IUnitOfWork`/`IUserRightsRepository` + a real `MemoryCache`). They convert the
+   validator's three "MET by code reading, NOT runtime-observed" items into observed facts:
+   a second `GetAsync` inside the window runs the query **once**; `(tenant 1, user 1)` and
+   `(tenant 2, user 1)` resolve to different entries and different keys; `FromConfiguration`
+   throws for `301`, `-1` and `"abc"` and defaults to 60; TTL `0` bypasses the cache
+   entirely; `Invalidate` evicts only the named user and is a no-op when absent; a throwing
+   query caches **nothing** and the recovery call re-queries; and one deliberate wall-clock
+   test watches a 1-second TTL expire while a mid-window read fails to postpone it — the
+   absolute-not-sliding property, which no amount of code reading establishes.
+3. `docs/kb/architecture/server-side-authorization-spec.md:911` — `R-21` → **R-41**. R-21
+   (`docs/kb/risks/technical-debt-register.md:915`) is the `IQSMART` → `V.SMART` rename; the
+   entry cap this task recorded is R-41 (`:1066`). `grep -c "R-21"` on the spec now returns 0.
+
+`docs/kb/execution/prompt-template.md:318` (KB-083) is updated with the new measurement,
+because this pass changed the number that row records.
+
+**Re-validated — commands run in this session, output quoted:**
+
+```
+$ dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj
+Passed!  - Failed: 0, Passed: 117, Skipped: 0, Total: 117, Duration: 1 s
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+Passed!  - Failed: 0, Passed:  84, Skipped: 0, Total:  84, Duration: 8 s
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj
+2 Warning(s) / 0 Error(s), Time Elapsed 00:00:03.10      <- incremental; nothing under
+                                                            V.SMART/ was touched by this pass
+```
+
+117 = the 104 that were green on `migration/M2-A01-02-require-screen-right` + 13 new. The
+regression is closed and the suite is larger than before it broke. The **6,695-warning
+baseline measurement stands from the validator's own non-incremental build** of the unchanged
+production tree; this pass did not re-measure it and does not claim to have.
+
+**Disposition** — `fixed`. Not a loop: this file contains no prior M2-A01-03 diagnosis and no
+prior attempt at this repair.
+
+**Residual risk** — (i) still nothing observes the cache **through a running host against a
+real tenant database**; `RightsCacheSeconds = 301` aborting `builder.Build()` is proven only
+at the `UserRightsCacheOptions.FromConfiguration` level, not by a refused startup, and closing
+that needs M2-A03's harness. (ii) The wall-clock expiry test spends ~1.3 s and is the only
+time-dependent test in either suite; it fails only if a 1-second TTL somehow outlives a
+1.3-second wait, but it is the first such test in this repository and worth watching. (iii)
+`tests/V.SMART.Api.Tests` is **still not wired into `.github/workflows/ci.yml`** (KB-083 row,
+unchanged by this pass), so this suite — including the regression that was just repaired —
+runs only locally. That gap is the reason a compile break in it survived a whole task. It
+belongs to whoever next touches the CI test step and should not be inferred as fixed here.
+
+**Next attempt routed to** — re-validation of `migration/M2-A01-03-rights-cache` at the same
+model. No specification change is needed. One thing the orchestrator should carry forward
+independently of this task: `tasks/M2-A01-03.md:262-267`'s "no test project exists" is false
+and will mislead the next task that inherits it — every remaining M2 task file written before
+2026-08-20 carries the same stale INV-023 sentence.

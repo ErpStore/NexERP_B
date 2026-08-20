@@ -21,130 +21,116 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-B12-01` — INV-012 document-numbering + financial-year investigation
+## Active task — `M2-C04-02` — Form controls + validation display
 
-**Task file:** [`tasks/M2-B12-01.md`](tasks/M2-B12-01.md).
+**Task file:** [`tasks/M2-C04-02.md`](tasks/M2-C04-02.md).
 
-**Status:** `Ready`. Not yet started — no branch exists yet.
+**Status:** `Ready`. Not yet started — no branch exists yet, attempt 0 of 3.
 
 ### Why this task, now
 
-`M2-A01-02` (implement `[RequireScreen]`/`[RequireRight]`) closed this session validated
-`PASS` and moved to `Needs Review` — not `Completed`, so per
-[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) it did **not** release its
-only Hard-dependent, `M2-A01-03` (per-request rights caching), which stays `Blocked`.
+`M2-A01-03` (per-request rights caching) closed this session as **`Needs Review`, not
+`Completed`** — it is implemented, validated `PASS`, and committed on
+`migration/M2-A01-03-rights-cache`, but unmerged. Per [KB-088 "Who may set
+COMPLETED"](workflow.md#who-may-set-completed) and the [Ready-task selection
+rule](dependency-graph.md#ready-task-selection-rule) step 1, a Hard prerequisite must be
+genuinely `Completed`, not `Needs Review`, to release its dependents. So `M2-A02`, `M2-A07`
+and `M2-A08` — the three tasks that name `M2-A01-03` as their sole `depends_on` — **remain
+`Blocked`** until that branch is reviewed and merged. Selection falls back to the P0 `Ready`
+pool that was already sitting unclaimed before `M2-A01-03` was picked:
 
-Applying the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)
-against the genuinely `Ready` P0 candidates remaining once `M2-A01-02` is removed from the
-pool — `M0-01-03`, `M2-B04`, `M2-B12-01`, `M2-C04-02`, `M2-C04-03`, `M2-C10`:
-
-- **Step 1 (P0/P1/P2)** is a tie — all six are P0.
-- **Step 2 (most downstream unblocking that actually fires)** decides it outright.
-  `M2-B12-01`'s only dependent, `M2-B12-02`, names *only* `M2-B12-01` in `depends_on` —
-  finishing this task makes a real task `Ready`. No other candidate clears that bar:
-  `M2-C04-02`'s two dependents (`M2-C05`, `M2-C05-01`) also need `M2-B02`, which is
-  `Completed` and merged now but still requires `M2-C04-02` itself, so they stay blocked on
-  `M2-C04-02` regardless; `M2-C10`'s dependent `M2-C07` also needs `M2-C05-01`, nowhere near
-  `Ready`; `M0-01-03`, `M2-B04`, `M2-C04-03` have zero dependents in the tracker at all.
-  `M2-B12-01` wins at step 2 — no further tie-break step is needed. (Last time this file was
-  written, `M2-B12-01` tied with `M2-A01-02` at step 2 and lost the step-3 critical-path
-  tie-break; with `M2-A01-02` now closed, `M2-B12-01` is the unique step-2 winner.)
+- **Step 1 (candidate set).** P0, `Ready`, not a parent container, no unanswered
+  Information dependency, no unscheduled human step: `M0-01-03`, `M2-B04`, `M2-B12-01`,
+  `M2-C04-02`, `M2-C04-03`, `M2-C10`. (`M2-B09` is `Ready` too but P1, ranked after all of
+  these.) No same-file conflict — working tree at `master` tip aside from this task's own
+  bookkeeping commits, no other `M2-*` branch in flight.
+- **Step 2 (most downstream unblocking).** Counted by grepping every row's `Depends On`
+  column in `task-tracker.md` for tasks that would become genuinely `Ready` (all *other* Hard
+  prerequisites already `Completed`) once the candidate merges — not merely tasks that name
+  it:
+  - `M2-C04-02` → releases `M2-C05-01` (`depends_on: M2-C04-02, M2-B02`; `M2-B02` is
+    `Completed`, so `M2-C04-02` is the only thing still missing). `M2-C05` also names
+    `M2-C04-02`, but `M2-C05` is a parent container (never worked directly) so it does not
+    count.
+  - `M2-B12-01` → releases `M2-B12-02` (`depends_on: M2-B12-01` only).
+  - `M0-01-03`, `M2-B04`, `M2-C04-03` → release nothing (no row anywhere names them as a Hard
+    prerequisite).
+  - `M2-C10` → releases nothing outright: its one nominal dependent, `M2-C07`, also needs
+    `M2-C05-01`, which is not `Completed`.
+  - `M2-C04-02` and `M2-B12-01` tie at **one** real release each.
+- **Step 3 (critical path) breaks the tie.** The [project critical
+  path](dependency-graph.md#project-critical-path) runs `...M2-A03 → M2-C05-01 →
+  M2-C05-03 → M2-D01...`. `M2-C05-01`'s only remaining gate is `M2-C04-02`, so `M2-C04-02` is
+  on the critical path by construction even though the path diagram elides the intermediate
+  step. `M2-B12-01` / `M2-B12-02` are not drawn on the critical path at all — `M2-B12` is a
+  side investigation.
+- `M2-C04-02` wins outright. No further tie-break needed.
 
 ### What this task does
 
-**Documentation only — no C# file changes.** Produces
-`docs/kb/modules/document-numbering.md` (**TO BE CREATED**, `doc_id: KB-100`): a complete,
-`file:line`-evidenced inventory of how V.SMART allocates document numbers (36 repository
-files, 38 raw-SQL numbering sites, the `CommonService.GenerateAutoRunningNoAsync` allocator,
-7 lock-free LINQ sites, 4 allocation-table read-modify-write methods) and a format catalogue
-of every document series' user-visible shape plus its financial-year rule. Corrects R-12
-(KB-060) — re-verification already found two of its four factual claims wrong (see the task
-file's own table) — and closes INV-012. **No database access is required or expected**; that
-is `M2-B12-02`'s job. Full detail, acceptance criteria and the fresh-session execution prompt:
-[`tasks/M2-B12-01.md`](tasks/M2-B12-01.md).
+Builds the shared form layer specified by KB-051 §Forms — `FormLayout`, `FormSection`,
+`FormField`, and the input control set — over Mantine 7, React Hook Form and Zod (ADR-003),
+plus one validation-display mechanism every control uses. Frontend-only, in
+`frontend/nexgen-web/src/shared/components/form/` (path proposed by the task, directory
+convention from KB-050). Builds no ERP screen, no `DataGrid` (M2-C05), no editable grid
+(M2-C07), no overlays/toasts (M2-C04-03), no business validation rule — those stay in the
+server per the standing constraint. Full detail, acceptance criteria, and testing
+requirements: [`tasks/M2-C04-02.md`](tasks/M2-C04-02.md).
 
 ### Read before starting
 
-The task file's own *Required Existing Knowledge* / source-file list is authoritative. Key
-points already established, so as not to re-derive them:
-
-- **R-12's own register text is wrong on two of four claims** — do not trust it verbatim.
-  `37/38` raw-SQL numbering statements *do* carry `WITH (UPDLOCK, ROWLOCK)`, and there is no
-  `~20` repositories, there are 36. `UPDLOCK`/`ROWLOCK` is close to decorative here (row lock,
-  not range lock; released outside an explicit transaction) — say so in plain words in the
-  new document so `M2-B12-03`'s reviewer doesn't assume the code is already protected.
-- **R-12 must stay `Inferred (high confidence)` at the end of this task** — reading code
-  proves a race is *possible*, not that one has occurred. Only `M2-B12-02`'s duplicate census
-  can upgrade or downgrade the classification. Do not do either here.
-- **Do not run INV-015** (e-Invoice/e-Way payload construction) even though document numbers
-  feed into it — record the coupling as a question, do not investigate `E_Invoice/**`. That is
-  scope creep against a Phase-4.5 concern.
-- `M2-B07` (Hard, tree-level prerequisite) is `Completed` — confirmed in the tracker. It
-  rewrites only the three `Program.cs` files, not `Repository/**` or `BusinessLayer/**`, so
-  the sequencing risk the task file names is small but the task still declares it.
+- **Pure frontend, no backend dependency.** `depends_on: [M2-C04-01]` only (design tokens,
+  already `Completed`). It needs no API, no database, no `V.SMART.Api`/`V.SMART.Shared`
+  change at all — do not touch those trees.
+- **This task does not implement business validation.** Rule logic stays server-side per
+  `CLAUDE.md`'s standing constraints; this task builds the *display* mechanism for whatever
+  validation errors the server (or Zod schema mirroring a server contract) produces.
+- **`M2-C05` and `M2-C05-01` are the reason this task is prioritized now** — `M2-C05-01`'s
+  only remaining gate is this task, and `M2-C05-01` sits on the critical path. Do not let that
+  urgency pull `DataGrid`/grid work into this task's scope; `M2-C05-01` is a separate task.
+- Two tasks — `M2-C04-02` and `M2-C04-03` — both depend only on `M2-C04-01` and are
+  independent of each other (different concerns: forms vs. overlays/toasts). If capacity
+  allows a second concurrent stream, `M2-C04-03` is available in parallel; this file names
+  only `M2-C04-02` as the one to execute now.
 
 ### Do not
 
-Start `M2-B12-02` (the live-DB duplicate census) or `M2-B12-03` (race-safe allocation) in this
-session. Do not investigate `E_Invoice/**`/INV-015. Do not upgrade or downgrade R-12's
-confidence rating — that is `M2-B12-02`'s call.
+Build any ERP screen, `DataGrid`, editable grid, overlay/toast, or the app shell. Do not
+touch `V.SMART.Api` or `V.SMART.Shared`. Do not start `M2-C05`, `M2-C05-01`, `M2-C04-03`, or
+any other task once this one closes. Do not merge or push the `M2-A01-03` branch left over
+from the previous session — it is unrelated to this task and awaits owner review.
 
 ---
 
-## Carried forward from `M2-A01-02`'s close-out
+## Carried forward from `M2-A01-03`'s close-out (still relevant)
 
-- **`M2-A01-02` is `Completed` and merged** (`ed559ad`, 2026-08-20) — implemented on
-  `migration/M2-A01-02-require-screen-right` (`9a6b3c2`), validated `PASS` on attempt 1 of 3,
-  0 escalations. **The D-5/R-40 contradiction was verified as genuinely not-hit at review**, not
-  taken on report: `grep` of `V.SMART.Api/Authorization/` for `UserId == 1` / `IsAdmin` /
-  `Administrator` / `bypass` / `.Role` returns **zero matches**, and KB-105's D-5 still reads
-  *"No `Administrator` bypass. None. Anywhere."* verbatim — the spec was extended, not softened.
-  Full record:
-  [`tasks/M2-A01-02.md` § Execution Record (2026-08-20)](tasks/M2-A01-02.md#execution-record-2026-08-20)
-  and `task-tracker.md` footnote ²⁵. **`M2-A01-03` is now `Ready`.** `M2-A02`,
-  `M2-A03`, `M2-A04`, `M2-A07` and `M2-A08` remain `Blocked` behind it.
-- **`V.SMART/V.SMART.Api/Authorization/` now exists**, all ten types KB-105 §2 specifies, with
-  `Right`, `[RequireScreen]`, `[RequireRight]`, `[NoScreenRight]`, `IUserRightsProvider` (no
-  cache), `ScreenRightAuthorizationFilter`, `ScreenRightSet`, `ScreenCatalogue`, and
-  `ScreenRightStartupValidator`, registered in `Program.cs`. **No controller is annotated** —
-  `M2-A02`'s job. R-03 (KB-060) stays open with that noted.
-- **⚠ THE FILTER IS OPT-IN, NOT DENY-BY-DEFAULT — `M2-A02` must close this.** `D-4` is only
-  partly implemented: an authenticated action on a controller carrying **no** `[RequireScreen]`
-  at all is **allowed through**, at request time and at startup. The reasoning is sound —
-  enforcing it now would have made the host refuse to start over `CurrencyController`'s five
-  unannotated endpoints, which this task was forbidden to change — and the *half*-annotated
-  directions (T-11, T-12) **are** enforced, as is D-6's catalogue check. But the gap is the
-  opposite of what "deny by default" implies, so it is stated here rather than left in a
-  footnote: **today, an unannotated controller is unprotected.** Tracked against R-03 (KB-060);
-  `M2-A02` closes it in the same change that annotates the first controller.
-- **A latent, deployment-conditional DI-eagerness finding**, not a regression today, recorded
-  for `M2-A02` to watch: the globally registered filter constructs `IUserRightsProvider` (and
-  therefore the tenant `DbContext`) via DI on every request reaching MVC's pipeline, even on
-  unannotated actions. See `KB-060` R-03 close-out addendum and `task-tracker.md` footnote
-  ²⁵ for the detail and why it is safe today.
-- **Q-27** (duplicate `(UserId, ScreenId)` `UserRight` rows in a live tenant database) remains
-  **Unknown** — `INV-037`'s amendment confirms the 152-screen catalogue matches exactly, but
-  the duplicate-row question was not queried in this session's reachable dev tenant.
-- **R-40 / D-5 contradiction** (`UserId == 1` auto-granted all 152 rights by
-  `Login.razor:345-349`, vs. KB-105 D-5 "no Administrator bypass") was **not hit** by
-  `M2-A01-02` — the filter correctly denies a `UserId == 1` caller with zero `UserRight` rows
-  (`T13` in the filter's test suite), because the bypass lives in the Blazor login path, not
-  in `RightsHelper`/the new filter. Still unresolved for `M2-A02`: an API-only administrator
-  will hold zero rows unless `Q-28` (login never calls `SyncRightsForUserAsync` on the API
-  path) is settled first. Both remain open questions for `M2-A02`, not this task.
+- **`migration/M2-A01-03-rights-cache` (tip `0fde6fb`) is `Needs Review`, validated `PASS`,
+  unmerged.** It blocks nothing this task needs, but until it merges, `M2-A02`, `M2-A07` and
+  `M2-A08` stay `Blocked` — do not treat them as available even though `task-tracker.md` will
+  show `M2-A01-03` progressing.
+- **Q-29** (60 s post-revocation staleness window) — engineering half settled (TTL,
+  absolute expiration, startup guard, zero-TTL bypass all implemented and tested); the
+  product half — is a 60 s window acceptable — is still open for the repository owner.
+  Unrelated to this task.
+- **R-41** (`docs/kb/risks/technical-debt-register.md`) — the API's rights cache has no
+  `SizeLimit` cap, deliberately deferred. Unrelated to this task.
+- **Q-27 / Q-28** (duplicate `UserRight` rows; API-only login never seeds rights) remain
+  **Unknown** / open for `M2-A02`. Unrelated to this task.
 
-## Ready and unclaimed once `M2-B12-01` closes
+## Ready and unclaimed once `M2-C04-02` closes
 
 Selection rule: [KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule).
 Listed for whoever plans the task after this one — not to be started now.
 
 | Task | What | Est. | Note |
 |---|---|---|---|
-| `M2-B12-02` | Verify unique constraints / duplicate numbers in a live tenant DB (Q-10) | 1 d | Released by this task; needs its `(table, number column, scope column)` inventory |
-| `M0-01-03` | SP deployment script + rebuild runbook | 1 d | `Needs Review`, blocked on a human-executed rebuild drill |
+| `M2-C05-01` | Server-paged table core | 4 d | Released by this task (its only other gate, `M2-B02`, is already `Completed`) |
+| `M2-C04-03` | Modal, drawer, toast, states | 3 d | `Ready` now, independent of this task, zero tracked dependents |
+| `M2-B12-01` | INV-012 document-numbering + financial-year investigation | 2 d | `Ready`, one dependent (`M2-B12-02`) |
+| `M0-01-03` | SP deployment script + rebuild runbook | 1 d | `Ready`²¹, zero tracked dependents |
 | `M2-B04` | Decouple `IApprovalService` + 13 `Pages` refs | 1 wk | `Ready`, zero tracked dependents |
-| `M2-C04-02` | Form controls + validation display | 4 d | `Ready`; its dependents (`M2-C05`, `M2-C05-01`) additionally need this task itself, not `M2-B02` any more |
-| `M2-C04-03` | Modal, drawer, toast, states | 3 d | `Ready`, zero tracked dependents |
-| `M2-C10` | Decimal handling — no float money arithmetic | 2 d | `Ready`; its dependent `M2-C07` also needs `M2-C05-01`, nowhere near `Ready` |
-| `M2-B09` | Reference-data endpoints + caching | 3 d | `Ready`, P1 — released by `M2-B02`'s merge |
-| `M2-A01-02` (once merged) | releases `M2-A01-03` | — | Awaiting owner review |
+| `M2-C10` | Decimal handling — no float money arithmetic | 2 d | `Ready`; dependent `M2-C07` also needs `M2-C05-01`, not yet `Ready` |
+| `M2-B09` | Reference-data endpoints + caching | 3 d | `Ready`, P1 |
+| `M2-A02` | Apply `[RequireScreen]`/`[RequireRight]` to `CurrencyController` + denial tests | 1 d | `Blocked` until `migration/M2-A01-03-rights-cache` is reviewed and merged |
+| `M2-A07` | `GET /api/v1/me` | 2 d | `Blocked`, same reason |
+| `M2-A08` | Row-level scoping + account gates (Q-05…Q-08) | 3 d | `Blocked`, same reason |

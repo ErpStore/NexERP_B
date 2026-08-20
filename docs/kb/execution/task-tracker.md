@@ -108,7 +108,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | **In Progress** | P0 | G0 | 1–2 wks | G2 |
 | M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
-| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Ready** | P0 | M2-A01-02 | 2 d | G2 |
+| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Needs Review**²⁶ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | Blocked | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
@@ -1425,3 +1425,39 @@ rediscover it as a mystery.
 enforcement does not yet. Closing tasks: `M2-A02`, `M2-A03`. Once reviewed and merged, this
 releases exactly one real dependent, `M2-A01-03` (per-request rights caching) — no other task
 lists `M2-A01-02` as a Hard prerequisite.
+
+²⁶ **M2-A01-03: `Needs Review`, not `Completed` — implemented and independently validated
+`PASS` on `migration/M2-A01-03-rights-cache`, tip `0fde6fb`, 2026-08-20, attempt 2 of 4, 0
+escalations.** Not merged; per [KB-088 "Who may set
+COMPLETED"](workflow.md#who-may-set-completed) only the repository owner may set it
+`Completed`.
+
+All eighteen acceptance criteria independently re-checked `MET`. `dotnet build V.SMART.Api
+--no-incremental`: **0 errors, 6,694 warnings** (baseline). `dotnet test
+tests/V.SMART.Api.Tests`: **117 passed, 0 failed** (104 → +13, the new
+`UserRightsCacheTests.cs`). `dotnet test tests/V.SMART.Shared.Tests`: **84 passed, 0 failed** —
+no regression. `git diff --stat master...HEAD`: 13 files, +630/-27; nothing under
+`V.SMART.Shared/`, `V.SMART.Web/`, `V.SMART/V.SMART/`, no migration, no secret touched.
+
+**Attempt 1 regressed the test suite and was repaired in attempt 2.** `a78c51e` added the
+non-default `Invalidate(int, int)` member to `IUserRightsProvider` without updating the two
+test stand-ins in `ScreenRightAuthorizationFilterTests.cs`, so that project stopped compiling
+(`CS0535` × 2) and 104 previously-green tests ran zero. `0fde6fb` implemented `Invalidate` on
+both stand-ins (no default interface implementation, deliberately, so a future real provider
+cannot silently skip eviction) and added the 13 cache tests. Re-validated clean; see
+[`tasks/M2-A01-03.md` § Execution Record
+(2026-08-20)](tasks/M2-A01-03.md#execution-record-2026-08-20) for the full record.
+
+**One deliberate departure from KB-105 §8.2:** no `SizeLimit` cap on the shared
+`IMemoryCache` — recorded as **R-41** ([KB-060](../risks/technical-debt-register.md)), not a
+wiring gap.
+
+**Corrected a stale KB-105 sentence found during re-verification**, not introduced by this
+task: §7.4 read "three of the five `UserRight` write sites are in the Blazor host",
+contradicting its own §8.4 table, F-7 and Q-29, all of which say five. Fixed to "five of
+five" with the re-grep evidence attached.
+
+**Does not release `M2-A02`, `M2-A07` or `M2-A08` yet** — their Hard prerequisite must be
+genuinely `Completed`, not `Needs Review`
+([KB-082](dependency-graph.md#ready-task-selection-rule) step 1). They remain `Blocked` until
+this branch is reviewed and merged.
