@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using V.SMART.Api.Auth;
+using V.SMART.Api.Middleware;
 using V.SMART.Shared.Repository.IRepository;
 using V.SMART.Shared.Services.MultiCompanyService;
 
@@ -40,13 +41,21 @@ namespace V.SMART.Api.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
         {
+            // M2-A06 — same status and same message as before this task; only the body shape
+            // changes, to application/problem+json. The message is reproduced verbatim and
+            // carries no connection string (R-01).
             var tenant = _tenantProvider.GetCurrentTenant();
             if (tenant == null)
-                return BadRequest(new { message = "Unable to resolve tenant. Check host or wwwroot/config/tenant.json." });
+                return this.TenantUnresolvedProblem(
+                    StatusCodes.Status400BadRequest,
+                    "Unable to resolve tenant. Check host or wwwroot/config/tenant.json.");
 
+            // M2-A06 — deliberately no more informative than it was before this task: one title
+            // for every authentication failure, so the response cannot distinguish an unknown
+            // user from a wrong password.
             var user = await _unitOfWork.Users.LoginAsync(request.Username, request.Password);
             if (user == null)
-                return Unauthorized(new { message = "Invalid username or password." });
+                return this.UnauthenticatedProblem("Invalid username or password.");
 
             var token = _jwtTokenService.CreateToken(user, tenant.Id);
 

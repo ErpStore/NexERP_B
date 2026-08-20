@@ -21,7 +21,7 @@ source_files:
   - db/RUNBOOK-rebuild-tenant-database.md
 status: complete
 confidence: mixed
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
@@ -867,6 +867,10 @@ zero call sites, so latent.
 misdiagnosed.
 **Action.** Let infrastructure failures propagate to a 500; keep 401 for genuine
 credential failure.
+**Still open after M2-A06 (2026-08-20).** M2-A06 guarantees the *second* half only: a failure
+that does escape `V.SMART.Shared` now becomes a `500` with a `traceId`, never a misleading
+`4xx`. The swallowing itself is untouched — `UserRepository.cs` is in the shared library and
+serves the live Blazor app, and M2-A06 was explicitly forbidden from editing it.
 
 ### R-20 — `DetailedErrors = true` unconditionally in Blazor Server — RESOLVED by M0-14
 **Confirmed.** Was `AddServerSideBlazor(o => o.DetailedErrors = true)` at
@@ -899,6 +903,11 @@ alongside `V.SMART.Shared.*`, and one `V.SMARTV.Shared.…` (a typo namespace).
 **Impact.** No searchability, no alerting, unbounded growth, lost on container restart.
 **Action.** Structured logging (Serilog) to a real sink (M2-B11); preserve the *user-action
 audit trail* as a first-class feature.
+**Input now available (M2-A06, 2026-08-20).** Every API request carries a correlation id
+(`Activity.Current?.Id ?? HttpContext.TraceIdentifier`), returned in the `X-Correlation-Id`
+response header and in every `problem+json` body's `traceId`. M2-B11 should enrich its sink
+with that value rather than inventing a second id;
+`V.SMART/V.SMART.Api/Middleware/CorrelationId.cs` is the one definition.
 
 > **Corrections and an added security finding, 2026-08-12 (Confirmed).**
 >
@@ -926,11 +935,18 @@ audit trail* as a first-class feature.
 > runtime consequence on the Windows-targeted build is **Unknown** and must be checked before
 > M2-B11 relies on the path.
 
-### R-24 — No API error contract
-**Confirmed.** `CurrencyController` returns two different 400 shapes; no exception
-middleware; no `ProblemDetails`.
-**Action.** Standardise before controller proliferation
-([`api/api-readiness-assessment.md`](../api/api-readiness-assessment.md)).
+### R-24 — No API error contract — **CLOSED 2026-08-20 (M2-A06)**
+**Was Confirmed.** `CurrencyController` returned two different 400 shapes; there was no
+exception middleware and no `ProblemDetails`.
+**Closed by M2-A06.** `V.SMART/V.SMART.Api/Middleware/` now holds a single
+`ProblemDetails` factory (`ApiProblems.cs`), a correlation-id middleware and a global
+exception handler, registered by `UseErrorContract()` before `UseCors`. Every error response
+across all six endpoints is `application/problem+json`; a business-rule refusal is `409` with
+the service's message verbatim in `title`; a `500` carries `traceId` only. The contract is in
+[`api/api-overview.md` § *Error contract*](../api/api-overview.md#error-contract-m2-a06) and
+is covered by `tests/V.SMART.Api.Tests/` (21 tests, all passing 2026-08-20).
+**Still open, deliberately:** *request logging*. Correlation ids are emitted, but they go to
+`ILogger` with the default console provider only — a real sink is **R-23** / M2-B11.
 
 ### R-25 — Business logic executed in Razor with direct `SaveAsync`
 **Confirmed.** 91 `SaveAsync` call sites inside `Pages/`.
@@ -1075,7 +1091,7 @@ them.
 ## Priority sequence
 
 **Week 1 (do these regardless of the migration):** R-01, R-02, R-04, R-09.
-**Before the second API controller:** R-03, R-24, R-11.
+**Before the second API controller:** R-03, ~~R-24~~ (closed 2026-08-20, M2-A06), R-11.
 **Before any stock-touching module migrates:** R-05 (tests first), R-07, R-10.
 **During Phase 2–3:** R-06 (per module), R-12, R-13, R-26.
 **Opportunistic:** everything Low.

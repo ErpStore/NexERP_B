@@ -12,7 +12,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-011, KB-013, KB-014, KB-040]
 ---
 
@@ -124,7 +124,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | A2 | **Secrets out of source control** — connection strings and `Jwt:Secret` to environment/Key Vault; rotate the exposed SA and `bspl` credentials | R-01, R-02 | 2–3 days |
 | A3 | **Tenant resolution for a cross-origin SPA** — tenant in the login request; JWT claim thereafter; real CORS origin list | Host-based resolution breaks for an SPA | 3–5 days |
 | A4 | **Refresh tokens + revocation** | 8-hour non-revocable JWT is unacceptable for an ERP | 3–5 days |
-| A5 | **Global exception handling → `ProblemDetails`**, correlation ids, request logging | No error contract exists | 3–5 days |
+| A5 | ~~**Global exception handling → `ProblemDetails`**, correlation ids~~ — **DELIVERED by M2-A06 (2026-08-20)**. Request logging is **not** delivered: a real log sink remains M2-B11 / R-23 | No error contract existed | 3–5 days |
 | A6 | **Decouple `IApprovalService` from the `Authorization` Razor page** (`using static …Pages…`), plus the other 13 `Pages`-referencing files | Business layer cannot ship without the UI assembly otherwise | 1 wk |
 
 ### P1 — required for a complete product
@@ -197,13 +197,25 @@ Two rules for every controller:
    approve, release, post) gets its own `POST /{id}/{verb}` endpoint that runs the *entire*
    server-side sequence. The client never orchestrates a multi-step business operation.
 
-## Standard error contract (proposed)
+## Standard error contract (as-is for `V.SMART.Api` since M2-A06, 2026-08-20)
+
+**No longer proposed.** Implemented by M2-A06 under
+`V.SMART/V.SMART.Api/Middleware/`; the authoritative description of what shipped is
+[`api-overview.md` § *Error contract*](api-overview.md#error-contract-m2-a06).
+
+Two corrections to the sketch below, so it is not copied wrongly:
+
+- the `type` base that shipped is **`https://api.v-smart.local/problems/`**, taken from
+  KB-105 §7.1, which had already frozen the `403` body. The
+  `https://api.vsmart/errors/…` in the example is superseded;
+- `errors` appears on `400` only, and `detail` is omitted when null — a body never carries
+  both `errors` and a business-rule `title`.
 
 `application/problem+json` everywhere:
 
 ```json
 {
-  "type": "https://api.vsmart/errors/business-rule",
+  "type": "https://api.v-smart.local/problems/business-rule",
   "title": "Cannot delete this Sales Order as a Sales DC transaction exists.",
   "status": 409,
   "detail": "…",

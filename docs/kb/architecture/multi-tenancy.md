@@ -14,7 +14,7 @@ database_tables: [Tenants]
 business_rules: [BR-TEN-001, BR-TEN-002]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-12
+last_verified: 2026-08-20
 dependencies: [KB-012, KB-013]
 ---
 
@@ -89,7 +89,7 @@ consistency wrinkle to normalise when file handling moves to HTTP.
 | 1 | **Host-based resolution breaks** | The SPA will be served from its own origin (or a CDN) and call the API cross-origin. `Request.Host.Host` at the API will be the *API's* host, not the tenant's. Only step 1 (JWT claim) will work — **but the JWT is only issued *after* login, and login itself needs a tenant to resolve the user.** This is a genuine chicken-and-egg gap. |
 | 2 | **`tenant.json` fallback is a single global value** | `V.SMART.Api/wwwroot/config/tenant.json` pins the API to one tenant. Acceptable for a dev spike; unusable in multi-tenant production. |
 | 3 | **CORS is dev-only** | `Program.cs` policy `"AngularDev"` allows exactly `http://localhost:4200`. Needs a real, per-environment origin list. |
-| 4 | **Failure is silent** | `GetCurrentTenant()` returns `null` and writes to `Console.WriteLine`. `TenantDbContextFactory` then throws `NullReferenceException` on `.ConnectionString`. No diagnostic reaches the caller. |
+| 4 | ~~**Failure is silent**~~ — **closed on the API side, 2026-08-20 (M2-A06)** | `GetCurrentTenant()` still returns `null` and writes to `Console.WriteLine`, and `TenantDbContextFactory.cs:19` still throws `NullReferenceException` on `.ConnectionString` — **neither is changed**, because both are in `V.SMART.Shared` and serve the live Blazor app. What changed is what the **API caller** sees: `ExceptionHandlingMiddleware` recognises that exact throwing frame and answers `503` `application/problem+json` (`type: …/tenant-unresolved`, title *"Tenant context is unavailable."*) with a `traceId` and **no connection string** (R-01). `503` rather than a `4xx` because `TenantProvider.cs:77-80` swallows every exception before returning `null`, so an unknown tenant and a MasterDb outage are indistinguishable at that point and blaming the caller would be guessing (R-19). **Still open under Blazor Server**, where the `NullReferenceException` is unhandled as before. |
 | 5 | **No tenant-connection secret management** | Connection strings, with credentials, are stored in plaintext in the `Tenants` table. |
 
 ### Proposed resolution — see [ADR-002](../decisions/ADR-002-rest-api-layer.md)
