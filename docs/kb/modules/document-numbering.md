@@ -838,7 +838,7 @@ Each of these rules out "it must be handled somewhere else", which is why they a
   a race is *possible*, not that one has *occurred*. Only M2-B12-02's duplicate census can
   upgrade it.
 - [KB-030](../business-rules/business-rule-inventory.md) — BR-DOC-001 … BR-DOC-010.
-- [KB-004](../open-questions.md) — Q-10, Q-37, Q-38, Q-39.
+- [KB-004](../open-questions.md) — Q-10, Q-37, Q-38, Q-39, Q-40.
 - [KB-003](../investigation-registry.md) — INV-012 (closed by this document); INV-015
   (Scheduled, deliberately not run).
 - [KB-014](../architecture/multi-tenancy.md), [KB-011](../architecture/backend-architecture.md)
