@@ -38,12 +38,12 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `STOPPED` — **stopped by the owner mid-run**, 2026-08-20, to free the working tree for a documentation sweep (`TaskStop` on `wom92ci4h`). `M2-C00`'s three implementation commits are safe on this branch (`aebc477`, `6d0aebb`, `421646a`); only this file and `failure-log.md` were in flight, and both were committed by hand afterwards. **This was not a failure stop.** 
-| **Stop reason** | n/a — running. 
+| **Status** | `STOPPED` — resuming `M2-C00`. **Criterion 3 was RELAXED on `master` (`8b1a261`) and merged into this branch**: it no longer demands byte-equality with ADR-007's table, only substantive agreement with no contradiction, and it names additional clarifying detail as **allowed**. **Validate attempt 2 against the corrected criterion — do not re-edit KB-050 to satisfy the old one.** 
+| **Stop reason** | n/a — not running. 
 | **Run started** | 2026-08-19 (spans the 2026-08-19→2026-08-20 autonomous run through `M2-B02`, `M2-A01-02`, `M2-A01-03`, and now into `M2-C00`). |
 | **Last transition** | 2026-08-20 — the prior `RUNNING` pointer at `M2-C04-02` was cleared (`ec70620`) because ADR-007 blocked that task behind `M2-C00`; re-applied the [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) over the `Ready` pool in `task-tracker.md`. `M2-C00` is P0 and gates the entire 20-task `M2-C` tree — no other `Ready` candidate (`M2-A07`, `M2-A08`, `M2-B12-01`, `M2-B09`, `M2-B04`, `M0-01-03`) comes close on downstream unblocking, and `M2-A02` is `Ready` but gated on unanswered `Q-28`. `current-task.md` already pointed at `M2-C00` from the prior session's write; this run confirmed it against the tracker and re-selected the same task. Working tree confirmed clean, `HEAD` at `master`'s tip (`ec70620`) — no safety-stop condition. |
-| **Current task** | `M2-C00` — validated **FAIL** on attempt 1 (`acceptance-criterion`), retry not run because the owner stopped the run. See the note in `task-tracker.md` — **the failing criterion was written too strictly and should be relaxed before the retry**, not implemented against. 
-| **Current phase** | Idle — selected, not yet dispatched to an implement agent. 
+| **Current task** | **`M2-C00` — resume for VALIDATION, not re-implementation.** Attempt 1 validated `FAIL` on criterion 3; attempt 2's correction pass **is committed** (`6d0aebb`, `421646a`) but was **never validated** — the owner stopped the run before the validator ran. The work is done; what is missing is the verdict. 
+| **Current phase** | `TESTING` — implementation complete on the branch, awaiting an independent validation pass. 
 | **Current agent** | n/a — not yet dispatched |
 | **Current model** | Implement `sonnet`, Validate `sonnet` (MEDIUM/LOW routing — see Classification row). |
 | **Attempt** | `M2-C00`: **0 of 3** — selected, not started. Last closed task: `M2-A01-03`, **2 of 3** used, `PASS`, now `Completed` and merged. *(The count read "2 of 4" — the retry-budget denominator wrong for the sixth time. It is **three**: KB-091 §6.4 "Attempt 3 fails → BLOCKED … Do not attempt a fourth", and `migration-runner.js` `maxRetries: 2`.)* |
