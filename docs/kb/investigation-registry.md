@@ -38,6 +38,101 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-039 | DI composition drift across `V.SMART.Api/Program.cs`, `V.SMART.Web/Program.cs`, `V.SMART/MauiProgram.cs`, ahead of `M2-B07` | Complete | All three composition roots read line-by-line 2026-08-19 (task file's own line numbers found stale — shifted by `M0-03-02`/`M0-03-03`): `V.SMART.Api/Program.cs` (125 lines, registers only `ICurrencyService`, no `IRepository<>`); `V.SMART.Web/Program.cs` (660 lines); `V.SMART/MauiProgram.cs` (652 lines, no call to `StartupConfigurationValidator` unlike the other two hosts) | **Drift is ~5x the task file's estimate**: 16 domain registrations diverge between Web and MAUI, not 3 — 8 services (`IContractReviewService`, `IRouteCardService`, `IRouteCardRepository`, `IRouteCardSubRepository`, `IProductionReturnAssyRepository`, `IProductionReturnAssySubRepository`, `IProductionSCNAssyRepository`, `IProductionSCNAssySubRepository`) are registered in MAUI's `MauiProgram.cs` but were missing from `V.SMART.Web/Program.cs`, so `/contractReviewMasterList` and `/routeCardList` and siblings threw a DI resolution error in the Blazor host (reachability of those routes in production not independently confirmed — Unknown). `IFileOpener`'s lifetime already diverges by host (Singleton in MAUI `:274`, Scoped in Web `:267`) — a pre-existing inconsistency (R-26), not something a shared composition root can silently resolve without a decision. `MasterDbContext` is registered in Api and Web via plain `AddDbContext` but **not** in MAUI, which instead reads `ConnectionStrings__MasterDb` from the environment first (M0-03-02 pattern, `MauiAppBuilder.Configuration` has no env-var provider by default). Host-coupled `V.SMART.Shared` services that a plain `AddVSmartDomain()` cannot safely resolve in the API without a decision: `IPathProvider`, `IFileOpener`, `IFileUploadService` (each host supplies its own implementation) — `ReportService`, `IUserService`, `IGSTITCService`, `IUserThemePreferenceService` transitively depend on one of these and stay unresolvable in `V.SMART.Api` even after this task, which is expected, not a defect. Authorization DI is explicitly out of scope per [KB-105 §6.2](architecture/server-side-authorization-spec.md) — it belongs in a sibling `AddVSmartApiAuthorization()` in the API host, never inside `AddVSmartDomain()`. **CORRECTIONS (Confirmed, `M2-B07` attempt 2, 2026-08-19 — the first pass above was measured by eye; this pass normalised and set-differenced every registration call in both files):** (1) **The MAUI-only set is 6, not 8.** `IContractReviewService` and `IRouteCardService` are registered in the Blazor host as well — `V.SMART/V.SMART.Web/Program.cs:467` and `:518` — and are merely *duplicated* inside `MauiProgram.cs` (`:364,474` and `:521,523`), which is what made them look one-sided. The dependent claim that `/contractReviewMasterList` and `/routeCardList` threw a DI error in Blazor is therefore **unsupported**; Q-31's premise was corrected accordingly. (2) **The drift is symmetric and the first pass saw only one side:** 7 registrations were Web-only and missing from MAUI — `IAssemblyDefLabourService`, `IEstimateService`, `IJobOrderRepository`, `IJobOrderSubRepository`, `ILabourTrackRepository`, `IPrPoRatingService`, `IToolCribServices`. 13 domain registrations diverge in total, not 16. (3) **Exact counts:** Web 242 matched lines → 240 distinct → 239 real (`:253` is commented out); MAUI 243 → 239 distinct; union 249. (4) **The host-coupled list is 6, not 4:** add `ICompanyService` (`CompanyService.cs:27` — `IFileUploadService` *and* a bare `HttpClient`) and `IItemService` (`ItemService.cs:35` — `IFileUploadService`). (5) **Two seams the first pass missed entirely**, both found by running `ValidateOnBuild`: `AuthenticationStateProvider` (taken by `CurrentUserService`, registered per-host in all three, including the API at `Program.cs:89`) and `IHttpClientFactory` (taken by `BankService`, `PaymentsService`, `ReceiptsService`, `AdvaceAdjustmentService`; supplied only by `AddHttpClient()`, which Web had and the API did not). (6) **`IExcelTemplateService` is domain, not host UI** despite sitting among the UI registrations in both former roots — `ExcelTemplateService.cs:27-32` takes only `IUnitOfWork`, `ICommonService`, `CurrentUserService`, `ILoggingService`, and 7 business services inject it. It was moved into `AddVSmartDomain()`. **Negative result:** with `IPathProvider`, `IFileUploadService`, `IFileOpener`, `IJSRuntime`, a bare `HttpClient`, `AuthenticationStateProvider` and `AddHttpClient()` supplied, the *entire* 249-registration graph passes `BuildServiceProvider(validateScopes: true, validateOnBuild: true)` — there is no other hole. | [KB-060 R-26](risks/technical-debt-register.md), [KB-105 §6.2](architecture/server-side-authorization-spec.md), `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs` | 2026-08-19 |
 | INV-040 | How the service layer signals a business-rule refusal, and how the API maps it to `409` | Complete | `V.SMART.Api/Controllers/CurrencyController.cs:64,77,87`; `BusinessLayer/**` swept for refusal shapes: `CanDelete*Async` (79 implementation methods across 61 service files, e.g. `CurrencyService.cs:188`, `SalaryService.cs:206`, `StaffLoanService.cs:233`, `AttendanceService.cs:102`), `CanItemCancel*` (10, e.g. `PuchPoService.cs:151`, `PurchaseGRNService.cs:1064`, `MaterialReqService.cs:825`, `LabourGRNService.cs:1709`, `PurchaseQuoteService.cs:1134`), `ValidateDeleteAsync` (3: `SubConGRNService.cs:1454`, `ProductionReturnAssyService.cs:460`, `ProductionReturnCompService.cs:797`), `ServiceResult` (1, nested in `StoreService.cs:304-313`, used by `UpsertStoreAsync` at `:173`); `ICurrencyService.cs:14-15`; `CurrencyService.cs:77,85,110,114,120,123,129,153,188-211`; `throw new *Exception` counted across `BusinessLayer/**` | **Refusals are signalled by TUPLE RETURN, not by exception.** The pervasive form is the two-element delete guard `(bool CanDelete, string Message)` — **79 methods / 61 files**, spanning HR, Inventory, Master, Labour, Production and Outsourcing — plus three near-identical variants (`(bool CanItemCancel, string Message)` ×10, `(bool IsValid, string Message)` ×3, one nested `ServiceResult`). A returned value is invisible to middleware, so **the controller must do the mapping**. **Decision (M2-A06, binding on all 60–80 future controllers): a controller helper**, `ProblemResults.BusinessRuleProblem(message)` in `V.SMART/V.SMART.Api/Middleware/ProblemResults.cs` — *not* a domain exception type, because `V.SMART.Shared` is live under Blazor Server and must not change, and because exceptions are not a trustworthy refusal channel there (below). The boolean is the signal; the message is passed through untouched (BR-SO-001). **NEGATIVE RESULTS:** (1) the three-element create/update tuple `(bool Success, string Message, T? Entity)` is **unique to `CurrencyService`** (`ICurrencyService.cs:14-15`), added by `b8beb0d` for the API — sibling master interfaces (`ICostCenterService`, `IExpenseService`, `IIncomeService`) expose **no** Create/Update at all, so M2-B03's template must generalise the *delete-guard* tuple, not this one; (2) no `CanDelete…` method returns a bare `Task<bool>`; (3) there is **no domain-exception base type or marker interface** anywhere in `BusinessLayer/**`; (4) grepped `X-Correlation-Id`/`CorrelationId`/`TraceIdentifier` across `docs/`, `V.SMART.Api` and `tests/` before this task — two documentation hits, **zero implementation**. **TRAP for anyone copying the mapping:** `InvalidOperationException` is thrown 1,107 times in `BusinessLayer/**` and carries *both* meanings — a business refusal (`StockManagerService.cs:210` "No available stock to issue.") and an infrastructure fault rethrown from a `catch` (`StockManagerService.cs:345` "Failed to retrieve stock details.") — so no exception→status rule is safe; M2-A06 maps every escaping exception to `500`. Equally, the refusal tuple itself carries non-refusal meanings in two confirmed places (`CurrencyService.cs:197` not-found; `CurrencyService.cs:208-211` a caught fault) → **Q-34** | [KB-040 § Error contract](api/api-overview.md#error-contract-m2-a06), BR-SO-001, `V.SMART/V.SMART.Api/Middleware/ProblemResults.cs` | 2026-08-20 |
 | INV-041 | How does `sort` reach a business service whose ordering is hardcoded, without rewriting 134 services? | Complete | `SearchWithDynamicFilterAsync` declared **134** times with `Task<` across `V.SMART/V.SMART.Shared/BusinessLayer/` (re-measured 2026-08-20, matches the 2026-08-12 count); **67** `public static class *FilterBuilder` across `V.SMART.Shared/`; `CurrencyService.cs:34-100` (search), `:206` (`_ => query`), `:180-209` (`CurrencyFilterBuilder`), `:279` (`OrderByDescending(x => x.CurrId)`), `:80-81` (`Skip`/`Take`); `CurrencyList.razor:344-348` (the only production caller, named arguments), `:111,130,136` (QuickGrid sorting one page), `:758-760` (the `Status` filter key), `Data/Master/Accounts_Module/Currency.cs:9-29` | **No service anywhere takes a sort parameter** (grepped `BusinessLayer/` for `sort`/`sortBy`/`sortColumn`/`orderBy` service parameters — **0 hits**); ordering is hardcoded per service. **Decision (M2-B02, recorded as [ADR-002 §2a](decisions/ADR-002-rest-api-layer.md)): an additive 4-argument overload** `SearchWithDynamicFilterAsync(int, int, Dictionary<string, object>?, string? sort)`, with the 3-argument member delegating to it — compiler-checked, and the only production call site uses 3 named arguments so it is untouched. The 133 other sites convert per module (KB-080 §10 step 06), not in one sweep. **Passing sort through the filter dictionary was rejected** because every `*FilterBuilder.ApplyFilter` ends in `_ => query` (`CurrencyService.cs:206`), so an unrecognised key is silently ignored and the request answers 200 while sorting nothing. **That failure mode is already live in production:** `CurrencyList.razor:760` sets a `Status` filter key that `CurrencyFilterBuilder` has no case for and the `Currency` entity has no column for, so that dropdown filters nothing, silently (→ Q-36). **Sorting in the controller after materialisation was rejected** because `Skip`/`Take` run first (`:80-81`), so it sorts one page — the wrong rows. **NEGATIVE RESULTS:** (1) the 134 declarations are signature-uniform — a scan for a 4th parameter after `filters` returns nothing, so one overload shape fits all; (2) `frontend/nexgen-web/src` has no `PagedResult`/`totalCount`/`pageNumber` — no existing client constrains the shape; (3) an unused, unreferenced `PagedResult<T>` already exists at `V.SMART.Shared/ViewModels/RejectionMasterVM.cs:33-40` (with `TotalPages`) — a namespace-collision hazard, not the API type; (4) **there was no legacy server-side sort to preserve** — `CurrencyList.razor:111` binds QuickGrid to `CurrencyVMs.AsQueryable()`, i.e. it sorts the current page only, so server-side sort is an improvement, not a regression risk | [ADR-002 §2a](decisions/ADR-002-rest-api-layer.md), [KB-011 § Business service conventions](architecture/backend-architecture.md#business-service-conventions-observed-consistent), [KB-040](api/api-overview.md) | 2026-08-20 |
+| INV-012 | Document numbering + financial-year suffixes | **Complete** (2026-08-20, `M2-B12-01`) — *moved here from the Scheduled table, which had it as "~20 `SELECT TOP 1 …` repositories", an undercount* | `V.SMART/V.SMART.Shared/Repository/**` (all 36 files containing `TOP 1`), `BusinessLayer/BusinessService/CommonService.cs:1845-2201`, `SalesService/{MfgDcService,MfgInvService,ExpInvService,MfgPoService,PerformaInvService,ContractReviewService}.cs`, `LabourServices/LabourInvoiceService.cs`, `Services/FinancialYearHelper.cs`, `Repository/UnitOfWork.cs:798-801`, `Data/ApplicationDbContext.cs:579-618`, `Repository/{DcRunningNoRep,InvoiceAutoRunnNo}/*.cs`, `Pages/**` (53 files calling `GetFinancialYearSuffix`) | See the five evidence blocks immediately below this table | [KB-100](modules/document-numbering.md) | 2026-08-20 |
+
+**INV-012 evidence (2026-08-20, `M2-B12-01`) — five findings, in the
+[KB-083 evidence format](execution/prompt-template.md#evidence-format-mandatory-for-new-findings).**
+Full treatment in [KB-100](modules/document-numbering.md).
+
+```yaml
+Finding:        Document numbers are allocated by three distinct mechanisms, not one:
+                38 raw-SQL "SELECT TOP 1 ... ORDER BY TRY_CAST(<col> AS INT) DESC"
+                sites across 36 repository files; lock-free LINQ last-number reads in
+                StaffLoanRepository, AttendanceRepository and three services; and
+                read-modify-write against the DcRunningNumbers /
+                InvoiceAutoRunningNumbers allocation tables in CommonService and
+                inline in four document services.
+Evidence:       V.SMART/V.SMART.Shared/Repository/SalesAndLabourRepository/SalesDCRepository/MfgDcRepository.cs:29-41;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs:1845-1963;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs:2078-2201;
+                V.SMART/V.SMART.Shared/Repository/HumanResourceRepository/EmployeeLoanRepository/StaffLoanRepository.cs:31-47
+Business rule:  BR-DOC-001 … BR-DOC-010
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+```yaml
+Finding:        R-12's claim of "no lock, no UPDLOCK" is wrong. 37 of the 38 raw-SQL
+                numbering statements carry WITH (UPDLOCK, ROWLOCK). The hint does not
+                prevent the race - it is a row lock, not a range lock, and outside an
+                explicit transaction it is released at statement end - but it has
+                already misled at least one reader. Where an explicit transaction DOES
+                wrap the read and the insert (MfgDcService.cs:802), UnitOfWork opens it
+                at the default READ COMMITTED isolation, so the phantom is still
+                permitted.
+Evidence:       V.SMART/V.SMART.Shared/Repository/OutSourcingRepository/DebitNote_Repository/DebitNoteRepository.cs:32-41;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/MfgDcService.cs:802;
+                V.SMART/V.SMART.Shared/Repository/UnitOfWork.cs:798-801
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+```yaml
+Finding:        Negative result - grepped V.SMART/ for HOLDLOCK, sp_getapplock,
+                IsolationLevel, Serializable, CREATE SEQUENCE and HasSequence.
+                Zero matches for all six. There is no serializable transaction, no
+                application lock and no database sequence anywhere in the solution.
+                Also negative: no numbering query carries a tenant column (consistent
+                with database-per-tenant, KB-014), and V.SMART.Api exposes nothing in
+                this area - grep of V.SMART.Api/ for runningno|GetLast.*NoAsync|Suffix|
+                DcNo|InvNo returns zero.
+Evidence:       git grep over V.SMART/ , 2026-08-20;
+                V.SMART/V.SMART.Api/Controllers/ (AuthController.cs, CurrencyController.cs only)
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+```yaml
+Finding:        The EF model declares exactly one document-number unique index -
+                MfgQuote(QuoteNo, Suffix). ApplicationDbContext.cs contains exactly
+                three IsUnique() calls; the other two are AssmblyDef(AssmblyID, ItemId)
+                and AssemblyDefLabour(AssmblyID, ItemId). No other document series is
+                protected in the model - and neither allocation table has a unique
+                index on its own logical key.
+Evidence:       V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs:579-582 (comment :579,
+                statement :580-582), :595, :618
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+```yaml
+Finding:        The financial-year question is ANSWERED: FinancialYearHelper produces
+                every stored Suffix ("/{yyyy}-{yy}"); CommonService's rival
+                "{yy}-{yy}" implementation is DEAD - its financialYear local is
+                assigned at :1851 and :1971 and never read anywhere in the file. The
+                two agree on the boundary (Month >= 4 and Month > 3 are the same
+                predicate). The suffix is computed in Razor @code in 53 files and
+                passed into the services as a parameter, so it must be extracted
+                server-side before any Angular document screen replaces one.
+Evidence:       V.SMART/V.SMART.Shared/Services/FinancialYearHelper.cs:11-17;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs:1849-1851, :1969-1971;
+                V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesDC_Pages/MfgDcUpsert.razor:1447;
+                V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/ContractReviewMaster_Pages/ContractReviewCheckListUpsert.razor:629
+Business rule:  n/a (recorded as a constraint under the BR-DOC block in KB-030)
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+**INV-012 Unknowns, recorded rather than resolved by assumption.** Whether the live databases
+match the EF model (that is **Q-10**, answered by [`M2-B12-02`](execution/tasks/M2-B12-02.md));
+whether document numbers are embedded in e-Invoice / e-Way payloads in a *shape-sensitive* way
+(**Q-37** — INV-015 remains *Scheduled* and was deliberately **not** run, though the coupling
+itself is Confirmed at `EInvoiceAPIService/EWayDatabaseService.cs:216,227,239,251`); whether
+the `+1`-omitting "separate series" branch is design or defect (**Q-38**); and whether a tenant
+database can hold more than one `Company` row (**Q-39**).
 
 **M0-07 amendment to INV-023 (2026-08-17) — CI now exists in the repository, but has never
 run.** `.github/workflows/ci.yml` runs hygiene guard → restore → build → analyzer warning gate
@@ -464,7 +559,7 @@ before it is used.
 
 | ID | Topic | Primary sources | Scheduled for |
 |---|---|---|---|
-| INV-012 | Document numbering + financial-year suffixes | ~20 `SELECT TOP 1 …` repositories, `DcRunningNumber`, `InvoiceAutoRunningNumber`, `FinancialYearHelper.cs` | Phase 2 (blocks R-12) |
+| ~~INV-012~~ | ~~Document numbering + financial-year suffixes~~ | **MOVED to *Completed* 2026-08-20 by `M2-B12-01`** — see the Completed table above. The old wording here ("~20 `SELECT TOP 1 …` repositories") was an undercount and is superseded by [KB-100](modules/document-numbering.md) | — |
 | INV-013 | Balance-quantity derivation across `Ref*SubId` chains | services + `@code` | Phase 3.5 |
 | INV-014 | Payroll calculation | `HumanResourceService/PayrollService/SalaryService.cs` | Phase 4.9 |
 | INV-015 | e-Invoice / e-Way payload construction and error handling | `E_Invoice/**`, `EinvoiceDatabaseService.cs` (2,136 LOC) | Phase 4.5 |
