@@ -78,18 +78,22 @@ ADR-007 ever disagree, ADR-007 wins and this document is the one that is wrong.
 | Validation | Angular validators, shapes **generated from OpenAPI** |
 | UI library | **PrimeNG** — one library, never mixed |
 | Styling | **CSS-variable design tokens**, component styles |
-| Tables | **PrimeNG Table**; `LineItemGrid` re-evaluated — `M2-C07`'s call per ADR-007, with AG Grid as the named fallback |
+| Tables | **PrimeNG Table**; `LineItemGrid` re-evaluated, see below |
 | Charts | PrimeNG Charts |
 | HTTP | `HttpClient` + interceptors, **generated OpenAPI client** |
 | Money display arithmetic | **decimal.js** |
 | i18n | **Runtime-switchable** (`ngx-translate` or equivalent), from day one |
 | Testing | **Jest or Vitest + Angular Testing Library + Playwright** |
 
+The *"see below"* in the **Tables** row is ADR-007's own forward reference to its
+§*Key rationales* (`ADR-007-angular-stack.md:117-125`) — **not** a pointer into this document. It
+is copied verbatim rather than resolved so the two tables stay byte-comparable; read it there.
+
 Three things ADR-007 records as **carried over unchanged**, repeated here only because tasks cite
 this document for them: server-authoritative validation / calculation / permissions / document
 numbering; the OpenAPI-generated API client; and the CSS-variable design tokens of
 [KB-051](design-system.md), including the eight WCAG contrast corrections and the 12 px workhorse
-type scale (`ADR-007-angular-stack.md:139-149`).
+type scale (`ADR-007-angular-stack.md:137-142`).
 
 ### Framework-agnostic choices ADR-007 does not decide
 
@@ -198,7 +202,7 @@ The Angular shapes are the pilot's, and as shapes they are right: a `CanActivate
 **This document does not decide where the token lives, and no later task may treat any storage
 mechanism as settled by reading this section.** The decision belongs to **`M2-C02`**, taken against
 [ADR-004](../decisions/ADR-004-server-side-authorization.md) and recorded there — ADR-007 assigns it
-explicitly (`ADR-007-angular-stack.md:180-186`: *"`M2-C02` decides the token storage model … and
+explicitly (`ADR-007-angular-stack.md:151-153`: *"`M2-C02` decides the token storage model … and
 must not copy the pilot's approach by default"*).
 
 The binding constraints on that decision:
@@ -219,7 +223,7 @@ Until `M2-C02` records its decision this is an **Unknown**, not an omission.
 `frontend/vsmart-erp/src/environments/environment.prod.ts:1-4` **both** hardcode
 `apiBaseUrl: 'http://localhost:5144'` — confirmed identical, i.e. **the pilot's production build
 points at localhost**. ADR-007 names this *"a defect to remove, not a pattern to keep"*
-(`ADR-007-angular-stack.md:188-190`).
+(`ADR-007-angular-stack.md:155-157`).
 
 The replacement rule: the API base URL is **configuration, not source**, and a missing value fails
 loudly at startup rather than silently defaulting to a developer's machine. The scaffold task owns
@@ -400,7 +404,7 @@ WCAG 2.2 AA as the standard: full keyboard operation of grids and pickers, visib
 labelled form controls, `aria-live` for toasts and async results, 4.5:1 contrast in both
 themes, no colour-only status encoding. Details in [`design-system.md`](design-system.md), whose
 eight contrast corrections and type scale carry over to Angular unchanged
-(`ADR-007-angular-stack.md:145-148`).
+(`ADR-007-angular-stack.md:140-142`).
 
 ## What is deliberately *not* rebuilt in the SPA
 
