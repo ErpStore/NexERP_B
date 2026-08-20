@@ -4,7 +4,7 @@ title: REST API layer, contract conventions, and tenant resolution for the SPA
 module: decisions
 status: accepted
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-20
 dependencies: [KB-014, KB-040, KB-041]
 ---
 
@@ -48,6 +48,96 @@ GET    /api/v1/{resource}/{id}/print      → application/pdf
 - Payloads are the **existing `…VM` ViewModels, unchanged** — no parallel DTO hierarchy.
 - Filters are **typed query DTOs**, not `Dictionary<string, object>`.
 - Controllers are thin: bind → authorize → one service call → map. No business logic.
+
+#### 2a. Addendum — the paged list contract (M2-B02, 2026-08-20)
+
+This addendum refines §2; it does not replace anything above. It was written from the reference
+implementation on `GET api/currencies` and everything in it is **Confirmed** against code unless
+marked otherwise. The types live in `V.SMART/V.SMART.Api/Contracts/`.
+
+**Response.** One generic `PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int PageNumber,
+int PageSize)` for every list endpoint. Verified in `/swagger/v1/swagger.json` as a single
+`CurrencyVMPagedResult` schema serialising `{ items, totalCount, pageNumber, pageSize }`. There is
+deliberately **no `totalPages`**: §2 names four properties, the generated client freezes at
+M2-B03, and it is derivable client-side. (An unrelated, unreferenced
+`V.SMART.Shared.ViewModels.PagedResult<T>` exists at `RejectionMasterVM.cs:33-40` and does carry
+`TotalPages`; it is not this type — alias if a file ever needs both.)
+
+**Request.** A per-resource `record …Query : PagedQuery`. `PagedQuery` carries
+`pageNumber` (default **1**), `pageSize` (default **20**, maximum **100**) and `sort`.
+
+- The **maximum page size is 100**. An unbounded `pageSize` is a denial-of-service vector: the
+  tenant `ApplicationDbContext` allows a 60-second command timeout
+  (`TenantDbContextFactory.cs:22`) and every row is materialised and AutoMapper-projected. 100
+  covers every page size the live Blazor list offers — 10/20/50, `CurrencyList.razor:85-87`.
+- Date filters are `DateTime?`, never `string?`. Model binding rejects an unparseable value as a
+  400; the old `string?` form was re-parsed inside the filter builder, where a parse failure fell
+  through `_ => query` and was **silently discarded** (`CurrencyService.cs:201,203,206`).
+- **Behaviour change, deliberate:** `GET api/currencies` defaulted to `pageSize = 10`
+  (pre-M2-B02 `CurrencyController.cs:30`). It now takes the contract-wide default of 20. Callers
+  that send `pageSize` explicitly are unaffected.
+
+**Query-parameter names are camel case, and every property declares its own.** The wire names
+are `pageNumber`, `pageSize`, `sort` and the resource's filters (`currName`, `createdBy`,
+`fromDate`, `toDate`) — the same casing as the JSON response body and as the `sort` field names
+above. This is **not** free: `[FromQuery]` on a record binds by *C# property name* and
+Swashbuckle emits that name verbatim, so without an explicit `[FromQuery(Name = "…")]` on each
+property the OpenAPI document advertises `PageNumber`/`CurrName` while this document and KB-040
+say `pageNumber`/`currName`, and M2-B10 generates its TypeScript client from the document. Every
+property on `PagedQuery` and on each `…Query` therefore carries `[FromQuery(Name = …)]`, sourced
+from a `const` (`PagedQuery.PageNumberParameter` and siblings) so the attribute and the code that
+reports errors cannot drift apart. For the same reason, `IValidatableObject` member names are the
+**wire** names, not `nameof(Property)`: a member name becomes the `errors` dictionary key
+verbatim, and a binding failure on the same field is keyed by its `[FromQuery]` name — using
+`nameof` keys one field two ways depending on which check rejected it. Binding itself stays
+case-insensitive, so a caller sending `PageSize` is still accepted. Guarded by
+`tests/V.SMART.Api.Tests/PagedContractTests.cs`
+(`Every_query_property_declares_its_camel_case_wire_name`); observed in
+`/swagger/v1/swagger.json` on 2026-08-20 as `currName, createdBy, fromDate, toDate, pageNumber,
+pageSize, sort`.
+
+**Sort syntax.** A comma-separated list of camel-case field names, `-` prefixed for descending:
+`sort=-createdDate,currName`. One parameter, survives URL encoding, and is the form generated
+clients expect. Terms apply in the order written. **Absent `sort` means the service's existing
+default ordering** — for Currency, `OrderByDescending(x => x.CurrId)` (`CurrencyService.cs:279`; the same expression stood at `:56` before this task)
+— never "no ordering". When a sort is supplied, the primary key is appended as a final tie-break
+so paging cannot repeat or drop rows on a non-unique key.
+
+**Sortable-field allow-list.** Every resource declares an explicit list of sortable wire names
+(`CurrencyQuery.Sortable`). Reflecting an arbitrary string onto an `IQueryable` is an
+injection-shaped API surface even through EF, and a reflection-derived list changes silently when
+a property is renamed. An unknown field is **400, and the message lists the permitted values**.
+The list is derived from what the list screen shows, not from the entity's whole property set.
+
+**Validation → 400 `application/problem+json`** (§4, via M2-A06's
+`InvalidModelStateResponseFactory`, `ErrorContractExtensions.cs:21-25`): `pageNumber < 1`;
+`pageSize < 1`; `pageSize > 100`; an unparseable date; `fromDate > toDate`; a `sort` field not on
+the allow-list, or repeated. All are DataAnnotations/`IValidatableObject` on the query record, so
+no controller writes error-mapping code.
+
+**Adapter, not a service rewrite.** `FilterDictionaryAdapter` maps the typed query onto the
+`Dictionary<string, object>` the existing services take (§Consequences authorises exactly this).
+One explicit method per resource — **never reflection**, because a renamed property would then
+stop filtering silently for the same `_ => query` reason. The dictionary never appears on the
+wire. Dates are handed over as `yyyy-MM-dd` invariant strings: the builder stringifies and
+re-parses with the server's current culture, and both predicates use `.Date`, so nothing is lost.
+
+**How `sort` reaches a service whose ordering is hardcoded (INV-041).** `SearchWithDynamicFilterAsync`
+is declared **134 times** across `V.SMART.Shared/BusinessLayer/` with a uniform
+`(int, int, Dictionary<string, object>?)` signature, consumed by **67** nested `*FilterBuilder`
+classes; **no** service anywhere takes a sort parameter (re-measured 2026-08-20). Three options
+were evaluated against code:
+
+| Option | Verdict |
+|---|---|
+| **1. Additive overload** `(int, int, Dictionary<string,object>?, string? sort)` | **Chosen.** Compiler-checked, breaks no caller — the only production call site, `CurrencyList.razor:344-348`, uses three named arguments and still binds to the three-argument member, which now delegates with `sort: null`. The 134 sites convert per module, in that module's own wave, never in one sweep. |
+| 2. Reserved `"__sort"` key in the filter dictionary | **Rejected.** Every `*FilterBuilder.ApplyFilter` ends `_ => query` (`CurrencyService.cs:206`), so an unrecognised key is silently ignored and the request answers 200 while sorting nothing. This is not hypothetical: `CurrencyList.razor:760` already sets a `Status` filter key that `CurrencyFilterBuilder` has no case for and `Currency` has no column for, so that live dropdown filters nothing, silently. A contract whose violation is invisible is worse than one that fails loudly. |
+| 3. Sort the materialised page in the controller | **Rejected.** `Skip`/`Take` run before it (`CurrencyService.cs:80-81`), so it sorts one page of rows — the wrong rows — and "page 2 of a sorted list" becomes meaningless. Recorded explicitly so it is not re-proposed. |
+
+The chosen mechanism keeps the sort **allow-list in two places that must agree**: the API's
+per-resource list (the 400) and the service's `*SortBuilder` switch (the SQL). Drift fails
+**loudly** — the service throws `ArgumentException` naming the permitted values rather than
+ignoring the term — which is the property option 2 could not offer.
 
 ### 3. Workflow commands are server-side and atomic
 

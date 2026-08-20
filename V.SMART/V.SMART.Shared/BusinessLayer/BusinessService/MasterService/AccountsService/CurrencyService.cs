@@ -31,11 +31,34 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
             _fkChecker = foreignKeyUsageChecker;
         }
 
-        public async Task<(List<CurrencyVM> currencyVMs, int TotalCount)> SearchWithDynamicFilterAsync(
+        public Task<(List<CurrencyVM> currencyVMs, int TotalCount)> SearchWithDynamicFilterAsync(
             int pageNumber,
             int pageSize,
             Dictionary<string, object>? filters)
+            // M2-B02: unchanged signature, unchanged behaviour. It delegates to the sort-aware
+            // overload with sort: null, which takes exactly the previous ordering path
+            // (OrderByDescending(x => x.CurrId)). Existing callers — CurrencyList.razor:344-348 —
+            // are untouched.
+            => SearchWithDynamicFilterAsync(pageNumber, pageSize, filters, sort: null);
+
+        /// <summary>
+        /// M2-B02 — the paged search with an explicit <paramref name="sort"/>. See
+        /// <c>ICurrencyService</c> for the contract; ordering is delegated to
+        /// <see cref="CurrencySortBuilder"/>, and a <c>null</c>/empty sort keeps the historical
+        /// <c>OrderByDescending(x =&gt; x.CurrId)</c> exactly.
+        /// </summary>
+        public async Task<(List<CurrencyVM> currencyVMs, int TotalCount)> SearchWithDynamicFilterAsync(
+            int pageNumber,
+            int pageSize,
+            Dictionary<string, object>? filters,
+            string? sort)
         {
+            // Parsed OUTSIDE the try on purpose: an unsupported sort field is a wiring defect and
+            // must surface as itself, not be relabelled "Failed to load Currency list." by the
+            // catch below. Failing loudly here is the whole reason sort is not smuggled through
+            // the filter dictionary, where CurrencyFilterBuilder's `_ => query` would discard it.
+            var sortTerms = CurrencySortBuilder.Parse(sort);
+
             try
             {
                 var query = _unitOfWork.Currencyis
@@ -52,8 +75,8 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
 
                 var totalCount = await query.CountAsync();
 
-                var list = await query
-                    .OrderByDescending(x => x.CurrId)
+                var list = await CurrencySortBuilder
+                    .ApplyOrder(query, sortTerms)
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync();
@@ -183,6 +206,118 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService.AccountsSer
                     _ => query
                 };
             }
+        }
+
+        /// <summary>
+        /// M2-B02 — the ordering counterpart of <see cref="CurrencyFilterBuilder"/>. New class; the
+        /// filter builder above is untouched, because its predicates are the behaviour being
+        /// preserved.
+        ///
+        /// <para>Sort is a comma-separated list of camel-case field names, each optionally prefixed
+        /// with <c>-</c> for descending. The mapping below is an explicit allow-list — a
+        /// <c>switch</c> over string literals, never reflection over property names — so the set of
+        /// sortable columns is a reviewable compile-time fact.</para>
+        ///
+        /// <para><b>An unknown field throws.</b> That is the opposite of the filter builder's
+        /// <c>_ =&gt; query</c>, and it is deliberate: a request that silently sorts nothing while
+        /// answering 200 is worse than one that fails. The API layer validates the field names
+        /// against <c>CurrencyQuery.Sortable</c> and answers 400 before calling, so this throw is
+        /// reachable only from a mis-wired caller.</para>
+        /// </summary>
+        public static class CurrencySortBuilder
+        {
+            /// <summary>The sortable field names, camel-case as they appear on the wire.</summary>
+            public static readonly IReadOnlyList<string> SortableFields = new[]
+            {
+                "currId", "currName", "currSub", "symbol", "isSystemDefined", "createdBy", "createdDate"
+            };
+
+            /// <summary>
+            /// Splits and validates a sort expression. A null/whitespace value yields an empty list,
+            /// which <see cref="ApplyOrder"/> reads as "keep the historical default ordering".
+            /// </summary>
+            /// <exception cref="ArgumentException">A term names a field that is not sortable.</exception>
+            public static IReadOnlyList<(string Field, bool Descending)> Parse(string? sort)
+            {
+                if (string.IsNullOrWhiteSpace(sort))
+                    return Array.Empty<(string, bool)>();
+
+                var terms = new List<(string Field, bool Descending)>();
+
+                foreach (var raw in sort.Split(',', StringSplitOptions.TrimEntries))
+                {
+                    var descending = raw.StartsWith('-');
+                    var name = descending ? raw[1..].Trim() : raw.Trim();
+
+                    var canonical = SortableFields.FirstOrDefault(
+                        f => string.Equals(f, name, StringComparison.OrdinalIgnoreCase));
+
+                    if (canonical is null)
+                    {
+                        throw new ArgumentException(
+                            $"Unsupported Currency sort field '{name}'. Permitted values: "
+                            + string.Join(", ", SortableFields) + ".",
+                            nameof(sort));
+                    }
+
+                    terms.Add((canonical, descending));
+                }
+
+                return terms;
+            }
+
+            /// <summary>
+            /// Applies the parsed terms. With no terms the ordering is
+            /// <c>OrderByDescending(x =&gt; x.CurrId)</c> — the ordering this service has always
+            /// used, preserved verbatim so an unsorted request is unchanged.
+            /// </summary>
+            public static IOrderedQueryable<Currency> ApplyOrder(
+                IQueryable<Currency> query,
+                IReadOnlyList<(string Field, bool Descending)> terms)
+            {
+                if (terms == null || terms.Count == 0)
+                    return query.OrderByDescending(x => x.CurrId);
+
+                IOrderedQueryable<Currency>? ordered = null;
+
+                foreach (var (field, descending) in terms)
+                {
+                    ordered = ordered is null
+                        ? Order(query, field, descending)
+                        : Then(ordered, field, descending);
+                }
+
+                // Paging over a non-unique sort key can otherwise repeat or drop rows between
+                // pages, because SQL Server is free to break ties differently per query. CurrId is
+                // the primary key, so appending it makes every page deterministic.
+                return terms.Any(t => string.Equals(t.Field, "currId", StringComparison.OrdinalIgnoreCase))
+                    ? ordered!
+                    : ordered!.ThenByDescending(x => x.CurrId);
+            }
+
+            private static IOrderedQueryable<Currency> Order(IQueryable<Currency> q, string field, bool desc) => field switch
+            {
+                "currId" => desc ? q.OrderByDescending(x => x.CurrId) : q.OrderBy(x => x.CurrId),
+                "currName" => desc ? q.OrderByDescending(x => x.CurrName) : q.OrderBy(x => x.CurrName),
+                "currSub" => desc ? q.OrderByDescending(x => x.CurrSub) : q.OrderBy(x => x.CurrSub),
+                "symbol" => desc ? q.OrderByDescending(x => x.Symbol) : q.OrderBy(x => x.Symbol),
+                "isSystemDefined" => desc ? q.OrderByDescending(x => x.IsSystemDefined) : q.OrderBy(x => x.IsSystemDefined),
+                "createdBy" => desc ? q.OrderByDescending(x => x.CreatedBy) : q.OrderBy(x => x.CreatedBy),
+                "createdDate" => desc ? q.OrderByDescending(x => x.CreatedDate) : q.OrderBy(x => x.CreatedDate),
+                _ => throw new ArgumentException($"Unsupported Currency sort field '{field}'.", nameof(field))
+            };
+
+            private static IOrderedQueryable<Currency> Then(IOrderedQueryable<Currency> q, string field, bool desc) => field switch
+            {
+                "currId" => desc ? q.ThenByDescending(x => x.CurrId) : q.ThenBy(x => x.CurrId),
+                "currName" => desc ? q.ThenByDescending(x => x.CurrName) : q.ThenBy(x => x.CurrName),
+                "currSub" => desc ? q.ThenByDescending(x => x.CurrSub) : q.ThenBy(x => x.CurrSub),
+                "symbol" => desc ? q.ThenByDescending(x => x.Symbol) : q.ThenBy(x => x.Symbol),
+                "isSystemDefined" => desc ? q.ThenByDescending(x => x.IsSystemDefined) : q.ThenBy(x => x.IsSystemDefined),
+                "createdBy" => desc ? q.ThenByDescending(x => x.CreatedBy) : q.ThenBy(x => x.CreatedBy),
+                "createdDate" => desc ? q.ThenByDescending(x => x.CreatedDate) : q.ThenBy(x => x.CreatedDate),
+                _ => throw new ArgumentException($"Unsupported Currency sort field '{field}'.", nameof(field))
+            };
         }
 
         public async Task<(bool CanDelete, string Message)> CanDeleteCurrencyAsync(int id)

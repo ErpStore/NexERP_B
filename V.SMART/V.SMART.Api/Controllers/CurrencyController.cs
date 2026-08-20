@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using V.SMART.Api.Contracts;
 using V.SMART.Api.Middleware;
 using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAccountsService;
 using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel;
@@ -18,33 +19,42 @@ namespace V.SMART.Api.Controllers
             _currencyService = currencyService;
         }
 
-        public record PagedCurrencyResponse(
-            List<CurrencyVM> Items,
-            int TotalCount,
-            int PageNumber,
-            int PageSize);
-
+        /// <summary>
+        /// M2-B02 — the reference implementation of the paged list contract (ADR-002 §2 and its
+        /// M2-B02 addendum). Every future list endpoint copies this shape: one
+        /// <c>[FromQuery]</c> typed query record in, one <see cref="PagedResult{T}"/> out, the
+        /// service's filter dictionary produced by <see cref="FilterDictionaryAdapter"/> and
+        /// never seen on the wire.
+        ///
+        /// <para>The controller-local paged-response record it replaces is deleted: 60–80
+        /// copies of it would become 60–80 interfaces in the generated TypeScript client. The
+        /// JSON is unchanged — the four property names were already ADR-002's.</para>
+        ///
+        /// <para><b>Behaviour change to note:</b> the default <c>pageSize</c> is now the
+        /// contract-wide 20, where this endpoint alone previously defaulted to 10. Callers that
+        /// send <c>pageSize</c> explicitly are unaffected.</para>
+        ///
+        /// <para>Validation is declarative on <see cref="CurrencyQuery"/>, so an invalid
+        /// <c>pageNumber</c>/<c>pageSize</c>/<c>sort</c>/date range is rejected by M2-A06's
+        /// <c>InvalidModelStateResponseFactory</c> before this method runs. The explicit
+        /// <c>ModelState</c> guard below is the belt-and-braces path for a caller that invokes the
+        /// action directly (unit tests), and matches <c>Create</c>/<c>Update</c>.</para>
+        /// </summary>
         [HttpGet]
-        public async Task<ActionResult<PagedCurrencyResponse>> GetAll(
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10,
-            [FromQuery] string? currName = null,
-            [FromQuery] string? createdBy = null,
-            [FromQuery] string? fromDate = null,
-            [FromQuery] string? toDate = null)
+        [ProducesResponseType(typeof(PagedResult<CurrencyVM>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<PagedResult<CurrencyVM>>> GetAll([FromQuery] CurrencyQuery query)
         {
-            var filters = new Dictionary<string, object>();
-            if (!string.IsNullOrWhiteSpace(currName)) filters["CurrName"] = currName;
-            if (!string.IsNullOrWhiteSpace(createdBy)) filters["CreatedBy"] = createdBy;
-            if (!string.IsNullOrWhiteSpace(fromDate)) filters["FromDate"] = fromDate;
-            if (!string.IsNullOrWhiteSpace(toDate)) filters["ToDate"] = toDate;
+            if (!ModelState.IsValid)
+                return this.ValidationProblemResult();
 
             var (items, totalCount) = await _currencyService.SearchWithDynamicFilterAsync(
-                pageNumber,
-                pageSize,
-                filters.Count > 0 ? filters : null);
+                query.PageNumber,
+                query.PageSize,
+                FilterDictionaryAdapter.ForCurrency(query),
+                query.ToServiceSort());
 
-            return Ok(new PagedCurrencyResponse(items, totalCount, pageNumber, pageSize));
+            return Ok(new PagedResult<CurrencyVM>(items, totalCount, query.PageNumber, query.PageSize));
         }
 
         [HttpGet("{id:int}")]
