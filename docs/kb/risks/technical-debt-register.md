@@ -737,9 +737,14 @@ correction below.
 > **Two constraints on the remedy, discovered with it:**
 > - `MfgDcService.cs:377-381` **decrements** `LastNumber` on delete, to avoid gaps. That
 >   rules out a plain `CREATE SEQUENCE`, which cannot be decremented.
->   **Widened 2026-08-20 (M2-B12-01, Confirmed): there are FOUR such sites, not one** —
->   also `MfgInvService.cs:982-985`, `ExpInvService.cs:256-259` and
->   `LabourInvoiceService.cs:645-648`.
+>   **Widened 2026-08-20 (M2-B12-01, Confirmed): there are EIGHT such blocks in SIX services,
+>   not one** — `MfgDcService.cs:377-381`, `LabourDcOutgoingService.cs:596-609` and
+>   `:5177-5190`, `SubConDcOutService.cs:222-235` and `:1583-1596`,
+>   `MfgInvService.cs:982-985`, `ExpInvService.cs:256-259` and
+>   `LabourInvoiceService.cs:645-648`. **Every auto-allocated document type decrements on
+>   delete**, so the constraint binds the whole remedy, not four services. Seven blocks are
+>   byte-identical; `LabourDcOutgoingService.cs:5186` alone adds a `&& LastNumber > 1` guard,
+>   so the other seven can write `LastNumber = 0` — see **Q-40**.
 > - `MfgDcService.IsDuplicateDcNoAsync:771-790` scopes uniqueness **by `CustId`**, so an
 >   unqualified `(DcNo, Suffix)` unique index would reject data the application currently
 >   accepts. **Corrected 2026-08-20:** the census is **81 `IsDuplicate*Async` occurrences

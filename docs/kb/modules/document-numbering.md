@@ -220,6 +220,12 @@ Both are read and written with **plain EF and no lock hint at all**.
 | `SalesService/ExpInvService.cs` | inline write (manual branch) | 1200-1220 | `InvoiceAutoRunningNumbers` |
 | `LabourServices/LabourInvoiceService.cs` | inline write (manual branch) | 264-284 | `InvoiceAutoRunningNumbers` |
 | `LabourServices/LabourInvoiceService.cs` | **compensating decrement** on delete | 636-648 | `InvoiceAutoRunningNumbers` |
+| `LabourServices/LabourDcOutgoingService.cs` | inline write (manual branch) | 2717-2738 | `DcRunningNumbers` |
+| `LabourServices/LabourDcOutgoingService.cs` | inline write (manual branch) | 4523-4544 | `DcRunningNumbers` |
+| `LabourServices/LabourDcOutgoingService.cs` | **compensating decrement** on delete | 596-609 | `DcRunningNumbers` |
+| `LabourServices/LabourDcOutgoingService.cs` | **compensating decrement** on delete, **extra `> 1` guard** | 5177-5190 | `DcRunningNumbers` |
+| `OutSourcingService/SubContractDcOutService/SubConDcOutService.cs` | **compensating decrement** on delete | 222-235 | `DcRunningNumbers` |
+| `OutSourcingService/SubContractDcOutService/SubConDcOutService.cs` | **compensating decrement** on delete | 1583-1596 | `DcRunningNumbers` |
 
 *Confirmed.* The two allocation-table repositories are **empty shells** — constructor only,
 no methods: `Repository/DcRunningNoRep/DcRunningNumberRepository.cs:15-29` and
@@ -240,9 +246,25 @@ number. Recorded in R-12.
 *Confirmed*, `MfgDcService.cs:368-382`: the row for `("MFGDC", dc.Suffix)` is read, and
 **only when `runningRow.LastNumber == oldDcNo`** (`:377`) is it set to `oldDcNo - 1`
 (`:379`). The same shape exists at `MfgInvService.cs:982-985`, `ExpInvService.cs:256-259`
-and `LabourInvoiceService.cs:645-648` — **four sites, not one**; the task file names only the
-first. **This rules out a plain `CREATE SEQUENCE`**, which cannot be decremented. Flagged for
-[`M2-B12-03`](../execution/tasks/M2-B12-03.md) as a hard constraint on the remedy.
+and `LabourInvoiceService.cs:645-648`.
+
+**Re-verified 2026-08-20 — there are eight such blocks in six services, not four.** The
+census above missed `LabourDcOutgoingService.cs:596-609` and `:5177-5190` (both
+`"LABOURDCOUTGOING"`) and `SubConDcOutService.cs:222-235` and `:1583-1596` (both
+`"SUBCONDCOUT"`). So **every one of the six auto-allocated document types decrements on
+delete** — the behaviour is universal to Mechanism C, not a quirk of four services. The task
+file names only the first site, and so does R-12.
+
+**Seven of the eight are byte-identical; one is not.** `LabourDcOutgoingService.cs:5186`
+guards `if (runningRow.LastNumber == oldDcNo && runningRow.LastNumber > 1)`. The other seven
+omit the `> 1` clause and will therefore write `LastNumber = 0` when the first document of a
+financial year is deleted. Whether a stored `0` is handled correctly on the next allocation is
+**Unknown**: the allocator's initialiser is `1` (`CommonService.cs:1860`), and no branch
+expects to read `0` back. Raised with the other M2-B12-02 questions in §10.
+
+**This rules out a plain `CREATE SEQUENCE`**, which cannot be decremented. Flagged for
+[`M2-B12-03`](../execution/tasks/M2-B12-03.md) as a hard constraint on the remedy — and the
+constraint binds **all six** document types, which materially widens the remedy's scope.
 
 **(c) The manual-number path can move the high-water mark *backwards*.**
 *Confirmed*, `MfgDcService.cs:815-841`. `UpsertDCAsync` branches on
@@ -630,7 +652,8 @@ database sequence. **A stronger row hint is not one of the options.**
 
 **Constraints any remedy must satisfy** — each Confirmed above:
 
-1. The **decrement on delete** (§3.3(b), four sites) rules out a plain `CREATE SEQUENCE`.
+1. The **decrement on delete** (§3.3(b), **eight blocks in six services**, re-verified
+   2026-08-20) rules out a plain `CREATE SEQUENCE`. It binds every auto-allocated type.
 2. `CustId` / `VendorCode` scoping (§7) rules out an unqualified `(Number, Suffix)` unique
    index.
 3. The **manual-number** path (§3.3(c)) must keep working — including its ability to move the
@@ -737,6 +760,7 @@ so a query written as `WHERE Suffix = '2025-26'` returns nothing. The `Payments`
 | **Q-37** *(new)* | Do document numbers cross into e-Invoice / e-Way payloads in a **shape-sensitive** way? | The coupling is Confirmed — `EWayDatabaseService.cs:216,227,239,251` matches records by `DcNo + Suffix` / `InvNo + Suffix`. Whether a downstream government API *parses* that shape is INV-015's question (Scheduled, Phase 4.5), and this task is **forbidden** from running it. Recorded, not investigated. |
 | **Q-38** *(new)* | Is the "separate series" branch that omits the `+1` (`CommonService.cs:1883-1894`, `:2119-2128`) intended design or a duplicate-number defect? | The source states the behaviour, not the intent. Needs the owner, or M2-B12-02's duplicate census correlated against `Company.BookTypeDc`. |
 | **Q-39** *(new)* | Can a tenant database hold **more than one `Company` row**? | If so, the unscoped `Companies…FirstOrDefaultAsync()` discriminator reads (`CommonService.cs:1855-1858`, `:2088-2091`) return an arbitrary company's setting. One `COUNT(*)` in M2-B12-02 settles it. |
+| **Q-40** *(new)* | When the **first** document of a financial year is deleted, seven of the eight decrement blocks write `LastNumber = 0`. Is `0` handled correctly, and is the eighth block's extra `> 1` guard the intended behaviour or the accident? | Only `LabourDcOutgoingService.cs:5186` guards `&& runningRow.LastNumber > 1`; the other seven omit it (§3.3(b)). Which is correct is not recoverable from source. Owner decision, or M2-B12-02 finding stored `LastNumber = 0` rows. **M2-B12-03 must not normalise the eight without answering it.** |
 
 Additional **Unknown**s are recorded in §4.5 rather than as separate questions, because they
 are all resolved by the same M2-B12-02 census: `Company.BookTypeDc` / `BookTypeInvoice`
