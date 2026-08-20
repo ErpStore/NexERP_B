@@ -107,7 +107,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 |---|---|---|---|---|---|---|---|---|
 | M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | **In Progress** | P0 | G0 | 1–2 wks | G2 |
 | M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
-| M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Ready** | P0 | M2-A01-01 | 3 d | G2 |
+| M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Needs Review**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | Blocked | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | Blocked | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
@@ -1346,3 +1346,56 @@ returns `400` instead of being silently discarded by the old `string?` re-parse.
 
 **Releases, once reviewed and merged:** `M2-B03` (→ `M2-B10`), `M2-B09`, `M2-C05`, `M2-C05-01` —
 all list `M2-B02` as a Hard prerequisite. None moves to `Ready` on `Needs Review` alone.
+
+²⁵ **M2-A01-02: `Needs Review` — implemented and independently validated `PASS` on
+`migration/M2-A01-02-require-screen-right` (`9a6b3c2`), 2026-08-20, attempt 1 of 3, 0
+escalations. Not merged; per [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed)
+only the repository owner may set it `Completed`.**
+
+All twenty-two acceptance criteria independently re-checked `MET` (including the six extra
+types `NoScreenRightAttribute`, `ScreenRightSet`, `ScreenCatalogue` and
+`ScreenRightStartupValidator` that KB-105 §2 mandates beyond the task file's own stale
+six-file list — the task file itself defers to "the exact names, namespaces and signatures
+fixed by `M2-A01-01`"). `dotnet build V.SMART.Api --no-incremental`: **0 errors, 6,694
+warnings** (KB-083 baseline, no new warnings). `dotnet test tests/V.SMART.Api.Tests`: **104
+passed, 0 failed**. `dotnet test tests/V.SMART.Shared.Tests`: **84 passed, 0 failed** — no
+regression. `dotnet build V.SMART.Web`: **0 errors** — Blazor host intact,
+`RightsHelper.cs`/`BaseUserRightsComponent.cs` untouched. `git diff --stat master...HEAD`: 17
+files, 1445 insertions(+), 2 deletions(-); nothing under `V.SMART.Shared/`, `V.SMART.Web/`,
+`V.SMART/`, `Controllers/`, `Auth/`, `Migrations/`.
+
+**Live host verification, not merely inferred from tests.** Started the API against local
+`SQLEXPRESS` (`NexGenErpDb_Master`, tenant `Id 1`/`Hostname localhost`): host starts (the new
+`ScreenRightStartupValidator` accepts the real controller set); unauthenticated `GET
+/api/currencies` → `401` `application/problem+json`, unchanged; anonymous `POST
+/api/auth/login` with bad credentials → `401` with the pre-existing message, unchanged;
+authenticated `GET /api/currencies?pageNumber=1&pageSize=2` with a minted JWT → `200` with the
+`M2-B02` paged body — the filter is dormant on an unannotated controller, as designed.
+`ScreenCatalogue`'s 152 names diffed against the live `Screens` seed
+(`ApplicationDbContext.cs:1152-1327`): identical, including the canonical seed typos.
+
+**Three deliberate spec-vs-task-file departures, all traced to KB-105 lines, none guessed:**
+(1) ten authorization types created, not the task file's six — KB-105 §2 is more detailed and
+the task file defers to it; (2) `IUserRightsProvider.GetAsync(int tenantId, int userId,
+CancellationToken ct) : Task<ScreenRightSet>`, not the task file's
+`GetRightsAsync(int userId) : Task<IReadOnlyList<UserRight>>` — KB-105 §2.6, `tenantId`
+explicit for `M2-A01-03`'s cache key, detached projection to avoid a `DbContext`-lifetime bug;
+(3) an unusable `"UserId"`/`"TenantId"` claim denies with `401`, not `403` — KB-105 D-3 is
+stricter than the task file's gloss. Full reasoning: [`tasks/M2-A01-02.md` § Execution Record
+(2026-08-20)](tasks/M2-A01-02.md#execution-record-2026-08-20).
+
+**A new, not-previously-recorded finding from independent review, latent and
+deployment-conditional, not a regression today:** the globally registered filter constructs
+`IUserRightsProvider` (→ `IUnitOfWork` → the tenant `DbContext`) via DI on every request that
+reaches MVC's pipeline, even on unannotated actions where it never calls `GetAsync`. Verified
+live that this cannot break anything today — `UseAuthorization()` middleware rejects a
+tokenless caller before MVC builds the filter pipeline (401, not a DI-construction 503), and
+`AuthController.Login` already constructs `IUnitOfWork` itself. It becomes relevant once
+`M2-A02` annotates a real controller with an unresolvable tenant; a lazy provider injection
+would remove it if that surfaces as an actual problem. Recorded so `M2-A02` does not
+rediscover it as a mystery.
+
+**Not merged, no controller annotated, so R-03 (`KB-060`) stays open** — mechanism exists,
+enforcement does not yet. Closing tasks: `M2-A02`, `M2-A03`. Once reviewed and merged, this
+releases exactly one real dependent, `M2-A01-03` (per-request rights caching) — no other task
+lists `M2-A01-02` as a Hard prerequisite.
