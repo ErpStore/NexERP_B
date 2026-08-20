@@ -141,14 +141,15 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-C01 | M2 | Vite + React 19 + TS strict + lint + test + CI | Frontend | **Completed**¹⁹ | P0 | G0 | 3 d | G2 |
-| M2-C11 | M2 | Archive the Angular pilot | DevOps | **Ready** | P2 | M2-C01 | 0.5 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready** | P0 | M2-C01 | 2 d | G2 |
+| M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Ready**²⁶ | P0 | G0 | 2 d | G2 |
+| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Ready**²⁶ *(re-scoped; React implementation superseded)* | P0 | M2-C00 | 3 d | G2 |
+| M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶ | P2 | M2-C00 | 0.5 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**²² | P0 | M2-C01 | 3 d | G2 |
-| M2-C04-02 | M2 | — form controls + validation display | Frontend | **Ready** | P0 | M2-C04-01 | 4 d | G2 |
-| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Ready** | P0 | M2-C04-01 | 3 d | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | Blocked²⁶ *(re-scoped; React implementation superseded)* | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked²⁶ | P0 | M2-C04-01 | 4 d | G2 |
+| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked²⁶ | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
@@ -166,12 +167,12 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in React | Frontend | Blocked | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
+| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | Blocked | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
 | M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked | P0 | M2-D01 | 1.5 wks | G2 |
 | M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked | P0 | M2-D01 | 4 d | G2 |
 | M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked | P0 | M2-D02-01 | 3 d | G2 |
-| M2-D02-03 | M2 | — React screens + component tests | Frontend | Blocked | P0 | M2-D02-02 | 4 d | G2 |
-| M2-D03 | M2 | Blazor ↔ React parity test | Testing | Blocked | P0 | M2-D02-03 | 3 d | G2 |
+| M2-D02-03 | M2 | — Angular screens + component tests | Frontend | Blocked | P0 | M2-D02-02 | 4 d | G2 |
+| M2-D03 | M2 | Blazor ↔ Angular parity test | Testing | Blocked | P0 | M2-D02-03 | 3 d | G2 |
 
 ## M3 — Core Modules · Gate G3
 
@@ -246,7 +247,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | 12 | G0 | ⬜ Not met |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 52 | **7** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-C01`¹⁹, `M2-B07`²⁰, `M2-C04-01`²², `M2-A06`²³, `M2-B02`²⁴, `M2-A01-02`²⁵. Reconciled 2026-08-20: this row read `1` and carried a stale "also Needs Review" note listing three tasks that had since been merged. Recount is by `grep` over the M2 rows, not by adding to the previous number)* | G2 | ⬜ Not met |
+| M2 | 53 | **5** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-A01-02`²⁵, `M2-A06`²³, `M2-B07`²⁰, `M2-B02`²⁴ — **all five are backend**. Was 7 until 2026-08-20: `M2-C01`¹⁹ and `M2-C04-01`²² were `Completed` in React and are **superseded** by [ADR-007](../decisions/ADR-007-angular-stack.md), footnote ²⁶. Total rises 52 → 53 with the new `M2-C00`. Recount is by `grep` over the M2 rows, never by adjusting the previous number)* | G2 | ⬜ Not met |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -1425,3 +1426,34 @@ rediscover it as a mystery.
 enforcement does not yet. Closing tasks: `M2-A02`, `M2-A03`. Once reviewed and merged, this
 releases exactly one real dependent, `M2-A01-03` (per-request rights caching) — no other task
 lists `M2-A01-02` as a Hard prerequisite.
+
+²⁶ **The M2-C tree was re-scoped from React to Angular on 2026-08-20 — [ADR-007](../decisions/ADR-007-angular-stack.md).**
+
+> **Owner decision.** His background is C# and WPF with no frontend experience; the runner writes the screens but **he** reviews and maintains them. Angular's component-plus-service shape, constructor DI and typed Reactive Forms map onto MVVM and XAML in a way React's hooks model does not. The finding that reopened it: **ADR-003 never evaluated Angular at all** — every rationale it recorded was a choice *within* React. Full reasoning in ADR-007.
+>
+> ### What changed in this tree
+>
+> | Task | Was | Now |
+> |---|---|---|
+> | **`M2-C00`** *(new)* | — | **`Ready`** — rewrite [KB-050](../frontend-new/react-architecture.md) for Angular. **Gates the whole tree**: until it lands there is no authoritative structure to specify against |
+> | `M2-C01` | `Completed`¹⁹ (React scaffold, merged `12f172f`) | **`Ready`**, re-scoped to Angular CLI. Now depends on `M2-C00` |
+> | `M2-C04-01` | `Completed`²² (design tokens, merged `56b8ae2`) | `Blocked`, re-scoped. **`tokens.css` ports nearly verbatim** — plain CSS custom properties, carrying the eight WCAG contrast corrections and the 12 px type-scale decision |
+> | `M2-C11` | "**Archive** the Angular pilot" | "**Adopt** the Angular pilot as the app baseline" — it has 9 components including auth service, route guard and HTTP interceptor |
+> | `M2-C10`, `M2-C04-02`, `M2-C04-03` | `Ready` | `Blocked` on `M2-C00` |
+> | `M2-D01`, `M2-D02-03`, `M2-D03` | "in React" / "React screens" / "Blazor ↔ React parity" | Angular |
+>
+> ### Footnotes ¹⁹ and ²² are NOT withdrawn
+>
+> `M2-C01` and `M2-C04-01` **were** implemented, independently verified and merged. `M2-C01`'s frontend CI job ran **green on a hosted runner**. That happened, and the record of it stands unedited. **A superseded task is not a failed one**, and rewriting those footnotes to read "Angular" would falsify the history this repository exists to keep.
+>
+> ### All 26 `M2-C*`/`M2-D*` task files carry a ⛔ STOP banner — they were not rewritten
+>
+> That is ~25,000 lines of specification with 1,300+ React-specific references. Rewriting it now would mean **writing Angular detail against a KB-050 that does not exist yet**, for tasks months away, which is how specifications go stale — a risk this repository already names: *"A task file's Current Implementation section is a hypothesis, not fact."*
+>
+> Each banner states what survives (acceptance-criteria *intent*, the ERP behaviour being reproduced, `file:line` evidence about the **existing Blazor** code, business rules, dependencies — none of which was ever a React decision) and what must be re-derived (every stack-specific instruction, `frontend/nexgen-web/` path, component API and command). **It also tells a runner to stop and report rather than infer**, because re-specifying is an owner-level documentation change.
+>
+> Tasks get fully re-specified **as they come up**, against a real KB-050 — not in bulk against a guess.
+>
+> ### Cost, stated plainly
+>
+> Two merged tasks discarded and ~12 specs to re-derive: **1–2 weeks of real waste.** No backend work is affected — **all five remaining `Completed` M2 tasks are backend**, framework-neutral by design, which is the property that made this switch affordable at all. Deferring it would not have made it cheaper: `M2-C05`/`C07`/`C08` are 6–7 weeks by ADR-003's own estimate and all still ahead.
