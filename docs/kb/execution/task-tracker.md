@@ -114,7 +114,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
-| M2-A07 | M2 | `GET /api/v1/me` | Backend | **Ready** | P0 | M2-A01-03 | 2 d | G2 |
+| M2-A07 | M2 | `GET /api/v1/me` | Backend | **Needs Review**²⁸ | P0 | M2-A01-03 | 2 d | G2 |
 | M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Ready** | P0 | M2-A01-03 | 3 d | G2 |
 
 ### M2-B — API structure
@@ -1502,3 +1502,55 @@ five" with the re-grep evidence attached.
 genuinely `Completed`, not `Needs Review`
 ([KB-082](dependency-graph.md#ready-task-selection-rule) step 1). They remain `Blocked` until
 this branch is reviewed and merged.
+
+²⁸ **M2-A07: `Needs Review` — implemented and independently validated `PASS` on
+`migration/M2-A07-me-endpoint` (`61da4bd`, one commit on top of `master` tip `8b1a261`), attempt
+1 of 4 as the validator reported it, 0 escalations, `scopeOk: true`.** Not merged; per
+[KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) only the repository owner
+may set it `Completed`.
+
+> `GET /api/v1/me` returns `userId`, `userName`, `tenantId`, role and the full screen-rights
+> map, read only through `IUserRightsProvider` (never the repository directly). Role is sourced
+> from the JWT `ClaimTypes.Role` claim — never `CurrentUserService.GetUserRoleAsync()` (R-18)
+> — and `ERPAdmin` (R-31) is not propagated; the API model carries role as an opaque string.
+> `UserAuthority` and four `User` UI flags are deliberately deferred, each independently
+> justified in **INV-042** (`Complete`, 7 findings). Absent `UserRight` rows are omitted, not
+> padded to 152 `false` entries; duplicates collapse first-match-wins, matching the filter's own
+> `FirstOrDefault`. Route is the literal `/api/v1/me`, recorded for `M2-B01`.
+>
+> **Independently re-verified, including two checks the implementer had reported as
+> not-checkable from a test project.** The validator started the real API host and confirmed
+> over the wire: no token → `401` `application/problem+json`; a real `UserId=1`/`TenantId=1`
+> token → `200` with exactly the five documented members and **150** rights keys, matching
+> `SELECT s.ScreenName FROM UserRights r JOIN Screens s ON s.Id=r.ScreenId WHERE r.UserId=1`
+> against the live tenant database exactly (150 vs 150, `diff` empty). Body scanned for
+> `password`/`connectionstring`/`server=`: none. `dotnet build V.SMART.Api`: **0 errors, 6,695
+> warnings** — exact baseline. `dotnet test tests/V.SMART.Api.Tests`: **148/148** (117 → +31).
+> `dotnet test tests/V.SMART.Shared.Tests`: **84/84**, no regression. `git diff --stat HEAD~1
+> HEAD`: 9 files, +1184/-13; nothing under `V.SMART.Shared/`, `V.SMART.Web/`, `V.SMART/V.SMART/`,
+> `V.SMART.Api/Auth/`, `V.SMART.Api/Authorization/`; no EF migration.
+>
+> **Two criteria are recorded `NOT MET`/`NOT CHECKABLE` rather than silently dropped — the
+> `M2-A06` precedent (this footnote table, ²³).** (1) *"`CanCreate = false` ⇒ `403` from `POST
+> /api/currencies`, proven by test"* is not satisfiable today: `CurrencyController` carries no
+> `[RequireScreen]`/`[RequireRight]` — that annotation is `M2-A02`'s, gated on `Q-28`. The
+> substitute test feeds one `ScreenRightSet` to both `MeController` and the real filter and
+> asserts agreement, the strongest available today. (2) *"On the `M2-A03` exempt allow-list ...
+> and the harness passes"* — the exemption mechanism itself, `[NoScreenRight(justification)]`,
+> is shipped and was observed accepted by `ScreenRightStartupValidator` at boot on the live
+> host; there is no separate harness to run because `M2-A03` is `Blocked`.
+>
+> **New risk raised by the implementer: R-43** — `tests/V.SMART.Api.Tests` has no
+> `Microsoft.AspNetCore.Mvc.Testing`/`WebApplicationFactory`, so every HTTP-level claim in this
+> task (401 without a token, the JWT inbound claim map, tenant isolation over the wire) is
+> asserted by declaration inside a controller test, not observed as a real response — which is
+> exactly why the validator went to the live host itself for the two checks above. **New risk
+> found by the validator: R-44** — probing a token whose `TenantId` claim names no `Tenants` row
+> returned `200` with a *different* tenant's rights, because `TenantProvider.cs:46-58`'s
+> host-based fallback and `UserRightsProvider`'s claimed-tenant cache key compose badly. Not an
+> `M2-A07` regression — both files are pre-existing and were out of scope — but it contradicts
+> `UserRightsProvider.cs:17-22`'s unqualified cross-tenant claim. Tracked as **Q-37**, routed to
+> `M2-A02`/`M2-A08`.
+>
+> Full record: [`tasks/M2-A07.md` § Execution Record
+> (2026-08-20)](tasks/M2-A07.md#execution-record-2026-08-20).

@@ -68,25 +68,38 @@ the re-scoped `M2-C01`'s call.
 
 ---
 
-## Nothing awaits review — all validated work is merged
+## Awaiting review — implemented and validated, not yet merged
 
-`M2-A01-03` (tenant-scoped rights cache) was merged 2026-08-20. **`M2-A02`, `M2-A07` and
-`M2-A08` are released** as a result.
+**`M2-A07` (`GET /api/v1/me`) — `Needs Review`.** Implemented on
+`migration/M2-A07-me-endpoint` (`61da4bd`), validated `PASS`, 0 escalations. Reads rights
+through `IUserRightsProvider`, role from the JWT `ClaimTypes.Role` claim (never
+`CurrentUserService.GetUserRoleAsync()`, R-18), `ERPAdmin` not propagated (R-31). Full record:
+[`tasks/M2-A07.md` § Execution Record (2026-08-20)](tasks/M2-A07.md#execution-record-2026-08-20)
+and `task-tracker.md` footnote ²⁸. **Does not release `M2-C02`** — its Hard prerequisite on
+`M2-A07` needs `Completed`, not `Needs Review` ([KB-082 selection
+rule](dependency-graph.md#ready-task-selection-rule) step 1).
 
-**`M2-A02` must settle `Q-28` before it starts.** An API-only administrator holds **zero**
-`UserRight` rows, because `AuthController.Login` never calls `SyncRightsForUserAsync`.
-Annotate `CurrencyController` before that is answered and the administrator authenticates
-successfully into an empty UI — the R-40 failure mode, moved to the API side.
+**New from `M2-A07`'s close-out validation — not this task's to fix:** `TenantProvider.cs:46-58`
+falls back to host-based tenant resolution when a JWT's `TenantId` claim is unresolvable, while
+`UserRightsProvider` caches on the *claimed* tenant id — probed live and produced a cross-tenant
+rights leak for an unresolvable claim. Recorded as **R-44** and **Q-37**, routed to `M2-A02`
+and `M2-A08` — read both before starting either.
 
 ## Ready and unclaimed after `M2-C00`
 
 | Task | What | Est. | Note |
 |---|---|---|---|
+| `M2-A08` | Row-level scoping + account gates (Q-05…Q-08) | 3 d | P0, released by `M2-A01-03`; read R-44/Q-37 above first |
 | `M2-B12-01` | INV-012 document numbering | 2 d | Documentation-only; releases `M2-B12-02` |
-| `M2-B09` | Reference-data endpoints + caching | 3 d | P1, released by `M2-B02` |
 | `M2-B04` | Decouple `IApprovalService` | 1 wk | Zero tracked dependents |
+| `M2-B09` | Reference-data endpoints + caching | 3 d | P1, released by `M2-B02` |
 | `M0-01-03` | Deployment script + rebuild runbook | 1 d | Carried M0 debt; **no longer hardware-blocked** (footnote ²¹) |
 | `M2-C01` | Angular scaffold | 3 d | Blocked on `M2-C00` |
+
+**`M2-A02` is `Ready` but gated on `Q-28`** — an API-only administrator holds **zero**
+`UserRight` rows, because `AuthController.Login` never calls `SyncRightsForUserAsync`. Not a
+genuine candidate until that is answered ([KB-082 selection
+rule](dependency-graph.md#ready-task-selection-rule) step 1, Information dependency).
 
 **A session may now run more than one of these.** Changed 2026-08-20: the standing rule is
 *"pick the next task that can actually be done"*, with a five-part test in

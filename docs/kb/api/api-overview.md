@@ -165,9 +165,13 @@ filter, and a UI offering a button the API refuses is worse than no button.
 
 **Tenancy.** `tenantId` is the JWT `TenantId` claim (BR-TEN-002) and is passed to the provider,
 whose cache key is `screenrights:v1:{tenantId}:{userId}`. Two users with the same `UserId` in
-different tenants therefore receive their own tenant's rights. **No `TenantInfo` member other
+different tenants therefore receive their own tenant's rights — verified for a claim that
+resolves to a real `Tenants` row. **No `TenantInfo` member other
 than the id is returned** — that record carries a plaintext credentialed connection string
-(R-01), so this endpoint never reads the tenant row at all.
+(R-01), so this endpoint never reads the tenant row at all. **Caveat (R-44/Q-37):** for a
+`TenantId` claim that does **not** resolve, `TenantProvider` falls back to host-based
+resolution while this cache still keys on the claimed id — bounded today because
+`AuthController` only mints resolvable ids, but not a guarantee for every possible caller.
 
 **Role.** The `ClaimTypes.Role` claim minted by `JwtTokenService.cs:34`, i.e. the same
 expression `AuthController`'s login response returns, so the two cannot disagree inside one

@@ -1113,6 +1113,26 @@ Until then, no session may claim an over-the-wire result from this project.
 `migration/M2-C00-kb050-angular-rewrite` branch, and reusing the number would produce two
 different R-42s on merge.
 
+### R-44 — Unresolvable `TenantId` claim falls back to host-based tenant resolution, contradicting the documented cross-tenant guarantee
+**Confirmed (M2-A07 close-out validation, 2026-08-20).** Probed by starting the real API host
+and calling `GET /api/v1/me` with a JWT whose `TenantId` claim names a tenant absent from the
+`Tenants` table. The response was **`200`**, carrying a *different* tenant's 150-row rights
+map, not an error. Root cause is two pre-existing behaviours composing badly, neither touched
+by `M2-A07` (which was forbidden to modify either file): `TenantProvider.cs:46-58` falls back
+to **host-based** resolution when the id lookup misses, while `UserRightsProvider` keys its
+cache on the **claimed** tenant id (`UserRightsProvider.cs:50-53`). This directly contradicts
+the unqualified sentence at `UserRightsProvider.cs:17-22` — *"a cross-tenant read is
+structurally impossible through this repository"* — and the matching sentence in KB-040's
+Tenancy paragraph, both of which need a caveat or a fix.
+**Practically bounded today:** `AuthController` only ever mints a `TenantId` claim for a real
+tenant, so the fallback path is not reachable through the shipped login flow. It becomes live
+the moment any other JWT issuer, a hand-crafted token, or a stale/deleted tenant row enters the
+picture.
+**Action.** Decide, in front of `M2-A02` and `M2-A08`: either `TenantProvider` should fail
+closed (no host fallback) when a `TenantId` claim is present but unresolvable, or every reader
+downstream of it (`UserRightsProvider` included) needs to independently re-verify tenant
+existence. Tracked as **Q-37** ([`open-questions.md`](../open-questions.md)).
+
 ### R-27 — Hardcoded developer-machine values in the MAUI project
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in
 `V.SMART.csproj`.
