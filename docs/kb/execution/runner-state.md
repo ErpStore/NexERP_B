@@ -38,11 +38,11 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `STOPPED` — clean, expected end. `M2-C04-01` closed this session at `Needs Review` (validated `PASS`); the task lifecycle forbids starting the next task in the same session ([KB-088 §1](workflow.md#1-task-lifecycle)), so the run stops at this boundary rather than opening `M2-A06`. |
+| **Status** | `STOPPED` — clean, expected end. `M2-C04-01` is **`Completed` and merged** (`56b8ae2`, owner-instructed 2026-08-20) after validating `PASS`; the task lifecycle forbids starting the next task in the same session ([KB-088 §1](workflow.md#1-task-lifecycle)), so the run stops at this boundary rather than opening `M2-A06`. |
 | **Stop reason** | Task boundary, not a blocker. `M2-C04-01` validated `PASS` — verdict `PASS`, `failureCategory: none`, `scopeOk: true`, all sixteen acceptance criteria `MET`, no regressions. The coverage regression that stopped attempt 1 (`npm run coverage` against `vitest.config.ts:38`'s `branches: 100` floor) is closed honestly: branches now measure 100 % and the floor itself was not touched. Nothing further is owed from an autonomous session; the branch awaits the repository owner's review and merge (KB-088 "Who may set COMPLETED"). |
 | **Run started** | 2026-08-19 |
 | **Last transition** | 2026-08-20 — `M2-C04-01` attempt 2's coverage fix (`9f886a6`, on top of the preserved WIP `5313c46`) independently validated `PASS`. Full record: [`tasks/M2-C04-01.md` § Execution Record (2026-08-20)](tasks/M2-C04-01.md#execution-record-2026-08-20); `task-tracker.md` footnote ²². Session close-out moved the task `Blocked` → `Needs Review` and left the branch `migration/M2-C04-01-design-tokens` unmerged for owner review. |
-| **Current task** | None — `M2-C04-01` is closed for this session (`Needs Review`, not runner-selectable). See **Next ready task** below for what an owner or the next run should open. |
+| **Current task** | None — `M2-C04-01` is `Completed` and merged to `master`. See **Next ready task** below for what an owner or the next run should open. |
 | **Current phase** | n/a — no task is in flight. |
 | **Current agent** | n/a — no agent is live |
 | **Current model** | n/a |
