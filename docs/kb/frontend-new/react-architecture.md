@@ -1,6 +1,6 @@
 ---
 doc_id: KB-050
-title: Proposed React Frontend Architecture
+title: Proposed Frontend Architecture (Angular — rewrite pending, M2-C00)
 module: frontend-new
 source_files: []
 entities: []
@@ -9,11 +9,46 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-013, KB-015, KB-040, KB-041]
 ---
 
-# Proposed React Frontend Architecture
+# Proposed Frontend Architecture
+
+> # ⚠ PARTLY SUPERSEDED, 2026-08-20 — the framework is now Angular
+>
+> [`ADR-007`](../decisions/ADR-007-angular-stack.md) selects **Angular + PrimeNG** and supersedes
+> `ADR-003`. **This document has not been rewritten yet**, so read it with the map below rather
+> than as a whole. Rewriting it is task **`M2-C00`**, and every `M2-C` task depends on the result.
+>
+> **Dead — do not implement:**
+>
+> | Section | Why |
+> |---|---|
+> | *Recommended stack* | Replaced wholesale by ADR-007's table |
+> | *Why not Next.js* | A React-internal question. Angular CLI is the build |
+> | *Why Mantine over MUI* | Replaced by PrimeNG |
+> | *Project structure* | Needs the Angular layout (standalone components, feature routes, `core`/`shared`/`features`) |
+> | *Data-fetching conventions* | TanStack Query is out; typed services over `HttpClient` with explicit `refresh()` are in |
+>
+> **Still valid and still binding — none of it was ever a React decision:**
+>
+> | Section | Why it survives |
+> |---|---|
+> | *Design constraints from the existing system* | Facts about the ERP, not the framework |
+> | *Document editor pattern* | **The core abstraction.** Header + line grid + picker + server-computed totals is a shape, not a library |
+> | *Workflow commands* | Same |
+> | *Permission-based rendering* | The 152 × 5 matrix is the constraint; only the rendering syntax changes |
+> | *Authentication flow* | Conceptually intact — but **token storage is `M2-C02`'s decision** against ADR-004, and must **not** copy the pilot's `localStorage` JWT |
+> | *Performance targets*, *Accessibility* | Framework-agnostic; the WCAG work in KB-051 already met them once |
+> | *What is deliberately not rebuilt* | Framework-agnostic scope boundary |
+>
+> **Error handling** is neither dead nor current: it predates `M2-A06`, which shipped the real
+> `application/problem+json` contract. Use [ADR-002 §4](../decisions/ADR-002-rest-api-layer.md) and
+> `V.SMART.Api/Middleware/ApiProblems.cs` as the source, not this section.
+>
+> The title and `doc_id` stay `KB-050` through the rewrite so the ~20 task files citing it do not
+> all have to change twice.
 
 > **Proposal.** Nothing here describes existing code. Constraints it must satisfy come
 > from [`architecture/frontend-architecture-existing.md`](../architecture/frontend-architecture-existing.md)

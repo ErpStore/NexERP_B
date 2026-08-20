@@ -350,9 +350,22 @@ total. CI (M0-07) must record this baseline and fail on *new* warnings — it ca
 
 ## Verified frontend commands
 
+> **⚠ These rows describe the React app, which [`ADR-007`](../decisions/ADR-007-angular-stack.md)
+> superseded on 2026-08-20.** They are **still factually correct** — every command below was
+> measured and still runs today — so they are kept rather than deleted, per this table's own rule
+> that it records observed results and never predictions.
+>
+> **Do not treat them as the frontend contract.** The stack is Angular + PrimeNG. When the
+> re-scoped `M2-C01` scaffolds the Angular app, it replaces this whole section with measured
+> Angular CLI commands and deletes these rows in the same change — **not before**, because until
+> then removing them would make this document silently wrong in the other direction.
+>
+> The Angular pilot at `frontend/vsmart-erp/` still has no verified command here; `M2-C11`
+> (re-scoped from *archive* to *adopt as baseline*) is where it acquires one.
+
 Added by **M2-C01**, which created `frontend/nexgen-web/` — the repository's first React
 project. Before it, this document had **no** frontend row of any kind; the only other
-JavaScript tree, `frontend/vsmart-erp/`, is the archived Angular pilot and has never had a
+JavaScript tree, `frontend/vsmart-erp/`, was then the archived Angular pilot and has never had a
 verified command here.
 
 Every command below was **run locally on 2026-08-19** on this Windows workstation

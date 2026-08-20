@@ -34,7 +34,7 @@ dependencies: [KB-015, KB-050]
 
 > **Implementation status (M2-C04-01, 2026-08-19).** The token layer is implemented in
 > `frontend/nexgen-web/src/shared/theme/` — `tokens.css` (the values, two independent
-> palettes), `tokens.ts` (the names, as types), `theme.ts` (the Mantine 7 theme, expressed
+> palettes), `tokens.ts` (the names, as types), `theme.ts` (the PrimeNG theme, expressed
 > entirely over `var(--…)`), plus `ThemeProvider`, `useColorScheme`, `ThemeToggle`,
 > `density.ts` and `breakpoints.ts`. Typography sizes and line-heights, the spacing scale,
 > the radii, the motion durations and easing, the breakpoints and the two densities shipped
@@ -132,7 +132,7 @@ exists in the schema) with a `system` default"*. **The parenthesis is false as w
 (`V.SMART/V.SMART.Shared/Data/Master/MasterScreeenManagement_Module/UserThemePreference.cs:20`)
 and **cannot represent `system`**; the service behind it has no HTTP surface at all. The
 `system` default stands and is implemented — but the preference is persisted **client-side**
-(`localStorage`, key `nexgen.theme`), and React's preference is independent of Blazor's during
+(`localStorage`, key `nexgen.theme`), and the SPA's preference is independent of Blazor's during
 the strangler period. Server persistence needs a settings endpoint **and** a decision on the
 entity: **Q-33** in [`open-questions.md`](../open-questions.md), owned by product + backend,
 needed by **M3-3**. See the INV-006 amendment in
@@ -283,7 +283,7 @@ per user (extends the existing `UserPreference` idea).
 | `768–1023` | sidebar becomes an overlay drawer, 1-column forms, grid drops low-priority columns |
 | `<768` | **read + approve only.** Document editing is not supported on phone. Shop-floor screens (Daily Production Log, Stock Position, Approvals) get dedicated touch-first layouts |
 
-The existing MAUI app already targets tablets for shop-floor use; the React app should
+The existing MAUI app already targets tablets for shop-floor use; the Angular app should
 serve those flows through responsive routes rather than a second codebase.
 
 ## Accessibility commitments (WCAG 2.2 AA)

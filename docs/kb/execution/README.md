@@ -105,7 +105,7 @@ Target, per [ADR-001](../decisions/ADR-001-keep-existing-backend.md) and
 [ADR-002](../decisions/ADR-002-rest-api-layer.md):
 
 ```
-React SPA ──HTTP──► V.SMART.Api (ASP.NET Core Web API, .NET 9)
+Angular SPA ──HTTP──► V.SMART.Api (ASP.NET Core Web API, .NET 9)
                           │
                           ▼
               THE SAME V.SMART.Shared services
@@ -122,7 +122,7 @@ rollback carries no data-migration problem.
 1. **Strangler-fig, never big bang.**
 2. **The backend is extended, never rewritten.**
 3. **Extract before rebuild** — business logic leaves `@code` into services *first*,
-   verified against the running Blazor app, *then* the React screen is built.
+   verified against the running Blazor app, *then* the Angular screen is built.
 4. **The server is authoritative** for calculations, validation, permissions, numbering.
 5. **Migrate along the dependency graph** — masters → documents → reports.
 6. **Every module ships behind a per-tenant, per-module feature flag.**
@@ -228,7 +228,7 @@ paths were real. All three are recorded as **INV-029**.
 
    | Untracked | Consequence |
    |---|---|
-   | `V.SMART/V.SMART.Api/` — the whole Web API project | **the backend the React app is being built on is not in source control** |
+   | `V.SMART/V.SMART.Api/` — the whole Web API project | **the backend the Angular app is being built on is not in source control** |
    | `docs/` — the whole knowledge base | all analysis, ADRs and this plan exist on one disk |
    | `frontend/`, `.github/` | CI cannot run until `.github/` is committed |
    | `NexGen-ERP---2025-master.sln` | the only `.sln` in `HEAD` is `Bhargavi V.SMART ERP - 2025.sln`, **deleted** on disk |
@@ -277,7 +277,7 @@ Version-control hygiene, secret rotation and externalisation, stored-procedure c
 CI, two confirmed defect fixes, one product decision, characterisation tests.
 
 ### Out of Scope
-Any API controller. Any React code. Any business-behaviour change (M0-11's decision is
+Any API controller. Any Angular code. Any business-behaviour change (M0-11's decision is
 *recorded* here and *applied* only after M0-13 pins current behaviour). Any schema change.
 
 ### Prerequisites
@@ -520,16 +520,16 @@ stale before use. Each runs **one wave ahead** of its migration, as task `01` of
 ## 9. M2 — Foundation
 
 ### Description
-Build the API's security and contract foundations, the React shell and design-system
+Build the API's security and contract foundations, the Angular shell and design-system
 primitives, then prove the whole path end-to-end on two modules.
 
 ### Objective
-Currency **and** Customer Master fully working in React through the Web API, with
+Currency **and** Customer Master fully working in Angular through the Web API, with
 permissions enforced **server-side**, while Blazor remains untouched and live.
 
 ### Scope
 Server-side authorization, error contract, refresh tokens, tenant resolution for a
-cross-origin SPA, API structural conventions, the React app skeleton and its core
+cross-origin SPA, API structural conventions, the Angular app skeleton and its core
 primitives, and one vertical slice.
 
 ### Out of Scope
@@ -592,11 +592,11 @@ API preserves behaviour.
 > first document-creating endpoint, because an API raises concurrency well above what
 > Blazor Server produces today.
 
-#### M2-C — React foundation
+#### M2-C — Angular foundation
 
 | Task | Name | Type | P | Depends on | Est. | File |
 |---|---|---|---|---|---|---|
-| **M2-C01** | Vite + React 19 + TS strict + lint + test + CI | Frontend | P0 | G0 | 3 d | [↗](tasks/M2-C01.md) |
+| **M2-C01** | Angular CLI + TS strict + lint + test + CI | Frontend | P0 | G0 | 3 d | [↗](tasks/M2-C01.md) |
 | **M2-C11** | Archive the Angular pilot | DevOps | P2 | M2-C01 | 0.5 d | [↗](tasks/M2-C11.md) |
 | **M2-C10** | Decimal handling — no float money arithmetic | Frontend | P0 | M2-C01 | 2 d | [↗](tasks/M2-C10.md) |
 | **M2-C02** | Auth: login, refresh, guards, permission store | Frontend | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | [↗](tasks/M2-C02.md) |
@@ -621,12 +621,12 @@ API preserves behaviour.
 
 | Task | Name | Type | P | Depends on | Est. | File |
 |---|---|---|---|---|---|---|
-| **M2-D01** | Currency end-to-end in React | Frontend | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | [↗](tasks/M2-D01.md) |
+| **M2-D01** | Currency end-to-end in Angular | Frontend | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | [↗](tasks/M2-D01.md) |
 | **M2-D02** | Customer Master *(parent)* | Migration | P0 | M2-D01 | 1.5 wks | [↗](tasks/M2-D02.md) |
 | M2-D02-01 | — `@code` triage + business-logic extraction | Backend | P0 | M2-D01 | 4 d | [↗](tasks/M2-D02-01.md) |
 | M2-D02-02 | — `CustomersController` + API tests | Backend | P0 | M2-D02-01 | 3 d | [↗](tasks/M2-D02-02.md) |
-| M2-D02-03 | — React list + editor screens + component tests | Frontend | P0 | M2-D02-02 | 4 d | [↗](tasks/M2-D02-03.md) |
-| **M2-D03** | Blazor ↔ React parity test for Customer Master | Testing | P0 | M2-D02-03 | 3 d | [↗](tasks/M2-D03.md) |
+| M2-D02-03 | — Angular list + editor screens + component tests | Frontend | P0 | M2-D02-02 | 4 d | [↗](tasks/M2-D02-03.md) |
+| **M2-D03** | Blazor ↔ Angular parity test for Customer Master | Testing | P0 | M2-D02-03 | 3 d | [↗](tasks/M2-D03.md) |
 
 ### Parallel Work
 
@@ -670,9 +670,9 @@ must complete inside M2 or M3-5 stalls.
 - Every endpoint authorized server-side; a permission-matrix harness blocking merges.
 - One documented controller template; `ProblemDetails` everywhere; `/api/v1`.
 - A generated TypeScript client, produced in CI, never hand-written.
-- A React app with shell, auth, design-system primitives, `DataGrid`, `RecordPickerDialog`,
+- An Angular app with shell, auth, design-system primitives, `DataGrid`, `RecordPickerDialog`,
   `LineItemGrid`, `DocumentEditor` shell, `ReportPage` framework.
-- Currency and Customer Master live in React; Blazor untouched.
+- Currency and Customer Master live in Angular; Blazor untouched.
 - A passing parity test.
 
 ### Risks
@@ -684,7 +684,7 @@ must complete inside M2 or M3-5 stalls.
 | `DocumentEditor` under-specified because no document module has migrated yet | Accept: build the shell in M2, harden it in M3-5 against a real document |
 
 ### Exit Gate — G2
-- [ ] Currency **and** Customer Master fully working in React: login, tenant resolution,
+- [ ] Currency **and** Customer Master fully working in Angular: login, tenant resolution,
       permission-gated CRUD, server paging, validation, error contract, Excel export.
 - [ ] The Blazor app is untouched and still live against the same database.
 - [ ] A user with no rights on a screen is refused by the **API**, not just the UI —
@@ -712,10 +712,10 @@ Every M3/M4 wave instantiates this 14-step pattern. `<W>` is the wave id (e.g. `
 | `<W>-05` | API contract definition | Architecture | 1–2 d |
 | `<W>-06` | Controller implementation | Backend | 2–5 d |
 | `<W>-07` | API integration + permission tests | Testing | 2–3 d |
-| `<W>-08` | React screens | Frontend | 4 d – 2 wks |
+| `<W>-08` | Angular screens | Frontend | 4 d – 2 wks |
 | `<W>-09` | Component tests | Testing | 1–2 d |
 | `<W>-10` | E2E critical path | Testing | 1–2 d |
-| `<W>-11` | Blazor ↔ React parity test | Testing | 2–3 d |
+| `<W>-11` | Blazor ↔ Angular parity test | Testing | 2–3 d |
 | `<W>-12` | Feature flag | DevOps | 0.5 d |
 | `<W>-13` | Pilot-tenant validation | Migration | 2–3 d |
 | `<W>-14` | KB + investigation-registry update | Documentation | 1 d |
@@ -725,7 +725,7 @@ Steps 03 and 08 split into child tasks per screen or per service when the module
 Combine steps only where the module is genuinely small — never to reduce the task count.
 
 **Ordering rule:** step 03 must complete and step 04 must pass **before** step 08 starts.
-Building the React screen against un-extracted logic is how ERP behaviour gets silently
+Building the Angular screen against un-extracted logic is how ERP behaviour gets silently
 reimplemented in TypeScript, which principle 3 forbids.
 
 ---
@@ -738,7 +738,7 @@ Order, plus approvals, reports and the dashboard.
 
 ### Objective
 A pilot tenant runs masters, the sales pipeline through Sales Order, approvals and core
-reports entirely in React, with Blazor available as a per-module fallback.
+reports entirely in Angular, with Blazor available as a per-module fallback.
 
 ### Scope / Out of Scope
 In: waves 3.1–3.7 below, feature-flag infrastructure, M4 re-baselining.
@@ -771,7 +771,7 @@ Rejection Master (`SettingsService` → M3-3), and Master Upload (a cross-cuttin
 utility with no service). `/myCompany` → M3-3, where KB-053 and KB-020 disagree.
 
 ² **Currency is in scope for rule extraction but out of scope for rebuild** — M2-D01 already
-ships it in React. Its 134-line `@code` block was never triaged and no `BR-CURR-*` rule
+ships it in Angular. Its 134-line `@code` block was never triaged and no `BR-CURR-*` rule
 exists, so M3-1-01 must still cover it.
 
 **Convention deviations found in this wave** (they generalise, so expect them elsewhere):
@@ -814,8 +814,8 @@ G2 → M3-1 → M3-2 → M3-3 → M3-5 → M3-9 → G3
 
 ### Exit Gate — G3
 - [ ] Pilot tenant operating masters, sales pipeline through Sales Order, approvals and
-      core reports in React, in production, Blazor available as fallback.
-- [ ] Permission matrix administered from the React app itself (M3-3).
+      core reports in Angular, in production, Blazor available as fallback.
+- [ ] Permission matrix administered from the Angular app itself (M3-3).
 - [ ] Parity tests green for every wave.
 - [ ] M4 estimates re-baselined against actual M3-5 extraction effort (M3-9).
 - [ ] Zero fallbacks to Blazor for migrated modules over the milestone's final two weeks.
@@ -833,7 +833,7 @@ Full functional parity across the remaining modules. **Every estimate here is pr
 until M3-9.**
 
 ### Objective
-Every module in [KB-020](../modules/module-inventory.md) available in React; all 440 legacy
+Every module in [KB-020](../modules/module-inventory.md) available in Angular; all 440 legacy
 routes mapped or explicitly retired.
 
 ### Waves
@@ -875,8 +875,8 @@ G3 → M4-2 → M4-1 → M4-3 → M4-4 → M4-5 → M4-6 → M4-7 → G4
 ```
 
 ### Exit Gate — G4
-- [ ] Every module in [KB-020](../modules/module-inventory.md) available in React.
-- [ ] All 440 legacy routes mapped to a React route or explicitly retired with a recorded
+- [ ] Every module in [KB-020](../modules/module-inventory.md) available in Angular.
+- [ ] All 440 legacy routes mapped to an Angular route or explicitly retired with a recorded
       reason ([KB-053](../frontend-new/page-map.md)).
 - [ ] e-Invoice and e-Way Bill verified against the gateway sandbox **and** one live
       document per tenant.
@@ -884,7 +884,7 @@ G3 → M4-2 → M4-1 → M4-3 → M4-4 → M4-5 → M4-6 → M4-7 → G4
 - [ ] Document-numbering race (R-12) closed; idempotency keys on create endpoints.
 
 ### Definition of Done
-G4 ticked and milestone review recorded. Any route retired without a React replacement
+G4 ticked and milestone review recorded. Any route retired without an Angular replacement
 carries a written, product-owner-approved reason.
 
 ---
@@ -942,7 +942,7 @@ that do not exist yet — deployment topology (Q-16), the production tenant list
 the per-tenant EF rollout procedure (Q-02).
 
 ### Exit Gate — G6
-- [ ] All tenants on React for all modules.
+- [ ] All tenants on Angular for all modules.
 - [ ] One full financial period with zero module-level fallbacks.
 - [ ] Rollback drill executed successfully at least once in production.
 - [ ] Blazor routes retired; the decommissioning decision recorded as a new ADR.

@@ -38,24 +38,33 @@ Every path in this file and in `docs/kb/` is relative to that **nested** root. I
 
 ## What this project is
 
-Replace the Blazor Server frontend with a React 19 + TypeScript SPA talking to a versioned
+Replace the Blazor Server frontend with an **Angular + TypeScript** SPA talking to a versioned
 ASP.NET Core Web API, **preserving existing ERP business behaviour**.
 
 ```
 Existing Blazor ERP → understand behaviour → identify business rules
-   → React frontend + ASP.NET Core API + existing database/business rules
+   → Angular frontend + ASP.NET Core API + existing database/business rules
    → incremental migration, Blazor stays live until each replacement is verified
 ```
 
 This is **not** a UI translation exercise. Business logic currently trapped in Razor
-`@code` is *extracted into server-side services* before any React screen replaces it — it
+`@code` is *extracted into server-side services* before any Angular screen replaces it — it
 is never reimplemented in TypeScript.
+
+> **The frontend framework changed on 2026-08-20.** [`ADR-007`](docs/kb/decisions/ADR-007-angular-stack.md)
+> selects **Angular + PrimeNG** and supersedes `ADR-003`, which chose React. `ADR-003` is kept,
+> marked superseded, because its *Context* section still governs and its non-React decisions still
+> hold — **but nothing in it is to be implemented as written.**
+>
+> Two merged tasks (`M2-C01` React scaffold, `M2-C04-01` design tokens) predate the switch. Their
+> history stands; their code does not. If you find React, Vite, Mantine or TanStack named in a task
+> file, that file is **stale and needs re-specifying**, not following.
 
 | Project | Role |
 |---|---|
 | `V.SMART/V.SMART.Shared` | .NET 9 class library — **all** domain code: ~196 EF entity sets, 285 business services, ~190 repositories + UnitOfWork, 274 ViewModels, 333 Razor pages, 440 routes |
 | `V.SMART/V.SMART.Web` | Blazor Server host — the live UI, stays running throughout |
-| `V.SMART/V.SMART.Api` | ASP.NET Core Web API (.NET 9) — the React backend. **Already exists**, ~10% built. Extended, never created and never rewritten |
+| `V.SMART/V.SMART.Api` | ASP.NET Core Web API (.NET 9) — the SPA backend. **Already exists**, ~10% built. Extended, never created and never rewritten |
 | `V.SMART/V.SMART` | .NET MAUI Blazor Hybrid host — shares the domain layer |
 
 SQL Server + EF Core 9, code-first, **database-per-tenant**.
@@ -129,7 +138,7 @@ objectively met and its required validation actually run. Definitions and transi
 - **Do not start the next task.** One task, one session. This is what makes each unit
   independently reviewable and revertible.
 - Do not rewrite an existing business service wholesale to "clean it up".
-- Do not reimplement ERP business logic in React/TypeScript — call the API.
+- Do not reimplement ERP business logic in Angular/TypeScript — call the API.
 - Do not change the database schema unless the task explicitly authorises it.
 - Do not change an architecture decision without recording it (new ADR, or an update to the
   relevant decision document).

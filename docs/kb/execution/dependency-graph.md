@@ -178,7 +178,7 @@ Every wave is a chain with two parallel tails:
 ```
 
 `<W>-03 → <W>-04 → <W>-08` is the **hard** ordering that enforces extract-before-rebuild.
-`<W>-07` (API tests) and `<W>-08` (React screens) genuinely parallelise once `<W>-06` lands.
+`<W>-07` (API tests) and `<W>-08` (Angular screens) genuinely parallelise once `<W>-06` lands.
 
 ### Wave ordering
 
