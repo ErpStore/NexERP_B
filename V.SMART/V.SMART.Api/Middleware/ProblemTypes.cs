@@ -31,6 +31,9 @@ namespace V.SMART.Api.Middleware
         /// <summary>404 — the addressed resource does not exist.</summary>
         public const string NotFound = Base + "not-found";
 
+        /// <summary>413 — the upload exceeds the configured maximum request size (M2-B06).</summary>
+        public const string PayloadTooLarge = Base + "payload-too-large";
+
         /// <summary>409 — a business-rule refusal. <c>title</c> carries the service message verbatim.</summary>
         public const string BusinessRule = Base + "business-rule";
 
@@ -48,6 +51,7 @@ namespace V.SMART.Api.Middleware
             403 => ScreenRightDenied,
             404 => NotFound,
             409 => BusinessRule,
+            413 => PayloadTooLarge,
             500 => Unhandled,
             _ => Base + "http-" + statusCode.ToString(System.Globalization.CultureInfo.InvariantCulture)
         };

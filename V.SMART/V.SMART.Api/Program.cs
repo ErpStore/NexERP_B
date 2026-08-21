@@ -6,6 +6,7 @@ using System.Text;
 using V.SMART.Api.Auth;
 using V.SMART.Api.Authorization;
 using V.SMART.Api.Middleware;
+using V.SMART.Api.Services;
 using V.SMART.Shared.DependencyInjection;
 using V.SMART.Shared.Services;
 
@@ -141,6 +142,24 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
 // tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs, which validates the
 // identical graph with the host seams supplied.
 builder.Services.AddVSmartDomain(builder.Configuration);
+
+// M2-B06 — the API host's file storage seam. IFileUploadService is host-specific by design and
+// AddVSmartDomain() deliberately omits it (M2-B07); these three lines are the API's supply of it,
+// and they belong HERE, beside that call, never inside it — V.SMART.Web and the MAUI head have
+// their own implementations and must keep them.
+//
+// Registering the concrete type and forwarding the interface to the same instance is deliberate:
+// FilesController needs ApiFileUploadService's two API-only members (SaveCorrespondenceFileAsync,
+// which takes a Stream because IBrowserFile cannot exist in an HTTP request, and RootPath), while
+// CompanyService and ItemService need the interface. One scoped instance serves both.
+//
+// Consequence for the M2-B07 note above: two of the seven unresolvable registrations —
+// ICompanyService and IItemService — resolve from here on. The remaining five still need
+// IPathProvider / IJSRuntime (M2-B08), so ValidateOnBuild stays off.
+builder.Services.Configure<FileStorageOptions>(
+    builder.Configuration.GetSection(FileStorageOptions.SectionName));
+builder.Services.AddScoped<ApiFileUploadService>();
+builder.Services.AddScoped<IFileUploadService>(sp => sp.GetRequiredService<ApiFileUploadService>());
 
 // M2-A01-02 — server-side screen-right authorization (ADR-004, KB-105 §6.2). Both are scoped:
 // the provider reaches IUnitOfWork, which AddVSmartDomain() registers scoped over the

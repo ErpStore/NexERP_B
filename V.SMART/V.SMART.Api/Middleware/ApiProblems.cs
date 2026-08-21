@@ -88,6 +88,14 @@ namespace V.SMART.Api.Middleware
         }
 
         /// <summary>
+        /// <b>413 — payload too large.</b> Produced by the file endpoints when an upload exceeds
+        /// the configured maximum (M2-B06). The title states the limit, because a client that does
+        /// not know the ceiling cannot retry sensibly; it reveals nothing about any other tenant.
+        /// </summary>
+        public static ProblemDetails PayloadTooLarge(HttpContext context, string title)
+            => Create(context, StatusCodes.Status413PayloadTooLarge, ProblemTypes.PayloadTooLarge, title);
+
+        /// <summary>
         /// The tenant could not be resolved. <b>No connection string, host name or configuration
         /// value ever appears in this body</b> (R-01).
         /// </summary>
