@@ -14,7 +14,7 @@ database_tables: [Tenants]
 business_rules: [BR-TEN-001, BR-TEN-002]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-012, KB-013]
 ---
 
@@ -99,7 +99,7 @@ consistency wrinkle to normalise when file handling moves to HTTP.
 - **A. Tenant in the login request** — the SPA sends `{ tenant, username, password }`;
   the tenant comes from the SPA's own subdomain (`acucom.app.example.com`) or a picker.
   Lowest friction, keeps one API deployment.
-- **B. `X-Tenant` header on every request** — resolved before auth for `/api/auth/*`,
+- **B. `X-Tenant` header on every request** — resolved before auth for `/api/v1/auth/*`,
   from the JWT afterwards. Requires anti-forgery care.
 - **C. One API host per tenant** — preserves the current host-based logic verbatim; costs
   N deployments.

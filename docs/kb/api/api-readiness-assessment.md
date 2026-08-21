@@ -12,7 +12,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-011, KB-013, KB-014, KB-040]
 ---
 
@@ -145,7 +145,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 **B9 status (M2-B02, 2026-08-20).** The contract itself is delivered and proven on one endpoint:
 `PagedResult<T>`, `PagedQuery`, a per-resource typed query record, `SortSpecification` (syntax +
 allow-list) and `FilterDictionaryAdapter` in `V.SMART/V.SMART.Api/Contracts/`, applied to
-`GET api/currencies`. The rules — sort syntax, `pageSize` maximum 100, allow-list, 400 conditions
+`GET api/v1/currencies`. The rules — sort syntax, `pageSize` maximum 100, allow-list, 400 conditions
 — are in [ADR-002 §2a](../decisions/ADR-002-rest-api-layer.md). **"Consistent across all list
 endpoints" is not yet true**: `SearchWithDynamicFilterAsync` is declared 134 times across
 `V.SMART.Shared/BusinessLayer/` and exactly one of them (`CurrencyService`) has the sort-aware
@@ -159,7 +159,7 @@ sweep. Read B9 as *contract done, rollout ~1/134*.
 |---|---|
 | C1 | Rate limiting, response compression, output caching for reference data |
 | C2 | Health checks + structured logging sink (replace flat files) |
-| C3 | API versioning (`/api/v1`) |
+| C3 | ~~API versioning (`/api/v1`)~~ — **DELIVERED 2026-08-21 by [M2-B01](../execution/tasks/M2-B01.md).** All six endpoints moved under `/api/v1`; the prefix lives in the single constant `V.SMART/V.SMART.Api/ApiRoutes.cs` (`ApiRoutes.V1`) and no controller writes it literally. No versioning package was added — one version needs no negotiation, and `Asp.Versioning.Mvc` would complicate the Swagger document M2-B10 generates the client from. **Pulled forward out of P2 into M2 deliberately:** versioning touches every controller's route attribute, so its cost grows with controller count while its value does not ([KB-080 §9](../execution/README.md), "land it while there are two controllers, not sixty"). See [KB-040 § *Versioning*](api-overview.md#versioning-m2-b01) |
 | C4 | Integration tests, starting with `IStockManagerService` and `ICalculationService` |
 | C5 | Idempotency keys on document-create endpoints (document numbering race, R-12) |
 

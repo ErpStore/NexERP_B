@@ -8,7 +8,7 @@ using V.SMART.Shared.ViewModels.MasterViewModel.AccountsViewModel;
 namespace V.SMART.Api.Controllers
 {
     [ApiController]
-    [Route("api/currencies")]
+    [Route($"{ApiRoutes.V1}/currencies")]
     [Authorize]
     public class CurrencyController : ControllerBase
     {

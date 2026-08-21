@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 ---
 
 # Investigation Registry
@@ -26,7 +26,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-005 | Multi-tenancy resolution and isolation | Complete | `Services/MultiCompanyService/*`, `Data/TenantInfo.cs`, `wwwroot/config/tenant.json` | [KB-014](architecture/multi-tenancy.md) | 2026-08-12 |
 | INV-006 | Existing UI: routing, layout, components, `@code` density | Complete *(amended 2026-08-19 by M2-C04-01 — theme persistence, see below)* | `Routes.razor`, `Layout/NavMenu.razor` (888 LOC), `Components/` (22), `Pages/` (333 files, 440 routes), measured `@code` share | [KB-015](architecture/frontend-architecture-existing.md) | 2026-08-12 |
 | INV-007 | Module inventory and inter-module dependency graph | Complete | `NavMenu.razor`, `Data/` folders, `BusinessLayer/` folders, `Ref*SubId` FK scan | [KB-020](modules/module-inventory.md) | 2026-08-12 |
-| INV-008 | Existing API surface | Complete | `V.SMART.Api/**` (2 controllers, 6 endpoints) | [KB-040](api/api-overview.md) | 2026-08-12 |
+| INV-008 | Existing API surface | Complete *(re-verified 2026-08-21 by M2-B01 — **route surface changed**, see the amendment below)* | `V.SMART.Api/**` (2 controllers, 6 endpoints) | [KB-040](api/api-overview.md) | 2026-08-21 |
 | INV-009 | Reporting: FastReport + stored procedures | Complete *(amended 2026-08-12)* | `Services/ReportViewer/ReportService.cs`, `ReportExecutor.cs`, `wwwroot/templates/` (104 `.frx`), `Existing Store Procedures/` (13 `.sql`, of which only **12** are called → gap is **82**, not 81). **Scoped** name-extraction command, since the unscoped one now returns 111 by matching this KB's own prose: `grep -rhoE "Sp_[A-Za-z0-9_]+" --include=*.cs --include=*.razor --exclude-dir=obj --exclude-dir=bin V.SMART \| sort -u` | [KB-011](architecture/backend-architecture.md#reporting-subsystem), [ADR-005](decisions/ADR-005-reporting-and-printing.md), R-04 | 2026-08-12 |
 | INV-010 | External integrations (e-Invoice, e-Way, IFSC, SMTP, biometric) | Complete | `E_Invoice/**`, `EinvoiceDatabaseService.cs`, `EWayDatabaseService.cs`, `BankService.cs`, URL scan | [KB-011](architecture/backend-architecture.md#integrations-with-external-systems) | 2026-08-12 |
 | INV-021 | Angular pilot: scope and value | Complete | `frontend/vsmart-erp/src/**`, `package.json` | [KB-015](architecture/frontend-architecture-existing.md#the-angular-19-pilot-frontendvsmart-erp) | 2026-08-12 |
@@ -54,6 +54,59 @@ session cannot push, so the workflow has never executed on a GitHub-hosted runne
 baseline is marked `provisional` until the runner regenerates it; and no required status check
 is configured on `master`. Confidence: **Confirmed** for what the files contain and for the
 local gate behaviour; **Unknown** for runner behaviour.
+
+### INV-008 amendment (2026-08-21, M2-B01) — the route surface moved to `/api/v1`
+
+Re-verification, not a new investigation. The **shape** of the API surface is unchanged — still
+2 controllers and 6 endpoints, still the same verbs, parameters, request bodies, response bodies
+and status codes. Only the path prefix changed.
+
+```yaml
+Finding:        All six endpoints moved from /api/… to /api/v1/… (ADR-002 §6). The prefix is
+                declared once, in V.SMART/V.SMART.Api/ApiRoutes.cs (public const string V1 =
+                "api/v1"), and both controllers compose their route from it; no controller
+                carries a literal "api/v1". The old paths were REMOVED, not aliased. No
+                versioning package was added — V.SMART.Api.csproj still has exactly three
+                PackageReference entries. Program.cs was NOT touched: MapControllers() is the
+                only route mapping and carries no path.
+                CALLER ENUMERATION (the one thing this task had to derive). Grepped the whole
+                repository for "api/auth|api/currencies" across *.ts, *.cs, *.json, *.http,
+                *.md, *.html, *.yml, *.yaml, *.ps1, excluding node_modules/, bin/ and obj/.
+                The only RUNTIME callers of the old paths are the two Angular-pilot lines
+                below; they are deliberately NOT updated (M2-C11 owns that tree).
+                NEGATIVE RESULTS, each searched and each empty:
+                  - no Postman collection anywhere in the repository;
+                  - the one .http file, V.SMART/V.SMART.Api/V.SMART.Api.http, still contains
+                    only the dotnet template's GET /weatherforecast/ and never referenced
+                    either old path;
+                  - no .ps1, .yml or .yaml file references either path (so CI calls neither);
+                  - V.SMART.Web and V.SMART.Shared reference neither path — the Blazor host
+                    calls its services in-process and does not go through the API at all;
+                  - no hardcoded path literal survives anywhere in V.SMART.Api source: after
+                    the change, `grep -rn "\"[^\"]*api/" V.SMART/V.SMART.Api/` (bin/obj
+                    filtered) returns only the two composed [Route($"{ApiRoutes.V1}/…")]
+                    attributes.
+                The remaining hits are prose that records history (other task files, the
+                failure log, ADR-002's own worked examples) and are left alone.
+Evidence:       V.SMART/V.SMART.Api/ApiRoutes.cs:29 (const V1);
+                V.SMART/V.SMART.Api/Controllers/AuthController.cs:12
+                  [Route($"{ApiRoutes.V1}/auth")], action [HttpPost("login")] at :40;
+                V.SMART/V.SMART.Api/Controllers/CurrencyController.cs:11
+                  [Route($"{ApiRoutes.V1}/currencies")], actions at :43, :60, :69, :82, :95;
+                V.SMART/V.SMART.Api/Program.cs:200 app.MapControllers() — sole mapping;
+                BROKEN BY DESIGN, 2 call sites, not updated:
+                  frontend/vsmart-erp/src/app/core/auth/auth.service.ts:54;
+                  frontend/vsmart-erp/src/app/features/currency/currency.service.ts:18
+Business rule:  n/a — this task changes URLs, not behaviour. No service call, validation,
+                calculation, permission check or persistence path was touched.
+Confidence:     Confirmed
+Last verified:  2026-08-21
+```
+
+**Stale line numbers this amendment corrects** (the pre-M2-A06/M2-B02 figures still quoted in
+several task files): the route attributes are at `AuthController.cs:12` and
+`CurrencyController.cs:11`, not `:11` and `:9`; `Program.cs` is **202** lines, not 118, with
+`SwaggerDoc("v1", …)` at `:38` and `MapControllers()` at `:200`.
 
 ### INV-006 amendment (2026-08-19, M2-C04-01) — the theme-persistence surface
 

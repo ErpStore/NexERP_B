@@ -4,6 +4,7 @@ title: Existing API Surface (As-Is)
 module: api
 source_files:
   - V.SMART/V.SMART.Api/Program.cs
+  - V.SMART/V.SMART.Api/ApiRoutes.cs
   - V.SMART/V.SMART.Api/Controllers/AuthController.cs
   - V.SMART/V.SMART.Api/Controllers/CurrencyController.cs
   - V.SMART/V.SMART.Api/Auth/JwtTokenService.cs
@@ -11,17 +12,17 @@ source_files:
   - V.SMART/V.SMART.Api/appsettings.json
 entities: [User, Currency, TenantInfo]
 api_endpoints:
-  - "POST /api/auth/login"
-  - "GET /api/currencies"
-  - "GET /api/currencies/{id}"
-  - "POST /api/currencies"
-  - "PUT /api/currencies/{id}"
-  - "DELETE /api/currencies/{id}"
+  - "POST /api/v1/auth/login"
+  - "GET /api/v1/currencies"
+  - "GET /api/v1/currencies/{id}"
+  - "POST /api/v1/currencies"
+  - "PUT /api/v1/currencies/{id}"
+  - "DELETE /api/v1/currencies/{id}"
 database_tables: [Users, Currency, Tenants]
 business_rules: [BR-AUTH-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-013, KB-014]
 ---
 
@@ -33,8 +34,13 @@ dependencies: [KB-013, KB-014]
 
 > **Updated by M2-A06 (2026-08-20).** Every **error** response below is now
 > `application/problem+json`; success responses are unchanged. The one deliberate breaking
-> change is `DELETE /api/currencies/{id}`, which answers **409** instead of 400 when the
+> change is `DELETE /api/v1/currencies/{id}`, which answers **409** instead of 400 when the
 > delete guard refuses. See [*Error contract*](#error-contract-m2-a06) below.
+
+> **Updated by M2-B01 (2026-08-21).** Every route moved under **`/api/v1`** (ADR-002 §6).
+> The old `/api/auth` and `/api/currencies` paths were **removed, not aliased**, and return
+> `404`. The one existing consumer — the Angular pilot at `frontend/vsmart-erp/` — was
+> deliberately **not** updated; see [*Versioning*](#versioning-m2-b01) below.
 
 ## Host configuration
 
@@ -54,11 +60,11 @@ dependencies: [KB-013, KB-014]
 
 **Notable absences (Confirmed, re-verified 2026-08-20):** no HTTPS redirection,
 no rate limiting, no response compression, no health checks, no
-request logging, no API versioning. **Exception middleware and `ProblemDetails` are no longer absent** — added by M2-A06 (see *Error contract* below).
+request logging. **Exception middleware and `ProblemDetails` are no longer absent** — added by M2-A06 (see *Error contract* below). **Nor is API versioning** — M2-B01 moved every route under `/api/v1` (see [*Versioning*](#versioning-m2-b01) below).
 
 ## Endpoint reference
 
-### `POST /api/auth/login`
+### `POST /api/v1/auth/login`
 
 `AuthController.Login` · `[AllowAnonymous]`
 
@@ -96,14 +102,14 @@ request (see [multi-tenancy](../architecture/multi-tenancy.md) problem 1). *(The
 
 ---
 
-### `GET /api/currencies`
+### `GET /api/v1/currencies`
 
 `CurrencyController.GetAll` · `[Authorize]`
 
 > **Rewritten by M2-B02 (2026-08-20)** to the paged list contract — ADR-002 §2 and its
 > [§2a addendum](../decisions/ADR-002-rest-api-layer.md). This is the **reference
-> implementation**: every future list endpoint copies it. The route prefix is still
-> `api/currencies`; M2-B01 moves it to `/api/v1`.
+> implementation**: every future list endpoint copies it. **M2-B01 (2026-08-21)** then moved
+> its route prefix from `api/currencies` to `api/v1/currencies`.
 
 **Query parameters** — one bound `CurrencyQuery` record, not six loose parameters.
 
@@ -145,14 +151,14 @@ by `V.SMART.Api.Contracts.FilterDictionaryAdapter`; that dictionary never appear
 
 ---
 
-### `GET /api/currencies/{id:int}`
+### `GET /api/v1/currencies/{id:int}`
 
 200 `CurrencyVM` · 404 `problem+json`, `type: …/not-found`, `title: "Currency not found."`.
 Calls `ICurrencyService.GetByIdAsync(id)`.
 
 ---
 
-### `POST /api/currencies`
+### `POST /api/v1/currencies`
 
 **Request.** `CurrencyVM` — validated by `DataAnnotations` on the VM:
 `CurrName` required ≤100, `CurrSub` required ≤100,
@@ -160,7 +166,7 @@ Calls `ICurrencyService.GetByIdAsync(id)`.
 
 | Status | Body |
 |---|---|
-| 201 | `CurrencyVM`, `Location: /api/currencies/{CurrId}` |
+| 201 | `CurrencyVM`, `Location: /api/v1/currencies/{CurrId}` |
 | 400 | `problem+json`, `type: …/validation-failed`, with an `errors` dictionary keyed by field carrying `CurrencyVM`'s `DataAnnotations` messages verbatim |
 | 409 | `problem+json`, `type: …/business-rule`, `title` = the service's message verbatim (e.g. `"Currency name already exists."`) |
 
@@ -172,14 +178,14 @@ canonical `400`; a **service rejection is now `409`**, because it is a business-
 
 ---
 
-### `PUT /api/currencies/{id:int}`
+### `PUT /api/v1/currencies/{id:int}`
 
 200 `CurrencyVM` · 400 / 409 as above. `ICurrencyService.UpdateAsync(id, vm)`.
 **Note.** No check that `vm.CurrId` matches the route `id`.
 
 ---
 
-### `DELETE /api/currencies/{id:int}`
+### `DELETE /api/v1/currencies/{id:int}`
 
 | Status | Body | Condition |
 |---|---|---|
@@ -233,6 +239,36 @@ every endpoint is `application/problem+json`. Success responses are untouched.
   `V.SMART/V.SMART.Api/Middleware/ApiProblems.cs`; the pipeline is registered by
   `UseErrorContract()` before `UseCors` in `Program.cs`.
 
+## Versioning (M2-B01)
+
+**Confirmed** — implemented 2026-08-21 by task M2-B01, [ADR-002 §6](../decisions/ADR-002-rest-api-layer.md#6-versioning-and-generation)
+("All routes under `/api/v1`"). Every one of the six endpoints above moved from `/api/…` to
+`/api/v1/…`. **The old paths were removed, not aliased** — they return `404`.
+
+| | |
+|---|---|
+| Mechanism | one constant, `V.SMART/V.SMART.Api/ApiRoutes.cs` → `public const string V1 = "api/v1";` |
+| Usage | `[Route($"{ApiRoutes.V1}/currencies")]` — legal in an attribute because `V1` is `const` |
+| Package added | **none.** `Asp.Versioning.Mvc` is deliberately not referenced: one version, no negotiation, no per-version OpenAPI document to complicate the client generation M2-B10 depends on |
+| `Program.cs` | **unchanged.** `MapControllers()` is the only route mapping and carries no path |
+| `Location` header | now `/api/v1/currencies/{CurrId}` — `CreatedAtAction` derives it from the action's route, so it followed the prefix automatically |
+
+**Every future controller composes its route from `ApiRoutes.V1`.** A literal `"api/v1"` in a
+controller is a review reject: the whole value of this task is that the version string exists
+in exactly one place when a `v2` is one day needed.
+
+**Deliberate breakage, recorded rather than fixed.** The Angular 19 pilot at
+`frontend/vsmart-erp/` is the only consumer of the old paths and now calls two routes that no
+longer exist:
+
+- `frontend/vsmart-erp/src/app/core/auth/auth.service.ts:54` — `${environment.apiBaseUrl}/api/auth/login`
+- `frontend/vsmart-erp/src/app/features/currency/currency.service.ts:18` — `${environment.apiBaseUrl}/api/currencies`
+
+M2-B01 did **not** update them. Per [ADR-002 §Consequences](../decisions/ADR-002-rest-api-layer.md#consequences)
+the pilot's fate is [M2-C11](../execution/tasks/M2-C11.md)'s to decide, and mixing that into a
+route-prefix change would put two tasks in one diff. Whoever picks the pilot up inherits exactly
+these two lines.
+
 ## 🚨 Authorization state of the existing API
 
 `[Authorize]` on `CurrencyController` means **"any authenticated user of any tenant with a
@@ -273,12 +309,12 @@ Worth keeping (they are already consistent):
 
 | Convention | Form |
 |---|---|
-| Base path | `/api/{plural-kebab-resource}` |
-| Paged list | `GET /api/x?pageNumber&pageSize&<filters>` → `{ items, totalCount, pageNumber, pageSize }` |
-| Single | `GET /api/x/{id:int}` |
-| Create | `POST /api/x` → 201 + `Location` |
-| Update | `PUT /api/x/{id:int}` → 200 |
-| Delete | `DELETE /api/x/{id:int}` → 204, or **409** `problem+json` with the service's user-facing message verbatim in `title` (M2-A06) |
+| Base path | `/api/v1/{plural-kebab-resource}` — the `api/v1` segment comes from `ApiRoutes.V1`, never a literal (M2-B01) |
+| Paged list | `GET /api/v1/x?pageNumber&pageSize&<filters>` → `{ items, totalCount, pageNumber, pageSize }` |
+| Single | `GET /api/v1/x/{id:int}` |
+| Create | `POST /api/v1/x` → 201 + `Location` |
+| Update | `PUT /api/v1/x/{id:int}` → 200 |
+| Delete | `DELETE /api/v1/x/{id:int}` → 204, or **409** `problem+json` with the service's user-facing message verbatim in `title` (M2-A06) |
 | Payload type | the existing `…VM` ViewModel, unchanged |
 
 Worth fixing before replication:
@@ -288,10 +324,10 @@ Worth fixing before replication:
 | Untyped `Dictionary<string, object>` filters | typed query DTO per resource |
 | No route/body id consistency check | validate in the controller |
 | No permission check | `[RequireScreen("Currency", Right.Edit)]` filter |
-| No versioning | `/api/v1/…` |
 
 Fixed and no longer listed: *two 400 shapes* and *no correlation id* — both closed by
-**M2-A06** (see [*Error contract*](#error-contract-m2-a06)).
+**M2-A06** (see [*Error contract*](#error-contract-m2-a06)); *no versioning* — closed by
+**M2-B01** (see [*Versioning*](#versioning-m2-b01)).
 
 ## Ancillary
 

@@ -18,7 +18,7 @@ namespace V.SMART.Api.Tests
     /// </summary>
     public class CurrencyControllerErrorContractTests
     {
-        private static CurrencyController Controller(FakeCurrencyService service, string path = "/api/currencies/7")
+        private static CurrencyController Controller(FakeCurrencyService service, string path = "/api/v1/currencies/7")
             => new(service)
             {
                 ControllerContext = new ControllerContext
@@ -50,7 +50,7 @@ namespace V.SMART.Api.Tests
             Assert.Equal(ServiceMessage, problem.Title);
             Assert.Equal(ProblemTypes.BusinessRule, problem.Type);
             Assert.Equal(409, problem.Status);
-            Assert.Equal("/api/currencies/7", problem.Instance);
+            Assert.Equal("/api/v1/currencies/7", problem.Instance);
             Assert.True(problem.Extensions.ContainsKey("traceId"));
         }
 
@@ -76,7 +76,7 @@ namespace V.SMART.Api.Tests
 
             var service = new FakeCurrencyService { CreateResult = (false, ServiceMessage, null) };
             var problem = Problem(
-                (await Controller(service, "/api/currencies").Create(new CurrencyVM())).Result!,
+                (await Controller(service, "/api/v1/currencies").Create(new CurrencyVM())).Result!,
                 StatusCodes.Status409Conflict);
 
             Assert.Equal(ServiceMessage, problem.Title);
@@ -121,7 +121,7 @@ namespace V.SMART.Api.Tests
         [Fact]
         public async Task Invalid_model_state_returns_400_with_an_errors_dictionary_keyed_by_field()
         {
-            var controller = Controller(new FakeCurrencyService(), "/api/currencies");
+            var controller = Controller(new FakeCurrencyService(), "/api/v1/currencies");
             PopulateModelStateFromDataAnnotations(controller.ModelState, new CurrencyVM());
 
             var objectResult = Assert.IsType<ObjectResult>((await controller.Create(new CurrencyVM())).Result);
@@ -171,7 +171,7 @@ namespace V.SMART.Api.Tests
             Assert.Same(currency, byId.Value);
 
             var created = Assert.IsType<CreatedAtActionResult>(
-                (await Controller(service, "/api/currencies").Create(currency)).Result);
+                (await Controller(service, "/api/v1/currencies").Create(currency)).Result);
             Assert.Same(currency, created.Value);
             Assert.Equal(nameof(CurrencyController.GetById), created.ActionName);
 
