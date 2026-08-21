@@ -129,7 +129,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Ready**³² *(released 2026-08-21 by the M2-B01 merge)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
-| M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Ready** | P1 | **M2-B07**, M2-B02 | 3 d | G2 |
+| M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Needs Review**³⁴ *(implemented; on `migration/M2-B09-reference-endpoints` `d1175db`, unmerged)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Ready** | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
@@ -1740,3 +1740,59 @@ conflicts on `Program.cs`/`CurrencyController.cs` with this branch while it was 
 `migration/M2-B01-api-versioning` are now merged and can be removed
 (`git worktree remove wt-M2-B01 && git branch -d migration/M2-B01-api-versioning`). Left in
 place — removing another session's worktree is not this session's call.
+
+³⁴ **M2-B09: implemented 2026-08-21, `Needs Review` on `migration/M2-B09-reference-endpoints`
+(`d1175db`), unmerged.** The first task this run could execute, and only because the owner
+merged `M2-B01` — every route it specifies is under `/api/v1`, which did not exist on `master`
+until then. Closes KB-041 item **B6** and the output-caching third of **C1**. New doc:
+**KB-124**. Full record: [`tasks/M2-B09.md` § Execution Record](tasks/M2-B09.md).
+
+**Premise verified before writing code**, after three false premises earlier in this run — it
+holds: `GetIGST`/`GetGST` really are `FirstOrDefault` returning `0` for an unlisted rate, and
+all five `ICommonService` methods exist as specified.
+
+**Two traps found and disarmed, either of which would have shipped silently:**
+
+1. **ASP.NET Core's default output-cache policy declines to cache authenticated responses**, and
+   all six endpoints are `[Authorize]`. Composing on it would have produced a cache that
+   **stores nothing** — working endpoints, green tests, meaningless measurements, discovered
+   only by someone profiling the API months later. The policy is hand-written and a test asserts
+   the opt-in explicitly.
+2. **`UseOutputCache()` placement is load-bearing in both directions.** After
+   `UseAuthentication` because the cache key is a claim — placed earlier, `HttpContext.User` is
+   still anonymous, the policy fails closed on every request, and the cache again stores
+   nothing. After `UseAuthorization` so a cache hit is still an authorized request.
+
+**The key is the tenant, and the policy fails closed.** Five of the six lists come from a
+per-tenant `DbContext`; a URL-only key serves tenant A's data to tenant B. Missing, empty,
+unparseable, non-positive or unauthenticated → caching is disabled rather than degraded to an
+unkeyed entry.
+
+**Measured, not assumed** — against the M0-01-03 drill database *and* the live one, which agree
+exactly: 40 states, 49 uoms, 3 currencies, **150** screens, **0** terms; 300 queries in **16 ms**
+(≈0.05 ms each). **KB-124 states plainly that the database cost is negligible** and the cache is
+justified by request-count collapsing, not by expensive queries — so no later reader cites a
+reason that was never true. Two findings: `/reference/terms` returns an empty array because
+`TermsAndConditions` holds zero rows in both databases, and `/reference/screens` returns **150**,
+disagreeing with `ScreenCatalogue.cs`'s 152 — that is **R-65**, a defect in the catalogue, not
+in this endpoint.
+
+**Verification:** Api build 0 errors / **6694** warnings (= baseline), warning gate
+**`PASSED`** at 6693, Web build 0 errors / **6697** (= baseline), **162** Api tests (117 → 162)
+and **84** Shared tests, no regression. `CommonConstants.cs`, `CommonService.cs`,
+`ICommonService.cs`, `ApplicationDbContext.cs` and `CurrencyController.cs` confirmed
+**unchanged by diff**; nothing under `V.SMART.Web/`, the MAUI head or `Migrations/` touched.
+`Program.cs` is the only modified production file — two additive lines, placed away from
+`M2-A08`'s pending insertions so that merge stays trivial.
+
+**Two criteria are not met, and say so:** no Blazor screen was opened (the mechanical argument
+is strong — `V.SMART.Web` builds at its exact baseline and nothing it consumes changed — but it
+is an argument, not an observation), and there is **no end-to-end two-tenant HTTP test**. The
+cache key and fail-closed behaviour are proven at the policy level, which is where a
+cross-tenant leak would originate, but no test runs two tenants through a live host; that needs
+a `WebApplicationFactory` harness this project does not have. **That is the residual risk of the
+task**, recorded in KB-124 §6.
+
+**R-15 is `partially resolved`, not closed** — correct at the API boundary, still coercing
+in-process across **105** call sites of `GetIGST`/`GetGST`, and the `CalculationService`
+disagreement (170 on one path, 0 on the other) is untouched.

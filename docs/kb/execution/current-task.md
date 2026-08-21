@@ -21,7 +21,25 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## 🚩 Two tasks now need an owner decision before any related work starts
+## ✅ `M2-B01` merged, and the pool is no longer empty
+
+The owner merged `M2-B01` on 2026-08-21 (`ae9d2c8`), which released three tasks at once.
+**`M2-B09` was then executed to completion** — `Needs Review` on
+`migration/M2-B09-reference-endpoints` (`d1175db`): six cached reference endpoints under
+`/api/v1/reference`, the R-15 GST fix at the boundary, **KB-124**, 117 → **162** Api tests,
+every build at its exact baseline, scope verified by diff. Two criteria openly unmet — no
+Blazor screen opened, and no end-to-end two-tenant HTTP test (the residual risk, KB-124 §6).
+
+**Selectable right now, for the first time this run:**
+
+| Task | | Note |
+|---|---|---|
+| `M2-B06` | P1, 1 wk | File upload/download endpoints. Released by the `M2-B01` merge. **Do not re-block it on the React grep** — see footnote ³² and the `failure-log.md` entry on the ADR-007 test. Settle its `[RequireScreen]` design first: `Excel Upload` (97) and `Master Upload` (25) exist, but there is no generic "Files" screen. |
+| `M2-B11` | P2, 3 d | Health checks + structured logging. Touches `Program.cs` and the `.csproj`. |
+
+---
+
+## 🚩 Two tasks still need an owner decision before any related work starts
 
 ### 1. `M2-B05` — the task's premise is false; it needs re-specifying, not retrying
 
