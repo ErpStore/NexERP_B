@@ -686,6 +686,70 @@ Last verified:  2026-08-19
   <6.1.0`, which is a second argument for honouring ADR-003's TypeScript 5 pin rather than
   taking `typescript@latest` (7.0.2).
 
+### INV-029 amendment (2026-08-21, M2-C01 re-scoped) — the Angular toolchain, measured
+
+Supersedes the React block above **as the plan**, not as a measurement: those numbers were true
+when taken. This amendment records what the *Angular* scaffold actually installed and ran.
+
+```yaml
+Finding:        The Angular application workspace frontend/nexgen-web/ exists, replacing the
+                React tree at the same path (deleted in the same commit). npm ci, typecheck,
+                lint, format:check, test:ci, build and e2e are verified working commands.
+                Angular CLI 22.1.5, @angular/core 22.1.3, primeng 22.1.0, typescript 6.0.3,
+                Node v24.19.0, npm 11.17.0 observed on this Windows workstation. CI's
+                frontend and frontend-e2e jobs are re-pointed at the Angular commands;
+                neither has ever run on a GitHub-hosted runner.
+Evidence:       frontend/nexgen-web/package.json, frontend/nexgen-web/angular.json,
+                .github/workflows/ci.yml (jobs: build, frontend, frontend-e2e),
+                docs/kb/execution/prompt-template.md "Verified frontend commands"
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-21
+```
+
+**What `ng new` actually generates at CLI 22.1.5 (Confirmed — the narrow new investigation this
+task was asked to do):**
+
+- `--test-runner` offers `karma` and `vitest` and **defaults to `vitest`**. Karma is opt-in.
+  M2-C01's implementation step 10 ("Replace Karma") was obsolete before it was read: nothing
+  generated Karma. Vitest runs through the `@angular/build:unit-test` builder — there is no
+  separate `vitest.config.ts` and no hand-written transform.
+- `--file-name-style-guide` defaults to **`2025`**, which generates `src/app/app.ts` /
+  `app.html`, not `app.component.ts`. `2016` was passed here so the tree matches KB-050.
+- `--standalone` and `--strict` both default to **true**, so both flags are no-ops. The generated
+  workspace is **zoneless**: no `zone.js` dependency and no `polyfills` entry in `angular.json`.
+- Generated `tsconfig.json` sets `noImplicitOverride`, `noFallthroughCasesInSwitch`,
+  `noPropertyAccessFromIndexSignature` and `noImplicitReturns` but **not** `strict`,
+  `strictTemplates` or `noUncheckedIndexedAccess` — all three were added by hand.
+- **`baseUrl` is now an error, not a warning.** TypeScript 6.0.3 emits `TS5101: Option 'baseUrl'
+  is deprecated and will stop functioning in TypeScript 7.0`, which fails `tsc`. The `@/*` path
+  alias is therefore declared with `paths` alone, resolved relative to the tsconfig. Negative
+  result worth keeping: the familiar `baseUrl` + `paths` pair no longer compiles.
+- No `src/environments/`, no ESLint config and no Playwright config are generated;
+  `ng add angular-eslint` (22.1.0) writes `eslint.config.js` and the `lint` architect target.
+
+**Registry facts that contradicted M2-C01's own dependency table (all Confirmed, 2026-08-21):**
+
+- **`@primeng/themes` has no version 22** — its latest is 21.0.4 and `primeng@22.1.0` does not
+  depend on it. The v22 preset package is **`@primeuix/themes@3.0.0`**, which is what was
+  installed. ADR-007 never names `@primeng/themes`; the error was the task file's alone.
+- **`primeng@22.1.0` peer-requires `@angular/cdk ^22.1.0`**, which the table omits. `@angular/cdk`
+  is a behaviour-primitives package, **not** `@angular/material`, so installing it does not breach
+  the one-component-library rule.
+- **`@angular/compiler-cli@22.1.3` peers `typescript >=6.0 <6.1`** while registry `latest` is
+  7.0.2. `typescript@latest` breaks the build; `~6.0.2` is correct. Same class of trap as Q-30.
+- `vite` and `zod` remain in `package-lock.json` **as transitive dependencies of Angular itself** —
+  `vite` under `@angular/build` and `@vitest/mocker`, `zod` under `@angular/cli` and
+  `@angular/forms`. Neither is a React remnant and neither can be removed.
+
+**Negative result — `.gitignore` needed no change.** `**/dist/` (`:381`), `**/.angular/` (`:382`),
+`**/out-tsc/` (`:383`), `**/coverage/` (`:384`), `**/playwright-report/` (`:395`),
+`**/test-results/` (`:396`) and `node_modules/` (`:286`) already cover everything an Angular build
+emits — the React-era block M2-C01 added in August turns out to be framework-independent.
+`git status --porcelain` after a production build showed no untracked output and
+`tools/check-no-build-output.sh` exited 0. The only now-dead pattern is `**/.vite/` (`:397`), left
+in place as harmless rather than churned.
+
 ### INV-040 amendment (2026-08-20, M2-C00) — the shipped error contract, read from source for the frontend
 
 `M2-C00` re-read `V.SMART/V.SMART.Api/Middleware/ApiProblems.cs` and `ProblemTypes.cs` end to end

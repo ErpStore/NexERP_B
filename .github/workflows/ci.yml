@@ -26,10 +26,12 @@
 #     The gate is a ratchet against a committed baseline instead.
 #   * A BLOCKING end-to-end job. M2-C01 added the `frontend` job (blocking) and
 #     the `frontend-e2e` job (continue-on-error). E2E becomes blocking when the
-#     first real React screen lands (M2-D01) -- until then it asserts only a
+#     first real Angular screen lands (M2-D01) -- until then it asserts only a
 #     placeholder heading, and a flake would fail CI for no information.
-#   * Any job for the Angular pilot under frontend/vsmart-erp/. It is archived
-#     by M2-C11, not built.
+#   * Any job for the Angular pilot under frontend/vsmart-erp/. ADR-007 makes it
+#     the BASELINE the SPA adopts from, not landfill: M2-C11 ports its auth
+#     service, guard and interceptor into frontend/nexgen-web/. It is not built
+#     here because it is a reference tree, not a shipped application.
 #
 # PROJECTS BUILT, AND THE ONE EXCLUDED
 #   Built:    V.SMART/V.SMART.Api  and  V.SMART/V.SMART.Web
@@ -239,16 +241,17 @@ jobs:
           if-no-files-found: warn
 
   # ======================================================== frontend (M2-C01) ===
-  # The React app at frontend/nexgen-web/. A SEPARATE job, not extra steps on
+  # The Angular SPA at frontend/nexgen-web/ (ADR-007; the React tree that used to
+  # live at this path was deleted by the re-scoped M2-C01, which also rewrote this
+  # job). A SEPARATE job, not extra steps on
   # `build`: it shares no toolchain, no cache and no failure mode with the .NET
   # build, and running them in parallel keeps either one's red signal readable.
   #
   # RUNNER: windows-latest, matching `build` and -- more importantly -- matching
   # the workstation where every command below was verified locally (M2-C01).
-  # ubuntu-latest would be faster and cheaper; package-lock.json does carry the
-  # linux optional binaries for rollup and esbuild, so the switch is available.
-  # It is not taken here because it would make the job's first ever run its first
-  # ever run on an unverified platform.
+  # ubuntu-latest would be faster and cheaper, and it is available later. It is
+  # not taken here because it would make the job's first ever run its first ever
+  # run on an unverified platform.
   #
   # `npm ci`, never `npm install` -- CI must install exactly what the committed
   # lockfile pins.
@@ -273,9 +276,10 @@ jobs:
         working-directory: .
         run: bash tools/check-no-build-output.sh
 
-      # node-version-file pins from .nvmrc (22) so the runner and a developer
-      # workstation agree. package.json declares engines >=22 with an open upper
-      # bound -- see M2-C01's report and frontend/nexgen-web/README.md.
+      # node-version-file pins from .nvmrc (24) so the runner and a developer
+      # workstation agree. package.json declares engines ">=24.15.0 <25", which
+      # is the Angular 22 supported range intersected with the Node actually
+      # verified at scaffold time -- see frontend/nexgen-web/README.md.
       - name: Set up Node (pinned by .nvmrc)
         uses: actions/setup-node@v4
         with:
@@ -295,16 +299,18 @@ jobs:
         run: npm run typecheck
 
       # --max-warnings=0 is inside the script. A warning is a failure here from
-      # commit one, including every jsx-a11y warning: accessibility is a
-      # build-time gate, not a later pass (KB-051).
+      # commit one, including every angular-eslint template a11y warning:
+      # accessibility is a build-time gate, not a later pass (KB-051).
       - name: Lint
         run: npm run lint
 
       - name: Format check
         run: npm run format:check
 
+      # Vitest via @angular/build:unit-test -- the Angular CLI's own default
+      # runner at 22.1.5. Not Karma (deprecated; ruled out by ADR-007).
       - name: Unit tests
-        run: npm run test -- --run
+        run: npm run test:ci
 
       - name: Build
         run: npm run build
@@ -346,7 +352,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # playwright.config.ts starts the Vite dev server itself (webServer).
+      # playwright.config.ts starts `ng serve` itself (webServer).
       - name: E2E smoke
         run: npm run e2e
 

@@ -1164,6 +1164,34 @@ as unreliable and the `Image` column as the source of truth.
 
 ## Medium
 
+### R-51 — PrimeNG 22 ships client-side licence enforcement, and no key is configured
+**Confirmed, 2026-08-21 (M2-C01).** `primeng@22.1.0` contains
+`showInvalidLicenseBanner()`, documented in its own type declaration as injecting *"a
+fixed-positioned banner into the bottom-right of the page when the PrimeNG license cannot be
+verified"*, rendered in a **closed-mode shadow root** with `all:initial` on the host and *"no
+semantically obvious id, slowing down trivial hide-by-selector attempts"*
+(`frontend/nexgen-web/node_modules/primeng/types/primeng-license.d.ts:1-21`). `providePrimeNG()`
+accepts a `license?: string` option (`.../types/primeng-config.d.ts:258`). With no key set, the
+scaffolded app logs `[PrimeUI] PrimeUI license is not configured` on every load — observed in the
+Playwright run of `e2e/smoke.spec.ts`.
+
+**Why it matters.** [ADR-007](../decisions/ADR-007-angular-stack.md) selects PrimeNG as **the**
+single component library for the whole SPA and its version table records no licence cost. The ADR
+was accepted on 2026-08-20; this behaviour was found on 2026-08-21, one day later, by the task
+that first installed the package. Every `M2-C` and `M3` screen builds on PrimeNG, so the cost of
+discovering a mandatory licence later rises with each one.
+
+**What is *not* claimed.** Whether the banner actually renders for this project's usage, what the
+key costs, and whether the components themselves are gated were **not** determined — that needs
+PrimeNG's commercial terms, which is a procurement question, not a code question. No key was
+invented and none was configured.
+
+**Action.** Owner decision, tracked as **Q-66** in [`open-questions.md`](../open-questions.md).
+Either buy and configure a key through `providePrimeNG({ license })` — from configuration, never
+committed — or re-open ADR-007's UI-library choice while only one placeholder screen exists.
+
+---
+
 ### R-61 — Fourteen delete guards have no caller at all
 **Confirmed.** Nine guard names have **zero** call sites anywhere in `V.SMART/`, `tests/`,
 `frontend/` or `docs/`; three further implementations are unreachable because the call site
@@ -1707,6 +1735,9 @@ them.
 a decision (Q-60), not a fix, and it binds every delete endpoint in M3/M4. Then **R-60**
 (one identifier), then **R-63** (specification work, the long pole). R-61 and R-62 can follow
 the module that owns them.
+**Before the app shell (M2-C03) is built on PrimeNG (added 2026-08-21, M2-C01):** **R-51** —
+it is a procurement decision (Q-66), not a fix, and it is cheapest to answer while exactly one
+placeholder screen exists.
 **Before any stock-touching module migrates:** R-05 (tests first), R-07, R-10.
 **During Phase 2–3:** R-06 (per module), R-12, R-13, R-26.
 **Opportunistic:** everything Low.

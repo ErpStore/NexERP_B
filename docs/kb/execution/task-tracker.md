@@ -142,7 +142,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
-| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Ready**²⁶ *(released 2026-08-21 — `M2-C00` is now `Completed` and merged `0da6a35`)* | P0 | M2-C00 | 3 d | G2 |
+| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Needs Review**²⁶˒⁴⁰ *(implemented and independently validated `PASS` on `migration/M2-C01-angular-workspace`, `67410b0`, 2026-08-21; not merged)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
@@ -2007,3 +2007,34 @@ controller template and `M2-B08`'s report/print endpoints on how to apply row sc
 Full record: [`tasks/M2-A08.md` § Execution Record (2026-08-20) — validation
 close-out](tasks/M2-A08.md#execution-record-2026-08-20--validation-close-out). Output artefact:
 [KB-108](../architecture/row-scope-and-account-gates.md).
+
+⁴⁰ **M2-C01 (Angular re-spec): `Needs Review`, not `Completed` — implemented and
+independently validated `PASS`** on `migration/M2-C01-angular-workspace`, tip `67410b0`,
+2026-08-21, attempt 1 of 3, 0 escalations. Not merged; per [KB-088 "Who may set
+COMPLETED"](workflow.md#who-may-set-completed) only the repository owner may set it
+`Completed`.
+
+Replaced the React tree at `frontend/nexgen-web/` with an Angular 22 workspace in the same
+commit: `@angular/core` 22.1.3, `@angular/cli` 22.1.5, `primeng` 22.1.0, `typescript` 6.0.3,
+Node v24.19.0, npm 11.17.0 — all observed, not assumed. All 16 acceptance criteria
+independently re-checked: 15 `MET`, 1 (`no vite/zod entry anywhere under
+frontend/nexgen-web/`) a **specification defect** the implementer disclosed rather than
+hid — no Angular 22 workspace can satisfy it literally, since `@angular/build` depends on
+`vite` and `@angular/cli`/`@angular/forms` on `zod` as transitive dependencies; no React
+`vite`/`zod` entry remains. `npm ci` **exit 0**, `npm run lint` **exit 0, zero warnings**,
+`npm run test:ci` **exit 0, 6/6 passed, Vitest** (not Karma), `npm run build` **exit 0,
+initial gzip 104.20 kB** (KB-050's <250 kB budget), `npm run e2e` **exit 0, 1/1 passed**.
+`dotnet build V.SMART.Api --no-incremental`: **0 errors, 6694 warnings** (baseline,
+unaffected). `git diff --name-only` against `V.SMART/`, `frontend/vsmart-erp/`: empty.
+`tools/check-no-build-output.sh`: exit 0. KB-083, KB-050 and INV-029 updated in the same
+commit; two new discoveries recorded, **R-51** (PrimeNG 22 client-side licence-banner
+enforcement, no key configured) and **Q-66** (whether a paid PrimeNG licence is required).
+
+**Releases nothing yet** — `M2-C04-01`, `M2-C10`, `M2-C02`, and the rest of the `M2-C` tree
+still list `M2-C01` as a Hard prerequisite and `Needs Review` does not satisfy
+[KB-082](dependency-graph.md#ready-task-selection-rule) step 1, the same rule already
+applied to `M2-C00` under footnote ³⁸. They become genuinely `Ready`/`Blocked`-cleared the
+moment this branch is reviewed and merged.
+
+Full record: [`tasks/M2-C01.md` § Execution Record
+(2026-08-21)](tasks/M2-C01.md#execution-record-2026-08-21).
