@@ -2546,3 +2546,125 @@ model. No specification change is needed. One thing the orchestrator should carr
 independently of this task: `tasks/M2-A01-03.md:262-267`'s "no test project exists" is false
 and will mislead the next task that inherits it — every remaining M2 task file written before
 2026-08-20 carries the same stale INV-023 sentence.
+
+---
+
+### M2-B04 · attempt 1 · 2026-08-21
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus (implementation, dispatched) |
+| Validator verdict | none |
+| Failure category | environment |
+
+**What failed** — the implementer agent returned **no result**: no final report, no commit,
+no verdict for the validator to check (`{"verdict":"none","note":"validation did not
+complete"}`). Unlike `M0-12-01` attempt 1 below, this was **not** an empty attempt — traced
+from the agent's own transcript (`agent-a9c1b219105cd1a3d.jsonl`, workflow
+`wf_46724a7c-894`), it removed the `V.SMART.Shared.Pages` `using` from 14 of 15 non-Razor
+`source_files`, found and fixed the one load-bearing case
+(`FundTransFilterVM.cs:27` — typed as the Razor component `Bank`, not the EF entity `Banks`),
+and got a clean `dotnet build V.SMART.Api` (`0 Error(s)`, `6695 Warning(s)`) before its last
+tool call — a Bash heredoc meant to write
+`tests/V.SMART.Shared.Tests/Architecture/NoPagesReferenceFromDomainTests.cs` — failed on
+malformed quoting (`Exit code 2`, unterminated-quote parse error; nothing written to disk,
+confirmed by this close-out session). The **next** turn is where the connection dropped:
+`"error":"server_error"`, text "API Error: The response stopped arriving. The response above
+may be incomplete.", `2026-08-21T05:36:59Z`.
+
+**Root cause** — mid-stream connection drop on the implementer's final turn, after the
+heredoc's own shell-quoting bug had already cost it the guard-test write. Two distinct causes
+compound here, neither a specification or business-logic defect: (a) the heredoc quoting bug
+is a reproducible mistake in the agent's own command construction, not an environment fault —
+worth a future task using `Write`/`Edit` instead of Bash heredocs for multi-line file creation
+in this codebase; (b) the connection drop immediately after is consistent with the transient
+upstream failures recorded for `M0-12-01` attempt 1, but was **not independently confirmed
+against a service-status source** in this session — recorded as the most consistent
+explanation, not a certainty.
+
+**Evidence** — `git status --porcelain` on `migration/M2-B04-decouple-pages-references`
+independently re-confirms the 15 modified files described; `dotnet build
+V.SMART/V.SMART.Api/V.SMART.Api.csproj` (incremental, re-run in this close-out session) prints
+`0 Error(s)`. Full account: [`tasks/M2-B04.md` § Execution Record
+(2026-08-21)](tasks/M2-B04.md#execution-record-2026-08-21).
+
+**Disposition** — `blocked`, per [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)
+item 1 — same class of safety stop as `M0-12-01` attempt 1. **Not** a product-decision block:
+2 of the 3-attempt budget remain, and nothing here needs an architectural or business-rule
+answer. Named owner for the retry itself: the next autonomous-runner dispatch. Escalate to
+**Vivek** only if a retry fails the same way again — see `task-tracker.md` footnote ²⁸.
+**The uncommitted working-tree diff must not be discarded** — it is a build-verified,
+14-of-16-directive implementation, not a false start.
+
+**Next attempt routed to** — the same route as attempt 1 (`opus` implementer, no spec change).
+Action for that attempt: resume from the existing working-tree diff (do not re-derive the
+`using`-removal list or the `FundTransFilterVM.cs` fix), write the guard test with `Write`/
+`Edit` rather than a Bash heredoc, run `dotnet build V.SMART.Api --no-incremental` and both
+test suites, resolve the `6695`-vs-`~6,694` warning-count question named in the task file, and
+complete the acceptance-criteria checklist before handing off. No KB-091 §6.3 escalation
+trigger applied — there is no failure content to classify as `business-rule` or `architecture`.
+
+**Resolved — attempt 2, 2026-08-21, verdict `PASS`.** Commits `2f61390` (implementation) and
+`5ca1c10` (validation record) on `migration/M2-B04-decouple-pages-references`; task now
+`Needs Review`, unmerged, 2 of 3 attempts used, 0 escalations. The retry alone cleared it, with
+no specification change and the same `opus` route — which is now the **second** time an
+`environment`-category stop resolved on a plain retry (`M0-12-01` attempt 1 was the first).
+Attempt 2 did exactly what the routing note above prescribed: resumed from the surviving diff,
+wrote the guard test with `Write`/`Edit` rather than a Bash heredoc, and re-ran the builds.
+
+**The `6695`-warning question named above was a false alarm, and the reason is worth keeping.**
+The count was never anomalous — `6695` is the *plain* `dotnet build` baseline for that project;
+attempt 1 had compared a plain build against the CI-form baseline. Attempt 2's validator
+measured each form against its own baseline (`V.SMART.Api` plain 6694, CI form 6693,
+`V.SMART.Web` 6697) and ran `tools/compare-warnings.sh` directly → `Gate: PASSED (equal to
+baseline)`, exit 0. **Lesson for future attempts: a warning count is only comparable to a
+baseline measured the same way** — plain, `--no-incremental`, and the CI `--no-restore -v
+normal` form each produce a different number for an unchanged tree, and the gate additionally
+fails on any warning *code* absent from the baseline even when the total is unchanged
+(`tools/compare-warnings.sh:34`, `:147-157`).
+
+**The heredoc bug is the durable finding, not the connection drop.** Cause (a) above — the
+agent's own shell-quoting mistake — is reproducible and preventable; cause (b), the mid-stream
+drop, was transient and never independently confirmed. Attempt 2 avoided (a) by construction.
+**Multi-line file creation in this codebase should use `Write`/`Edit`, never a Bash heredoc.**
+
+---
+
+### Select phase · runner halt · 2026-08-21
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | n/a — nothing dispatched |
+| Validator verdict | n/a — no task ran |
+| Failure category | none — this is a KB-091 §8 safety stop, not a task failure |
+
+**What happened** — after `M2-B04` closed `Needs Review`, the Select phase produced an **empty
+candidate set** and the run halted rather than guessing. No agent was dispatched and no attempt
+was consumed against any task. Owner: **Vivek**.
+
+**Why the set was empty** — five branches are validated `PASS` and unmerged (`M2-B04`,
+`M2-B12-01`, `M2-A08`, `M2-C00`, `M2-A07`), so [selection rule](dependency-graph.md#ready-task-selection-rule)
+step 1 holds every dependent `Blocked`; `M2-A02` is gated on unanswered **Q-28**; `M2-C01` sits
+behind `M2-C00`'s merge; `M2-B01` and `M0-10` already have live sibling worktrees; `M2-B09` is
+dropped at step 2 for sharing `V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`
+with in-flight `M2-B01`; and `M0-01-03`, the P0 rank winner, is a §8 item 5 stop.
+
+**The one finding worth carrying** — `M0-01-03`'s block is **narrower than its own task file
+says**. Step 7 of that file asserts no SQL Server is reachable and no credential exists. Both
+halves were re-verified false this session: `MSSQL$SQLEXPRESS` is Running, `sqlcmd` and the
+`SqlServer` module are present, and Windows integrated auth means **no credential need be
+acquired or reused**. Tracker footnote ²¹ recorded this on 2026-08-19; the task file was never
+updated to match, so a session reading the task file alone would re-derive a block that no
+longer exists. What actually remains is a **named operator** for the drill log and the **UI
+smoke test** (runbook step 7 — report + print, the path that proves `Sp_Print_CompanyDetails`
+deployed). Runbook steps 2–6 are executable now and would yield the first real evidence for
+**Q-02** and the first real test of the deployment script's *Inferred* ordering assumption.
+**This is the same failure shape footnote ²¹ already named:** a negative result recorded as
+fact and inherited by later sessions. It has now cost this task a second stop.
+
+**Disposition** — `blocked`, KB-091 §8 items 5 and 9. Not a product-decision block and not a
+retry candidate: no attempt was spent, and re-dispatching changes nothing without an owner
+action. The useful action is surfacing it, which is what this entry and
+[`current-task.md`](current-task.md) do.

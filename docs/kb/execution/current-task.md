@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-081, KB-082, KB-088, KB-060]
 ---
 
@@ -21,119 +21,104 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Active task — `M2-C00` — rewrite KB-050 frontend architecture for Angular
+## No task is in flight — the runner is stopped, and the blocker is the merge queue
 
-**Task file:** [`tasks/M2-C00.md`](tasks/M2-C00.md). **Status:** `Ready`, attempt 0 of 3, no branch yet.
+`M2-B04` closed `Needs Review` on 2026-08-21 (attempt 2, validated `PASS`). The Select phase
+that followed produced an **empty candidate set**, so the run halted rather than guessing. That
+is a [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) stop and a
+successful outcome of the loop, not a failure. Owner: **Vivek**. Full control state:
+[`runner-state.md`](runner-state.md).
 
-### The frontend framework changed on 2026-08-20 — read this first
+### The one thing that would change this
 
-[**ADR-007**](../decisions/ADR-007-angular-stack.md) selects **Angular + PrimeNG** and supersedes
-`ADR-003`, which chose React. Owner decision: his background is C# and WPF with no frontend
-experience, and while the runner writes the screens, **he** reviews and maintains them.
+**Five branches are validated `PASS` and unmerged.** Nothing they depend on is missing; nothing
+is being re-derived. Until they land on `master`, [selection rule](dependency-graph.md#ready-task-selection-rule)
+step 1 keeps every one of their dependents `Blocked`, because a prerequisite that is
+`Needs Review` is not `Completed`.
 
-**The finding that reopened it:** ADR-003 never evaluated Angular at all — every rationale it
-recorded was a choice *within* React. It was an assumption that acquired the authority of a
-decision by being written into an ADR.
-
-**What this means for anyone opening a frontend task:** all 26 `M2-C*`/`M2-D*` task files carry a
-**⛔ STOP banner**. They were deliberately *not* rewritten — that is ~25,000 lines of spec with
-1,300+ React references, and rewriting it against a KB-050 that does not yet describe Angular
-would just produce a second draft to throw away. **If you select a banner'd task, stop and
-report.** Re-specifying is an owner-level change, not something to infer mid-implementation.
-
-### Why `M2-C00`, now
-
-**It gates the entire `M2-C` tree — 20 tasks.** KB-050 is the primary input every one of them
-cites, and it still describes a React application. Nothing else in the frontend can be specified
-honestly until it is rewritten. No other `Ready` candidate comes close on downstream unblocking:
-`M2-B12-01` releases one task, `M0-01-03`/`M2-B04`/`M2-B09` release none.
-
-It is **Documentation** type — no code, no build, no test run.
-
-### What it does
-
-Rewrite KB-050 for Angular, starting from the section-by-section map already added to that
-document (which sections are dead, which still bind). Rewrite the stack, project structure,
-data-fetching, auth flow, permission rendering and **error handling** — that last one predates
-`M2-A06`, so the real `application/problem+json` contract in `ApiProblems.cs` is now the source.
-Keep the design constraints, the document-editor pattern, workflow commands, performance and
-accessibility sections: none was ever a React decision. Re-specify `M2-C01` for Angular in the
-same change, since it is next and its banner otherwise blocks it.
-
-### Do not
-
-Write code. Re-decide ADR-007's stack — implement it as recorded; if it is wrong, say so and stop.
-Re-specify the rest of the `M2-C` tree — only `M2-C01` is in scope. Delete the React app — that is
-the re-scoped `M2-C01`'s call.
-
----
-
-## Nothing awaits review — all validated work is merged
-
-`M2-A01-03` (tenant-scoped rights cache) was merged 2026-08-20. **`M2-A02`, `M2-A07` and
-`M2-A08` are released** as a result.
-
-**`M2-A02` must settle `Q-28` before it starts.** An API-only administrator holds **zero**
-`UserRight` rows, because `AuthController.Login` never calls `SyncRightsForUserAsync`.
-Annotate `CurrencyController` before that is answered and the administrator authenticates
-successfully into an empty UI — the R-40 failure mode, moved to the API side.
-
-## Ready and unclaimed after `M2-C00`
-
-| Task | What | Est. | Note |
+| Task | Branch | Tip | Releases on merge |
 |---|---|---|---|
-| `M2-B12-01` | INV-012 document numbering | 2 d | Documentation-only; releases `M2-B12-02` |
-| `M2-B09` | Reference-data endpoints + caching | 3 d | P1, released by `M2-B02` |
-| `M2-B04` | Decouple `IApprovalService` | 1 wk | Zero tracked dependents |
-| `M0-01-03` | Deployment script + rebuild runbook | 1 d | Carried M0 debt; **no longer hardware-blocked** (footnote ²¹) |
-| `M2-C01` | Angular scaffold | 3 d | Blocked on `M2-C00` |
+| `M2-B04` | `migration/M2-B04-decouple-pages-references` | `5ca1c10` | G2 progress; closes R-11's action item |
+| `M2-B12-01` | `migration/M2-B12-01-inv-012-numbering` | — | `M2-B12-02` |
+| `M2-A08` | `migration/M2-A08-row-level-scoping` **and** `migration/M2-A08-row-scope-and-account-gates` | — | ⚠ **two branches for one task** — needs an owner decision on which to keep |
+| `M2-C00` | `migration/M2-C00-kb050-angular-rewrite` | `b3c0e6e` | the whole `M2-C` tree, starting with `M2-C01` |
+| `M2-A07` | `migration/M2-A07-me-endpoint` | `61da4bd` | its dependents |
 
-**A session may now run more than one of these.** Changed 2026-08-20: the standing rule is
-*"pick the next task that can actually be done"*, with a five-part test in
-[`CLAUDE.md`](../../../CLAUDE.md) § Standing constraints. **One task, one branch, cut from
-`master`** is unchanged, as is *never merge, never push*.
+**Never merge or push from an execution session** ([`CLAUDE.md`](../../../CLAUDE.md) § Standing
+constraints). These are listed so the owner can act, not so a session can.
 
----
+### Why every remaining task was excluded
 
-## Carried forward — still relevant (from `M2-A01-02`, merged `ed559ad`)
+| Task | Why not |
+|---|---|
+| `M0-01-03` | **The rank winner (P0), stopped at KB-091 §8 item 5.** See below — the block is now narrower than the task file claims. |
+| `M2-B09` | `Ready`, P1, but **dropped at selection step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`, and in-flight `M2-B01` (live in `wt-M2-B01`) names both. Becomes the obvious next pick the moment `M2-B01` lands. |
+| `M2-B01`, `M0-10` | Already have live sibling worktrees — not this session's to take. |
+| `M2-A02` | `Ready` but gated on the unanswered **Q-28**: an API-only administrator holds zero `UserRight` rows because `AuthController.Login` never calls `SyncRightsForUserAsync`. Annotating `CurrencyController` before that is answered authenticates the administrator into an empty UI. |
+| `M2-C01` | `Blocked` behind `M2-C00`'s merge. |
+| `M2-B04`, `M2-B12-01`, `M2-A08`, `M2-C00`, `M2-A07` | Done, `PASS`, unmerged (see table above). |
 
-- **`M2-A01-02` is `Completed` and merged** (`ed559ad`, 2026-08-20) — implemented on
-  `migration/M2-A01-02-require-screen-right` (`9a6b3c2`), validated `PASS` on attempt 1 of 3,
-  0 escalations. **The D-5/R-40 contradiction was verified as genuinely not-hit at review**, not
-  taken on report: `grep` of `V.SMART.Api/Authorization/` for `UserId == 1` / `IsAdmin` /
-  `Administrator` / `bypass` / `.Role` returns **zero matches**, and KB-105's D-5 still reads
-  *"No `Administrator` bypass. None. Anywhere."* verbatim — the spec was extended, not softened.
-  Full record:
-  [`tasks/M2-A01-02.md` § Execution Record (2026-08-20)](tasks/M2-A01-02.md#execution-record-2026-08-20)
-  and `task-tracker.md` footnote ²⁵. **`M2-A01-03` is now `Ready`.** `M2-A02`,
-  `M2-A03`, `M2-A04`, `M2-A07` and `M2-A08` remain `Blocked` behind it.
-- **`V.SMART/V.SMART.Api/Authorization/` now exists**, all ten types KB-105 §2 specifies, with
-  `Right`, `[RequireScreen]`, `[RequireRight]`, `[NoScreenRight]`, `IUserRightsProvider` (no
-  cache), `ScreenRightAuthorizationFilter`, `ScreenRightSet`, `ScreenCatalogue`, and
-  `ScreenRightStartupValidator`, registered in `Program.cs`. **No controller is annotated** —
-  `M2-A02`'s job. R-03 (KB-060) stays open with that noted.
-- **⚠ THE FILTER IS OPT-IN, NOT DENY-BY-DEFAULT — `M2-A02` must close this.** `D-4` is only
-  partly implemented: an authenticated action on a controller carrying **no** `[RequireScreen]`
-  at all is **allowed through**, at request time and at startup. The reasoning is sound —
-  enforcing it now would have made the host refuse to start over `CurrencyController`'s five
-  unannotated endpoints, which this task was forbidden to change — and the *half*-annotated
-  directions (T-11, T-12) **are** enforced, as is D-6's catalogue check. But the gap is the
-  opposite of what "deny by default" implies, so it is stated here rather than left in a
-  footnote: **today, an unannotated controller is unprotected.** Tracked against R-03 (KB-060);
-  `M2-A02` closes it in the same change that annotates the first controller.
-- **A latent, deployment-conditional DI-eagerness finding**, not a regression today, recorded
-  for `M2-A02` to watch: the globally registered filter constructs `IUserRightsProvider` (and
-  therefore the tenant `DbContext`) via DI on every request reaching MVC's pipeline, even on
-  unannotated actions. See `KB-060` R-03 close-out addendum and `task-tracker.md` footnote
-  ²⁵ for the detail and why it is safe today.
-- **Q-27** (duplicate `(UserId, ScreenId)` `UserRight` rows in a live tenant database) remains
-  **Unknown** — `INV-037`'s amendment confirms the 152-screen catalogue matches exactly, but
-  the duplicate-row question was not queried in this session's reachable dev tenant.
-- **R-40 / D-5 contradiction** (`UserId == 1` auto-granted all 152 rights by
-  `Login.razor:345-349`, vs. KB-105 D-5 "no Administrator bypass") was **not hit** by
-  `M2-A01-02` — the filter correctly denies a `UserId == 1` caller with zero `UserRight` rows
-  (`T13` in the filter's test suite), because the bypass lives in the Blazor login path, not
-  in `RightsHelper`/the new filter. Still unresolved for `M2-A02`: an API-only administrator
-  will hold zero rows unless `Q-28` (login never calls `SyncRightsForUserAsync` on the API
-  path) is settled first. Both remain open questions for `M2-A02`, not this task.
+## `M0-01-03` — the decision the owner actually needs to make
 
+**Task file:** [`tasks/M0-01-03.md`](tasks/M0-01-03.md). **Status:** `Ready`, P0, 1 d, 0 attempts
+used. Every repository-side artefact is already **on `master`**:
+`db/deploy-stored-procedures.ps1`, `db/RUNBOOK-rebuild-tenant-database.md`,
+`db/REBUILD-DRILL-LOG.md` (skeleton, every field `TBD`), and 91 `.sql` files under
+`db/stored-procedures/`. **The only outstanding work is executing the rebuild drill and
+recording the outcome** — which is the last open half of **G0 exit criterion 1**.
+
+**The task file's step 7 is out of date and should not be followed as written.** It says *"You
+cannot execute it — there is no SQL Server instance reachable from this session and no
+credential to use if there were."* Re-verified this session, that is **false**:
+
+- `MSSQL$SQLEXPRESS` is **Running**;
+- `sqlcmd` is present (`…/Client SDK/ODBC/170/Tools/Binn/SQLCMD.EXE`) and so is the `SqlServer`
+  PowerShell module;
+- it is reachable by **Windows integrated auth**, so no credential need be acquired or reused.
+
+Tracker footnote ²¹ already recorded this on 2026-08-19 and reclassified the task `Needs
+Review` → `Ready`. What genuinely remains unavailable is narrower than "an environment", and it
+is two things:
+
+1. **A named operator.** The task requires the drill be *"executed end to end at least once by a
+   named person"*, and the log records who. That is an accountability requirement, not a
+   technical one — a session cannot satisfy it by signing itself.
+2. **The UI smoke test** (runbook step 7): start the Blazor host, log in with the seeded
+   `Administrator` account, open a list screen, run one report, and **print one document** —
+   the print path being the one that proves `Sp_Print_CompanyDetails` deployed
+   (`ReportService.cs:74-77`). Note R-09: that credential is a known default, so the drill
+   environment must be disposable.
+
+**What a session could do without either** — and what it would be worth — is runbook steps 2–6:
+create throwaway master and tenant databases on the local instance, apply `MasterDbContext`'s
+schema, insert one `Tenants` row, apply the 219 EF migrations, run
+`db/deploy-stored-procedures.ps1`, and verify the deployed procedure count against
+`manifest.csv`. That would produce the **first real evidence for Q-02** (how EF migrations reach
+a tenant database — still *Unknown*) and the first real test of whether the deployment script's
+**ordering assumption holds**, which the task file itself flags as *Inferred, not verified*
+(deferred name resolution). It would leave criterion 7 and the operator field open and honest.
+
+**This needs the owner's authorisation before a session does it**, because it executes DDL
+against a live instance that also carries the real `NexGenErpDb_Master` and a 197-table
+`NexGenErpDb`, and because the task file names a human for exactly this step. Offering it is
+the useful action; assuming it is not.
+
+## Also true right now
+
+- **`M2-B04`'s `PASS` leaves two gates open** and the reviewer should not read it as
+  "BR-APPR-001 observed intact". Acceptance criterion 9, the manual approval-workflow
+  regression, is `NOT CHECKABLE` without a tenant-DB credential (Q-14 / R-01 / Q-32); the MAUI
+  head was not built. The mechanical argument that nothing could have changed is strong — the
+  diff touches no method body, signature, attribute or mapping — but it is an argument, not an
+  observation.
+- **The headline dependency M2-B04 was written to sever turned out to be dead text.**
+  `Authorization.razor` contains zero occurrences of `static` and declares no type, so the
+  `using static` import set was provably empty. The task removed a documentation-level
+  architectural violation and installed a CI-enforced guard; it did **not** sever a real
+  compile-time coupling. R-11 and BR-APPR-001 now say so without overclaiming.
+- **New question `Q-55`** — whether `FundTransFilter.Bank`, now unreferenced by any repository
+  or Razor caller, should be deleted. Raised rather than acted on.
+- **Three sibling worktrees were live when this run resumed** (`wt-M0-10`, `wt-M2-A08`,
+  `wt-M2-B01`), none of them this session's. `git worktree list` is part of selection now, not a
+  curiosity — the tracker cannot see them, and `M2-A08` already has two branches from two
+  sessions doing the same task.

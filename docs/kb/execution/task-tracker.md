@@ -122,7 +122,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
-| M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Ready** | P0 | M2-B07 | 1 wk | G2 |
+| M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Needs Review**²⁸ *(validated `PASS` on attempt 2; on `migration/M2-B04-decouple-pages-references` `5ca1c10`, unmerged)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Ready** | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
@@ -1502,3 +1502,49 @@ five" with the re-grep evidence attached.
 genuinely `Completed`, not `Needs Review`
 ([KB-082](dependency-graph.md#ready-task-selection-rule) step 1). They remain `Blocked` until
 this branch is reviewed and merged.
+
+²⁸ **M2-B04: `Needs Review` on `migration/M2-B04-decouple-pages-references` (`5ca1c10`,
+unmerged) — attempt 2 validated `PASS` on 2026-08-21 after attempt 1 stopped with no
+implementer result.** The retry alone cleared it, as the `environment` category predicted; no
+escalation to Vivek was needed and none was raised. Attempt 2 committed the implementation
+(`2f61390`) and the independent validation record (`5ca1c10`): all 15 `V.SMART.Shared.Pages`
+`using` directives gone from non-UI code (`grep` → **0 hits** outside `/Pages/`), the one
+load-bearing case (`FundTransFilterVM.cs` — typed as the Razor component `Bank`, not the EF
+entity `Banks`) retyped and verified behaviour-neutral against every `filter.` reference in
+`FundTransRepository.cs:46-92`, and a two-fact architecture guard added at
+`tests/V.SMART.Shared.Tests/Architecture/NoPagesReferenceFromDomainTests.cs` (reflection +
+source scan) which the validator **attacked with two independent seeded violations** rather
+than trusting. Builds and suites re-derived by the validator, each against its *matching*
+baseline form: `V.SMART.Api` 0 errors / 6694 warnings, `V.SMART.Web` 0 errors / 6697, CI form
+6693 with `compare-warnings.sh` → `Gate: PASSED (equal to baseline)`; Shared tests 86 passed
+(84 + 2 new), Api tests 117 passed. Attempt 1's `6695` was never an anomaly — it was the plain
+build's own baseline, compared to the wrong form.
+
+**Two gates remain open for the reviewer, and `PASS` does not close them.** (a) Acceptance
+criterion 9, the **manual approval-workflow regression**, is `NOT CHECKABLE` here — it needs
+`V.SMART.Web` running against a tenant database as a user holding `UserAuthority` rows, and no
+session may acquire a credential (Q-14 / R-01 / Q-32). (b) The **MAUI head was not built** —
+unverified, not passing (KB-083). Also note the finding that reframes the task: the headline
+`IApprovalService`/`Authorization.razor` dependency was **dead text** — `Authorization.razor`
+contains zero `static` and declares no type, so the `using static` import set was provably
+empty. M2-B04 removed a documentation-level architectural violation and installed a guard; it
+did **not** sever a real compile-time coupling. One deviation: no
+`scripts/check-no-pages-references.sh`, because the task makes it conditional on
+`tests/V.SMART.Shared.Tests/` not existing, and it exists. Raised **Q-55** rather than deleting
+the now-unused `FundTransFilter.Bank` property. Full account, including attempt 1's
+transcript-traced failure: [`tasks/M2-B04.md` § Execution Record
+(2026-08-21)](tasks/M2-B04.md#execution-record-2026-08-21).
+
+**Attempt 1, for the record (2026-08-21).** `Failure category: environment`, not
+`business-rule`/`architecture`/`acceptance-criterion`. The `migration-implementer` agent
+(`opus`) died mid-response — "API Error: The response stopped arriving" — after doing most of
+the real work: 14 of 15 non-Razor `source_files` had their `V.SMART.Shared.Pages` `using`
+removed, the one load-bearing case (`FundTransFilterVM.cs:27`, typed as the Razor component
+`Bank` instead of the EF entity `Banks`) was found and fixed, and `dotnet build
+V.SMART.Api` came back clean — `0 Error(s)`, `6695 Warning(s)` — before it tried and failed
+(shell heredoc quoting bug, no code effect) to write the architecture guard test and then lost
+its connection. It was blocked on a retry, not on a human decision — the same `environment`
+category as `M0-12-01` attempt 1 (`failure-log.md`), where the retry alone cleared it, and it
+cleared this one too. Attempt 2 resumed from the surviving working-tree diff rather than
+re-deriving it, and wrote the guard test with `Write`/`Edit` instead of the Bash heredoc whose
+quoting bug had cost attempt 1 that file. **2 of 3 attempts used, 0 escalations.**
