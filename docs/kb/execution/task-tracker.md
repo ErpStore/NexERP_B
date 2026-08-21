@@ -142,12 +142,12 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
-| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Needs Review**²⁶˒⁴⁰ *(implemented and independently validated `PASS` on `migration/M2-C01-angular-workspace`, `67410b0`, 2026-08-21; not merged)* | P0 | M2-C00 | 3 d | G2 |
+| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ | P0 | M2-C01 | 2 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; still **⛔ superseded**: `tasks/M2-C10.md` specifies React and must be re-specified for Angular before it can be selected)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | Blocked²⁶ *(re-scoped; React implementation superseded)* | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | Blocked²⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; still **⛔ superseded**: `tasks/M2-C04-01.md` specifies React and must be re-specified for Angular before it can be selected)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked²⁶ | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked²⁶ | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
