@@ -503,6 +503,44 @@ Fixed and no longer listed: *two 400 shapes* and *no correlation id* — both cl
 **M2-A06** (see [*Error contract*](#error-contract-m2-a06)); *no versioning* — closed by
 **M2-B01** (see [*Versioning*](#versioning-m2-b01)).
 
+## Row scope and account gates (M2-A08)
+
+Two behaviours that are not visible in the endpoint list but change what endpoints return.
+Full evidence: [KB-108](../architecture/row-scope-and-account-gates.md).
+
+**1. Row scope on list endpoints — a filter, not a refusal.** A scoped list endpoint returns
+only the rows in the caller's scope. An out-of-scope row is simply **absent** from the
+collection, exactly as `LeadService.cs:141-144` behaves today. A caller whose scope is empty
+receives an **empty page and `200`** — never `403`, never everything. Scope is resolved per
+request from the `UserId` and `TenantId` claims (never from the token payload), and applied
+**at the query** via `IQueryable<T>.ApplyRowScope(scope)`, before filter, sort, count and
+paging. **`totalCount` is counted within scope**, which differs from the Blazor list
+(`LeadsList.razor:396-401` counts unscoped) — a deliberate, recorded change.
+
+Today exactly one entity is scoped — `Leads` — and no endpoint over it exists yet.
+`RowScopeStartupValidator` refuses to start the host if an action serves a scoped entity
+without declaring `[RowScoped(typeof(T))]` or `[NoRowScope("<justification>")]`.
+
+**2. Direct fetch of an out-of-scope row by id → `404`,** with the **same body a genuinely
+missing row returns** (`ProblemResults.OutOfScopeProblem`). `403` would confirm the row exists.
+This applies to every scoped resource, without exception.
+
+**3. Account gates on authentication.** `POST /api/auth/login`:
+
+| Condition | Status | `type` | Body `title` |
+|---|---|---|---|
+| Unresolved tenant | `400` | `…/tenant-unresolved` | unchanged (M2-A06) |
+| Bad credentials | `401` | `…/unauthenticated` | `"Invalid username or password."` |
+| **Trial expired** | **`403`** | `…/trial-expired` | `"Your trial period has expired. Please contact Administrator."` — verbatim from `Login.razor:273` |
+| **Device mismatch** | `403` | `…/device-not-recognised` | `"This account is already registered on another mobile device."` / `"…another desktop."` — **evaluator exists, NOT wired; Q-38** |
+| **Platform not allowed** | `403` | `…/platform-not-allowed` | `"Mobile login is not allowed."` / `"Desktop login is not allowed."` — **not wired; Q-38** |
+
+`403` and not `401` because the credential *was* accepted: re-prompting for a password, which
+is what a `401` tells a client to do, cannot resolve any of these. The messages are product UX
+and are surfaced verbatim (ADR-002 §4). **They must not be collapsed into one status** — a
+support desk that cannot tell an expired trial from a wrong password resets passwords all day.
+**M2-A06** (see [*Error contract*](#error-contract-m2-a06)).
+
 ## Ancillary
 
 `V.SMART.Api/Auth/ApiAuthStateProvider.cs` implements `AuthenticationStateProvider` over

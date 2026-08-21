@@ -28,6 +28,22 @@ namespace V.SMART.Api.Middleware
         /// <summary>403 — screen right denied (KB-105 §7.1, BR-AUTH-002).</summary>
         public const string ScreenRightDenied = Base + "screen-right-denied";
 
+        /// <summary>
+        /// 403 — the credentials were correct but the account is gated (M2-A08).
+        /// <para>
+        /// These three are separate <c>type</c>s on purpose. Collapsing them — into each other or
+        /// into <see cref="Unauthenticated"/> — is what makes a support desk reset the password of a
+        /// user whose trial expired. The task's own words: "do not collapse them all into 401".
+        /// </para>
+        /// </summary>
+        public const string TrialExpired = Base + "trial-expired";
+
+        /// <summary>403 — the account is bound to a different device (M2-A08, <c>Login.razor:298</c>, <c>:318</c>).</summary>
+        public const string DeviceNotRecognised = Base + "device-not-recognised";
+
+        /// <summary>403 — this account may not log in from this platform (M2-A08, <c>Login.razor:286</c>, <c>:306</c>).</summary>
+        public const string PlatformNotAllowed = Base + "platform-not-allowed";
+
         /// <summary>404 — the addressed resource does not exist.</summary>
         public const string NotFound = Base + "not-found";
 

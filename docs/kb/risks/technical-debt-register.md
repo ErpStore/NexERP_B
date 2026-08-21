@@ -332,6 +332,16 @@ on an enforcement that was previously bypassable *can lock existing users out*. 
 binding in particular cannot be ported unchanged — a server-side API cannot call
 `IJSRuntime`, and client-asserted device identity is not a security control.
 
+**Status after M2-A08 (2026-08-20) — partly closed, and the remainder is deliberate.**
+The **trial gate** is now enforced on `POST /api/auth/login`, with all three carve-outs ported
+verbatim and the message byte-for-byte from `Login.razor:273`; it returns `403` with a
+distinguishable `ProblemDetails.type`, never a `401`. The **QR expiry** half is fixed in the
+query (see R-16), though the API still has no QR endpoint. The **device gate** is ported as a
+tested evaluator (`V.SMART/V.SMART.Api/Auth/AccountGates.cs`, `DeviceGate`) but is **not wired
+in**: decision P4 is deferred and unanswered — **Q-38**. So one of the three bypasses is closed,
+one is fixed but unreachable, and one is open **on the record** rather than by omission.
+[KB-108](../architecture/row-scope-and-account-gates.md) §4.
+
 ### R-04 — **82** of 94 stored procedures have no DDL in source control
 **Confirmed.** 94 distinct `Sp_*` names referenced from C#/Razor; 13 `.sql` files in
 `Existing Store Procedures/StoredProcedures/`.
@@ -1199,10 +1209,37 @@ returning `0` for an unlisted rate rather than raising.
 > These tests assert the defective behaviour **deliberately**. Do not "fix" them; if R-15 is
 > repaired, update them in the same commit as the production change.
 
-### R-16 — QR token expiry not enforced
-**Confirmed.** `GetUserByQrToken` checks `QrToken`, `IsQrEnabled`, `IsActive` but **not**
-`QrExpiryDate`, which the schema stores.
-**Action.** Add the expiry predicate when building the QR login endpoint.
+### R-16 — QR token expiry not enforced in the query — **RESOLVED (query half) by M2-A08, 2026-08-20**
+**Restated first, because the original wording was wrong.** The risk was never "expiry is
+never checked". `QrExpiryDate` **was** checked — post-query, in two duplicated Razor copies
+(`QrLogin.razor:50-56` "QR Code Expired", `Login.razor:422-429` "QR Expired"). The real risk
+was: **the query returned expired users, and only the two Blazor callers happened to reject
+them.** Any third caller — an API controller, a background job, a mobile client — got a valid
+`User` for an expired token. **Confirmed.**
+
+**Resolved.** M2-A08 added the predicate to `UserRepository.GetUserByQrToken`, which is the one
+place that makes correctness independent of the caller. A null `QrExpiryDate` still returns the
+user (it is not an expired one), matching both callers' `HasValue` guard. Both Blazor checks
+are left in place — a redundant check is not a bug. Pinned by
+`tests/V.SMART.Shared.Tests/Repositories/UserRepositoryQrTokenTests.cs`.
+**Still open:** the API has no QR endpoint at all, so nothing exercises the fixed query yet.
+
+### R-38 addendum (M2-A08, 2026-08-20) — the newly recorded defects
+Each was found while porting the gates and is **recorded, not fixed**: the Blazor UI runs on
+all of them and M2-A08 was not permitted to edit `Pages/**` or `BusinessLayer/**`.
+
+| # | Defect | Evidence |
+|---|---|---|
+| a | **`GetUserTrialAsync` is dead code** — zero call sites | `IUserRepository.cs:14`; `UserRepository.cs:63-72` (`:85` after M2-A08's comment) |
+| b | **The lead row filter runs in memory** — every lead materialised, then discarded | `LeadService.cs:133`, `:141-144` |
+| c | **The current user is resolved by username string equality**, over a full `GetAllAsync()` of the user table | `LeadService.cs:132-134` |
+| d | **`user != null` is tested after `user.UserId` is dereferenced** — dead, harmless only because `:263-268` already returned | `Login.razor:271` |
+| e | **`UpdateUserDeviceAsync` records and never refuses** — no comparison, never writes `IsMobile`/`IsDesktop` | `UserService.cs:713-757`, esp. `:730-733`, `:741-744` |
+| f | **…and it calls `IJSRuntime` from inside a business service**, so it **cannot run in an API request** | `UserService.cs:722-725` |
+| g | **The Leads paging total is computed from the *unscoped* query** for every user, so a scoped user's page count reflects rows they cannot see | `LeadsList.razor:396-401` |
+| h | **Two divergent implementations of one CSV predicate** — in-memory string tokens vs four SQL `EF.Functions.Like` patterns | `LeadService.cs:136-144` vs `:35-47` |
+
+Full context: [KB-108](../architecture/row-scope-and-account-gates.md).
 
 ### R-17 — `SessionTimeoutService` is a shared singleton
 **Confirmed.** `AddSingleton` with one `_lastActivity` field → all users share one idle

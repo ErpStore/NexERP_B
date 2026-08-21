@@ -274,6 +274,17 @@ builder.Services.AddSingleton(UserRightsCacheOptions.FromConfiguration(builder.C
 builder.Services.AddScoped<IUserRightsProvider, UserRightsProvider>();
 builder.Services.AddScoped<ScreenRightAuthorizationFilter>();
 
+// M2-A08 — row scope, the SECOND authorization axis (KB-108). Screen rights answer "may this user
+// open the Leads screen"; row scope answers "which Leads rows may this user see", and ADR-004
+// covers only the first. Scoped for the same reason the rights provider is (it reaches IUnitOfWork)
+// and sharing the same IMemoryCache and the same TTL, under its own key prefix.
+//
+// There is no global filter for it, deliberately: a row scope is not a yes/no decision that can be
+// taken before the action runs, it is a predicate that has to be composed into the query. The
+// enforcement lives in RowScopeQueryExtensions.ApplyRowScope; RowScopeStartupValidator below is what
+// makes forgetting to call it a startup failure rather than a silent leak.
+builder.Services.AddScoped<IRowScopeProvider, RowScopeProvider>();
+
 builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>();
 builder.Services.AddSingleton(new JwtTokenService(builder.Configuration));
 
@@ -327,6 +338,12 @@ var app = builder.Build();
 // M0-03-03 configuration check above: throw InvalidOperationException naming every offender.
 // This host cannot rely on DI validation for it — ValidateOnBuild is off (see below).
 ScreenRightStartupValidator.Validate(app.Services);
+
+// M2-A08 — the same treatment for row scope: an action that serves a scoped entity without saying
+// whether it scopes is a property of the assembly, so it stops the host here rather than leaking
+// rows in production. Passes today because no endpoint returns a scoped entity yet — Leads has no
+// controller. The point is that the first one cannot be added without deciding (KB-108 §5).
+RowScopeStartupValidator.Validate(app.Services);
 
 if (app.Environment.IsDevelopment())
 {

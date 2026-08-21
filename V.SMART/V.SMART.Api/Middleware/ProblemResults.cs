@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using V.SMART.Api.Auth;
+using V.SMART.Api.Authorization;
 
 namespace V.SMART.Api.Middleware
 {
@@ -45,6 +47,28 @@ namespace V.SMART.Api.Middleware
         /// <summary><b>404</b> in the canonical shape.</summary>
         public static ObjectResult NotFoundProblem(this ControllerBase controller, string message)
             => ApiProblems.ToResult(ApiProblems.NotFound(controller.HttpContext, message));
+
+        /// <summary>
+        /// <b>404</b> for a single row that exists but lies outside the caller's row scope
+        /// (M2-A08, KB-108 decision P8).
+        /// <para>
+        /// It deliberately produces the <i>same</i> body a genuinely missing row would, via
+        /// <see cref="RowScope.OutOfScopeNotFoundTitle"/> — a 403 here, or a distinguishable 404,
+        /// would confirm that the row exists, which is the one thing the caller is not entitled to
+        /// know. There is no current behaviour to preserve: Blazor has no per-id lead route that
+        /// bypasses the list.
+        /// </para>
+        /// </summary>
+        public static ObjectResult OutOfScopeProblem(this ControllerBase controller)
+            => ApiProblems.ToResult(ApiProblems.NotFound(controller.HttpContext, RowScope.OutOfScopeNotFoundTitle));
+
+        /// <summary>
+        /// <b>403</b> for an account gate — expired trial, unknown device, disallowed platform
+        /// (M2-A08). <c>title</c> is the <c>Login.razor</c> string verbatim.
+        /// </summary>
+        public static ObjectResult AccountGateProblem(this ControllerBase controller, AccountGateRefusal refusal)
+            => ApiProblems.ToResult(
+                ApiProblems.AccountGateRefused(controller.HttpContext, refusal.ProblemType, refusal.Title));
 
         /// <summary><b>401</b>, no more informative than the pre-M2-A06 <c>{ message }</c> body.</summary>
         public static ObjectResult UnauthenticatedProblem(this ControllerBase controller, string title)

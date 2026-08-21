@@ -41,6 +41,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-025 | Delete-guard audit — every `(bool CanDelete, string Message)` guard for the R-08 copy-paste pattern | **Complete** | **Population (Confirmed, 2026-08-21):** `public async Task<(bool CanDelete, string Message)> <any name>` = **79** implementations across **61** files, all under `V.SMART/V.SMART.Shared/BusinessLayer/`; the `CanDelete`-prefixed subset is **64**; the wider `(bool <any>, string Message)` family is **93**. `bin/`/`obj/` excluded via `--exclude-dir` — raw counts differ without that. Read in full: all 79 bodies (two independent `awk` scanners plus manual re-reading of every method cited by line); `IBusinessService/**` (declarations); `Pages/**` and `V.SMART.Api/Controllers/**` (call sites); `db/stored-procedures/*.sql`; `Existing Store Procedures/`. **Negative results (all Confirmed):** **zero** guards outside `BusinessLayer/`; interface declarations map **1:1** to implementations (both set differences empty — no declared-but-unimplemented, none implemented-but-undeclared), the sole mismatch being a *commented-out* declaration at `IBusinessService/IOutSourcingService/ISubContractSCNService/ISubConSCNService.cs:50`; the near-neighbour name sweep found **zero** hits for `IsDeletable`, `CanBeDeleted`, `CheckDelete`, `AllowDelete`, `IsDeleteAllowed`, `EnsureDeletable`, `VerifyDelete`, `PreDelete`, `CanDrop`; **zero** guards return `(true, …)` from a `catch` (the fail-open shape does not exist); exactly **one** ternary-form guard and **zero** `switch`-form guards, so the detector's blind spots are closed; of 78 committed stored procedures only one contains `DELETE` and it is a report procedure. **Headline:** the R-08 defect class is **eradicated** — one surviving instance across all 93 guards (`MfgPoService.cs:613-615`), and it was already recorded in KB-060. **What the audit actually found:** 14 guards with no caller; **3** that can never refuse (a 4th inert after one check), of which the null-unsafe subset is recorded in KB-061 §5.3a; 29 service files with an unguarded delete; 77 of 79 running outside the delete transaction. | [KB-061](risks/delete-guard-audit.md) — full 79-row inventory including every `Correct` verdict. Risks **R-60…R-64** in [KB-060](risks/technical-debt-register.md); questions **Q-60…Q-64** in [KB-004](open-questions.md). | 2026-08-21 |
 | INV-042 | What `role` means in `GET /api/v1/me`, and which `User`/`UserAuthority` data belongs in the bootstrap response | Complete | `V.SMART/V.SMART.Api/Auth/JwtTokenService.cs:29-35`; `V.SMART/V.SMART.Api/Controllers/AuthController.cs:32-37,60-67`; `V.SMART/V.SMART.Shared/Services/CurrentUserService.cs:68-75`; `V.SMART/V.SMART.Shared/Data/Enum/UserRole.cs:3-7`; `V.SMART/V.SMART.Shared/Layout/NavMenu.razor:36,148,462-464`; `V.SMART/V.SMART.Shared/Pages/Home.razor:240`; `V.SMART/V.SMART.Shared/Data/Master/Admin_Module/User.cs:34,36,66,68,75,124`; `V.SMART/V.SMART.Api/Authorization/ScreenRightSet.cs:4-10,46-61` | Role is the **JWT `ClaimTypes.Role` claim**, not a `User` row read and never `CurrentUserService.GetUserRoleAsync()` (R-18). `ERPAdmin` (R-31) is not propagated. `UserAuthority` and all four `User` UI flags are **deferred**. Full findings below | 2026-08-20 |
 | INV-046 | What consumes `LogUserAction` today, is audit coverage uniform, and is the `#if ANDROID \|\| WINDOWS \|\| MACCATALYST` `_basePath` branch ever taken? | Complete | `V.SMART/V.SMART.Shared/Services/FileLoggingService.cs`, `ILoggingService.cs`, 494 `LogUserAction` call sites across 202 files, `V.SMART.Shared.csproj`, `dotnet msbuild -getProperty:DefineConstants` on both TFMs, `V.SMART/V.SMART.Api/Program.cs`, `Middleware/CorrelationId.cs`, `DependencyInjection/ServiceCollectionExtensions.cs:308` | [KB-113](architecture/observability.md); see the five findings below | 2026-08-21 |
+| INV-028 | Row-level scoping via `User.StateCodesCsv`, and the account gates it sits beside | Complete *(performed 2026-08-20 by M2-A08)* | `Data/Master/Admin_Module/User.cs`, `BusinessLayer/BusinessService/LeadService/LeadService.cs`, `.../ILeadService.cs`, `Pages/SalesAndLabour_pages/Leads_Pages/LeadsList.razor`, `.../LeadsUpsert.razor`, `Pages/Master_Module_pages/Identity_Pages/Login.razor`, `.../QrLogin.razor`, `.../RegisterUpsert.razor`, `Repository/MasterRepository/Admins/UserRepository.cs`, `BusinessLayer/.../UserService.cs`, `V.SMART.Api/**` — **plus four negative greps, listed below** | [KB-108](architecture/row-scope-and-account-gates.md) | 2026-08-20 |
 
 
 ## INV-046 (M2-B11, 2026-08-21) — the audit trail, and the dead `#if` branch
@@ -303,6 +304,41 @@ whatever the answer, the map and the filter now agree.
 *Business rule:* BR-AUTH-002. *Confidence:* **Confirmed**. *Last verified:* 2026-08-20.
 
 ---
+### INV-028 (2026-08-20, M2-A08) — the negative results, and the INV-004 amendment
+
+**Finding.** `User.StateCodesCsv` does **not** filter customers or vendors anywhere — a
+negative result that contradicts Q-08's `Inferred` claim. The only real row scope is
+`LeadService.GetAllLoadLeadsAsync` (`LeadService.cs:128-152`), on `Leads` only, in the service
+layer, with **one** call site — while its unscoped sibling `GetAllLeadsAsync` (`:95-106`) has
+**four** (`LeadsList.razor:398`, `:476`; `LeadsUpsert.razor:1275`, `:1287`). It filters **in
+memory**, resolves the current user by **username string equality**, and **fails closed** on a
+blank CSV (zero leads). Two facts nothing had recorded before: `LeadsList.razor:470-484`
+exempts **`UserId == 1`** from scope entirely, and `LeadsList.razor:396-401` computes the
+**paging total from the unscoped query** for every user.
+
+*Negative greps, each re-run 2026-08-20 and each a finding in its own right:*
+
+1. `git grep -nE "StateCodesCsv|StateCodes\b" -- V.SMART/`, excluding `Migrations/` — hits in
+   **eight files only**, all listed in [KB-108](architecture/row-scope-and-account-gates.md)
+   §2.1. **No customer, vendor, item, document or report query.**
+2. `git grep -ni statecode -- V.SMART/V.SMART.Api/ tests/` — **nothing** before this task.
+3. `grep -rli StateCodesCsv db/ "Existing Store Procedures"` — **nothing**. No stored procedure
+   references it, so ADR-005's report path has **no scope predicate to preserve**; M2-B08 must
+   invent one.
+4. `git grep -nE "\.Where\([^)]*([Cc]urrent[Uu]ser|currentUserName|currentUserId)" -- V.SMART/V.SMART.Shared/BusinessLayer/`
+   — **zero matches**. No business service filters rows by the current user inline.
+5. `git grep -n "GetUserTrialAsync" -- V.SMART/` — **declaration and implementation only, zero
+   call sites**. Dead code.
+
+*Business rules:* BR-AUTH-001 (account gates). *Confidence:* **Confirmed** for every item
+above; **Inferred (strong)** only for "`LeadService` is the only row-scoped service", which
+rests on greps 1 and 4 rather than on an exhaustive read of 285 services.
+
+**INV-004 amendment (2026-08-20, M2-A08).** INV-004 → [KB-013](architecture/auth-and-permissions.md)
+describes the three authorization mechanisms and remains correct. It does **not** cover the
+**account gates** — QR expiry, trial expiry, device binding — which are **not** in any service:
+they live in `Login.razor` and `QrLogin.razor` `@code`. Nor does it cover **row scope**, which
+is a fourth concern. Both are documented in KB-108 and summarised in KB-013.
 
 ### INV-031 — Test-harness feasibility: hosting `ApplicationDbContext` in a test process
 
@@ -721,7 +757,6 @@ before it is used.
 | INV-020 | TDS and advance adjustment | `AccountsService/**` | Phase 4.8 |
 | INV-024 | `@code` triage per module (presentation / data / business) | `Pages/**` | one module ahead of each migration wave |
 | INV-026 | Live database index inventory vs the EF model | production tenant DB | Phase 2 (blocks R-13) |
-| INV-028 | Row-level scoping via `User.StateCodesCsv` | grep `StateCodes` across `Pages/` and services | Phase 2 (blocks Q-08) |
 
 > **INV-025 left this table on 2026-08-21**, completed by task **M0-10**; its row is now in
 > *Completed investigations*. Its published scope — *"all ~40 `CanDelete…Async`"* — was wrong
