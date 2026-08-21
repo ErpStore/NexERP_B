@@ -638,9 +638,27 @@ deletable and is now refused with the existing message
 changes: `CanDeleteSalesOrderAsync` is a read-only eligibility check, so this only stops a
 deletion that would have orphaned documents.
 
-**Still open — second action item.** Auditing **every** other `CanDelete…` method for the
-same pattern remains open as **INV-025 / task M0-10**. M0-09 deliberately touched exactly
-one method. An API makes these branches far easier to reach than the current UI does.
+**Second action item — CLOSED 2026-08-21 by task M0-10 (INV-025). Output:
+[KB-061](delete-guard-audit.md).** The audit read every guard in the family and found
+**exactly one surviving instance of this defect class — the one already recorded below**
+(`MfgPoService.cs:613-615`, in `CanSalesOrderItemCancelCheckAsync`). **R-08 as a *class* is
+eradicated**; that single known instance is now carried separately as **R-60**.
+
+The audit's substantive output is four *different* defect classes, none of which R-08
+anticipated — carried as **R-61** (14 guards nobody calls, Medium), **R-62** (3 guards that
+can never refuse and a fourth inert after one check; plus 3 that throw on a missing row),
+**R-63** (29 service files with an unguarded delete, plus an upstream-only integrity
+model) and **R-64** (77 of 79 guards run outside the delete transaction). Each matters more
+to the API than R-08 did. [KB-061](delete-guard-audit.md) carries the full 79-row inventory
+**including every guard judged `Correct`** — do not re-read the methods.
+
+**Scope correction, superseding the two notes below.** The verified population is **79**
+implementations of `public async Task<(bool CanDelete, string Message)>` across **61** files
+(2026-08-21, Confirmed) — not "~40", not the "63" recorded below, and not the "64" in the
+M0-10 task file. Those figures count only guards *named* `CanDelete*`; **15 more return the
+identical tuple under a different name** (`CanRemove…`, `ToCheckStockQtyIssued`,
+`NeedTocheckRejection`, `ValidateBeforeDeleteBySlNoAsync`, …). **Scope guard work by return
+shape, not by name** — see [KB-061](delete-guard-audit.md) §1.2.
 
 > **Related gap noticed while fixing, not acted on (Confirmed, 2026-08-19).** The guard is
 > **advisory**: `MfgPoService.DeletePOByPOIdAsync` (`MfgPoService.cs:790-801`) never calls
@@ -651,9 +669,18 @@ one method. An API makes these branches far easier to reach than the current UI 
 > hardens *what the check reports*, not the delete path itself. A future
 > `DELETE /api/v1/sales-orders/{id}` must call the guard server-side or repeat this gap.
 > Scoped to **M0-10** as a lead; deliberately out of M0-09's two-line scope.
+>
+> **Followed up 2026-08-21 (M0-10): this is not a `MfgPOList` quirk — it is universal.**
+> **77 of 79** guards run outside the delete transaction; only two do not
+> (`EmployeeService.cs:174`, `ProductionLogService.cs:288`). The check-then-act gap with a
+> user round-trip inside it is the house pattern. Promoted to **R-64**; evidence in
+> [KB-061](delete-guard-audit.md) §5.2.
 
-> **Scope correction, 2026-08-12 (Confirmed).** "~40 methods" understated the audit by more
-> than half. A scoped grep over `V.SMART/V.SMART.Shared/BusinessLayer/` returns **63**
+> **Scope correction, 2026-08-12 (Confirmed) — SUPERSEDED 2026-08-21 by M0-10. The verified
+> count is 79 across 61 files, by return shape; see the scope correction above and
+> [KB-061](delete-guard-audit.md) §1.1. The "63" below is retained only because the three
+> methods it names are still the right worked example.** "~40 methods" understated the audit
+> by more than half. A scoped grep over `V.SMART/V.SMART.Shared/BusinessLayer/` returns **63**
 > implementations. **Three of them are not `Async`-suffixed**, so an audit scoped by the
 > `Async` suffix silently misses them:
 >
@@ -664,6 +691,10 @@ one method. An API makes these branches far easier to reach than the current UI 
 > All three return the same `(bool CanDelete, string Message)` tuple as their `Async`-suffixed
 > peers. M0-10 establishes the canonical count and must search by the `CanDelete` prefix, not
 > the `Async` suffix.
+>
+> **M0-10's answer, 2026-08-21: the `CanDelete` prefix is not enough either.** Searching by
+> prefix still misses **15** guards returning the identical tuple under names like
+> `CanRemoveQuoteAsync` and `ToCheckStockQtyIssued`. Only the **return shape** finds all 79.
 
 > **Second unreported same-pattern instance, found by the M0-09 validator, 2026-08-19
 > (Confirmed).** `MfgPoService.cs:613-615`, inside `CanSalesOrderItemCancelCheckAsync`
@@ -676,6 +707,108 @@ one method. An API makes these branches far easier to reach than the current UI 
 > `CanSalesOrderItemCancelCheckAsync`. M0-10 should widen its search to any guard method that
 > computes one boolean and tests another, not just the `CanDelete…`/`CanDelete` family. See
 > also `INV-025`'s scope note in `docs/kb/investigation-registry.md`.
+>
+> **Re-verified present, unchanged, 2026-08-21 by M0-10** — `hasCR` at `:613`, `if (hasRc)` at
+> `:614`, return at `:615`. It is now carried as **R-60** and proposed for repair as task
+> `M0-10a`.
+
+### R-60 — The one surviving R-08 instance: `CanSalesOrderItemCancelCheckAsync`
+**Confirmed — by reading *and* by an executed test.** `MfgPoService.cs:613` computes
+`hasCR` from `ContractReviews`; `:614` tests `hasRc`, the Route Card boolean from `:608`. By
+`:614` `hasRc` is necessarily `false`, so the Contract Review refusal at `:615` is
+unreachable.
+**Impact.** A Sales Order **line** whose only downstream document is a Contract Review can be
+cancelled.
+**Why it has its own row.** R-08 is closed as a *class* — this is the **only** surviving
+instance across the whole 93-method guard family ([KB-061](delete-guard-audit.md) §1.3, §3.1),
+and it needs a row that does not read as "an audit is still outstanding".
+**Empirically proven 2026-08-21 (M0-10).**
+`tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs` →
+`CanSalesOrderItemCancel_WithOnlyContractReview_IsRefused`, run against **unmodified**
+`MfgPoService.cs`, observed `Actual: Tuple (True, "Item can be safely Cancell.")` where the
+guard's own `Message` promises a refusal. Full output:
+[KB-061](delete-guard-audit.md) §3.1 and §7. The test is committed **`Skip`-ped** — M0-10 is
+an audit and may not repair the defect — and is the acceptance test for `M0-10a`.
+**Action.** One identifier — `hasRc` → `hasCR` — plus removal of that test's `Skip`, which
+must then go green. Proposed as `M0-10a`, 0.5 d.
+
+> **R-61 is filed under `## Medium`, not here.** It was briefly filed in this `High` section
+> while [KB-061](delete-guard-audit.md) §3.2 rated it *Medium*; the contradiction was
+> corrected 2026-08-21 (M0-10, attempt 2) in favour of **Medium**, because no delete is
+> wrongly permitted today — the risk is entirely prospective. R-61 opens the Medium section,
+> immediately before R-15.
+
+### R-62 — Three guards can never refuse, a fourth is inert after one check; three are wired to live delete buttons
+**Confirmed.** `StoreInterTransService.cs:211` (body is a single `return (true, …)`),
+`GroupingService.cs:136` and `EstimateService.cs:735` contain **no** `(false, …)` return
+outside their `catch`. `AppointmentLetterService.cs:43` is the fourth member of the group but
+**does** refuse, on a `Staff`-name match at `:58-61`; everything after that is inert. Detected
+as *"no refusal path outside `catch`"* (which yields the first three) plus the liveness
+detector (which caught the fourth as a dead computation); evidence
+[KB-061](delete-guard-audit.md) §3.3.
+**Impact.** The Grouping and Estimation list pages show the user an eligibility check that
+**always says yes**; the Appointment Letter page shows one that says yes to everything except
+a duplicate `Staff` name. `GroupingList.razor:549`, `EstimationList.razor:411`,
+`AppointmentLetterList.razor:485`.
+**Second defect class, same row: dereference before null check — three members, not one
+(Confirmed 2026-08-21, M0-10 attempt 2).** Each loads a header row and dereferences it with no
+null test anywhere in the body, so a row that does not exist throws
+`NullReferenceException`, is caught, and is rethrown — surfacing as HTTP **500** from a future
+delete endpoint rather than as a decision:
+
+| Guard | Loads | Dereferences unchecked at |
+|---|---|---|
+| `AppointmentLetterService.cs:43 CanDeleteAppointmentletterAsync` | `po` at `:47-50` | `:52` (`po.CandidateID`) — which also makes the null check at `:62-63` unreachable |
+| `OutSourcingService/Purchase_Invoice_Service/PurchaseInvoiceService.cs:1283 CanDeletePurchaseInvAsync` | `invoice` at `:1287-1290` | `:1292`, `:1295` |
+| `PlanningService/RcReleaseService.cs:803 CanDeleteRcReleaseAsync` | `rcRelease` at `:807` | `:818` |
+
+The other two header-loading guards in the same "no `== null` test" bucket —
+`LabourSCNService.cs:229` and `PurchaseSCNService.cs:1690` — are **null-safe**; they use
+positive-form `!= null` tests, which is why the scanner missed them. Census and scope limit:
+[KB-061](delete-guard-audit.md) §5.3a.
+
+**Also product-visible text for the wrong document.** `AppointmentLetterService.cs:63` and
+`:71` return *"Sales Order can be safely deleted."* for an Appointment Letter (BR-SO-001
+migration note: `Message` strings are product UX).
+**Whether the permissiveness is correct cannot be determined from the code** — see **Q-64**.
+**Action.** Rule discovery before code. Folded into `M0-10d`; the null-safety half into
+`M0-10c`.
+
+### R-63 — 29 service files expose a delete with no guard of any shape, and the integrity model only guards upstream
+**Confirmed.** 163 public `Delete*` methods across 89 files; 61 files carry a tuple guard;
+**29 files have a delete and no guard of any shape.** Five verified as live, reachable UI
+delete paths — `MfgDcService.cs:322`, `MfgInvService.cs:936`, `PaymentsService.cs:1310`,
+`ReceiptsService.cs:1341`, `ProductionIssueAssyService.cs:1049`. Full list:
+[KB-061](delete-guard-audit.md) §5.1.
+**The asymmetry is the sharper half.** `CanDeleteSalesOrderAsync` refuses when a Sales DC, Tax
+Invoice or Export Invoice exists (BR-SO-001) — but **the DC, the Tax Invoice and the Export
+Invoice can each be deleted with no check at all.** Integrity is enforced upstream only.
+Deliberate unwind order, or omission? Undeterminable from code — **Q-62**.
+**Also here: three live delete buttons whose guard is commented out** —
+`PaymentList.razor:451`, `ReceiptList.razor:452`, `AdvanceAdjustmentList.razor:433`. The
+commented call is `EnquiryPurchaseService.CanDeleteEnquiryAsync`, a copy-paste from the
+Enquiry page that never applied to Payments, so **restoring it verbatim would guard the wrong
+document** — **Q-63**, then `M0-10e`.
+**Impact.** Missing guards are a larger referential-integrity hole than broken ones, and an
+API surfaces every one of them.
+**Action.** `M0-10d` (specify, 3–5 d, P1) and `M0-10e` (0.5 d, P2).
+
+### R-64 — Guards are advisory: 77 of 79 run outside the delete transaction
+**Confirmed.** Only `EmployeeService.cs:162 DeleteEmployeeAsync` (transaction `:164`, guard
+`:174`) and `ProductionLogService.cs:275 DeleteProductionLogByLogId` (`:277`, guard `:288`)
+call a guard inside the delete transaction. The other 77 are called from Razor `@code` — 67
+pages, 68 call sites — plus one API controller, `CurrencyController.cs:101`.
+**The house pattern is check-then-act with a user round-trip in the gap.** `HandleDelete(id)`
+runs the guard, then shows a JavaScript confirmation modal; `ConfirmDelete_Click` deletes
+**without re-checking** — `CurrencyList.razor:597/630`, `ItemList.razor:855/919`,
+`MfgPOList.razor:1083/1118`. This supersedes R-08's note, which recorded it for `MfgPOList`
+alone.
+**Impact.** The window is not scheduler jitter; it is however long the user takes to read a
+modal. An API makes it concurrently reachable by any HTTP client.
+**Action.** A single binding decision for every future delete endpoint — **Q-60**. Also note
+**36 of 64** guards *rethrow* on internal error, so they surface as `500`, not as a refusal
+([KB-061](delete-guard-audit.md) §4); a delete endpoint cannot treat "guard threw" as "guard
+refused".
 
 ### R-09 — Default administrator account with a committed password hash
 **Confirmed.** `ApplicationDbContext.cs:1136` seeds `UserName = "Administrator"` with a
@@ -982,6 +1115,23 @@ as unreliable and the `Image` column as the source of truth.
 ---
 
 ## Medium
+
+### R-61 — Fourteen delete guards have no caller at all
+**Confirmed.** Nine guard names have **zero** call sites anywhere in `V.SMART/`, `tests/`,
+`frontend/` or `docs/`; three further implementations are unreachable because the call site
+injects a different interface. Full list and evidence:
+[KB-061](delete-guard-audit.md) §3.2.
+**Impact.** No delete is wrongly permitted today — the guards are simply never consulted. The
+risk is **future**: an endpoint author greps for a guard, finds one of these, and promotes
+never-exercised logic straight to production enforcement.
+**Severity note (2026-08-21, M0-10 attempt 2).** Filed **Medium**, matching
+[KB-061](delete-guard-audit.md) §3.2. Attempt 1 filed the row physically inside the `High`
+section while its own text and KB-061 both said Medium; the placement was the error, not the
+rating — nothing is presently mis-permitted, so *"schedule"* is the right disposition.
+**Note.** Two of the fourteen are dead clones of a reachable guard, differing only in message
+wording (`"Prouction SCN"` vs `"Prouction SCN Assembly"`, spelling as in source) — duplication
+rot, not divergent logic.
+**Action.** Wire or delete, per guard. Proposed as `M0-10b`, 1 d, P2.
 
 ### R-15 — Invalid GST rate silently coerced to zero
 **Confirmed.** `CommonConstants.GetIGST/GetGST` use `FirstOrDefault(r => r == rate)`,
@@ -1393,6 +1543,10 @@ them.
 
 **Week 1 (do these regardless of the migration):** R-01, R-02, R-04, R-09.
 **Before the second API controller:** R-03, ~~R-24~~ (closed 2026-08-20, M2-A06), R-11.
+**Before any `DELETE` endpoint is written (added 2026-08-21, M0-10):** **R-64** first — it is
+a decision (Q-60), not a fix, and it binds every delete endpoint in M3/M4. Then **R-60**
+(one identifier), then **R-63** (specification work, the long pole). R-61 and R-62 can follow
+the module that owns them.
 **Before any stock-touching module migrates:** R-05 (tests first), R-07, R-10.
 **During Phase 2–3:** R-06 (per module), R-12, R-13, R-26.
 **Opportunistic:** everything Low.

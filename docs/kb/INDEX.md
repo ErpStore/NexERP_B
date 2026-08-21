@@ -33,7 +33,8 @@ last_verified: 2026-08-21
 | KB-051 | [Design System](frontend-new/design-system.md) | **proposal** | complete | — | 2026-08-12 |
 | KB-052 | [Feature Mapping](frontend-new/feature-mapping.md) | **proposal** | complete | — | 2026-08-12 |
 | KB-053 | [Page Map](frontend-new/page-map.md) | as-is + proposal | complete | confirmed (left column) | 2026-08-12 |
-| KB-060 | [Technical Debt & Risk Register](risks/technical-debt-register.md) | as-is | complete | mixed | 2026-08-12 |
+| KB-060 | [Technical Debt & Risk Register](risks/technical-debt-register.md) | as-is | complete | mixed | 2026-08-21 |
+| KB-061 | [Delete-Guard Audit — every `(bool CanDelete, string Message)` guard (INV-025)](risks/delete-guard-audit.md) | as-is | complete | mixed | 2026-08-21 |
 | KB-070 | [Migration Strategy](migration/migration-strategy.md) | **proposal** | complete | — | 2026-08-12 |
 | KB-071 | [Milestone Tracker](migration/milestones.md) | **proposal** | active | — | 2026-08-12 |
 | KB-080 | [Master Execution Plan](execution/README.md) | **proposal** | active | — | 2026-08-12 |
@@ -96,7 +97,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 
 | Range | Purpose | Allocated |
 |---|---|---|
-| KB-000 – KB-079 | Analysis knowledge base (as-is + proposals) | through KB-070 |
+| KB-000 – KB-079 | Analysis knowledge base (as-is + proposals) | through KB-070. **KB-061 claimed 2026-08-21 by M0-10** — [risks/delete-guard-audit.md](risks/delete-guard-audit.md). It sits in the `KB-06x` *risks* decade by design rather than taking a `KB-1xx` task-artefact id, because the `M0-10` task file named it and the decade grouping is the point of this range. `KB-123` was held in reserve as a fallback in case `KB-061` proved taken; **it was free, so `KB-123` remains unallocated.** |
 | KB-080 – KB-099 | Execution plan meta-documents *(range extended 2026-08-16 — 080–089 was full)* | KB-080 … KB-093 (contiguous — KB-087 claimed 2026-08-17 by M0-07). **Next free: KB-094** |
 | KB-085 | **Claimed 2026-08-12 by M0-00** — [M0-00-baseline-decisions.md](execution/M0-00-baseline-decisions.md) | allocated |
 | KB-086 | **Claimed 2026-08-17 by M0-15** — [M0-15-build-baseline.md](execution/M0-15-build-baseline.md) | allocated |
@@ -108,8 +109,8 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-040 (030–033 reserved; **INV-036** claimed 2026-08-19 by M0-13; **INV-037** by M2-A01-01, renumbered from 035 on merge; **INV-039** by M2-B07 (merged `ffbb1dd`); **INV-040** by M2-A06 (merged `76eca5d`) — *corrected 2026-08-20: this row previously credited INV-040 to M2-B07 as well, which was wrong. M2-B07 claimed INV-039 only. The registry was right and this row was not; M2-A06 read the registry, so no collision resulted*). **Next free: INV-042** — INV-041 claimed 2026-08-20 by M2-B02 (sort delivery to services with hardcoded ordering). |
 | BR-`<AREA>`-nnn | Business rules | see [KB-030](business-rules/business-rule-inventory.md) |
-| R-nn | Risks | through R-37 |
-| Q-nn | Open questions | through Q-29, **with a gap**: Q-20 (M0-07), Q-21 (M0-12-01 close-out), Q-22 (M0-12-01 push authority), Q-23/Q-24 (M0-12-02), **Q-27/Q-28/Q-29 (M2-A01-01, renumbered from 22–24 on merge)**. **`Q-25` and `Q-26` are claimed by `M0-06`'s unmerged branch — do not reuse them.** **Next free: Q-37** — Q-36 claimed 2026-08-20 by M2-B02 (the `CurrencyList.razor` `Status` filter key has no builder case, so that dropdown filters nothing). Previously — Q-34 and Q-35 claimed 2026-08-20 by M2-A06 (refusal-tuple 404/500 semantics; the 503-for-unresolved-tenant and ignore-caller-header design choices). Previously — Q-30 claimed by M2-C01, Q-31 by M2-B07, Q-32 by the M0 milestone-review correction, Q-33 by M2-C04-01 (`UserThemePreference.IsDarkMode` cannot represent `system`). |
+| R-nn | Risks | through R-37, **plus R-60…R-64 claimed 2026-08-21 by M0-10** (delete-guard audit — the surviving R-08 instance, unreachable guards, stub guards, missing guards, advisory guards). The gap R-38…R-59 is deliberate: the block was reserved for M0-10 so it could not collide with a sibling branch. **Next free: R-38**, and R-65+ |
+| Q-nn | Open questions | through Q-29, **with a gap**: Q-20 (M0-07), Q-21 (M0-12-01 close-out), Q-22 (M0-12-01 push authority), Q-23/Q-24 (M0-12-02), **Q-27/Q-28/Q-29 (M2-A01-01, renumbered from 22–24 on merge)**. **`Q-25` and `Q-26` are claimed by `M0-06`'s unmerged branch — do not reuse them.** **Next free: Q-37** — Q-36 claimed 2026-08-20 by M2-B02 (the `CurrencyList.razor` `Status` filter key has no builder case, so that dropdown filters nothing). Previously — Q-34 and Q-35 claimed 2026-08-20 by M2-A06 (refusal-tuple 404/500 semantics; the 503-for-unresolved-tenant and ignore-caller-header design choices). Previously — Q-30 claimed by M2-C01, Q-31 by M2-B07, Q-32 by the M0 milestone-review correction, Q-33 by M2-C04-01 (`UserThemePreference.IsDarkMode` cannot represent `system`). **Q-60…Q-64 claimed 2026-08-21 by M0-10** (delete-guard audit: guards-in-transaction, null-handling convention, the upstream-only integrity asymmetry, the three commented-out Cash Flow guards, the guards that cannot refuse). The gap Q-37…Q-59 is deliberate — the block was reserved for M0-10 so it could not collide with a sibling branch, and Q-36…Q-40, Q-45…Q-48 and Q-55 are held on branches `grep` cannot see. **Next free after the reserved block: Q-65.** |
 
 A task that produces a durable document allocates the next free **KB-1xx** id, adds its row
 to the registry above, and records the id in the task's *Documentation Updates* section.
@@ -138,6 +139,9 @@ Use this table before searching the repository.
 | Which Angular screen replaces which Blazor screen, and how hard | KB-052 |
 | Old route → new route | KB-053 |
 | Risks, defects, severity, what to fix first | KB-060 |
+| **Can this document be deleted? Which guard enforces it? Is that guard reached, and does it run in the transaction?** | **KB-061** — the full 79-guard inventory, including every guard judged correct. **Read it before writing any `DELETE` endpoint**, and before re-reading any `CanDelete…` method |
+| Where are the delete paths with **no** guard at all | KB-061 § 5.1 |
+| Why a `CanDelete…` grep gives the wrong answer (the `Async` and `CanDelete`-prefix traps; `UserRight.CanDelete` noise) | KB-061 § 1.1–1.2, § 1.5 |
 | Timeline, phases, sequencing, rollback | KB-070 |
 | What are we working on now, task-level checklist, exit gates | KB-071 |
 | Is the backend ASP.NET Core Web API? | KB-071 (§ Backend platform), ADR-001, ADR-002 |
