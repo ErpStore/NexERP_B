@@ -4,7 +4,7 @@ title: Proposed Frontend Architecture (Angular — rewrite pending, M2-C00)
 module: frontend-new
 source_files: []
 entities: []
-api_endpoints: []
+api_endpoints: ["GET /api/v1/me"]
 database_tables: []
 business_rules: []
 status: proposal
@@ -226,6 +226,42 @@ type ScreenRights = Record<string /* ScreenName */, {
   view: boolean; create: boolean; edit: boolean; delete: boolean; hidden: boolean;
 }>;
 ```
+
+
+> **The endpoint exists as of 2026-08-20 (M2-A07), and this is its exact wire shape.** The
+> `ScreenRights` type above is correct and unchanged — what follows is the envelope around it,
+> so the permission store is built against a contract rather than a guess. Framework-neutral:
+> it is the same JSON whichever client consumes it.
+>
+> ```jsonc
+> // GET /api/v1/me   — requires a bearer token; no parameters of any kind
+> {
+>   "userId": 7,
+>   "userName": "vivek",
+>   "tenantId": 3,
+>   "role": "Administrator",          // "Administrator" | "User" | "" — the JWT ClaimTypes.Role
+>   "rights": {                        // ScreenRights, keyed by Screens.ScreenName verbatim
+>     "Currency": { "view": true, "create": false, "edit": true, "delete": false, "hidden": false }
+>   }
+> }
+> ```
+>
+> - **A screen with no `UserRight` row has no key.** The map is *not* padded to 152 all-`false`
+>   entries. **A missing key means DENY** — the client's default must never be "allow"
+>   (BR-AUTH-002). `forScreen('X')` on an absent key returns all-`false`, it does not throw.
+> - Keys are **ordinal and case-sensitive**, matching `Screens.ScreenName` exactly.
+> - `hidden` is `IsHide`. Navigation filters on `view && !hidden`; it is not a second gate.
+> - `role` is a plain string. **`ERPAdmin` is not a role** — `NavMenu.razor:36,148` and
+>   `Home.razor:240` name it but `UserRole` has only `Administrator` and `User` (R-31). A guard
+>   written against `ERPAdmin` can never match; do not port it.
+> - Fetch it **after login and on every hard reload**, never from persisted client state: rights
+>   are deliberately absent from the JWT (ADR-004 §2) precisely so a permission change takes
+>   effect without waiting out a token.
+> - A `500` from this call is an **outage**, not "no permissions" — the server never degrades a
+>   rights-load failure to an empty map, so the client must not render one as a locked-down UI.
+> - **Presentation only (ADR-004 §3).** The server re-checks every request independently and
+>   answers `403` with the frozen problem body under *Error handling*. Never treat this map as
+>   security.
 
 Three layers, all reading the same store:
 

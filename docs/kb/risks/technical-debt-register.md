@@ -1175,6 +1175,13 @@ clock.
 **Confirmed.** Reads claim type `"role"`; the providers write `ClaimTypes.Role`. Currently
 zero call sites, so latent.
 **Action.** Fix or delete; do not replicate in the API.
+**Encountered and avoided by M2-A07 (2026-08-20).** `GET /api/v1/me` needs the caller's role
+and deliberately does **not** call this method: `MeController.ReadRole()` reads
+`ClaimTypes.Role` (falling back to the short `"role"` name only if the JWT handler's inbound
+map is switched off, which is the opposite of this bug's read-`"role"`-only). A test asserts
+`MeController` takes no `CurrentUserService` dependency at all, so the bug cannot creep back in
+through this endpoint. **The risk itself remains open and still has zero call sites** — nothing
+in M2-A07 fixed `V.SMART.Shared`, which it was forbidden to touch.
 
 ### R-19 — Login swallows exceptions
 **Confirmed.** `UserRepository.cs:44-48` catches all exceptions and returns `null`.
@@ -1478,6 +1485,52 @@ so nothing has to change there when a cap is added.
 `UserRightsProvider` its own `MemoryCache` instance with a configured limit. Neither is urgent:
 a value is ≤152 small records and lives at most 60 seconds.
 
+
+### R-43 — The API test project cannot make a single HTTP-level assertion
+**Confirmed (M2-A07, 2026-08-20).** `tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj`
+references only `Microsoft.NET.Test.Sdk`, `xunit` and `Moq`. There is **no**
+`Microsoft.AspNetCore.Mvc.Testing`, no `WebApplicationFactory` and no host — the project's own
+infrastructure says so (`Infrastructure/ErrorContractTestContext.cs`: *"No host and no
+database"*). Every one of its 148 tests exercises a controller, a filter or a middleware object
+directly.
+**Impact.** Anything decided *above* MVC is untestable here and is asserted by declaration
+instead. Concretely, as of M2-A07:
+- **`401` for a request with no token** is produced by the JwtBearer challenge, so the tests
+  assert that `[Authorize]` is present and `[AllowAnonymous]` absent — the cause, not the effect.
+- **The JWT inbound claim map** (does `ClaimTypes.Role` survive the round trip through
+  `JwtTokenService` → wire → `HttpContext.User`?) is **Inferred from framework defaults, never
+  observed**. `MeController` reads `ClaimTypes.Role` with a short-`"role"` fallback so it is
+  correct either way, but the mapping itself is still unverified.
+- **Tenant isolation and cache-key correctness over the wire** are proven at the seam
+  (`IUserRightsProvider` receives the token's tenant) and not end to end.
+- **CORS, the pipeline order and middleware interaction** are entirely uncovered.
+**Action.** Add `Microsoft.AspNetCore.Mvc.Testing` and a `WebApplicationFactory` fixture, most
+naturally as part of **M2-A03**'s permission-matrix harness, which needs real requests anyway.
+Until then, no session may claim an over-the-wire result from this project.
+**Number note.** `R-42` is deliberately skipped: it is claimed by the unmerged
+`migration/M2-C00-kb050-angular-rewrite` branch, and reusing the number would produce two
+different R-42s on merge.
+
+### R-44 — Unresolvable `TenantId` claim falls back to host-based tenant resolution, contradicting the documented cross-tenant guarantee
+**Confirmed (M2-A07 close-out validation, 2026-08-20).** Probed by starting the real API host
+and calling `GET /api/v1/me` with a JWT whose `TenantId` claim names a tenant absent from the
+`Tenants` table. The response was **`200`**, carrying a *different* tenant's 150-row rights
+map, not an error. Root cause is two pre-existing behaviours composing badly, neither touched
+by `M2-A07` (which was forbidden to modify either file): `TenantProvider.cs:46-58` falls back
+to **host-based** resolution when the id lookup misses, while `UserRightsProvider` keys its
+cache on the **claimed** tenant id (`UserRightsProvider.cs:50-53`). This directly contradicts
+the unqualified sentence at `UserRightsProvider.cs:17-22` — *"a cross-tenant read is
+structurally impossible through this repository"* — and the matching sentence in KB-040's
+Tenancy paragraph, both of which need a caveat or a fix.
+**Practically bounded today:** `AuthController` only ever mints a `TenantId` claim for a real
+tenant, so the fallback path is not reachable through the shipped login flow. It becomes live
+the moment any other JWT issuer, a hand-crafted token, or a stale/deleted tenant row enters the
+picture.
+**Action.** Decide, in front of `M2-A02` and `M2-A08`: either `TenantProvider` should fail
+closed (no host fallback) when a `TenantId` claim is present but unresolvable, or every reader
+downstream of it (`UserRightsProvider` included) needs to independently re-verify tenant
+existence. Tracked as **Q-37** ([`open-questions.md`](../open-questions.md)).
+
 ### R-27 — Hardcoded developer-machine values in the MAUI project
 **Confirmed.** `PackageCertificateThumbprint`, `AppInstallerUri = D:\` in
 `V.SMART.csproj`.
@@ -1529,7 +1582,7 @@ them.
 | R-28 | Folder/namespace typos: `Data/Maintanence`, `Estimaton`, `Fesibility`, `ProuctionCompRepo`, `EstiamateId`, `Advaceadjustment`, `Sub-Contrect GRN`, `/hr-masterr` | throughout |
 | R-29 | Empty folders declared in `V.SMART.Shared.csproj` (~30 `<Folder Include=…>` entries) | `.csproj` |
 | R-30 | **109** migrations (~2.5M LOC, ~90% of repo size) — **corrected 2026-08-21**: "219" counted *files*, and each migration is a `.cs` plus a `.Designer.cs`. Only **108** are applicable; `20260324053747_AddnewTemperveryTable` has no `.Designer.cs` and has never been applied to any database (**Q-65**). The LOC and repo-share figures are unaffected. | `Migrations/`, `db/REBUILD-DRILL-LOG.md` F3 |
-| R-31 | Dead role `"ERPAdmin"` in `AuthorizeView` but absent from `UserRole` | `NavMenu.razor` vs `Data/Enum/UserRole.cs` |
+| R-31 | Dead role `"ERPAdmin"` in `AuthorizeView` but absent from `UserRole`. **Encountered by M2-A07 (2026-08-20) and deliberately not propagated:** `GET /api/v1/me` returns the role as an opaque string taken from the JWT `ClaimTypes.Role` claim, so the API model neither defines nor can invent this name; a test is the tripwire. Still open in Blazor — three sites, all `<AuthorizeView Roles="Administrator,ERPAdmin,User">`, and because that list also names both real enum members the gate is effectively "any authenticated user with a role" | `NavMenu.razor:36,148`, `Pages/Home.razor:240` vs `Data/Enum/UserRole.cs:3-7` |
 | R-32 | Large blocks of commented-out code (e.g. `ReportExecutor.cs:47-80`) | multiple files |
 | R-33 | `Underconstruction.razor` shipped in the component set | `Components/` |
 | R-34 | ~~Angular pilot will become dead code once React starts~~ — **REVERSED by ADR-007 (2026-08-20): the pilot becomes the baseline.** The live risk is now the opposite: `frontend/nexgen-web/` (React) is the dead code, removed by the re-scoped `M2-C01` | `frontend/vsmart-erp/`, `frontend/nexgen-web/` |
