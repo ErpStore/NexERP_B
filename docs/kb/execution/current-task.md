@@ -21,38 +21,59 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ✅ `M2-B06` closed `Needs Review` — and the pool is empty again
+## ▶ Active task: `M2-B11` — health checks and structured logging (R-23)
 
-**`M2-B06` was executed to completion on 2026-08-21** and closed `Needs Review` on
-`migration/M2-B06-file-endpoints`: `POST /api/v1/files`, `GET /api/v1/files/{id:int}`, the ADR-005
-Excel contract on **one** reference resource (`currencies`), an `ApiFileUploadService` for a host
-that had none, and `IBrowserFile` removed from `ICompanyService`/`CompanyService`. Both hosts build
-at their exact baselines (**6694** / **6697**, 0 errors), Api tests **117 → 148**, Shared **84**, all
-**seven** required negative tests passing and reported individually, plus a byte-identity round trip.
-Two criteria openly unmet — no Blazor screen was opened, and there is no end-to-end two-tenant HTTP
-test. Full account: tracker footnote ³⁵ and the task file's Execution Record.
+**Selected 2026-08-21** after the owner merged `M2-B06` (`65d9666`, `--no-ff`), which released it.
+Task file: [`tasks/M2-B11.md`](tasks/M2-B11.md). P2, 3 d, `task_type: DevOps`, gate **G2**,
+`depends_on: [M2-A06]` — `Completed` and merged. Branch: `migration/M2-B11-health-checks-logging`,
+cut fresh from `master`.
 
-> **⚠ Read the branch as two commits.** `e9b143b` is **~979 lines the executing session did not
-> author** — found uncommitted in the working tree at session start, almost certainly left by an
-> earlier runner killed mid-implementation. It was verified before being committed, and committed
-> separately so it stays independently reviewable and revertible, but a reviewer should treat it as
-> unattributed code that passed inspection rather than as reasoned-through work. See
-> [`runner-state.md`](runner-state.md) § *Process note — an orphaned working tree*.
+**It was the only candidate.** Everything else fails step 1 or the five-part test: `M0-06` already
+has a branch; `M0-11` is a `Product Decision` and never self-selectable; `M2-A02` is gated on the
+unanswered **Q-28** *and* on **R-65**; `M2-B05` is `Blocked` awaiting re-specification onto
+**R-66**; `M2-C01` is behind `M2-C00`'s merge; the rest are finished and unmerged.
 
-### Nothing is selectable, and this time the runner is partly blocking itself
+**Its one information dependency is answered, and it constrains the design.** **Q-35** settled that
+an inbound `X-Correlation-Id` is **ignored** — a client-controlled value can forge log correlation,
+so the id is always server-generated. If distributed tracing is later wanted, W3C `traceparent` is
+the mechanism and `Activity` already honours it.
 
-`M2-B11` (P2, 3 d, health checks + structured logging) is otherwise ready — prerequisite `M2-A06`
-merged, no `⛔` banner, no open question against it. It is dropped at
-[selection rule](dependency-graph.md#ready-task-selection-rule) **step 2** only because its
-`source_files` name `V.SMART/V.SMART.Api/Program.cs` and `V.SMART.Api.csproj`, and `Program.cs` is
-modified on the unmerged `M2-B06` branch. **Merging `M2-B06` releases it immediately.**
+> **Known merge-time risk, accepted at selection rather than discovered later.** M2-B11 edits
+> `V.SMART/V.SMART.Api/Program.cs`, and two **finished but unmerged** branches also touch it —
+> `migration/M2-B09-reference-endpoints` and `migration/M2-A08-row-scope-and-account-gates`.
+> Selection step 2 drops candidates sharing a surface with *in-flight* work; neither of those is
+> in flight, and no live worktree holds either (`wt-M2-A08` is on the *other* A08 branch, which
+> does not touch `Program.cs`; `wt-M2-B01` is stale now that M2-B01 has merged). So this is a
+> textual conflict to resolve when those branches land, not two sessions editing in parallel.
+> Registrations in `Program.cs` are additive, so the resolution should be mechanical.
 
-### Two new decisions for the owner
+---
+
+## ✅ `M2-B06` — `Completed` and merged 2026-08-21 (`65d9666`)
+
+`POST /api/v1/files`, `GET /api/v1/files/{id:int}`, the ADR-005 Excel contract on one reference
+resource (`currencies`), an `ApiFileUploadService` for a host that had none, and `IBrowserFile`
+removed from `ICompanyService`/`CompanyService`. Both hosts at their exact baselines (**6694** /
+**6697**, 0 errors), Api tests **117 → 148**, Shared **84**, all **seven** required negative tests
+passing individually, plus a byte-identity round trip.
+
+**Two criteria were openly unmet at merge** and the merge does not close them: no Blazor screen was
+opened, and there is no end-to-end HTTP test against two real tenant databases (needs a tenant-DB
+credential — **Q-14 / R-01 / Q-32**). Detail: tracker footnote ³⁵ and the task file's Execution
+Record.
+
+> **⚠ The branch is two commits, and the first is not the executing session's work.** `e9b143b` is
+> ~979 lines found uncommitted in the working tree, left by an earlier runner session killed
+> mid-implementation. It was verified before being committed — build at baseline, scope diff, the
+> stream copy confirmed present — and committed separately so it stays independently reviewable.
+> See [`runner-state.md`](runner-state.md) § *Process note — an orphaned working tree*.
+
+### Two decisions M2-B06 raised and did not take
 
 | | |
 |---|---|
-| **R-67** | **`SaveCorresFileAsync` writes a zero-byte file and reports success** (`WebFileUploadService.cs:100-104` — the stream copy is commented out). **Every correspondence and drawing uploaded through the Blazor UI has been landing empty.** It is survivable only because `Correspondence.Image` holds a second copy and the two download screens disagree about which to read. M2-B06 was forbidden to fix it and did not; the API path copies correctly and is tested for byte identity. **Uncommenting line 102 changes live application behaviour and needs its own task.** |
-| **Q-16, storage half** | Uploaded files live on a **local filesystem**. In a containerised deployment with no mounted volume they are lost on every redeploy; behind more than one instance a file uploaded to A is invisible to B. Both failures are silent. No blob storage, CDN or virus scanning exists anywhere (a recorded negative result, INV-045). M2-B06 deliberately designed no blob-storage migration — that needs this answer first. |
+| **R-67** | **`SaveCorresFileAsync` writes a zero-byte file and reports success** (`WebFileUploadService.cs:100-104` — the stream copy is commented out). **Every correspondence and drawing uploaded through the Blazor UI has been landing empty.** Survivable only because `Correspondence.Image` holds a second copy and the two download screens disagree about which to read. The task forbade fixing it; uncommenting line 102 changes live behaviour and needs its own task. |
+| **Q-16, storage half** | Uploaded files live on a **local filesystem**. Containerised with no mounted volume, they are lost on every redeploy; behind more than one instance, a file uploaded to A is invisible to B. Both failures are silent. No blob storage, CDN or virus scanning exists anywhere (a recorded negative result, INV-045). |
 
 ---
 
@@ -97,7 +118,10 @@ migration deletes seed rows.
 
 ---
 
-## No task is in flight — the runner is stopped, and the blocker is the merge queue
+## The merge queue — seven branches still unmerged (census, kept current)
+
+**`M2-B06` has left this queue** — merged 2026-08-21 as `65d9666`. `M2-B11` is now in flight.
+Everything below is still outstanding and still blocking its own dependents:
 
 `M2-B04` closed `Needs Review` on 2026-08-21 (attempt 2, validated `PASS`). The Select phase
 that followed produced an **empty candidate set**, so the run halted rather than guessing. That
@@ -117,7 +141,6 @@ runner state — which on two of them was **wrong** (see *A correction*, below).
 
 | Task | Branch | Tip | State on that branch |
 |---|---|---|---|
-| `M2-B06` | `migration/M2-B06-file-endpoints` | *(this run)* | `Needs Review` — 12 of 14 criteria met; two openly unmet. **Two commits: `e9b143b` is adopted, unattributed work.** |
 | `M2-B04` | `migration/M2-B04-decouple-pages-references` | `5ca1c10` | `Needs Review`, validated `PASS` (attempt 2) |
 | `M2-A08` | `migration/M2-A08-row-scope-and-account-gates` | `bca92fd` | `Needs Review`, validated `PASS` — its tracker row says so |
 | `M2-A08` ⚠ | `migration/M2-A08-row-level-scoping` | `6e6633a` | **A second branch for the same task**, live in `wt-M2-A08`, doing different work (INV-028 → KB-120, answering Q-05…Q-08). Its own tracker row still reads `Ready`. **Needs an owner decision on which branch is the real `M2-A08`.** |
