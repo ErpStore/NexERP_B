@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using V.SMART.Shared.Data.Master.Accounts;
-using V.SMART.Shared.Pages.Master_Module_pages.Bank_Pages;
+using V.SMART.Shared.Data.Master.Accounts_Module;
 
 namespace V.SMART.Shared.ViewModels.AccountsViewModel
 {
@@ -24,7 +24,11 @@ namespace V.SMART.Shared.ViewModels.AccountsViewModel
         public string? BankName { get; set; }     // NEW
         public string? ExpenseName { get; set; }  // NEW
 
-        public Bank? Bank { get; set; }           // Navigation
+        // Navigation. Retyped by M2-B04 from the Razor component `Bank` (declared in the
+        // Bank_Pages UI namespace) to the EF entity `Banks`
+        // (V.SMART/V.SMART.Shared/Data/Master/Accounts_Module/Banks.cs). The property is
+        // read-but-never-assigned outside this VM, so the retype is behaviour-neutral.
+        public Banks? Bank { get; set; }
         public Expense? Expense { get; set; }
         public int? ExpenseCode { get; set; }
 

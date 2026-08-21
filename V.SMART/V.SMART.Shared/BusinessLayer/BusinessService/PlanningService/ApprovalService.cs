@@ -11,7 +11,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static V.SMART.Shared.Pages.Planning_Module_Pages.Authorization_Pages.Authorization;
 
 namespace V.SMART.Shared.BusinessLayer.BusinessService.PlanningService
 {

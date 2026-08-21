@@ -1,6 +1,5 @@
 ﻿using V.SMART.Shared.Data.Master.General;
 using V.SMART.Shared.Data.Master.Inventory;
-using V.SMART.Shared.Pages.Master_Module_pages.Store_Pages;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;

@@ -5,7 +5,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using V.SMART.Shared.Pages.CashFlow_Pages.Receipt_Pages;
 
 namespace V.SMART.Shared.Data.AccountsModule
 {

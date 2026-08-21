@@ -2,7 +2,6 @@
 using V.SMART.Shared.Data.Master.General;
 using V.SMART.Shared.Data.OutSourcing.PurchaseGRN;
 using V.SMART.Shared.Data.OutSourcing.PurchaseSCN;
-using V.SMART.Shared.Pages.OutSourcing_Module_pages.PurchaseSCN_Pages;
 using V.SMART.Shared.Repository.IRepository.IOutSourcingRepository.IPurchaseGRN_Repository;
 using V.SMART.Shared.Repository.IRepository.IOutSourcingRepository.IPurchaseSCN_Repository;
 using V.SMART.Shared.Services;

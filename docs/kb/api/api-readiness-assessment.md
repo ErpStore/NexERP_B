@@ -34,7 +34,7 @@ dependencies: [KB-011, KB-013, KB-014, KB-040]
 | Services take/return **ViewModels**, not entities — **mostly**; see the caveat below | `IMfgPoService`, `ICurrencyService`; `ViewModels/` (274 files) | JSON-serialisable contracts already exist for most modules |
 | ViewModels carry `DataAnnotations` | `CurrencyVM.cs` | `ModelState` validation works free; also translatable to Zod |
 | Services are **scoped DI**, host-agnostic — **now realised, with six named exceptions; see below** | `AddVSmartDomain()` in `V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs`, called by all three hosts (M2-B07) | drop into `V.SMART.Api` unchanged |
-| Only ~3% of business files touch UI types | 14 reference `Pages`, 19 reference Blazor/MudBlazor | small, enumerable decoupling backlog |
+| Only ~3% of business files touch UI types | ~~14 reference `Pages`~~ — the true figure was **15 files / 16 `using` directives**, and all are **gone as of 2026-08-21 (M2-B04)**; a CI-enforced architecture guard keeps it at zero. 19 reference Blazor/MudBlazor — still outstanding | small, enumerable decoupling backlog |
 | Explicit transactions already used | 302 `BeginTransaction*` sites | write endpoints are atomic without new work |
 | Consistent method-name conventions | `SearchWithDynamicFilterAsync`, `Get…ByIdAsync`, `Upsert…Async`, `CanDelete…Async` | controllers can be templated |
 | Reports already return `byte[]` | `ReportService.Generate_Report` | PDF endpoints are trivial |
@@ -125,7 +125,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | A3 | **Tenant resolution for a cross-origin SPA** — tenant in the login request; JWT claim thereafter; real CORS origin list | Host-based resolution breaks for an SPA | 3–5 days |
 | A4 | **Refresh tokens + revocation** | 8-hour non-revocable JWT is unacceptable for an ERP | 3–5 days |
 | A5 | ~~**Global exception handling → `ProblemDetails`**, correlation ids~~ — **DELIVERED by M2-A06 (2026-08-20)**. Request logging is **not** delivered: a real log sink remains M2-B11 / R-23 | No error contract existed | 3–5 days |
-| A6 | **Decouple `IApprovalService` from the `Authorization` Razor page** (`using static …Pages…`), plus the other 13 `Pages`-referencing files | Business layer cannot ship without the UI assembly otherwise | 1 wk |
+| A6 | ~~**Decouple `IApprovalService` from the `Authorization` Razor page** (`using static …Pages…`), plus the other `Pages`-referencing files~~ — **DELIVERED by M2-B04 (2026-08-21)**. The count was **16 `using` directives across 15 non-UI files**, not 13 others (`Data/AccountsModule/FundTrans.cs:11,12` carried two). 15 imported nothing and were deleted; the one load-bearing case was `ViewModels/AccountsViewModel/FundTransFilterVM.cs`, whose `Bank` property was typed against the Razor component rather than the EF entity `Banks` (`Data/Master/Accounts_Module/Banks.cs:6`) and was retyped. No type had to move. Guarded by `tests/V.SMART.Shared.Tests/Architecture/NoPagesReferenceFromDomainTests.cs`, which runs in CI. **Not delivered, and not in scope:** the assembly is still one project containing both the domain and `Pages/` | Business layer cannot ship without the UI assembly otherwise | 1 wk |
 
 ### P1 — required for a complete product
 

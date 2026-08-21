@@ -17,7 +17,7 @@ database_tables: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, Users,
 business_rules: [BR-CALC-001, BR-CALC-002, BR-STK-001, BR-STK-002, BR-SO-001, BR-SO-002, BR-SO-003, BR-AUTH-001, BR-AUTH-002, BR-APPR-001, BR-RPT-001, BR-TEN-001]
 status: partial
 confidence: mixed
-last_verified: 2026-08-19
+last_verified: 2026-08-21
 dependencies: [KB-011, KB-012, KB-013]
 ---
 
@@ -386,9 +386,16 @@ Prod Comp SCN, Labour SCN, Leave, Route Card, Sales Order, Stock Request).
 `Data/Planning/ApprovalHistory.cs`; `Data/Master/Admin_Module/UserAuthority.cs`.
 **Confidence.** Confirmed.
 **Disposition.** Preserve.
-**Migration note.** The `IApprovalService` interface currently `using static`-imports a
-Razor page type — decouple first. Then enforce `UserAuthority` **server-side** in the
-approval endpoints, not just in the UI.
+**Migration note.** ~~The `IApprovalService` interface currently `using static`-imports a
+Razor page type — decouple first.~~ **Done 2026-08-21 (M2-B04).** The directive was removed
+from both `IApprovalService.cs` and `ApprovalService.cs`; it was importing **nothing** —
+`Pages/Planning_Module_Pages/Authorization_Pages/Authorization.razor` declares no `static`
+member, and the `UserAuthority` parameter always came from
+`V.SMART.Shared.Data.Master.Admin_Module` (`IApprovalService.cs:1`). The five member
+signatures at `IApprovalService.cs:13-17` are unchanged and no `ApprovalService` method body
+was touched, so this rule is unaffected. **Still outstanding:** enforce `UserAuthority`
+**server-side** in the approval endpoints, not just in the UI (KB-041 item B8; ADR-004 §4).
+The endpoints themselves do not exist yet.
 
 ---
 

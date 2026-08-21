@@ -8,8 +8,6 @@ using System.Text;
 using System.Threading.Tasks;
 using V.SMART.Shared.Data.Master.Accounts;
 using V.SMART.Shared.Data.Master.Accounts_Module;
-using V.SMART.Shared.Pages.CashFlow_Pages.Payments_Pages;
-using V.SMART.Shared.Pages.CashFlow_Pages.Receipt_Pages;
 
 namespace V.SMART.Shared.Data.AccountsModule
 {

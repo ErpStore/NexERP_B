@@ -3,7 +3,6 @@ using V.SMART.Shared.Data.Master.Accounts_Module;
 using V.SMART.Shared.Data.Master.General;
 using V.SMART.Shared.Data.Master.MasterScreeenManagement_Module;
 using V.SMART.Shared.Data.SalesAndLabour.SalesPo;
-using V.SMART.Shared.Pages.Master_Module_pages.Bank_Pages;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
